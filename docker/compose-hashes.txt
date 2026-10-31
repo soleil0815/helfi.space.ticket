@@ -2,3 +2,4 @@
 # update.sh ersetzt die Datei nur, wenn sie einer davon entspricht (also nicht angepasst wurde).
 # Bei jeder Änderung an docker-compose.yml die neue Prüfsumme UNTEN ANHÄNGEN (alte nie löschen).
 62a6b053de7c4dafc066a36ab8d4be53bb8145310e60f68abbbdf4d4f075a5f7
+b15192b4965c43a66ffcdbbc01306da2a376902c925f2d8679a2098691fe1f34

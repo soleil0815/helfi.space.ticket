@@ -4,7 +4,7 @@
 # alles Weitere (AD, SSO, E-Mail) wird in der Weboberfläche eingerichtet.
 #
 #   Installation:  .env.example nach .env kopieren, anpassen, dann  docker compose up -d
-#   Update:        Dockhand/Watchtower – oder  ./update.sh
+#   Update:        Dockhand/Watchtower – oder  ./update.sh  (Reste aufräumen: ./update.sh --cleanup)
 #   Ersteinrichtung: Einrichtungscode steht im Protokoll:  docker compose logs helfi
 
 services:

@@ -5,6 +5,7 @@
 #   ./update.sh 1.2.0           bestimmte Version holen, in .env festhalten und starten
 #   ./update.sh -y              ohne Rückfragen (startet bei Fehler automatisch die vorherige Version)
 #   ./update.sh --offline helfi-1.2.0.tar.gz   ohne Internet: Image-Datei aus dem Release laden
+#   ./update.sh --cleanup       nicht mehr gebrauchte Update-Reste anzeigen und nach Rückfrage löschen
 #
 # Ablauf: laufendes Image als "previous" merken → neue Version holen → docker-compose.yml
 # bei Bedarf erneuern (nur wenn unverändert; alte bleibt als docker-compose.yml.alt-<Zeit>) →
@@ -20,6 +21,7 @@ CONTAINER=helfi
 WAIT_SECONDS="${HELFI_UPDATE_WAIT:-120}"
 YES=0
 OFFLINE=""
+CLEANUP=0
 VERSION=""
 MARKER=""
 COMPOSE_REPLACED=0
@@ -28,7 +30,7 @@ say() { printf '%s\n' "$*"; }
 err() { printf 'FEHLER: %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 # shellcheck disable=SC2317 # wird über trap aufgerufen
@@ -41,6 +43,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -y|--yes) YES=1 ;;
     --offline) shift; OFFLINE="${1:-}"; [ -n "$OFFLINE" ] || { err "--offline braucht eine Image-Datei"; exit 2; } ;;
+    --cleanup) CLEANUP=1 ;;
     -h|--help) usage; exit 0 ;;
     -*) err "Unbekannte Option: $1"; usage; exit 2 ;;
     *) VERSION="$1" ;;
@@ -59,6 +62,76 @@ fi
 # Im Ordner des Skripts arbeiten (dort liegen docker-compose.yml und .env)
 cd "$(dirname "$0")" || exit 1
 
+ask() {
+  # ask "Frage" → 0 = ja
+  [ "$YES" = 1 ] && return 0
+  printf '%s [j/N] ' "$1"
+  read -r answer || return 1
+  case "$answer" in j|J|ja|Ja|y|Y|yes) return 0 ;; esac
+  return 1
+}
+
+# --cleanup: Reste früherer Updates aufräumen. Gelöscht wird nur, was auf der festen Liste steht,
+# als normale Datei (kein Link) direkt in diesem Ordner liegt und nicht selbst in einen laufenden
+# Container eingebunden ist. Nie: Ordner (data/, Sicherungen, Mounts), .env, docker-compose.yml, Links.
+cleanup_candidates() {
+  # 1. Ältere Sicherheitskopien der docker-compose.yml (die neueste bleibt)
+  for f in docker-compose.yml.alt-*; do
+    printf '%s\n' "$f" | grep -Eq '^docker-compose\.yml\.alt-[0-9]{8}-[0-9]{6}$' && printf '%s\n' "$f"
+  done | sort | sed '$d'
+  # 2. Image-Dateien aus dem Release (für --offline; nach dem Laden nicht mehr nötig)
+  for f in helfi-*.tar helfi-*.tar.gz; do
+    printf '%s\n' "$f" | grep -Eq '^helfi-[0-9]+\.[0-9]+\.[0-9]+(-(amd64|arm64))?\.tar(\.gz)?$' && printf '%s\n' "$f"
+  done
+  # 3. Zwischendateien abgebrochener Läufe (älter als eine Stunde, damit kein laufendes Update gestört wird)
+  find . -maxdepth 1 -type f \( -name '.docker-compose.neu.*' -o -name '.docker-compose.hashes.*' \
+    -o -name '.env.tmp.*' -o -name '.update-start.*' -o -name 'docker-compose.yml.tmp' \) -mmin +60 2>/dev/null |
+    sed 's|^\./||'
+  # 4. docker-compose.yml.neu, wenn sie schon übernommen wurde (inhaltsgleich)
+  if [ -f docker-compose.yml.neu ] && cmp -s docker-compose.yml.neu docker-compose.yml; then
+    echo docker-compose.yml.neu
+  fi
+}
+
+mounted_paths() {
+  # Host-Pfade aller Mounts laufender Container (aufgelöst)
+  for id in $(docker ps -q); do
+    docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$id"
+  done | while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    if [ -d "$m" ]; then (cd -P "$m" 2>/dev/null && pwd -P)
+    elif [ -e "$m" ]; then printf '%s/%s\n' "$(cd -P "$(dirname "$m")" 2>/dev/null && pwd -P)" "$(basename "$m")"
+    else printf '%s\n' "$m"; fi
+  done
+}
+
+if [ "$CLEANUP" = 1 ]; then
+  [ -f docker-compose.yml ] || { err "docker-compose.yml fehlt in $(pwd) – falscher Ordner?"; exit 1; }
+  here="$(pwd -P)"
+  if ! docker ps -q >/dev/null 2>&1; then
+    err "docker ist nicht erreichbar. Zum Schutz eingebundener Dateien wird nichts gelöscht."; exit 1
+  fi
+  mounts="$(mounted_paths)" || { err "Mounts der Container nicht lesbar – nichts gelöscht."; exit 1; }
+  list="$(cleanup_candidates | while IFS= read -r f; do
+    case "$f" in */*|''|.|..|.env|docker-compose.yml|data) continue ;; esac
+    if [ ! -f "$f" ] || [ -L "$f" ]; then continue; fi
+    full="$here/$f"
+    # Als Datei in einen Container eingebunden? (Ordner werden ohnehin nie gelöscht)
+    if printf '%s\n' "$mounts" | grep -Fxq -- "$full"; then
+      say "Übersprungen (von einem Container eingebunden): $f" >&2; continue
+    fi
+    printf '%s\n' "$f"
+  done)"
+  if [ -z "$list" ]; then say "Nichts aufzuräumen."; exit 0; fi
+  say "Nicht mehr gebraucht:"
+  printf '%s\n' "$list" | sed 's/^/  /'
+  if ! ask "Diese Dateien löschen?"; then say "Nichts gelöscht."; exit 0; fi
+  printf '%s\n' "$list" | while IFS= read -r f; do
+    [ -n "$f" ] && rm -f -- "$f" && say "Gelöscht: $f"
+  done
+  exit 0
+fi
+
 if docker compose version >/dev/null 2>&1; then
   dc() { docker compose "$@"; }
 elif command -v docker-compose >/dev/null 2>&1; then
@@ -69,15 +142,6 @@ fi
 
 [ -f docker-compose.yml ] || { err "docker-compose.yml fehlt in $(pwd)"; exit 1; }
 [ -f .env ] || { err ".env fehlt – bitte aus .env.example erstellen."; exit 1; }
-
-ask() {
-  # ask "Frage" → 0 = ja
-  [ "$YES" = 1 ] && return 0
-  printf '%s [j/N] ' "$1"
-  read -r answer || return 1
-  case "$answer" in j|J|ja|Ja|y|Y|yes) return 0 ;; esac
-  return 1
-}
 
 env_get() {
   # Windows-Zeilenenden und Anführungszeichen entfernen

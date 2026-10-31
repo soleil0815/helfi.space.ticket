@@ -7,11 +7,16 @@
 #   FAKE_DATA_DIR                                Host-Pfad des Mounts /data (Standard: $FAKE_DIR/data)
 #   FAKE_PULL_FAIL=1                             Herunterladen schlägt fehl
 #   FAKE_NO_CONTAINER=1                          kein laufender Container
+#   FAKE_MOUNTS                                  weitere eingebundene Host-Pfade (eine Zeile je Pfad)
+#   FAKE_DOCKER_DOWN=1                           docker-Daemon nicht erreichbar
 echo "$* [HELFI_VERSION=${HELFI_VERSION:-}]" >> "$FAKE_LOG"
 phase_file="$FAKE_DIR/.fake-phase"
 data="${FAKE_DATA_DIR:-$FAKE_DIR/data}"
 
+[ -n "${FAKE_DOCKER_DOWN:-}" ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
+
 case "$1" in
+  ps) [ -n "${FAKE_NO_CONTAINER:-}" ] || echo "cid1"; exit 0 ;;
   compose)
     shift
     case "$1" in
@@ -39,6 +44,7 @@ case "$1" in
     fmt="$3"
     case "$fmt" in
       *'.Id'*) [ -n "${FAKE_NO_CONTAINER:-}" ] && exit 1; echo "cid1" ;;
+      *'println'*) echo "$data"; [ -n "${FAKE_MOUNTS:-}" ] && printf '%s\n' "$FAKE_MOUNTS" ;;
       *'.Mounts'*) echo "$data" ;;
       *'.Image'*) echo "sha256:alt" ;;
       *'.State.Health'*)
