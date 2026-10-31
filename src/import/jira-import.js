@@ -52,12 +52,17 @@ export function sanitizeProjectKey(key) {
   return k.slice(0, 10).padEnd(2, 'X');
 }
 
-const iso = (v) => (v ? new Date(v).toISOString() : null);
+/** Datum aus Jira → ISO; ungültige Werte → null (statt den ganzen Vorgang abzubrechen) */
+export const iso = (v) => {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+};
 
 export function createJiraImporter({ db, tickets, users }) {
   let job = null;
 
-  const mapGet = db.prepare('SELECT local_id FROM import_map WHERE source=? AND kind=? AND external_id=?');
+  const mapGet = db.prepare('SELECT local_id, imported_at FROM import_map WHERE source=? AND kind=? AND external_id=?');
   const mapSet = db.prepare(`INSERT INTO import_map(source,kind,external_id,local_id,external_key) VALUES(?,?,?,?,?)
     ON CONFLICT(source,kind,external_id) DO UPDATE SET local_id=excluded.local_id, external_key=excluded.external_key, imported_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`);
   const mapDel = db.prepare('DELETE FROM import_map WHERE source=? AND kind=? AND external_id=?');
@@ -101,7 +106,8 @@ export function createJiraImporter({ db, tickets, users }) {
     const { client, statusMap, typeMap, options } = cfg;
     const f = issue.fields || {};
     const source = client.sourceId;
-    let ticketId = mapGet.get(source, 'issue', String(issue.id))?.local_id ?? null;
+    const mapped = mapGet.get(source, 'issue', String(issue.id));
+    let ticketId = mapped?.local_id ?? null;
     if (ticketId && !db.prepare('SELECT 1 FROM tickets WHERE id=?').get(ticketId)) {
       mapDel.run(source, 'issue', String(issue.id)); // lokal gelöscht → neu anlegen
       ticketId = null;
@@ -126,7 +132,14 @@ export function createJiraImporter({ db, tickets, users }) {
     if (values.status !== 'done') values.resolved = null;
 
     const created = !ticketId;
+    // Bereits übernommen und in Jira seitdem unverändert → lokale Änderungen NICHT überschreiben
+    const jiraUpdated = iso(f.updated);
+    const unchanged = ticketId && mapped?.imported_at && jiraUpdated && jiraUpdated <= mapped.imported_at;
+    if (unchanged) {
+      job.counts.unchanged++;
+    }
     db.transaction(() => {
+      if (unchanged) return;
       if (ticketId) {
         db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
           updated_at=MAX(updated_at, ?), resolved_at=? WHERE id=?`).run(
@@ -150,7 +163,7 @@ export function createJiraImporter({ db, tickets, users }) {
       }
       mapSet.run(source, 'issue', String(issue.id), ticketId, issue.key);
     })();
-    job.counts[created ? 'created' : 'updated']++;
+    if (!unchanged) job.counts[created ? 'created' : 'updated']++;
 
     if (options.comments) {
       const comments = await client.comments(issue.id);
@@ -283,7 +296,7 @@ export function createJiraImporter({ db, tickets, users }) {
         current: null,
         cancelRequested: false,
         projects: clean.map((p) => ({ key: p.key, targetKey: p.targetKey, total: null, done: 0, state: 'waiting' })),
-        counts: { created: 0, updated: 0, comments: 0, attachments: 0, skippedAttachments: 0, failed: 0 },
+        counts: { created: 0, updated: 0, unchanged: 0, comments: 0, attachments: 0, skippedAttachments: 0, failed: 0 },
         errors: [],
         client,
       };

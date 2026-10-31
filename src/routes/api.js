@@ -17,11 +17,15 @@ import { DEFAULTS } from '../settings.js';
 import { backupDatabase } from '../db.js';
 import { log } from '../lib/log.js';
 
+const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
+
 export function createApi(ctx) {
   const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa } = ctx;
   const r = express.Router();
   // Zwischenablage im Datenordner: gleiches Dateisystem wie die Anhänge (kein EXDEV im Container)
   const uploadTmp = path.join(paths.attachments, '.tmp');
+  // Reste abgebrochener Uploads beim Start entfernen
+  fs.rmSync(uploadTmp, { recursive: true, force: true });
   fs.mkdirSync(uploadTmp, { recursive: true });
   const upload = multer({ dest: uploadTmp, limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 10 } });
 
@@ -49,7 +53,7 @@ export function createApi(ctx) {
     const w = [];
     if (config.composeVersion && config.composeVersion < COMPOSE_VERSION) w.push({ code: 'composeOutdated', have: config.composeVersion, want: COMPOSE_VERSION });
     if (!config.composeVersion) w.push({ code: 'composeUnknown', want: COMPOSE_VERSION });
-    if (ctx.ldapCertWarning) w.push({ code: 'ldapCert', message: ctx.ldapCertWarning });
+    if (ctx.ldapCertWarning) w.push(ctx.ldapCertWarning);
     const ps = poller.status();
     if (settings.get('imap.enabled') && ps.lastError) w.push({ code: 'imapError', message: ps.lastError });
     if (!config.baseUrl.startsWith('https://')) w.push({ code: 'noHttps' });
@@ -93,11 +97,13 @@ export function createApi(ctx) {
 
     // 1. Lokales Konto (z. B. Notfall-Admin)
     const local = users.byName(username);
+    // Gleiche Antwortzeit, ob es das lokale Konto gibt oder nicht (keine Namenserkennung über die Zeit)
+    if (!(local && local.source === 'local' && local.password_hash)) verifyPassword(password, DUMMY_HASH);
     if (local && local.source === 'local' && local.password_hash) {
       if (!verifyPassword(password, local.password_hash)) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       if (!local.active) throw new HttpError(403, 'err.accountDisabled');
-      limiter.success(req.ip, username);
       const r1 = mfa.afterPrimary(req, res, local, 'local');
+      if (r1.done) limiter.success(req.ip, username);
       return res.json(r1.done ? { user: publicUser(local) } : { mfa: r1.step });
     }
 
@@ -117,8 +123,8 @@ export function createApi(ctx) {
       if (!info.groups.user && role !== 'admin' && role !== 'agent') throw new HttpError(403, 'err.notInGroup');
       const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, role });
       if (!u.active) throw new HttpError(403, 'err.accountDisabled');
-      limiter.success(req.ip, username);
       const r2 = mfa.afterPrimary(req, res, u, 'ldap');
+      if (r2.done) limiter.success(req.ip, username);
       return res.json(r2.done ? { user: publicUser(u) } : { mfa: r2.step });
     }
 
@@ -146,17 +152,26 @@ export function createApi(ctx) {
 
   r.patch('/me', wrap(async (req, res) => {
     const u = req.user;
-    if (req.body.language !== undefined) {
-      const lang = req.body.language ? normalizeLang(req.body.language) : null;
-      db.prepare('UPDATE users SET language=? WHERE id=?').run(lang, u.id);
-    }
+    // Erst alles prüfen, dann speichern
+    let newHash = null;
     if (req.body.newPassword !== undefined) {
       if (u.source !== 'local' || !u.password_hash) throw forbidden();
-      if (!verifyPassword(str(req.body.currentPassword, 1024), u.password_hash)) throw new HttpError(400, 'err.invalidLogin');
+      limiter.check(req.ip, u.username);
+      if (!verifyPassword(str(req.body.currentPassword, 1024), u.password_hash)) { limiter.fail(req.ip, u.username); throw new HttpError(400, 'err.invalidLogin'); }
       const pw = str(req.body.newPassword, 1024);
       if (pw.length < 10) throw new HttpError(400, 'err.passwordWeak');
-      db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(pw), u.id);
+      newHash = hashPassword(pw);
     }
+    db.transaction(() => {
+      if (req.body.language !== undefined) {
+        db.prepare('UPDATE users SET language=? WHERE id=?').run(req.body.language ? normalizeLang(req.body.language) : null, u.id);
+      }
+      if (newHash) {
+        db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
+        // Kennwort geändert → alle anderen (evtl. gestohlenen) Sitzungen beenden
+        db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
+      }
+    })();
     res.json({ user: publicUser(users.byId(u.id)) });
   }));
 
@@ -195,20 +210,24 @@ export function createApi(ctx) {
       throw new HttpError(400, 'err.lastAdmin');
     }
     const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (req.body.role !== undefined && role !== u.role ? 1 : u.role_locked);
-    db.prepare('UPDATE users SET role=?, active=?, role_locked=?, display_name=?, email=? WHERE id=?').run(
-      role, active, roleLocked,
-      req.body.displayName !== undefined ? str(req.body.displayName, 120).trim() || u.display_name : u.display_name,
-      req.body.email !== undefined ? str(req.body.email, 254).trim() || null : u.email,
-      u.id,
-    );
+    // Erst alles prüfen, dann in einer Transaktion speichern (kein halbes Speichern bei Fehlern)
+    let newHash = null;
     if (req.body.password) {
       if (u.source !== 'local') throw new HttpError(400, 'err.badRequest');
       const pw = str(req.body.password, 1024);
       if (pw.length < 10) throw new HttpError(400, 'err.passwordWeak');
-      db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(pw), u.id);
-      sessions.destroyAllForUser(u.id);
+      newHash = hashPassword(pw);
     }
-    if (!active) sessions.destroyAllForUser(u.id);
+    db.transaction(() => {
+      db.prepare('UPDATE users SET role=?, active=?, role_locked=?, display_name=?, email=? WHERE id=?').run(
+        role, active, roleLocked,
+        req.body.displayName !== undefined ? str(req.body.displayName, 120).trim() || u.display_name : u.display_name,
+        req.body.email !== undefined ? str(req.body.email, 254).trim() || null : u.email,
+        u.id,
+      );
+      if (newHash) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
+    })();
+    if (newHash || !active) sessions.destroyAllForUser(u.id);
     if (req.body.resetMfa) {
       mfa.adminReset(u.id);
       sessions.destroyAllForUser(u.id);
@@ -264,7 +283,9 @@ export function createApi(ctx) {
     upload.array('files', 10)(req, res, (err) => {
       if (err) {
         for (const f of req.files || []) fs.rmSync(f.path, { force: true });
-        return next(err.code === 'LIMIT_FILE_SIZE' ? new HttpError(413, 'err.fileTooLarge') : err);
+        if (err.code === 'LIMIT_FILE_SIZE') return next(new HttpError(413, 'err.fileTooLarge'));
+        if (err.name === 'MulterError') return next(new HttpError(400, 'err.badRequest', err.code));
+        return next(err);
       }
       try {
         const row = tickets.load(req.user, req.params.key);

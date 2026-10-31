@@ -1,7 +1,7 @@
 // Startpunkt: Datenbank öffnen, Hintergrundaufgaben starten, HTTP-Server.
 import fs from 'node:fs';
 import { config, paths } from './config.js';
-import { openDatabase, backupDatabase, pruneBackups, DatabaseTooNewError } from './db.js';
+import { openDatabase, backupDatabase, pruneBackups, DatabaseTooNewError, verifyKey, WrongKeyError } from './db.js';
 import { initMasterKey } from './lib/crypto.js';
 import { createApp } from './app.js';
 import * as ldap from './auth/ldap.js';
@@ -15,7 +15,12 @@ async function main() {
   let db;
   try {
     db = await openDatabase(paths.db);
+    verifyKey(db);
   } catch (e) {
+    if (e instanceof WrongKeyError) {
+      log.error(e.message);
+      process.exit(4);
+    }
     if (e instanceof DatabaseTooNewError) {
       log.error(e.message);
       process.exit(3);
@@ -36,9 +41,9 @@ async function main() {
       await backupDatabase(db, 'taeglich');
       pruneBackups(config.backupKeepDays);
     } catch (e) { log.error('Tägliche Sicherung fehlgeschlagen', { error: e.message }); }
-    await checkLdapCertificate(ctx);
+    await checkLdapCertificate(ctx).catch(() => {});
   };
-  setTimeout(() => checkLdapCertificate(ctx), 10_000).unref();
+  setTimeout(() => checkLdapCertificate(ctx).catch(() => {}), 10_000).unref();
   setInterval(daily, 24 * 3600 * 1000).unref();
   setTimeout(daily, 60 * 60 * 1000).unref(); // erste Sicherung eine Stunde nach Start
 
@@ -54,9 +59,9 @@ async function main() {
 
 /** Prüft, ob das hinterlegte LDAPS-Zertifikat noch passt (z. B. nach Erneuerung am DC). */
 async function checkLdapCertificate(ctx) {
-  const cfg = ctx.settings.group('ldap');
-  if (!cfg.enabled || cfg.security === 'none' || cfg.tlsMode !== 'pinned' || !cfg.host) return;
   try {
+    const cfg = ctx.settings.group('ldap');
+    if (!cfg.enabled || cfg.security === 'none' || cfg.tlsMode !== 'pinned' || !cfg.host) return;
     const client = await ldap.connect(cfg);
     // StartTLS prüft bereits beim Verbinden; LDAPS spätestens beim ersten Befehl
     await ldap.readRootDse(client);
@@ -67,12 +72,12 @@ async function checkLdapCertificate(ctx) {
       const c = ldap.describeCert(pem);
       const days = (new Date(c.validTo) - Date.now()) / 86400000;
       if (days < 30 && !c.isCA) {
-        ctx.ldapCertWarning = `Das hinterlegte LDAPS-Zertifikat (${c.subject}) läuft in ${Math.max(0, Math.round(days))} Tagen ab.`;
+        ctx.ldapCertWarning = { code: 'ldapCertExpiring', subject: c.subject, days: Math.max(0, Math.round(days)) };
       }
     }
   } catch (e) {
-    ctx.ldapCertWarning = `LDAPS-Verbindung mit hinterlegtem Zertifikat fehlgeschlagen: ${e.message}`;
-    log.warn(ctx.ldapCertWarning);
+    ctx.ldapCertWarning = { code: 'ldapCertFailed', message: e.message };
+    log.warn(`LDAPS-Verbindung mit hinterlegtem Zertifikat fehlgeschlagen: ${e.message}`);
   }
 }
 

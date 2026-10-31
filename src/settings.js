@@ -1,6 +1,7 @@
 // Einstellungen in der Datenbank. Vorgaben stehen hier im Programm,
 // damit die docker-compose.yml stabil bleibt.
 import { encrypt, decrypt } from './lib/crypto.js';
+import { log } from './lib/log.js';
 
 export const DEFAULTS = {
   // Allgemein
@@ -118,7 +119,15 @@ export function createSettings(db) {
     if (!(key in DEFAULTS)) throw new Error(`Unbekannte Einstellung ${key}`);
     const row = getStmt.get(key);
     if (!row) return DEFAULTS[key];
-    const value = row.secret ? decrypt(row.value) : JSON.parse(row.value);
+    let value;
+    if (row.secret) {
+      try { value = decrypt(row.value); }
+      catch {
+        // Falscher Schlüssel (HELFI_SECRET/secret.key geändert): nicht abstürzen, Kennwort neu eingeben lassen
+        log.warn(`Gespeichertes Geheimnis „${key}“ lässt sich nicht entschlüsseln (Schlüssel geändert?) – bitte neu eingeben.`);
+        return '';
+      }
+    } else value = JSON.parse(row.value);
     return coerce(key, value);
   }
 

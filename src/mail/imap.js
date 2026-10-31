@@ -7,6 +7,8 @@ import { log } from '../lib/log.js';
 import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail } from './parse.js';
 
 export const MAX_NEW_TICKETS_PER_HOUR = 20;
+export const MAX_ATTACHMENTS = 30;
+const MAX_MESSAGE_BYTES = 80 * 1024 * 1024; // größere Mails nicht laden (Speicher)
 
 export function imapOptions(cfg) {
   return {
@@ -25,6 +27,9 @@ export function imapOptions(cfg) {
 
 export function createMailProcessor({ db, settings, tickets, users }) {
   const seen = db.prepare('SELECT ticket_id FROM mail_messages WHERE message_id=?');
+  // Zuordnung über Referenzen NUR über eigene, ausgehende Message-IDs (zufällig, nicht erratbar).
+  // Eingehende Message-IDs kennt jeder Empfänger der Ursprungsmail (z. B. in CC).
+  const seenOut = db.prepare("SELECT ticket_id FROM mail_messages WHERE message_id=? AND direction='out'");
   const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'in')");
 
   /** Ticket zu einer Antwort finden: über unsere Message-ID (nicht erratbar) oder [KEY-123] im Betreff. */
@@ -32,7 +37,7 @@ export function createMailProcessor({ db, settings, tickets, users }) {
     const refs = [parsed.inReplyTo, ...(Array.isArray(parsed.references) ? parsed.references : [parsed.references])]
       .filter(Boolean).map((r) => String(r).replace(/[<>]/g, '').trim());
     for (const r of refs) {
-      const row = seen.get(r);
+      const row = seenOut.get(r);
       if (row?.ticket_id) return { id: row.ticket_id, via: 'reference' };
     }
     const k = ticketKeyFromSubject(parsed.subject);
@@ -45,7 +50,7 @@ export function createMailProcessor({ db, settings, tickets, users }) {
 
   /** Darf dieser Absender per Betreff-Nummer in das Ticket schreiben? (Melder, Bearbeiter, bisherige Beteiligte) */
   function isParticipant(ticketId, sender, fromAddr) {
-    if (sender.role === 'agent' || sender.role === 'admin') return true;
+    // Bewusst KEINE Sonderrechte für Bearbeiter: Absenderadressen lassen sich fälschen
     const t = db.prepare('SELECT reporter_id, reporter_email FROM tickets WHERE id=?').get(ticketId);
     if (!t) return false;
     if (t.reporter_id === sender.id || String(t.reporter_email || '').toLowerCase() === fromAddr) return true;
@@ -76,7 +81,18 @@ export function createMailProcessor({ db, settings, tickets, users }) {
     const text = String(parsed.text || '').trim()
       || (parsed.html ? htmlToText(parsed.html, { wordwrap: false, selectors: [{ selector: 'img', format: 'skip' }, { selector: 'a', options: { hideLinkHrefIfSameAsText: true } }] }).trim() : '');
     const maxBytes = (cfg.maxAttachmentMb || 20) * 1024 * 1024;
-    const files = (parsed.attachments || []).filter((a) => a.content && a.size <= maxBytes && !(a.related && a.size < 30 * 1024));
+    const all = (parsed.attachments || []).filter((a) => a.content && !(a.related && a.size < 30 * 1024)); // kleine Inline-Bilder (Signaturen) weglassen
+    const files = all.filter((a) => a.size <= maxBytes).slice(0, MAX_ATTACHMENTS);
+    const dropped = all.filter((a) => !files.includes(a));
+    // Nicht übernommene Anhänge im Text vermerken, damit niemand etwas übersieht
+    const droppedNote = dropped.length
+      ? `\n\n[${dropped.map((a) => `Anhang nicht übernommen / attachment not imported: ${a.filename || 'ohne Namen'} (${Math.round(a.size / 1048576)} MB)`).join(']\n[')}]`
+      : '';
+    if (dropped.length) log.warn(`E-Mail ${messageId}: ${dropped.length} Anhang/Anhänge nicht übernommen (zu groß oder zu viele)`);
+
+    // Bearbeiter-Konten werden per E-Mail nicht als Bearbeiter behandelt (Absender fälschbar):
+    // Kommentare erscheinen mit der Absenderadresse, nicht unter dem Konto
+    const privileged = sender.role === 'agent' || sender.role === 'admin';
 
     const found = findTicket(parsed);
     // Wer nur die (fortlaufende) Ticketnummer kennt, aber nicht beteiligt ist, bekommt ein neues Ticket
@@ -90,10 +106,10 @@ export function createMailProcessor({ db, settings, tickets, users }) {
 
     return db.transaction(() => {
       if (existingId) {
-        const comment = tickets.addComment(sender, existingId, { body: stripQuotedReply(text) || '(leer)' }, {
-          source: 'email', authorEmail: fromAddr, authorName: from?.name || null, skipPermission: true,
+        const comment = tickets.addComment(privileged ? null : sender, existingId, { body: (stripQuotedReply(text) || '(leer)') + droppedNote }, {
+          source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
         });
-        for (const a of files) tickets.addAttachment(existingId, { filename: a.filename, mime: a.contentType, buffer: a.content }, sender.id, comment.id);
+        for (const a of files) tickets.addAttachment(existingId, { filename: a.filename, mime: a.contentType, buffer: a.content }, privileged ? null : sender.id, comment.id);
         remember.run(messageId, existingId);
         return { action: 'comment', ticketId: existingId, messageId };
       }
@@ -101,7 +117,7 @@ export function createMailProcessor({ db, settings, tickets, users }) {
       const project = projectKey ? tickets.projects.get(projectKey) : null;
       const ticket = tickets.create(sender, {
         title: cleanSubject(parsed.subject) || '(ohne Betreff / no subject)',
-        description: text,
+        description: text + droppedNote,
         projectId: project?.id,
         type: 'request',
       }, { source: 'email', reporterEmail: fromAddr, reporterName: from?.name || null, reporterId: sender.id, messageId });
@@ -137,6 +153,14 @@ export function createImapPoller({ settings, processor }) {
         const uids = (await client.search({ seen: false }, { uid: true })) || [];
         for (const uid of uids.slice(0, 200)) {
           try {
+            // Erst die Größe prüfen – riesige Mails nicht in den Speicher laden
+            const meta = await client.fetchOne(String(uid), { size: true }, { uid: true });
+            if (meta?.size > MAX_MESSAGE_BYTES) {
+              log.warn(`E-Mail UID ${uid} ist zu groß (${Math.round(meta.size / 1048576)} MB) – übersprungen und markiert`);
+              await client.messageFlagsAdd(String(uid), ['\\Seen', '\\Flagged'], { uid: true });
+              result.skipped++;
+              continue;
+            }
             const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
             if (!msg?.source) continue;
             const parsed = await processor.parse(msg.source);

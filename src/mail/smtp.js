@@ -1,4 +1,5 @@
 // E-Mail-Versand und Benachrichtigungen.
+import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
 import { config } from '../config.js';
 import { t, normalizeLang } from '../i18n.js';
@@ -18,6 +19,8 @@ export function transportOptions(cfg) {
     socketTimeout: 30000,
   };
 }
+
+export const MAX_CONFIRMATIONS_PER_HOUR = 60;
 
 export function createMailer(db, settings) {
   const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'out')");
@@ -39,7 +42,8 @@ export function createMailer(db, settings) {
     const tr = getTransport();
     if (!tr) return false;
     const domain = tr.cfg.from.split('@')[1] || 'helfi.space';
-    const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${Math.random().toString(36).slice(2)}@${domain}>`;
+    // Nicht erratbar: über diese ID werden Antworten Tickets zugeordnet
+    const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${crypto.randomBytes(16).toString('hex')}@${domain}>`;
     await tr.transport.sendMail({
       from: { name: tr.cfg.fromName || 'Helfi.Space', address: tr.cfg.from },
       to,
@@ -85,8 +89,12 @@ export function wireNotifications({ tickets, mailer, settings, users }) {
     Promise.resolve(fn(payload)).catch((e) => log.warn('Benachrichtigung fehlgeschlagen', { error: e.message }));
   };
 
+  // Bestätigungen an Absender lassen sich mit gefälschtem Absender auslösen → Gesamtgrenze je Stunde
+  let confirmWindow = { start: Date.now(), count: 0 };
   tickets.events.on('created', safe(async ({ ticket }) => {
     if (!settings.get('notify.reporterOnCreate') || ticket.source !== 'email') return;
+    if (Date.now() - confirmWindow.start > 3600_000) confirmWindow = { start: Date.now(), count: 0 };
+    if (++confirmWindow.count > MAX_CONFIRMATIONS_PER_HOUR) { log.warn('Eingangsbestätigungen: Stundengrenze erreicht – keine weitere Bestätigung'); return; }
     const to = ticket.reporter?.email;
     if (!to) return;
     const lang = recipientLang(ticket.reporter.id);

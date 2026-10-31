@@ -25,3 +25,18 @@ services:
       # Automatische Updates per Watchtower erlauben (Dockhand erkennt neue Images selbst)
       - com.centurylinklabs.watchtower.enable=true
     stop_grace_period: 15s
+    # Härtung: Programmdateien schreibgeschützt, keine zusätzlichen Rechte
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # nur zum Setzen der Rechte von ./data beim Start und zum Wechsel auf PUID/PGID
+      - CHOWN
+      - FOWNER
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID

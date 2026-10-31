@@ -61,7 +61,9 @@ export function createUsers(db) {
       const byUsername = byName.get(username);
       const mergeable = byUsername && trustName && byUsername.source !== 'local'
         // nie ein Konto derselben Quelle mit anderer Identität übernehmen
-        && !(byUsername.source === source && byUsername.external_id && byUsername.external_id !== externalId);
+        && !(byUsername.source === source && byUsername.external_id && byUsername.external_id !== externalId)
+        // Konten im Namensraum "oidc:" (nicht vertrauenswürdige SSO-Namen) nie übernehmen
+        && !String(byUsername.username).startsWith('oidc:');
       if (mergeable) u = byUsername;
       else if (byUsername) {
         // Namenskonflikt (lokales Konto oder andere Identität): eigenes Konto mit Präfix

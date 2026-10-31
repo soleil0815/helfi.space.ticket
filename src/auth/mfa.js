@@ -54,7 +54,11 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
   }
 
   /** Darf das Konto von hier aus 2FA (erstmals) einrichten? */
-  const canEnrollHere = (req) => policy.isInternal(req) || settings.get('mfa.enrollExternal') || settings.get('mfa.mode') === 'off';
+  // Ersteinrichtung nur intern (oder ausdrücklich erlaubt) – auch im Modus "nie", sonst könnte jemand
+  // mit erbeutetem Kennwort vorab einen eigenen Faktor hinterlegen, der nach dem Umstellen gilt
+  const canEnrollHere = (req) => policy.isInternal(req) || settings.get('mfa.enrollExternal');
+  // Eigener Zähler für den zweiten Faktor – wird durch ein richtiges Kennwort NICHT zurückgesetzt
+  const mfaKey = (u) => `mfa~${u.username}`;
 
   return {
     /**
@@ -100,7 +104,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       const { id, p } = this.getPending(req);
       const u = users.byId(p.userId);
       if (!u || !u.active) { pending.delete(id); throw new HttpError(403, 'err.accountDisabled'); }
-      limiter.check(req.ip, u.username);
+      limiter.check(req.ip, mfaKey(u));
       let recoveryCodes;
       let ok;
       if (p.enroll) {
@@ -112,12 +116,13 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       }
       if (!ok) {
         p.attempts++;
-        limiter.fail(req.ip, u.username);
+        limiter.fail(req.ip, mfaKey(u));
         if (p.attempts >= MAX_ATTEMPTS) { pending.delete(id); res.clearCookie(PENDING_COOKIE, { path: '/' }); throw new HttpError(401, 'err.mfaExpired'); }
         throw new HttpError(401, 'err.mfaInvalid');
       }
       pending.delete(id);
       res.clearCookie(PENDING_COOKIE, { path: '/' });
+      limiter.success(req.ip, mfaKey(u));
       limiter.success(req.ip, u.username);
       sessions.create(res, u.id, req.ip, p.method, { mfa: true });
       return { user: users.byId(u.id), recoveryCodes, usedRecovery: ok === 'recovery' };
@@ -132,11 +137,13 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
         enabled: !!u.totp_enabled, recoveryCodesLeft: left, mode: settings.get('mfa.mode'),
         network: { ip: net.ip, internal: net.internal, reason: net.reason },
         canSetup: canEnrollHere(req) || !!u.session_mfa,
-        sso: u.source === 'oidc',
+        sso: u.source === 'oidc' && settings.get('mfa.trustSso'),
       };
     },
 
     async startSetup(req, u) {
+      // Einen eingerichteten Faktor nie ohne den alten Code ersetzen: erst abschalten (braucht Code)
+      if (u.totp_enabled) throw new HttpError(409, 'err.mfaAlreadyEnabled');
       if (!canEnrollHere(req) && !u.session_mfa) throw new HttpError(403, 'err.mfaEnrollInternal');
       const secret = generateSecret();
       setups.set(u.id, { secret, at: Date.now() });
@@ -148,17 +155,22 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       cleanup();
       const s = setups.get(u.id);
       if (!s) throw new HttpError(400, 'err.mfaExpired');
-      if (verifyTotp(s.secret, code) === null) { limiter.fail(req.ip, u.username); throw new HttpError(400, 'err.mfaInvalid'); }
+      if (users.byId(u.id).totp_enabled) throw new HttpError(409, 'err.mfaAlreadyEnabled');
+      limiter.check(req.ip, mfaKey(u));
+      if (verifyTotp(s.secret, code) === null) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
       setups.delete(u.id);
       const codes = enable(u.id, s.secret);
-      // Diese Sitzung hat den zweiten Faktor jetzt erbracht
-      if (req.sessionId) db.prepare('UPDATE sessions SET mfa=1 WHERE id=?').run(req.sessionId);
+      // Diese Sitzung hat den zweiten Faktor jetzt erbracht; alle anderen Sitzungen beenden
+      if (req.sessionId) {
+        db.prepare('UPDATE sessions SET mfa=1 WHERE id=?').run(req.sessionId);
+        db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
+      }
       return codes;
     },
 
     disable(req, u, code) {
-      limiter.check(req.ip, u.username);
-      if (!checkCode(users.byId(u.id), code)) { limiter.fail(req.ip, u.username); throw new HttpError(400, 'err.mfaInvalid'); }
+      limiter.check(req.ip, mfaKey(u));
+      if (!checkCode(users.byId(u.id), code)) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
       db.prepare('UPDATE users SET totp_secret=NULL, totp_enabled=0, recovery_codes=NULL WHERE id=?').run(u.id);
       // Sitzungen von außen ohne 2FA sind danach ungültig – alle anderen Sitzungen beenden
       db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId || '');
@@ -167,8 +179,8 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
     },
 
     newRecoveryCodes(req, u, code) {
-      limiter.check(req.ip, u.username);
-      if (!checkCode(users.byId(u.id), code)) { limiter.fail(req.ip, u.username); throw new HttpError(400, 'err.mfaInvalid'); }
+      limiter.check(req.ip, mfaKey(u));
+      if (!checkCode(users.byId(u.id), code)) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
       const { codes, hashes } = generateRecoveryCodes();
       db.prepare('UPDATE users SET recovery_codes=? WHERE id=?').run(JSON.stringify(hashes), u.id);
       return codes;

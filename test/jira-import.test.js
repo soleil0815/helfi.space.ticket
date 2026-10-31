@@ -46,6 +46,8 @@ before(async () => {
   db = await openDatabase(paths.db);
   const built = createApp(db);
   ctx = built.ctx;
+  // Tests laufen direkt auf 127.0.0.1 – als internes Netz eintragen (sonst wäre 2FA Pflicht)
+  ctx.settings.set('mfa.internalNetworks', '127.0.0.1, ::1');
   for (const e of ['created', 'commented', 'assigned', 'resolved']) ctx.tickets.events.on(e, () => events.push(e));
   await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
@@ -118,7 +120,7 @@ test('Jira Cloud: Import mit Nummern, Kommentaren, Anhängen – ohne E-Mails', 
     assert.equal(start.status, 202, JSON.stringify(start.body));
     const job = await waitJob();
     assert.equal(job.state, 'done', JSON.stringify(job.errors));
-    assert.deepEqual(job.counts, { created: 3, updated: 0, comments: 2, attachments: 1, skippedAttachments: 1, failed: 0 });
+    assert.deepEqual(job.counts, { created: 3, updated: 0, unchanged: 0, comments: 2, attachments: 1, skippedAttachments: 1, failed: 0 });
     assert.ok(jira.calls.includes('POST /rest/api/3/search/jql'), 'neue Cloud-Suche');
     assert.ok(!jira.calls.includes('GET /rest/api/3/search'), 'alte (entfernte) Suche nicht benutzt');
 
@@ -158,11 +160,16 @@ test('Jira Cloud: Import mit Nummern, Kommentaren, Anhängen – ohne E-Mails', 
     assert.deepEqual(events, ['created'], 'beim Import keine Ereignisse/E-Mails – nur das eben von Hand angelegte Ticket');
 
     // Erneuter Import: aktualisiert, legt nichts doppelt an
+    // Lokale Änderung an SUP-20 (in Jira unverändert) darf ein erneuter Import nicht überschreiben (Audit)
+    await call('PATCH', '/api/tickets/SUP-20', { status: 'open', title: 'Lokal bearbeitet' });
     jira.issues[0].fields.summary = 'Vorgang 1 (geändert)';
+    jira.issues[0].fields.updated = new Date(Date.now() + 60000).toISOString();
     await call('POST', '/api/admin/import/jira/start', { connection: conn, projects: [{ key: 'SUP' }] });
     const again = await waitJob();
-    assert.deepEqual([again.counts.created, again.counts.updated, again.counts.comments, again.counts.attachments], [0, 3, 0, 0]);
+    assert.deepEqual([again.counts.created, again.counts.updated, again.counts.unchanged, again.counts.comments, again.counts.attachments], [0, 1, 2, 0, 0]);
     assert.equal((await call('GET', '/api/tickets/SUP-10')).body.ticket.title, 'Vorgang 1 (geändert)');
+    const local = (await call('GET', '/api/tickets/SUP-20')).body.ticket;
+    assert.deepEqual([local.title, local.status], ['Lokal bearbeitet', 'open']);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key='SUP'").get().n, 4);
   } finally { jira.close(); }
 });
@@ -205,3 +212,45 @@ test('Zertifikatsfehler und falsche Adressen werden verständlich gemeldet', asy
   const bad = await call('POST', '/api/admin/import/jira/connect', { connection: { type: 'server', baseUrl: 'file:///etc/passwd' } });
   assert.equal(bad.status, 400);
 });
+
+test('Server/DC: kleinere Seiten als angefragt – kein Vorgang geht verloren (Audit)', async () => {
+  const jira = await startMockJira({ type: 'server', issueCount: 5 });
+  try {
+    const conn = { type: 'server', baseUrl: jira.url, token: 'pat-123' };
+    await call('POST', '/api/admin/import/jira/start', { connection: conn, projects: [{ key: 'SUP', targetKey: 'PAGE', name: 'Paging' }], options: { attachments: false, comments: false } });
+    const job = await waitJob();
+    assert.equal(job.counts.created, 5, JSON.stringify(job));
+  } finally { jira.close(); }
+});
+
+test('Cloud: gleiches Seiten-Token zweimal → Abbruch statt Endlosschleife (Audit)', async () => {
+  const { createJiraClient } = await import('../src/import/jira-client.js');
+  const http = await import('node:http');
+  let calls = 0;
+  const srv = http.createServer((req, res) => {
+    calls++;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ issues: [{ id: '1', key: 'X-1', fields: {} }], nextPageToken: 'immer-gleich' }));
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  try {
+    const c = createJiraClient({ type: 'cloud', baseUrl: `http://127.0.0.1:${srv.address().port}`, email: 'a', token: 'b' });
+    await assert.rejects(async () => { for await (const _ of c.issues('X')) { /* nichts */ } }, /dieselbe Seite/);
+    assert.ok(calls <= 3, `nur wenige Abrufe (${calls})`);
+  } finally { srv.close(); }
+});
+
+test('Ungültige Datumsangaben brechen den Vorgang nicht ab (Audit)', async () => {
+  const { iso } = await import('../src/import/jira-import.js');
+  assert.equal(iso('kein datum'), null);
+  assert.equal(iso('2024-01-01T10:00:00.000+0200'), '2024-01-01T08:00:00.000Z');
+  assert.equal(iso(null), null);
+});
+
+test('Gelöschtes Ticket: Import-Zuordnung wird mitgelöscht (Audit)', async () => {
+  const t = db.prepare("SELECT t.id FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key='SUP' AND t.number=10").get();
+  assert.ok(db.prepare("SELECT 1 FROM import_map WHERE kind='issue' AND local_id=?").get(t.id));
+  assert.equal((await call('DELETE', '/api/tickets/SUP-10')).status, 200);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM import_map WHERE kind='issue' AND local_id=?").get(t.id).n, 0);
+});
+

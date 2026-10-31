@@ -22,6 +22,8 @@ export async function renderTicket(content, key) {
   const save = async (patch) => {
     try {
       tk = { ...tk, ...(await api.updateTicket(tk.key, patch)).ticket };
+      // Neuer Schlüssel nach Projektwechsel → Adresse anpassen
+      if (location.pathname !== `/browse/${tk.key}`) history.replaceState({}, '', `/browse/${tk.key}`);
       await refresh();
     } catch (e) { toast(e.message, 'error'); }
   };

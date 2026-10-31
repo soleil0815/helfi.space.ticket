@@ -37,6 +37,7 @@ const T = {
     'err.mfaEnrollInternal': 'Für den Zugriff von außen ist die Zwei-Faktor-Anmeldung Pflicht. Bitte richte sie zuerst im Firmennetz ein (Profil → Zwei-Faktor-Anmeldung) oder wende dich an die IT.',
     'err.mfaExpired': 'Die Anmeldung ist abgelaufen. Bitte noch einmal mit Benutzername und Kennwort anmelden.',
     'err.mfaInvalid': 'Der Code stimmt nicht. Bitte den aktuellen Code aus der App eingeben.',
+    'err.mfaAlreadyEnabled': 'Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Zum Wechseln des Handys zuerst abschalten (mit Code).',
     // E-Mails
     'mail.created.subject': '[{key}] Ihr Ticket wurde angelegt: {title}',
     'mail.created.body': 'Hallo {name},\n\nvielen Dank für Ihre Nachricht. Wir haben dazu das Ticket {key} angelegt und kümmern uns darum.\n\nWenn Sie auf diese E-Mail antworten, landet Ihre Antwort automatisch im Ticket. Bitte lassen Sie die Ticketnummer [{key}] im Betreff stehen.\n\n{link}\n\nViele Grüße\n{app}',
@@ -83,6 +84,7 @@ const T = {
     'err.mfaEnrollInternal': 'Two-factor authentication is required for access from outside. Please set it up inside the company network first (Profile → Two-factor authentication) or contact IT.',
     'err.mfaExpired': 'The sign-in has expired. Please sign in again with username and password.',
     'err.mfaInvalid': 'The code is not correct. Please enter the current code from your app.',
+    'err.mfaAlreadyEnabled': 'Two-factor authentication is already set up. To switch phones, turn it off first (with a code).',
     'mail.created.subject': '[{key}] Your ticket has been created: {title}',
     'mail.created.body': 'Hello {name},\n\nthank you for your message. We have created ticket {key} and will take care of it.\n\nIf you reply to this email, your answer is added to the ticket automatically. Please keep the ticket number [{key}] in the subject.\n\n{link}\n\nKind regards\n{app}',
     'mail.comment.subject': '[{key}] New reply: {title}',

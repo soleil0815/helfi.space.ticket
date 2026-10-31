@@ -23,6 +23,8 @@ before(async () => {
   db = await openDatabase(paths.db);
   const built = createApp(db);
   ctx = built.ctx;
+  // Tests laufen direkt auf 127.0.0.1 – als internes Netz eintragen (sonst wäre 2FA Pflicht)
+  ctx.settings.set('mfa.internalNetworks', '127.0.0.1, ::1');
   await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
 });

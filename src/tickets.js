@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import { paths } from './config.js';
-import { HttpError, notFound, forbidden } from './lib/http.js';
+import { HttpError, notFound, forbidden, str, isoDate, int } from './lib/http.js';
 import { isAgent } from './auth/session.js';
 import { userRef } from './users.js';
 
@@ -14,8 +14,8 @@ export const PRIORITIES = ['highest', 'high', 'medium', 'low'];
 const KEY_RE = /^[A-Z][A-Z0-9]{1,9}$/;
 
 export function normalizeLabels(v) {
-  const arr = Array.isArray(v) ? v : String(v || '').split(/[,;\s]+/);
-  return [...new Set(arr.map((x) => String(x).trim().toLowerCase().replace(/[^\p{L}\p{N}_.-]/gu, '')).filter(Boolean))].slice(0, 20).join(',');
+  const arr = Array.isArray(v) ? v : str(v, 2000).split(/[,;\s]+/);
+  return [...new Set(arr.map((x) => str(x, 100).trim().toLowerCase().replace(/[^\p{L}\p{N}_.-]/gu, '')).filter(Boolean))].slice(0, 20).join(',');
 }
 
 export function createTickets(db, users) {
@@ -24,30 +24,38 @@ export function createTickets(db, users) {
   const emitLater = (name, payload) => setImmediate(() => events.emit(name, payload));
 
   // ---------- Projekte ----------
+  /** Projektleitung: nur bestehende Benutzer, sonst 400 statt Fremdschlüssel-Fehler */
+  function validLead(id) {
+    if (id === null || id === undefined || id === '') return null;
+    const n = int(id);
+    if (!n || !users.byId(n)) throw new HttpError(400, 'err.badRequest', 'leadId');
+    return n;
+  }
+
   const projects = {
     list(includeArchived = false) {
       return db.prepare(`SELECT p.*, (SELECT COUNT(*) FROM tickets t WHERE t.project_id=p.id AND t.status<>'done') open_count
         FROM projects p ${includeArchived ? '' : 'WHERE archived=0'} ORDER BY name`).all().map(projectOut);
     },
     get(idOrKey) {
-      const p = db.prepare('SELECT * FROM projects WHERE id=? OR key=?').get(Number(idOrKey) || 0, String(idOrKey));
+      const p = db.prepare('SELECT * FROM projects WHERE id=? OR key=?').get(int(idOrKey) || 0, str(idOrKey, 20));
       return p || null;
     },
     create({ key, name, description = '', leadId = null }) {
-      key = String(key || '').trim().toUpperCase();
+      key = str(key, 20).trim().toUpperCase();
       if (!KEY_RE.test(key)) throw new HttpError(400, 'err.projectKey');
       if (db.prepare('SELECT 1 FROM projects WHERE key=?').get(key)) throw new HttpError(409, 'err.projectKeyTaken');
       const info = db.prepare('INSERT INTO projects(key,name,description,lead_id) VALUES(?,?,?,?)')
-        .run(key, String(name || key).slice(0, 120), String(description).slice(0, 2000), leadId);
+        .run(key, str(name, 120) || key, str(description, 2000), validLead(leadId));
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(info.lastInsertRowid));
     },
     update(id, { name, description, leadId, archived }) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(id);
       if (!p) throw notFound();
       db.prepare('UPDATE projects SET name=?, description=?, lead_id=?, archived=? WHERE id=?').run(
-        name !== undefined ? String(name).slice(0, 120) : p.name,
-        description !== undefined ? String(description).slice(0, 2000) : p.description,
-        leadId !== undefined ? leadId : p.lead_id,
+        name !== undefined ? (str(name, 120).trim() || p.name) : p.name,
+        description !== undefined ? str(description, 2000) : p.description,
+        leadId !== undefined ? validLead(leadId) : p.lead_id,
         archived !== undefined ? (archived ? 1 : 0) : p.archived,
         id,
       );
@@ -86,7 +94,7 @@ export function createTickets(db, users) {
       dueDate: t.due_date,
       source: t.source,
       rank: t.rank,
-      assignee: t.assignee_id ? { id: t.assignee_id, displayName: t.a_name, username: t.a_username, email: t.a_email || '' } : null,
+      assignee: t.assignee_id ? { id: t.assignee_id, displayName: t.a_name, username: agent ? t.a_username : undefined, email: agent ? (t.a_email || '') : undefined } : null,
       reporter: t.reporter_id
         ? { id: t.reporter_id, displayName: t.r_name, username: t.r_username, email: t.r_email || t.reporter_email || '' }
         : (t.reporter_email || t.reporter_name ? { id: null, displayName: t.reporter_name || t.reporter_email, email: t.reporter_email || '' } : null),
@@ -108,9 +116,9 @@ export function createTickets(db, users) {
   /** Ticket per ID oder Schlüssel ("HS-12") holen, mit Rechteprüfung. */
   function load(user, idOrKey) {
     let row;
-    const m = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/.exec(String(idOrKey));
+    const m = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/.exec(str(idOrKey, 30));
     if (m) row = db.prepare(`${SELECT} WHERE p.key=? AND t.number=?`).get(m[1].toUpperCase(), Number(m[2]));
-    else row = rawById(Number(idOrKey) || 0);
+    else row = rawById(int(idOrKey) || 0);
     if (!row) throw notFound();
     if (user && !canSee(user, row)) throw notFound();
     return row;
@@ -154,7 +162,8 @@ export function createTickets(db, users) {
       key: 'p.key, t.number DESC', rank: 't.rank, t.id', status: "CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END, t.updated_at DESC",
     };
     const order = sorts[f.sort] || sorts.updated;
-    const limit = Math.min(Number(f.limit) || 500, 2000);
+    const lim = int(f.limit);
+    const limit = lim && lim > 0 ? Math.min(lim, 2000) : 500;
     const rows = db.prepare(`${SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${order} LIMIT ${limit}`).all(...args);
     return rows.map((r) => ticketOut(r, isAgent(user)));
   }
@@ -165,7 +174,7 @@ export function createTickets(db, users) {
   }
 
   function create(user, data, { source = 'web', reporterEmail = null, reporterName = null, reporterId, messageId = null } = {}) {
-    const title = String(data.title || '').trim().slice(0, 255);
+    const title = str(data.title, 255).trim();
     if (!title) throw new HttpError(400, 'err.titleRequired');
     let project = data.projectId ? projects.get(data.projectId) : null;
     if (!project || project.archived) project = db.prepare('SELECT * FROM projects WHERE archived=0 ORDER BY id LIMIT 1').get();
@@ -176,14 +185,14 @@ export function createTickets(db, users) {
       const minRank = db.prepare("SELECT COALESCE(MIN(rank),0) r FROM tickets WHERE project_id=? AND status='open'").get(project.id).r;
       const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,assignee_id,labels,due_date,source,rank)
         VALUES(?,?,?,?,?,'open',?,?,?,?,?,?,?,?,?)`).run(
-        project.id, number, title, String(data.description || '').slice(0, 100000),
+        project.id, number, title, str(data.description, 100000),
         TYPES.includes(data.type) ? data.type : 'request',
         PRIORITIES.includes(data.priority) ? data.priority : 'medium',
         reporterId !== undefined ? reporterId : (user ? user.id : null),
         reporterEmail, reporterName,
-        agent && data.assigneeId && isAssignable(data.assigneeId) ? Number(data.assigneeId) : null,
+        agent && int(data.assigneeId) && isAssignable(int(data.assigneeId)) ? int(data.assigneeId) : null,
         normalizeLabels(data.labels),
-        agent && data.dueDate ? String(data.dueDate).slice(0, 10) : null,
+        agent ? isoDate(data.dueDate) : null,
         source, minRank - 1,
       );
       logActivity(info.lastInsertRowid, user ? user.id : null, 'created');
@@ -208,21 +217,26 @@ export function createTickets(db, users) {
       if (String(row[column] ?? '') !== String(value ?? '')) changes[column] = { field, old: row[column], new: value };
     };
     if (data.title !== undefined) {
-      const tt = String(data.title).trim().slice(0, 255);
+      const tt = str(data.title, 255).trim();
       if (!tt) throw new HttpError(400, 'err.titleRequired');
       set('title', 'title', tt);
     }
-    if (data.description !== undefined) set('description', 'description', String(data.description).slice(0, 100000));
+    if (data.description !== undefined) set('description', 'description', str(data.description, 100000));
     if (data.type !== undefined && TYPES.includes(data.type)) set('type', 'type', data.type);
     if (data.status !== undefined && STATUSES.includes(data.status)) set('status', 'status', data.status);
     if (data.priority !== undefined && PRIORITIES.includes(data.priority)) set('priority', 'priority', data.priority);
     if (data.assigneeId !== undefined) {
-      const aid = data.assigneeId ? Number(data.assigneeId) : null;
+      const aid = data.assigneeId ? int(data.assigneeId) : null;
+      if (data.assigneeId && !aid) throw new HttpError(400, 'err.badRequest', 'assigneeId');
       if (aid && !isAssignable(aid)) throw new HttpError(400, 'err.badRequest');
       set('assignee', 'assignee_id', aid);
     }
     if (data.labels !== undefined) set('labels', 'labels', normalizeLabels(data.labels));
-    if (data.dueDate !== undefined) set('dueDate', 'due_date', data.dueDate ? String(data.dueDate).slice(0, 10) : null);
+    if (data.dueDate !== undefined) {
+      const d = data.dueDate ? isoDate(data.dueDate) : null;
+      if (data.dueDate && !d) throw new HttpError(400, 'err.badRequest', 'dueDate');
+      set('dueDate', 'due_date', d);
+    }
     if (data.projectId !== undefined && agent) {
       // Projektwechsel: neue Nummer im Zielprojekt
       const target = projects.get(data.projectId);
@@ -230,7 +244,7 @@ export function createTickets(db, users) {
       if (target.id !== row.project_id) changes.project_id = { field: 'project', old: row.project_key, new: target.key, target };
     }
 
-    const rankChanged = agent && data.rank !== undefined && Number.isFinite(Number(data.rank)) && Number(data.rank) !== row.rank;
+    const rankChanged = agent && typeof data.rank === 'number' && Number.isFinite(data.rank) && Math.abs(data.rank) < 1e12 && data.rank !== row.rank;
     if (!Object.keys(changes).length && !rankChanged) return ticketOut(row, agent);
 
     db.transaction(() => {
@@ -264,7 +278,14 @@ export function createTickets(db, users) {
   function remove(user, idOrKey) {
     const row = load(user, idOrKey);
     if (user.role !== 'admin') throw forbidden();
-    db.prepare('DELETE FROM tickets WHERE id=?').run(row.id);
+    db.transaction(() => {
+      // Import-Zuordnungen mitlöschen – IDs können wiederverwendet werden, sonst würde ein
+      // erneuter Jira-Import ein fremdes Ticket überschreiben
+      db.prepare("DELETE FROM import_map WHERE kind='comment' AND local_id IN (SELECT id FROM comments WHERE ticket_id=?)").run(row.id);
+      db.prepare("DELETE FROM import_map WHERE kind='attachment' AND local_id IN (SELECT id FROM attachments WHERE ticket_id=?)").run(row.id);
+      db.prepare("DELETE FROM import_map WHERE kind='issue' AND local_id=?").run(row.id);
+      db.prepare('DELETE FROM tickets WHERE id=?').run(row.id);
+    })();
     fs.rmSync(path.join(paths.attachments, String(row.id)), { recursive: true, force: true });
   }
 
@@ -284,7 +305,7 @@ export function createTickets(db, users) {
 
   function addComment(user, idOrKey, { body, internal = false }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false } = {}) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
-    const text = String(body || '').trim().slice(0, 100000);
+    const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
     const agent = user && isAgent(user);
     const isInternal = agent && internal ? 1 : 0;

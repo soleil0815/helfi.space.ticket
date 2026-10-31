@@ -24,7 +24,7 @@ Voraussetzung: Docker mit Compose (Linux-Server, Synology, …).
 
 ```sh
 mkdir helfi && cd helfi
-# docker-compose.yml und .env.example aus dem neuesten Release herunterladen
+# docker-compose.yml, .env.example und update.sh aus dem neuesten Release herunterladen
 cp .env.example .env
 nano .env            # mindestens HELFI_BASE_URL anpassen
 docker compose up -d
@@ -41,6 +41,7 @@ Auf dem Host liegen nur drei Dinge:
 | | |
 |---|---|
 | `docker-compose.yml` | bleibt bei Updates in der Regel gleich |
+| `update.sh` | Update von Hand (optional, bei Container-Verwaltung nicht nötig) |
 | `.env` | deine Einstellungen (Adresse, Port, Version, PUID/PGID) |
 | `data/` | Datenbank, Anhänge, Sicherungen, Schlüsseldatei |
 
@@ -71,11 +72,11 @@ helfi.firma.local {
    - Windows: `certlm.msc` → Eigene Zertifikate → Zertifikat des DCs → Details → Fingerabdruck (SHA-256 über PowerShell: `Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, @{n='SHA256';e={$_.GetCertHashString('SHA256')}}`)
    - Samba: `openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256`
 3. **Dienstkonto** eintragen, z. B. `svc-helfi@firma.local` (normales Domänenkonto, keine besonderen Rechte nötig). Ohne Dienstkonto sucht Helfi.Space mit dem Konto, das sich gerade anmeldet.
-4. **Gruppen** für Administratoren und Bearbeiter eintragen, z. B. `Helfi-Admins` und `Helfi-Bearbeiter` (Name oder vollständiger DN). Verschachtelte Gruppen werden berücksichtigt. Optional lässt sich über eine Gruppe „Zugelassene Benutzer“ einschränken, wer Tickets anlegen darf.
+4. **Gruppen** für Administratoren und Bearbeiter eintragen, z. B. `Helfi-Admins` und `Helfi-Bearbeiter` (Name oder vollständiger DN). Verschachtelte Gruppen werden berücksichtigt. Optional lässt sich über eine Gruppe „Zugelassene Benutzer“ einschränken, wer sich überhaupt anmelden darf (Admins und Bearbeiter dürfen immer). Ist ein Gruppenname mehrdeutig (gleicher Name in mehreren OUs), wird keine Rolle vergeben und das Protokoll meldet es – dann den vollständigen DN eintragen.
 5. **Verbindung testen**, am besten mit einer Testanmeldung. Ist der Base-DN leer, wird er dabei aus dem AD übernommen. Gibt es eine Microsoft-Zertifizierungsstelle (AD CS), findet der Test sie und bietet an, sie mit zu übernehmen. Dann bleiben auch erneuerte DC-Zertifikate automatisch gültig.
 6. **AD-Anmeldung aktivieren** und speichern.
 
-Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Benutzer werden bei der ersten Anmeldung angelegt. Ihre Rolle ergibt sich bei jeder Anmeldung aus den Gruppen, außer ein Admin hat sie unter *Benutzer* mit „Rolle fest“ gesperrt.
+Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Benutzer werden bei der ersten Anmeldung angelegt. Ihre Rolle ergibt sich bei jeder Anmeldung aus den Gruppen, außer ein Admin hat sie unter *Benutzer* mit „Rolle fest“ gesperrt. Ändert ein Admin die Rolle von Hand, wird sie automatisch gesperrt.
 
 **Gut zu wissen**
 
@@ -90,9 +91,10 @@ Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Be
 
 Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Faktor Pflicht.** Das ist ein 6-stelliger Code aus einer Authenticator-App wie Microsoft Authenticator, Google Authenticator, Aegis oder 2FAS. Alternativ lässt sich 2FA „immer“ oder „nie (freiwillig)“ verlangen.
 
+- **Zugriffe vom Server selbst** (127.0.0.1) gelten nicht automatisch als intern. Ein Reverse-Proxy auf demselben Rechner muss X-Forwarded-For setzen, sonst sähe jeder Zugriff wie vom Server selbst aus. Zum Testen lässt sich `127.0.0.1` in die Liste eintragen.
 - **Interne Netze** stehen als Liste in den Einstellungen (Standard: `10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7`). Die Seite zeigt an, wie deine aktuelle Adresse erkannt wird.
 - **Hinter einem Reverse-Proxy** muss dessen Adresse in `HELFI_TRUST_PROXY` stehen. Sonst sieht Helfi.Space nur den Proxy und behandelt jeden Zugriff sicherheitshalber als extern. Admins bekommen dann einen Hinweis.
-- **Einrichten:** Jeder richtet 2FA unter *Profil → Zwei-Faktor-Anmeldung* ein: QR-Code scannen, Code eingeben, 10 Wiederherstellungscodes sichern. Aus Sicherheitsgründen geht die Ersteinrichtung nur im internen Netz. So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. Wer nur von außen arbeitet, für den lässt sich unter *Sicherheit* die „Ersteinrichtung auch von außen“ erlauben.
+- **Einrichten:** Jeder richtet 2FA unter *Profil → Zwei-Faktor-Anmeldung* ein: QR-Code scannen, Code eingeben, 10 Wiederherstellungscodes sichern. Aus Sicherheitsgründen geht die Ersteinrichtung nur im internen Netz, und zwar in jedem Modus. Ist 2FA schon eingerichtet, lässt sie sich nur mit gültigem Code abschalten und dann neu einrichten (z. B. neues Handy). So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. Wer nur von außen arbeitet, für den lässt sich unter *Sicherheit* die „Ersteinrichtung auch von außen“ erlauben.
 - **Sitzungen:** Wer sich im Büro ohne Code angemeldet hat und denselben Browser später von zu Hause nutzt, muss sich dort neu mit Code anmelden.
 - **Handy verloren:** Mit einem Wiederherstellungscode anmelden. Alternativ setzt ein Admin unter *Benutzer → 2FA zurücksetzen* die 2FA zurück, und die Person richtet sie im Büro neu ein.
 - **Gilt für** lokale Konten und Active-Directory-Anmeldungen. Bei **SSO** prüft standardmäßig der Identitätsanbieter den zweiten Faktor (z. B. MFA in Entra ID). Das lässt sich abschalten, dann fragt Helfi.Space zusätzlich seinen eigenen Code ab.
@@ -115,11 +117,13 @@ Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Fak
 
 *Administration → E-Mail*
 
-- **Postfach abrufen (IMAP):** Server, Benutzer und Kennwort des Helpdesk-Postfachs eintragen. Neue Mails werden zu Tickets (inklusive Anhängen). Antworten mit `[IT-123]` im Betreff oder per Antworten-Funktion werden zu Kommentaren, zitierter Verlauf wird abgeschnitten. Antwortet der Melder auf ein wartendes oder erledigtes Ticket, wird es wieder geöffnet. Abwesenheitsnotizen und automatische Mails werden ignoriert. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben.
+- **Postfach abrufen (IMAP):** Server, Benutzer und Kennwort des Helpdesk-Postfachs eintragen. Neue Mails werden zu Tickets (inklusive Anhängen bis 20 MB je Anhang und bis zu 30 Anhängen; was nicht übernommen wird, steht als Hinweis im Ticket; Mails über 80 MB werden übersprungen und im Postfach markiert). Antworten auf Mails von Helfi.Space und Antworten Beteiligter mit `[IT-123]` im Betreff werden zu Kommentaren, zitierter Verlauf wird abgeschnitten. Antwortet der Melder auf ein wartendes oder erledigtes Ticket, wird es wieder geöffnet. Abwesenheitsnotizen und automatische Mails werden ignoriert. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben.
 - **Versand (SMTP):** Als Absender am besten dieselbe Adresse wie das Postfach verwenden, dann landen Antworten wieder im Ticket.
 - **Interne Notizen** gehen nie per E-Mail raus.
 - Per Ticketnummer im Betreff dürfen nur Beteiligte (Melder, Bearbeiter, bisherige Schreiber) antworten. Wer die Nummer nur errät, bekommt ein eigenes neues Ticket. Antworten auf Mails von Helfi.Space werden über die Message-ID immer richtig zugeordnet.
-- Absenderadressen lassen sich fälschen. Deshalb leitet Helfi.Space Kommentare, die per E-Mail kamen, nicht an den Melder weiter. Bearbeiter antworten über die Weboberfläche.
+- Absenderadressen lassen sich fälschen. Deshalb gilt eine Mail nie als Bearbeiter-Antwort, auch wenn sie von der Adresse eines Bearbeiters kommt: Sie erscheint mit der Absenderadresse, nicht unter dem Konto, und wird nicht an den Melder weitergeleitet. Bearbeiter antworten über die Weboberfläche.
+- Postfach am besten nicht parallel in Outlook oder auf dem Handy lesen: Helfi.Space holt nur ungelesene Mails. Empfohlen ist ein Ordner für verarbeitete Mails.
+- Eingangsbestätigungen gehen höchstens 60-mal pro Stunde raus (Schutz vor Missbrauch mit gefälschten Absendern).
 - Schleifenschutz: Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.
 - Absender ohne Konto werden als *E-Mail-Kontakt* geführt. Melden sie sich später per AD oder SSO mit derselben Adresse an, werden ihre Tickets übernommen.
 
@@ -151,7 +155,7 @@ So werden Nummern und Personen behandelt:
 Außerdem gilt:
 
 - Es werden **keine E-Mails** verschickt.
-- **Wiederholbar:** Ein zweiter Lauf aktualisiert bereits übernommene Tickets und ergänzt neue Kommentare und Anhänge. Doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren.
+- **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich in Jira seitdem geändert haben (dann gilt der Stand aus Jira). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren.
 
 ---
 
@@ -191,6 +195,12 @@ Jedes Release enthält die Image-Datei (`helfi-<Version>-amd64.tar.gz` bzw. `-ar
 ./update.sh --offline helfi-1.2.0-amd64.tar.gz 1.2.0
 ```
 
+### Eigene Anpassungen an der docker-compose.yml
+
+`update.sh` ersetzt die `docker-compose.yml` nur, wenn sie unverändert ist. Hast du sie angepasst (z. B. einen anderen Datenpfad), bleibt sie, wie sie ist. Die neue Fassung liegt dann als `docker-compose.yml.neu` daneben. Nach einem fehlgeschlagenen Update stellt `update.sh` die vorherige Version, deren Datenbanksicherung und die alte `docker-compose.yml` wieder her. Die alte Version hält es außerdem in der `.env` fest, damit Watchtower oder Dockhand die defekte nicht gleich wieder holen.
+
+Weitere Variablen für `update.sh`: `HELFI_UPDATE_WAIT` (Wartezeit auf den Start, Standard 120 Sekunden) und `HELFI_IMAGE_REPO` (eigene Registry).
+
 ### Hinweis „docker-compose.yml ist veraltet“
 
 Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue Programmversion eine neuere Datei, zeigt Helfi.Space Admins einen Hinweis. `./update.sh` übernimmt die neue Datei automatisch, alternativ lädst du sie aus dem Release.
@@ -201,7 +211,9 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 
 - Automatisch: täglich (14 Tage aufbewahrt, `HELFI_BACKUP_KEEP_DAYS`) und vor jedem Versionswechsel, in `data/backups/`
 - Von Hand: *Administration → System → Jetzt sichern*
-- **Mitsichern:** den ganzen Ordner `data/`, einschließlich `secret.key`. Ohne diese Datei lassen sich gespeicherte Kennwörter (Dienstkonto, Postfach, SSO) nicht mehr entschlüsseln und müssen neu eingegeben werden. Alternativ `HELFI_SECRET` in der `.env` setzen.
+- **Mitsichern:** den ganzen Ordner `data/`, einschließlich `secret.key`. Ohne diese Datei lassen sich gespeicherte Kennwörter (Dienstkonto, Postfach, SSO) und 2FA-Schlüssel nicht mehr entschlüsseln. Helfi.Space startet dann nicht und meldet das im Protokoll. Alternativ `HELFI_SECRET` (mindestens 16 Zeichen) in der `.env` setzen, aber gleich bei der Einrichtung: Ein späterer Wechsel zwischen `secret.key` und `HELFI_SECRET` macht gespeicherte Daten unlesbar.
+- Die Sicherungen in `data/backups/` enthalten nur die Datenbank. Anhänge (`data/attachments/`) und `secret.key` liegen daneben. Deshalb immer den ganzen Ordner `data/` auf ein anderes Laufwerk sichern.
+- Aufbewahrung: Tägliche Sicherungen 14 Tage (die neueste bleibt immer). Sicherungen vor Versionswechseln werden auf die letzten 10 begrenzt, manuelle nie gelöscht.
 
 ## Sicherheit
 
@@ -210,7 +222,7 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 - Die Ersteinrichtung ist nur mit dem Einrichtungscode aus dem Container-Protokoll möglich.
 - Nach mehreren falschen Kennwörtern wird die Anmeldung gebremst. Die Sitzungscookies sind `HttpOnly` und `SameSite`, außerdem gibt es CSRF-Schutz und eine strenge Content-Security-Policy.
 - Leere Kennwörter werden nie ans AD weitergegeben, denn ein anonymer Bind würde sonst als Anmeldung durchgehen. Eingaben in LDAP-Filtern werden maskiert.
-- Der Container läuft ohne root-Rechte (`PUID`/`PGID`).
+- Der Container läuft ohne root-Rechte (`PUID`/`PGID`, 0 ist nicht erlaubt), mit schreibgeschütztem Programmteil, ohne zusätzliche Linux-Rechte und mit `no-new-privileges` (siehe `docker-compose.yml`). Dateien in `data/` sind nur für diesen Benutzer lesbar.
 - Anhänge werden zum Herunterladen ausgeliefert (nur Bilder werden direkt angezeigt), damit hochgeladene Dateien nie im Kontext von Helfi.Space ausgeführt werden.
 - Bei Verbindungstests wird ein gespeichertes Kennwort nur an den gespeicherten Server geschickt. Wer einen anderen Server einträgt, muss das Kennwort neu eingeben.
 
@@ -241,4 +253,4 @@ Helfi.Space is a lightweight, Jira-style help desk running as a single Docker co
 - **Active Directory** (Windows or Samba): *Administration → Active Directory*. Enter the DC host name, click **Fetch certificate**, compare the SHA-256 fingerprint and accept it. Then add a service account and the admin/agent groups (nested groups supported) and run **Test connection**.
 - **SSO:** OpenID Connect (Entra ID, ADFS, Keycloak, …). Register the redirect URI shown on the settings page.
 - **Email:** an IMAP mailbox is polled. New mails become tickets, and replies containing `[KEY-123]` become comments. SMTP sends confirmations and agent replies.
-- **Updates:** use Dockhand/Watchtower on the `latest` tag (preferably at night), or run `./update.sh [version] [-y]`, which rolls back automatically if the new version fails its health check. The database is backed up automatically before every version change.
+- **Updates:** use Dockhand/Watchtower on the `latest` tag (preferably at night), or run `./update.sh [version] [-y]`, which offers a rollback if the new version fails its health check (automatic with `-y`). The database is backed up automatically before every version change.

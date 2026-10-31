@@ -4,6 +4,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { config, paths } from './config.js';
 import { log } from './lib/log.js';
+import { encrypt, decrypt } from './lib/crypto.js';
 
 // Jede Migration bekommt eine fortlaufende Nummer. Bestehende Einträge NIE ändern,
 // nur neue anhängen.
@@ -161,6 +162,24 @@ export const MIGRATIONS = [
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
 
 export class DatabaseTooNewError extends Error {}
+export class WrongKeyError extends Error {}
+
+/** Passt der Schlüssel (secret.key / HELFI_SECRET) zur Datenbank? Sonst klar abbrechen statt später abzustürzen. */
+export function verifyKey(db) {
+  const row = db.prepare("SELECT value FROM meta WHERE key='key_check'").get();
+  if (!row) {
+    db.prepare("INSERT INTO meta(key,value) VALUES('key_check',?)").run(encrypt('helfi-key-check'));
+    return;
+  }
+  let ok = false;
+  try { ok = decrypt(row.value) === 'helfi-key-check'; } catch { ok = false; }
+  if (!ok) {
+    throw new WrongKeyError(
+      'Der Schlüssel passt nicht zur Datenbank: Gespeicherte Kennwörter und 2FA-Schlüssel lassen sich nicht entschlüsseln. ' +
+      'Bitte die ursprüngliche data/secret.key zurücklegen bzw. den alten HELFI_SECRET-Wert wieder eintragen (siehe README, „Sicherung“).',
+    );
+  }
+}
 
 function getMeta(db, key) {
   const hasMeta = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").get();
@@ -181,19 +200,28 @@ export async function backupDatabase(db, label, dir = paths.backups) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `helfi-${label}-${stamp()}.sqlite`);
   await db.backup(file);
+  // Enthält Kennwort-Hashes und personenbezogene Daten → nur für den Besitzer lesbar
+  try { fs.chmodSync(file, 0o600); } catch { /* z. B. Dateisystem ohne Rechte */ }
   log.info(`Sicherung erstellt: ${file}`);
   return file;
 }
 
 /** Löscht automatische Tagessicherungen, die älter als keepDays sind (Versions-Sicherungen bleiben). */
+/**
+ * Räumt Sicherungen auf: tägliche nach keepDays (mind. 1 Tag, die neueste bleibt immer),
+ * Sicherungen vor Versionswechseln: die letzten KEEP_VERSION_BACKUPS bleiben. Manuelle bleiben immer.
+ */
+export const KEEP_VERSION_BACKUPS = 10;
 export function pruneBackups(keepDays, dir = paths.backups) {
   if (!fs.existsSync(dir)) return;
-  const limit = Date.now() - keepDays * 86400000;
-  for (const f of fs.readdirSync(dir)) {
-    if (!/^helfi-taeglich-.*\.sqlite$/.test(f)) continue;
-    const full = path.join(dir, f);
-    if (fs.statSync(full).mtimeMs < limit) fs.unlinkSync(full);
-  }
+  const days = Math.max(1, Number(keepDays) || 14);
+  const limit = Date.now() - days * 86400000;
+  const list = (re) => fs.readdirSync(dir).filter((f) => re.test(f))
+    .map((f) => ({ f, full: path.join(dir, f), t: fs.statSync(path.join(dir, f)).mtimeMs }))
+    .sort((a, b) => b.t - a.t);
+  const daily = list(/^helfi-taeglich-.*\.sqlite$/);
+  for (const b of daily.slice(1)) if (b.t < limit) fs.unlinkSync(b.full);
+  for (const b of list(/^helfi-vor-.*\.sqlite$/).slice(KEEP_VERSION_BACKUPS)) fs.unlinkSync(b.full);
 }
 
 /**
@@ -217,11 +245,12 @@ export async function openDatabase(file = paths.db, { appVersion = config.versio
       `Die Datenbank stammt von einer neueren Helfi.Space-Version (${dbApp || 'unbekannt'}, Schema ${dbSchema}) ` +
       `als dieses Programm (${appVersion}, Schema ${SCHEMA_VERSION}). ` +
       `Entweder wieder die neuere Version starten oder die passende Sicherung zurückspielen: ` +
-      `${backupDir}/helfi-vor-${dbApp || '<neuere Version>'}-*.sqlite (siehe README, „Version zurückgehen“).`,
+      `${backupDir}/helfi-vor-${dbApp || '<neuere Version>'}-*.sqlite (siehe README, „Version festhalten und zurückgehen“).`,
     );
   }
 
-  if (existed && dbSchema > 0 && dbApp !== appVersion) {
+  // Sichern vor Versionswechsel UND vor jeder ausstehenden Migration
+  if (existed && dbSchema > 0 && (dbApp !== appVersion || dbSchema < SCHEMA_VERSION)) {
     await backupDatabase(db, `vor-${appVersion}`, backupDir);
   }
 

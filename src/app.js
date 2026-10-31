@@ -57,7 +57,7 @@ export function createApp(db) {
         'style-src': ["'self'"],
         'img-src': ["'self'", 'data:', 'blob:'],
         'connect-src': ["'self'"],
-        'form-action': ["'self'", 'https:'],
+        'form-action': ["'self'"],
         'upgrade-insecure-requests': config.baseUrl.startsWith('https://') ? [] : null,
       },
     },
@@ -74,6 +74,8 @@ export function createApp(db) {
   app.use(parseCookies);
   app.use(sessions.middleware);
   app.use(express.json({ limit: '2mb' }));
+  // Express 5: ohne JSON-Body ist req.body undefined → immer ein Objekt bereitstellen
+  app.use((req, _res, next) => { if (!req.body || typeof req.body !== 'object') req.body = {}; next(); });
 
   // CSRF-Schutz: schreibende API-Aufrufe brauchen einen eigenen Header (Browser senden ihn
   // fremdseitig nur nach CORS-Freigabe, die es hier nicht gibt).

@@ -72,12 +72,14 @@ export function claimsToUser(claims, cfg) {
   // Zusammenführen mit AD-Konten nur, wenn der Admin eine Domäne dafür freigegeben hat –
   // sonst könnte z. B. ein Gast "m.muster@fremd.example" das Konto "m.muster" übernehmen.
   const mergeDomain = String(cfg.mergeDomain || '').trim().toLowerCase().replace(/^@/, '');
-  let username = rawName;
+  // Nicht vertrauenswürdige Namen bekommen immer den Namensraum "oidc:" – so kann ein SSO-Konto
+  // nie einen Namen belegen, den später ein AD-Konto braucht (und umgekehrt). Namen ohne "@"
+  // gelten nie als vertrauenswürdig (bei manchen Anbietern frei wählbar).
+  let username = `oidc:${rawName}`;
   let trustName = false;
   if (mergeDomain) {
     const at = rawName.lastIndexOf('@');
-    if (at < 0) { trustName = true; }
-    else if (rawName.slice(at + 1).toLowerCase() === mergeDomain) { username = normalizeUsername(rawName); trustName = true; }
+    if (at > 0 && rawName.slice(at + 1).toLowerCase() === mergeDomain) { username = normalizeUsername(rawName); trustName = true; }
   }
 
   const email = String(claims.email || (trustName && rawName.includes('@') ? rawName : ''));

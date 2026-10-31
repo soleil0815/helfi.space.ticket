@@ -15,6 +15,17 @@ export function escapeFilter(value) {
   return String(value).replace(/[\\*()\0]/g, (c) => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'));
 }
 
+/** Benutzerfilter mit maskiertem Namen. Ersetzung per Funktion: sonst würden $&, $' usw. im
+ *  Benutzernamen von String.replace als Muster ausgewertet und könnten den Filter verändern. */
+export function buildUserFilter(template, username) {
+  return String(template).replace(/\{\{username\}\}/g, () => escapeFilter(username));
+}
+
+/** DN für Vergleiche: Kleinschreibung, keine Leerzeichen um Kommas/Gleichheitszeichen */
+export function normalizeDn(dn) {
+  return String(dn).trim().toLowerCase().replace(/\s*([,=])\s*/g, '$1');
+}
+
 /** Maskiert einen Wert innerhalb eines DN (RFC 4514) – für Filter mit DN-Wert zusätzlich escapeFilter. */
 export function domainFromBaseDn(baseDn) {
   return String(baseDn).split(',').map((p) => p.trim()).filter((p) => /^dc=/i.test(p)).map((p) => p.slice(3)).join('.');
@@ -187,9 +198,10 @@ async function resolveGroupDn(client, cfg, value) {
     scope: 'sub',
     filter: `(&(objectClass=group)(|(cn=${escapeFilter(value)})(sAMAccountName=${escapeFilter(value)})))`,
     attributes: ['dn'],
-    sizeLimit: 2,
   });
   if (!searchEntries.length) { log.warn(`AD-Gruppe nicht gefunden: ${value}`); return ''; }
+  // Mehrdeutig (gleicher Name in mehreren OUs) → lieber keine Rolle als die falsche
+  if (searchEntries.length > 1) { log.warn(`AD-Gruppe "${value}" ist mehrdeutig (${searchEntries.length} Treffer) – bitte den vollständigen DN eintragen.`); return ''; }
   return searchEntries[0].dn;
 }
 
@@ -197,8 +209,8 @@ async function isMember(client, cfg, userDn, memberOf, groupValue) {
   const groupDn = await resolveGroupDn(client, cfg, groupValue);
   if (!groupDn) return false;
   if (!cfg.nestedGroups) {
-    const list = (Array.isArray(memberOf) ? memberOf : [memberOf]).filter(Boolean).map((g) => g.toLowerCase());
-    return list.includes(groupDn.toLowerCase());
+    const list = (Array.isArray(memberOf) ? memberOf : [memberOf]).filter(Boolean).map(normalizeDn);
+    return list.includes(normalizeDn(groupDn));
   }
   const { searchEntries } = await client.search(userDn, {
     scope: 'base',
@@ -225,7 +237,7 @@ export async function authenticate(cfg, rawUsername, password) {
       throw new Error(`Dienstkonto-Anmeldung am AD fehlgeschlagen: ${e.message}`);
     }
     cfg = await ensureBaseDn(client, cfg);
-    const filter = cfg.userFilter.replace(/\{\{username\}\}/g, escapeFilter(username));
+    const filter = buildUserFilter(cfg.userFilter, username);
     const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID'];
     const { searchEntries } = await client.search(cfg.baseDn, { scope: 'sub', filter, attributes: attrs, sizeLimit: 2 });
     if (searchEntries.length !== 1) return null;

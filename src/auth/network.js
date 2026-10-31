@@ -71,7 +71,8 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway() }
       if (!warnedProxy) { warnedProxy = true; log.warn('X-Forwarded-For erhalten, aber der Proxy ist nicht in HELFI_TRUST_PROXY eingetragen – Zugriffe gelten als extern (2FA).'); }
       return { ip, internal: false, reason: 'untrustedProxy' };
     }
-    if (ip === '127.0.0.1' || ip === '::1') return { ip, internal: true, reason: 'loopback' };
+    // Loopback zählt NICHT automatisch als intern: Ein Reverse-Proxy auf demselben Rechner ohne
+    // X-Forwarded-For ließe sonst jeden Zugriff von außen als intern erscheinen.
     const type = net.isIPv4(ip) ? 'ipv4' : (net.isIPv6(ip) ? 'ipv6' : null);
     if (!type) return { ip, internal: false, reason: 'unknown' };
     // Docker-Gateway: Bei manchen Docker-Setups (userland-proxy, rootless, IPv6) kommen ALLE

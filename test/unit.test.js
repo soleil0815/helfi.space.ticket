@@ -110,12 +110,16 @@ test('SSO-Claims', () => {
 test('SSO: fremde Domäne wird nie auf AD-Konten abgebildet (Regression)', () => {
   const base = { usernameClaim: 'preferred_username', groupsClaim: 'groups', adminGroup: '', agentGroup: '' };
   const guest = claimsToUser({ sub: '1', preferred_username: 'admin@fremd.example' }, { ...base, mergeDomain: 'firma.local' });
-  assert.equal(guest.username, 'admin@fremd.example');
+  assert.equal(guest.username, 'oidc:admin@fremd.example');
   assert.equal(guest.trustName, false);
   const noMerge = claimsToUser({ sub: '2', preferred_username: 'm.muster@firma.local', email_verified: true }, { ...base, mergeDomain: '' });
-  assert.equal(noMerge.username, 'm.muster@firma.local');
+  assert.equal(noMerge.username, 'oidc:m.muster@firma.local');
   assert.equal(noMerge.trustName, false);
   assert.equal(noMerge.trustEmail, true);
+  // Audit: Namen ohne "@" sind nie vertrauenswürdig (bei manchen Anbietern frei wählbar)
+  const bare = claimsToUser({ sub: '3', preferred_username: 'chef' }, { ...base, mergeDomain: 'firma.local' });
+  assert.equal(bare.username, 'oidc:chef');
+  assert.equal(bare.trustName, false);
 });
 
 test('Stichwörter normalisieren', () => {

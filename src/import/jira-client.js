@@ -6,7 +6,9 @@ import http from 'node:http';
 import https from 'node:https';
 import { log } from '../lib/log.js';
 
-const MAX_BODY = 512 * 1024 * 1024;
+const MAX_BODY = 512 * 1024 * 1024; // Anhänge
+const MAX_JSON = 64 * 1024 * 1024; // API-Antworten
+const MAX_PAGES = 100000;
 
 export class JiraError extends Error {
   constructor(message, status) { super(message); this.status = status; }
@@ -84,13 +86,16 @@ export function createJiraClient(c) {
     for (let attempt = 0; ; attempt++) {
       let r;
       try {
-        r = await raw(url, opts);
+        r = await raw(url, { maxBytes: MAX_JSON, ...opts });
       } catch (e) {
         if (e.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || e.code === 'SELF_SIGNED_CERT_IN_CHAIN' || e.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
           throw new JiraError(`Zertifikat von ${base.host} wird nicht vertraut (${e.code}). Eigene CA eintragen oder Prüfung abschalten.`, 495);
         }
+        // Kurze Netzstörung: ein paar Mal wiederholen, statt den ganzen Import abzubrechen
+        if (attempt < 3 && !(e instanceof JiraError && e.status === 413)) { await new Promise((res) => setTimeout(res, 1000 * (attempt + 1))); continue; }
         throw new JiraError(`${base.host} nicht erreichbar: ${e.message}`, 502);
       }
+      if ([502, 504].includes(r.status) && attempt < 3) { await new Promise((res) => setTimeout(res, 1000 * (attempt + 1))); continue; }
       if ((r.status === 429 || r.status === 503) && attempt < 6) {
         const wait = Math.min(60, Number(r.headers['retry-after']) || 2 ** attempt) * 1000;
         log.info(`Jira bremst (HTTP ${r.status}), warte ${wait / 1000}s`);
@@ -125,10 +130,11 @@ export function createJiraClient(c) {
     async projects() {
       if (cloud) {
         const out = [];
-        for (let startAt = 0; ; startAt += 50) {
+        for (let startAt = 0, pages = 0; pages < MAX_PAGES; pages++) {
           const r = await json(`${api}/project/search?startAt=${startAt}&maxResults=50&orderBy=key`);
           out.push(...(r.values || []));
-          if (r.isLast || !r.values?.length) break;
+          startAt += (r.values || []).length;
+          if (r.isLast || !r.values?.length || (r.total !== undefined && startAt >= r.total)) break;
         }
         return out.map((p) => ({ id: p.id, key: p.key, name: p.name }));
       }
@@ -159,17 +165,25 @@ export function createJiraClient(c) {
       const jql = `project = "${projectKey.replace(/"/g, '')}" ORDER BY created ASC`;
       if (cloud) {
         let nextPageToken;
+        const seenTokens = new Set();
         do {
           const r = await json(`${api}/search/jql`, { method: 'POST', body: { jql, fields: FIELDS, maxResults: 100, ...(nextPageToken ? { nextPageToken } : {}) } });
           for (const i of r.issues || []) yield i;
           nextPageToken = r.nextPageToken;
+          // Schutz vor Endlosschleife: gleiches Token zweimal oder leere Seite mit Token
+          if (nextPageToken && (seenTokens.has(nextPageToken) || !(r.issues || []).length)) throw new JiraError('Jira liefert beim Blättern immer wieder dieselbe Seite – Abbruch.', 502);
+          if (nextPageToken) seenTokens.add(nextPageToken);
+          if (seenTokens.size > MAX_PAGES) throw new JiraError('Zu viele Seiten – Abbruch.', 502);
         } while (nextPageToken);
         return;
       }
-      for (let startAt = 0; ; startAt += 100) {
+      // Server/DC: um die tatsächlich gelieferte Anzahl weiterblättern (Server können kleinere Seiten liefern)
+      for (let startAt = 0, pages = 0; pages < MAX_PAGES; pages++) {
         const r = await json(`${api}/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=100&fields=${FIELDS.join(',')}`);
-        for (const i of r.issues || []) yield i;
-        if (!r.issues?.length || startAt + r.issues.length >= r.total) break;
+        const list = r.issues || [];
+        for (const i of list) yield i;
+        startAt += list.length;
+        if (!list.length || startAt >= (r.total ?? 0)) break;
       }
     },
 
@@ -179,6 +193,7 @@ export function createJiraClient(c) {
         const r = await json(`${api}/issue/${encodeURIComponent(issueIdOrKey)}/comment?startAt=${startAt}&maxResults=100&expand=properties`);
         const list = r.comments || [];
         out.push(...list);
+        if (out.length > 50000) break;
         startAt += list.length;
         if (!list.length || startAt >= (r.total ?? 0)) break;
       }

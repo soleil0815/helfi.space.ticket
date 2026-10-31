@@ -8,7 +8,9 @@ let masterKey = null;
 /** Lädt den Schlüssel aus HELFI_SECRET oder /data/secret.key (wird beim ersten Start erzeugt). */
 export function initMasterKey() {
   const env = process.env.HELFI_SECRET;
-  if (env && env.length >= 16) {
+  if (env) {
+    // Zu kurze Werte nicht stillschweigend übergehen (sonst wechselt der Schlüssel unbemerkt)
+    if (env.length < 16) throw new Error('HELFI_SECRET ist zu kurz (mindestens 16 Zeichen) – bitte ändern oder leer lassen.');
     masterKey = crypto.createHash('sha256').update(env).digest();
     return;
   }
