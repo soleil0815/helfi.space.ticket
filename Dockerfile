@@ -16,7 +16,11 @@ LABEL org.opencontainers.image.title="Helfi.Space" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${VERSION}"
 
-RUN apk add --no-cache tini su-exec tzdata
+# npm/corepack werden zur Laufzeit nicht gebraucht – weg damit (weniger Angriffsfläche, weniger Schwachstellen-Funde)
+RUN apk add --no-cache tini su-exec tzdata \
+ && apk upgrade --no-cache \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 WORKDIR /app
 ENV NODE_ENV=production \

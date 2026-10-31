@@ -112,7 +112,15 @@ jobs:
           image-ref: helfi-test:ci
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          exit-code: '1'
+          format: json
+          output: trivy.json
+          exit-code: '0'
+
+      - name: Schwachstellen auswerten
+        run: |
+          n="$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy.json)"
+          jq -r '.Results[]? | .Target as $t | .Vulnerabilities[]? | "::error::\(.Severity) \(.VulnerabilityID) in \(.PkgName) \(.InstalledVersion) → \(.FixedVersion) (\($t))"' trivy.json
+          [ "$n" = 0 ] || { echo "$n behebbare Schwachstellen (HIGH/CRITICAL)"; exit 1; }
 
       - name: Bei ghcr.io anmelden
         if: steps.v.outputs.release == 'true'
