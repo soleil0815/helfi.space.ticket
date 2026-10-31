@@ -1,6 +1,6 @@
 {
   "name": "helfi-space",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Helfi.Space – schlankes Ticketsystem mit Active-Directory-Anbindung, SSO und E-Mail-Abruf",
   "license": "MIT",
   "private": true,

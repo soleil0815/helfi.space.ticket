@@ -243,7 +243,7 @@ sudo scripts/test-samba-ad.sh && HELFI_TEST_LDAP_HOST=dc01.firma.local npm run t
 
 Structure: `src/` server (Express, better-sqlite3), `public/` UI (plain JavaScript without a build step), `src/i18n.js` and `public/js/i18n.js` for the texts (de/en).
 
-Releases: bump the version in `package.json`, set tag `v1.2.3`. CI tests, builds the images for amd64 and arm64, scans for vulnerabilities and only then publishes.
+Releases: *Actions → CI → Run workflow*, branch `main`, choose `patch`, `minor` or `major` under "Release". The version counts up by itself (highest tag + 1), no need to edit `package.json`. CI tests, builds the images for amd64 and arm64 natively, scans for vulnerabilities and only then creates the tag, images and GitHub release.
 
 ## License
 
