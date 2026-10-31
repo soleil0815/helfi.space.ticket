@@ -8,7 +8,7 @@ import { log } from '../lib/log.js';
 
 const PENDING_COOKIE = 'helfi_oidc';
 
-export function createOidcRoutes({ settings, users, sessions }) {
+export function createOidcRoutes({ settings, users, mfa }) {
   const r = express.Router();
   const pending = new Map(); // id → { verifier, state, nonce, at }
 
@@ -43,8 +43,11 @@ export function createOidcRoutes({ settings, users, sessions }) {
       const u = users.upsertExternal({ source: 'oidc', ...info, role, allowCreate: cfg.allowCreate });
       if (!u) return res.redirect('/login?error=oidcNoAccount');
       if (!u.active) return res.redirect('/login?error=accountDisabled');
-      sessions.create(res, u.id, req.ip, 'oidc');
-      res.redirect('/');
+      // MFA beim Identitätsanbieter gilt als zweiter Faktor (abschaltbar) – sonst Code wie bei Kennwort
+      let r;
+      try { r = mfa.afterPrimary(req, res, u, 'oidc', { trustedSecondFactor: settings.get('mfa.trustSso') }); }
+      catch (e) { return res.redirect(`/login?error=${e.code === 'err.mfaEnrollInternal' ? 'mfaEnrollInternal' : 'oidcFailed'}`); }
+      res.redirect(r.done ? '/' : `/login?mfa=${r.step}`);
     } catch (e) {
       log.error('SSO-Anmeldung fehlgeschlagen', { error: e.message });
       res.redirect('/login?error=oidcFailed');

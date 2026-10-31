@@ -181,6 +181,10 @@ function layout(content, path) {
   }
 
   const warnings = (state.boot.warnings || []).map((w) => h('div.banner.banner-warn', icon('warning'), t(`warn.${w.code}`, w)));
+  const m = state.boot.mfa;
+  if (m && m.mode === 'external' && !m.enabled && u.source !== 'oidc' && path !== '/profile') {
+    warnings.push(h('div.banner.banner-info', icon('shield'), h('span', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup'))));
+  }
   return h('div.shell', topbar, h('div.body', sidebar, h('div.main', warnings, content)));
 }
 

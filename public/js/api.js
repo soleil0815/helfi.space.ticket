@@ -16,7 +16,7 @@ async function request(method, url, body, { raw = false } = {}) {
   let data = null;
   try { data = await res.json(); } catch { /* leer */ }
   if (!res.ok) {
-    if (res.status === 401 && !url.includes('/auth/login')) window.dispatchEvent(new CustomEvent('helfi:unauthorized'));
+    if (res.status === 401 && !url.includes('/auth/')) window.dispatchEvent(new CustomEvent('helfi:unauthorized'));
     throw new ApiError(res.status, data);
   }
   return data;
@@ -34,6 +34,13 @@ export const api = {
   setup: (d) => request('POST', '/api/setup', d),
   login: (username, password) => request('POST', '/api/auth/login', { username, password }),
   logout: () => request('POST', '/api/auth/logout'),
+  mfaEnrollInfo: () => request('POST', '/api/auth/mfa/enroll'),
+  mfaVerify: (code) => request('POST', '/api/auth/mfa', { code }),
+  mfaStatus: () => request('GET', '/api/me/mfa'),
+  mfaSetup: () => request('POST', '/api/me/mfa/setup'),
+  mfaEnable: (code) => request('POST', '/api/me/mfa/enable', { code }),
+  mfaDisable: (code) => request('POST', '/api/me/mfa/disable', { code }),
+  mfaNewRecovery: (code) => request('POST', '/api/me/mfa/recovery', { code }),
   me: () => request('GET', '/api/me'),
   updateMe: (d) => request('PATCH', '/api/me', d),
 

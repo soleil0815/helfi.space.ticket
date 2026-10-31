@@ -145,6 +145,17 @@ export const MIGRATIONS = [
     CREATE INDEX import_map_local ON import_map(kind, local_id);
     `,
   },
+  {
+    id: 3,
+    name: 'Zwei-Faktor-Anmeldung',
+    sql: `
+    ALTER TABLE users ADD COLUMN totp_secret TEXT;          -- verschlüsselt
+    ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN recovery_codes TEXT;       -- JSON-Liste von SHA-256-Hashes
+    ALTER TABLE sessions ADD COLUMN mfa INTEGER NOT NULL DEFAULT 0;  -- zweiter Faktor in dieser Sitzung erbracht
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

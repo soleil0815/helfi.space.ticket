@@ -6,9 +6,9 @@ import { normalizeUsername } from './ldap.js';
 
 export const COOKIE = 'helfi_sid';
 
-export function createSessions(db) {
-  const insert = db.prepare('INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method) VALUES(?,?,?,?,?,?)');
-  const find = db.prepare(`SELECT s.id sid, s.expires_at, s.auth_method, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`);
+export function createSessions(db, { policy } = {}) {
+  const insert = db.prepare('INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa) VALUES(?,?,?,?,?,?,?)');
+  const find = db.prepare(`SELECT s.id sid, s.expires_at, s.auth_method, s.mfa session_mfa, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`);
   const del = db.prepare('DELETE FROM sessions WHERE id=?');
   const touch = db.prepare('UPDATE sessions SET expires_at=? WHERE id=?');
   const purge = db.prepare('DELETE FROM sessions WHERE expires_at < ?');
@@ -20,10 +20,10 @@ export function createSessions(db) {
   }
 
   return {
-    create(res, userId, ip, method) {
+    create(res, userId, ip, method, { mfa = false } = {}) {
       const id = randomToken(32);
       const now = Date.now();
-      insert.run(id, userId, now + ttl(), now, ip || null, method);
+      insert.run(id, userId, now + ttl(), now, ip || null, method, mfa ? 1 : 0);
       db.prepare('UPDATE users SET last_login=? WHERE id=?').run(new Date().toISOString(), userId);
       res.cookie(COOKIE, id, cookieOpts());
       return id;
@@ -38,7 +38,10 @@ export function createSessions(db) {
       const id = req.cookies?.[COOKIE];
       if (id) {
         const row = find.get(id);
-        if (row && row.expires_at > Date.now() && row.active) {
+        if (row && row.expires_at > Date.now() && row.active && !row.session_mfa && policy?.mfaRequired(req)) {
+          // Sitzung ohne zweiten Faktor (z. B. im Büro angemeldet), jetzt aber von außen → neu anmelden
+          req.mfaBlocked = true;
+        } else if (row && row.expires_at > Date.now() && row.active) {
           req.user = row;
           req.sessionId = id;
           // gleitend verlängern, höchstens einmal pro Minute schreiben
@@ -74,7 +77,7 @@ export function parseCookies(req, _res, next) {
 const ROLE_RANK = { user: 1, agent: 2, admin: 3 };
 
 export function requireAuth(req, _res, next) {
-  if (!req.user) return next(new HttpError(401, 'err.unauthorized'));
+  if (!req.user) return next(new HttpError(401, req.mfaBlocked ? 'err.mfaRequired' : 'err.unauthorized'));
   next();
 }
 

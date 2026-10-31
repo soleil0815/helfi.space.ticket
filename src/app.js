@@ -6,6 +6,8 @@ import helmet from 'helmet';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
+import { createNetworkPolicy } from './auth/network.js';
+import { createMfa } from './auth/mfa.js';
 import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
@@ -21,13 +23,15 @@ import { randomToken } from './lib/crypto.js';
 export function createApp(db) {
   fs.mkdirSync(paths.attachments, { recursive: true });
   const settings = createSettings(db);
-  const sessions = createSessions(db);
+  const policy = createNetworkPolicy(settings);
+  const sessions = createSessions(db, { policy });
   const users = createUsers(db);
   const tickets = createTickets(db, users);
   const mailer = createMailer(db, settings);
   const processor = createMailProcessor({ db, settings, tickets, users });
   const poller = createImapPoller({ settings, processor });
   const limiter = createLoginLimiter();
+  const mfa = createMfa({ db, settings, sessions, users, policy, limiter });
   wireNotifications({ tickets, mailer, settings, users });
 
   // Ersteinrichtung: einmaliger Code, nur solange es keine Benutzer gibt
@@ -39,7 +43,7 @@ export function createApp(db) {
   }
 
   const jiraImporter = createJiraImporter({ db, tickets, users });
-  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, ldapCertWarning: null };
+  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');

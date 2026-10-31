@@ -16,6 +16,7 @@ export function publicUser(u) {
     language: u.language || null,
     lastLogin: u.last_login || null,
     hasPassword: !!u.password_hash,
+    mfaEnabled: !!u.totp_enabled,
   };
 }
 

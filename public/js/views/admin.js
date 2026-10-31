@@ -7,6 +7,7 @@ import { importPage } from './import.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
+  ['security', 'admin.security', 'shield'],
   ['projects', 'admin.projects', 'board'],
   ['users', 'admin.users', 'users'],
   ['ldap', 'admin.ldap', 'server'],
@@ -32,7 +33,7 @@ export async function renderAdmin(content, section) {
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };
-  const pages = { general: generalPage, ldap: ldapPage, sso: ssoPage, mail: mailPage };
+  const pages = { general: generalPage, security: securityPage, ldap: ldapPage, sso: ssoPage, mail: mailPage };
   pages[section](body, s, { redirectUri });
 }
 
@@ -84,6 +85,24 @@ function generalPage(body, s) {
       field(t('general.defaultLanguage'), bindSelect(s, 'general.defaultLanguage', [['de', 'Deutsch'], ['en', 'English']]), t('general.defaultLanguageHint')),
       field(t('general.allowSelfService'), bindCheck(s, 'general.allowSelfService')),
       saveBar(() => saveKeys(s, ['general.']))));
+}
+
+// ---------- Sicherheit (2FA) ----------
+async function securityPage(body, s) {
+  const st = await api.mfaStatus();
+  mount(body,
+    h('section.panel',
+      h('h2', t('mfa.adminTitle')),
+      h('p.muted', t('mfa.adminIntro')),
+      field(t('mfa.mode'), bindSelect(s, 'mfa.mode', [['external', t('mfa.mode.external')], ['always', t('mfa.mode.always')], ['off', t('mfa.mode.off')]])),
+      field(t('mfa.networks'), (() => { const ta = h('textarea.mono', { rows: 3 }); ta.value = s['mfa.internalNetworks']; ta.addEventListener('input', () => { s['mfa.internalNetworks'] = ta.value; }); return ta; })(), t('mfa.networksHint')),
+      h('div.hint-box', icon(st.network.internal ? 'check' : 'globe'), h('div',
+        h('p', t(st.network.internal ? 'mfa.youAreInternal' : 'mfa.youAreExternal', { ip: st.network.ip })),
+        st.network.reason === 'untrustedProxy' ? h('p', t('mfa.reason.untrustedProxy')) : null,
+        st.network.reason === 'dockerGateway' ? h('p', t('mfa.reason.dockerGateway')) : null)),
+      field(t('mfa.enrollExternal'), bindCheck(s, 'mfa.enrollExternal'), t('mfa.enrollExternalHint')),
+      field(t('mfa.trustSso'), bindCheck(s, 'mfa.trustSso'), t('mfa.trustSsoHint')),
+      saveBar(() => saveKeys(s, ['mfa.']))));
 }
 
 // ---------- Projekte ----------
@@ -152,16 +171,18 @@ async function usersPage(body, showContacts = false) {
     h('p.muted', t('users.hint')),
     h('label.check-inline', contactsToggle, t('users.showContacts')),
     h('table.data',
-      h('thead', h('tr', h('th', t('users.displayName')), h('th', t('users.username')), h('th', t('users.source')), h('th', t('users.role')), h('th', { title: t('users.roleLockedHint') }, t('users.roleLocked')), h('th', t('users.lastLogin')), h('th', ''))),
+      h('thead', h('tr', h('th', t('users.displayName')), h('th', t('users.username')), h('th', t('users.source')), h('th', t('users.role')), h('th', { title: t('users.roleLockedHint') }, t('users.roleLocked')), h('th', '2FA'), h('th', t('users.lastLogin')), h('th', ''))),
       h('tbody', list.map((u) => h('tr', { class: u.active ? '' : 'muted' },
         h('td.col-person', h('span.person', avatar(u, 'sm'), h('span', u.displayName, u.email ? h('span.muted.block', u.email) : null))),
         h('td', u.username),
         h('td', t(`profile.source.${u.source}`)),
         h('td', select(['user', 'agent', 'admin'].map((r) => [r, t(`role.${r}`)]), u.role, { class: 'select-sm', disabled: u.source === 'email', onchange: (e) => update(u, { role: e.target.value }) })),
         h('td', u.source === 'local' || u.source === 'email' ? '' : h('input', { type: 'checkbox', checked: u.roleLocked, title: t('users.roleLockedHint'), onchange: (e) => update(u, { roleLocked: e.target.checked }) })),
+        h('td', u.mfaEnabled ? h('span.badge.badge-ok', { title: t('mfa.statusOn') }, icon('check')) : h('span.muted', '—')),
         h('td', { title: u.lastLogin ? fmtDate(u.lastLogin) : '' }, u.lastLogin ? relTime(u.lastLogin) : '—'),
         h('td.actions-cell',
           u.source === 'local' ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => setPw(u) }, t('users.resetPassword')) : null,
+          u.mfaEnabled ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => { if (confirm(t('mfa.resetConfirm', { name: u.displayName }))) update(u, { resetMfa: true }); } }, t('mfa.reset')) : null,
           u.id !== state.user.id ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => update(u, { active: !u.active }) }, u.active ? t('users.deactivate') : t('users.activate')) : null)))))));
 }
 

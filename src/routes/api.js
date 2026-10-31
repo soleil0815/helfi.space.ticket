@@ -10,6 +10,7 @@ import { requireAuth, requireRole, isAgent } from '../auth/session.js';
 import { publicUser, userRef, roleFromGroups } from '../users.js';
 import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
+import { parseNetworks } from '../auth/network.js';
 import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES } from '../i18n.js';
 import { DEFAULTS } from '../settings.js';
@@ -17,7 +18,7 @@ import { backupDatabase } from '../db.js';
 import { log } from '../lib/log.js';
 
 export function createApi(ctx) {
-  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter } = ctx;
+  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa } = ctx;
   const r = express.Router();
   // Zwischenablage im Datenordner: gleiches Dateisystem wie die Anhänge (kein EXDEV im Container)
   const uploadTmp = path.join(paths.attachments, '.tmp');
@@ -39,6 +40,7 @@ export function createApi(ctx) {
       },
       allowSelfService: settings.get('general.allowSelfService'),
       defaultLanguage: settings.get('general.defaultLanguage'),
+      mfa: { mode: settings.get('mfa.mode'), internal: policy.isInternal(req), enabled: !!req.user?.totp_enabled },
       warnings: req.user?.role === 'admin' ? adminWarnings() : [],
     });
   });
@@ -51,6 +53,9 @@ export function createApi(ctx) {
     const ps = poller.status();
     if (settings.get('imap.enabled') && ps.lastError) w.push({ code: 'imapError', message: ps.lastError });
     if (!config.baseUrl.startsWith('https://')) w.push({ code: 'noHttps' });
+    if (policy.proxyWarning()) w.push({ code: 'proxyUntrusted' });
+    const nets = parseNetworks(settings.get('mfa.internalNetworks'));
+    if (nets.invalid.length) w.push({ code: 'networksInvalid', message: nets.invalid.join(', ') });
     return w;
   }
 
@@ -75,7 +80,8 @@ export function createApi(ctx) {
     })();
     setup.token = null;
     log.info(`Ersteinrichtung abgeschlossen, lokaler Admin "${user.username}" angelegt`);
-    sessions.create(res, user.id, req.ip, 'local');
+    // Der Einrichtungscode aus dem Protokoll gilt als zweiter Faktor
+    sessions.create(res, user.id, req.ip, 'local', { mfa: true });
     res.json({ user: publicUser(user) });
   }));
 
@@ -91,8 +97,8 @@ export function createApi(ctx) {
       if (!verifyPassword(password, local.password_hash)) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       if (!local.active) throw new HttpError(403, 'err.accountDisabled');
       limiter.success(req.ip, username);
-      sessions.create(res, local.id, req.ip, 'local');
-      return res.json({ user: publicUser(local) });
+      const r1 = mfa.afterPrimary(req, res, local, 'local');
+      return res.json(r1.done ? { user: publicUser(local) } : { mfa: r1.step });
     }
 
     // 2. Active Directory
@@ -112,12 +118,19 @@ export function createApi(ctx) {
       const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, role });
       if (!u.active) throw new HttpError(403, 'err.accountDisabled');
       limiter.success(req.ip, username);
-      sessions.create(res, u.id, req.ip, 'ldap');
-      return res.json({ user: publicUser(u) });
+      const r2 = mfa.afterPrimary(req, res, u, 'ldap');
+      return res.json(r2.done ? { user: publicUser(u) } : { mfa: r2.step });
     }
 
     limiter.fail(req.ip, username);
     throw new HttpError(401, 'err.invalidLogin');
+  }));
+
+  // Zweiter Schritt der Anmeldung (ohne volle Sitzung, mit Cookie helfi_mfa)
+  r.post('/auth/mfa/enroll', wrap(async (req, res) => res.json(await mfa.enrollInfo(req))));
+  r.post('/auth/mfa', wrap(async (req, res) => {
+    const out = mfa.verify(req, res, str(req.body.code, 40));
+    res.json({ user: publicUser(out.user), recoveryCodes: out.recoveryCodes, usedRecovery: out.usedRecovery });
   }));
 
   r.post('/auth/logout', (req, res) => {
@@ -146,6 +159,13 @@ export function createApi(ctx) {
     }
     res.json({ user: publicUser(users.byId(u.id)) });
   }));
+
+  // ---------- Zwei-Faktor im Profil ----------
+  r.get('/me/mfa', (req, res) => res.json(mfa.status(req, req.user)));
+  r.post('/me/mfa/setup', wrap(async (req, res) => res.json(await mfa.startSetup(req, req.user))));
+  r.post('/me/mfa/enable', wrap(async (req, res) => res.json({ recoveryCodes: mfa.confirmSetup(req, req.user, str(req.body.code, 40)) })));
+  r.post('/me/mfa/disable', wrap(async (req, res) => { mfa.disable(req, req.user, str(req.body.code, 40)); res.json({ ok: true }); }));
+  r.post('/me/mfa/recovery', wrap(async (req, res) => res.json({ recoveryCodes: mfa.newRecoveryCodes(req, req.user, str(req.body.code, 40)) })));
 
   // ---------- Benutzer ----------
   r.get('/users', requireRole('agent'), (req, res) => {
@@ -189,6 +209,11 @@ export function createApi(ctx) {
       sessions.destroyAllForUser(u.id);
     }
     if (!active) sessions.destroyAllForUser(u.id);
+    if (req.body.resetMfa) {
+      mfa.adminReset(u.id);
+      sessions.destroyAllForUser(u.id);
+      log.info(`2FA von ${u.username} zurückgesetzt durch ${req.user.username}`);
+    }
     res.json({ user: publicUser(users.byId(u.id)) });
   }));
 
