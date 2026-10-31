@@ -102,7 +102,7 @@ jobs:
           [ "$(stat -c %u /tmp/helfi-data/helfi.sqlite)" = 1000 ]
 
       - name: Schwachstellenprüfung
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: helfi-test:ci
           severity: CRITICAL,HIGH
