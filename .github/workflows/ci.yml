@@ -90,9 +90,10 @@ jobs:
 
       - name: Rauchtest – Container startet und ist gesund
         run: |
+          set +e
           fail() { echo "::error::$1 | $(docker logs helfi-ci 2>&1 | tail -n 8 | tr '\n' '|')"; exit 1; }
           mkdir -p /tmp/helfi-data
-          docker run -d --name helfi-ci -p 8080:8080 -v /tmp/helfi-data:/data -e HELFI_COMPOSE_VERSION=1 helfi-test:ci
+          out="$(docker run -d --name helfi-ci -p 8080:8080 -v /tmp/helfi-data:/data -e HELFI_COMPOSE_VERSION=1 helfi-test:ci 2>&1)" || fail "docker run: $out"
           for i in $(seq 1 45); do
             s="$(docker inspect -f '{{.State.Health.Status}}' helfi-ci)"; [ "$s" = healthy ] && break
             [ "$(docker inspect -f '{{.State.Status}}' helfi-ci)" = running ] || fail "Container läuft nicht mehr"
