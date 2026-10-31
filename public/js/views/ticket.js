@@ -138,6 +138,7 @@ export async function renderTicket(content, key) {
         t(`act.${a.action}`, { field: fieldLabel }),
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
         h('span.muted', { title: fmtDate(a.createdAt) }, ' · ', relTime(a.createdAt))));
   }
 
@@ -237,7 +238,7 @@ export async function renderTicket(content, key) {
         detailRow(t('ticket.project'), agent && state.projects.length > 1
           ? pick(tk.projectId, state.projects.map((p) => [p.id, `${p.name} (${p.key})`]), (v) => save({ projectId: v }), () => h('span', tk.projectName))
           : h('span', tk.projectName)),
-        detailRow(t('ticket.source'), h('span.person', icon(tk.source === 'email' ? 'mail' : 'globe'), h('span', t(`source.${tk.source}`)))),
+        detailRow(t('ticket.source'), h('span.person', icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' ? 'download' : 'globe')), h('span', t(`source.${tk.source}`)))),
       ),
       h('div.timestamps',
         h('div', `${t('ticket.created')} ${fmtDate(tk.createdAt)}`),

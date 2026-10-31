@@ -32,6 +32,7 @@ const T = {
     'err.mailDisabled': 'Der E-Mail-Versand ist nicht eingerichtet.',
     'err.fileTooLarge': 'Die Datei ist zu groß.',
     'err.internal': 'Interner Fehler. Details stehen im Protokoll.',
+    'err.importRunning': 'Es läuft bereits ein Import.',
     // E-Mails
     'mail.created.subject': '[{key}] Ihr Ticket wurde angelegt: {title}',
     'mail.created.body': 'Hallo {name},\n\nvielen Dank für Ihre Nachricht. Wir haben dazu das Ticket {key} angelegt und kümmern uns darum.\n\nWenn Sie auf diese E-Mail antworten, landet Ihre Antwort automatisch im Ticket. Bitte lassen Sie die Ticketnummer [{key}] im Betreff stehen.\n\n{link}\n\nViele Grüße\n{app}',
@@ -73,6 +74,7 @@ const T = {
     'err.mailDisabled': 'Outgoing mail is not configured.',
     'err.fileTooLarge': 'The file is too large.',
     'err.internal': 'Internal error. See the log for details.',
+    'err.importRunning': 'An import is already running.',
     'mail.created.subject': '[{key}] Your ticket has been created: {title}',
     'mail.created.body': 'Hello {name},\n\nthank you for your message. We have created ticket {key} and will take care of it.\n\nIf you reply to this email, your answer is added to the ticket automatically. Please keep the ticket number [{key}] in the subject.\n\n{link}\n\nKind regards\n{app}',
     'mail.comment.subject': '[{key}] New reply: {title}',

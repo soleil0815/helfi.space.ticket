@@ -127,6 +127,24 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 2,
+    name: 'Import-Zuordnung (Jira)',
+    sql: `
+    -- Welcher fremde Datensatz (Jira-Vorgang, -Kommentar, -Anhang) wurde zu welchem lokalen?
+    -- Damit lässt sich ein Import wiederholen, ohne Doppelte anzulegen.
+    CREATE TABLE import_map (
+      source TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('issue','comment','attachment')),
+      external_id TEXT NOT NULL,
+      local_id INTEGER NOT NULL,
+      external_key TEXT,
+      imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (source, kind, external_id)
+    );
+    CREATE INDEX import_map_local ON import_map(kind, local_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

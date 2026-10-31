@@ -10,6 +10,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute. Die Oberfläche is
 - **Single Sign-on** über OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
 - **Jira-ähnlich:** Board mit Drag & Drop, Ticketliste mit Filtern, Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
+- **Import aus Jira** (Cloud und Server/Data Center): Projekte, Tickets, Kommentare und Anhänge. Die Ticketnummern bleiben erhalten.
 - **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
 - Automatische Sicherungen täglich und vor jedem Update
@@ -106,6 +107,36 @@ Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Be
 - Absenderadressen lassen sich fälschen. Deshalb leitet Helfi.Space Kommentare, die per E-Mail kamen, nicht an den Melder weiter. Bearbeiter antworten über die Weboberfläche.
 - Schleifenschutz: Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.
 - Absender ohne Konto werden als *E-Mail-Kontakt* geführt. Melden sie sich später per AD oder SSO mit derselben Adresse an, werden ihre Tickets übernommen.
+
+## Import aus Jira
+
+*Administration → Import*
+
+Funktioniert mit **Jira Cloud** und **Jira Server/Data Center**, auch mit Jira Service Management. Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Import.
+
+1. **Verbinden:**
+   - Cloud: Adresse (`https://firma.atlassian.net`), E-Mail und [API-Token](https://id.atlassian.com/manage-profile/security/api-tokens).
+   - Server/DC: Adresse und Personal Access Token (ab Jira 8.14), alternativ Benutzername und Kennwort.
+   - Bei einem internen Zertifikat die eigene Zertifizierungsstelle (PEM) eintragen.
+2. **Projekte wählen** und festlegen, in welches Helfi.Space-Projekt sie kommen. Gibt es das Projekt nicht, wird es angelegt.
+3. **Zuordnen:** Jira-Status und Vorgangstypen auf die vier Status und Typen von Helfi.Space verteilen. Vorschläge sind schon eingetragen, z. B. „Waiting for customer“ → Wartet und „Bug“ → Störung.
+4. **Importieren:** Der Fortschritt wird angezeigt. Der Import lässt sich abbrechen.
+
+Was übernommen wird:
+
+- Zusammenfassung, Beschreibung (als Text), Typ, Status, Priorität, Stichwörter, Fälligkeit, Erstell- und Erledigt-Datum
+- Kommentare. Interne Kommentare aus Jira Service Management und Kommentare mit eingeschränkter Sichtbarkeit werden zu internen Notizen.
+- Anhänge bis zur gewählten Größe
+
+So werden Nummern und Personen behandelt:
+
+- **Nummern:** `SUP-123` bleibt `SUP-123`. Ist die Nummer im Zielprojekt schon vergeben, bekommt das Ticket die nächste freie. Neue Tickets schließen an die höchste Nummer an.
+- **Personen** werden über die E-Mail-Adresse zugeordnet. Melder ohne Konto werden zu E-Mail-Kontakten, und meldet sich die Person später per AD oder SSO an, gehören ihr die Tickets. Bearbeiter werden nur zugewiesen, wenn sie in Helfi.Space schon Bearbeiter sind, sonst steht ihr Name im Verlauf. Jira Cloud gibt E-Mail-Adressen je nach Datenschutzeinstellung nicht heraus, dann wird nur der Name übernommen.
+
+Außerdem gilt:
+
+- Es werden **keine E-Mails** verschickt.
+- **Wiederholbar:** Ein zweiter Lauf aktualisiert bereits übernommene Tickets und ergänzt neue Kommentare und Anhänge. Doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren.
 
 ---
 

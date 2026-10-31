@@ -10,6 +10,7 @@ import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
 import { createMailProcessor, createImapPoller } from './mail/imap.js';
+import { createJiraImporter } from './import/jira-import.js';
 import { createApi } from './routes/api.js';
 import { createOidcRoutes } from './routes/oidc.js';
 import { HttpError } from './lib/http.js';
@@ -37,7 +38,8 @@ export function createApp(db) {
     console.log(`\n${line}\n  Helfi.Space – Ersteinrichtung / initial setup\n  Einrichtungscode / setup code:  ${setup.token}\n  ${config.baseUrl}/setup\n${line}\n`);
   }
 
-  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, ldapCertWarning: null };
+  const jiraImporter = createJiraImporter({ db, tickets, users });
+  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');

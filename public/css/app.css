@@ -416,3 +416,22 @@ dl.kv dd { margin: 0; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .auth-card { padding: 24px; }
 }
+
+/* ---------- Import ---------- */
+.steps-bar { display: flex; gap: 8px; list-style: none; padding: 0; margin: 16px 0 8px; flex-wrap: wrap; }
+.steps-bar li { display: flex; align-items: center; gap: 8px; color: var(--text-subtlest); font-weight: 500; padding-right: 16px; }
+.steps-bar li:not(:last-child)::after { content: "›"; margin-left: 16px; color: var(--border-strong); }
+.steps-bar .n { width: 22px; height: 22px; border-radius: 50%; background: var(--bg-neutral); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.steps-bar li.active { color: var(--blue); }
+.steps-bar li.active .n { background: var(--blue); color: #fff; }
+.steps-bar li.done { color: var(--text-subtle); }
+.steps-bar li.done .n { background: #BAF3DB; color: #216E4E; }
+.progress-row { margin: 10px 0; }
+.progress-label { font-size: 13px; margin-bottom: 4px; }
+.progress { height: 8px; border-radius: 4px; background: var(--bg-neutral); overflow: hidden; }
+.progress-bar { height: 100%; background: var(--blue); transition: width .4s; }
+.hint-box { display: flex; gap: 10px; background: var(--blue-subtle); border-radius: 4px; padding: 12px 16px; margin: 8px 0 16px; font-size: 13px; }
+.hint-box > .icon { color: var(--blue); margin-top: 2px; }
+.hint-box p:last-child { margin: 0; }
+.error-list { margin: 8px 0; padding-left: 18px; max-height: 240px; overflow: auto; }
+.admin-body .panel h3 { margin: 16px 0 10px; }

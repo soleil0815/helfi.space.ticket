@@ -17,7 +17,7 @@ import { backupDatabase } from '../db.js';
 import { log } from '../lib/log.js';
 
 export function createApi(ctx) {
-  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup } = ctx;
+  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter } = ctx;
   const r = express.Router();
   // Zwischenablage im Datenordner: gleiches Dateisystem wie die Anhänge (kein EXDEV im Container)
   const uploadTmp = path.join(paths.attachments, '.tmp');
@@ -373,6 +373,43 @@ export function createApi(ctx) {
     const file = await backupDatabase(db, 'manuell');
     res.json({ ok: true, file: file.split('/').pop() });
   }));
+
+  // ---------- Import aus Jira ----------
+  /** Verbindungsdaten prüfen; sie werden nie gespeichert, nur für den laufenden Import im Speicher gehalten */
+  function jiraConn(body) {
+    const c = body?.connection || {};
+    const type = oneOf(c.type, ['cloud', 'server'], 'cloud');
+    const baseUrl = str(c.baseUrl, 500).trim();
+    if (!/^https?:\/\/[^\s/]+/i.test(baseUrl)) throw new HttpError(400, 'err.badRequest', 'baseUrl');
+    return {
+      type, baseUrl,
+      email: str(c.email, 254).trim(), token: str(c.token, 2000).trim(),
+      username: str(c.username, 254).trim(), password: str(c.password, 1024),
+      verifyTls: c.verifyTls !== false, caPem: str(c.caPem, 20000),
+    };
+  }
+  const jiraFail = (res, e) => {
+    if (e instanceof HttpError) throw e;
+    log.warn('Jira-Import', { error: e.message });
+    res.json({ ok: false, error: e.message });
+  };
+
+  admin.post('/import/jira/connect', wrap(async (req, res) => {
+    try { res.json({ ok: true, ...(await jiraImporter.connect(jiraConn(req.body))) }); } catch (e) { jiraFail(res, e); }
+  }));
+  admin.post('/import/jira/inspect', wrap(async (req, res) => {
+    const keys = (Array.isArray(req.body.projects) ? req.body.projects : []).map((k) => str(k, 50)).slice(0, 200);
+    try { res.json({ ok: true, ...(await jiraImporter.inspect(jiraConn(req.body), keys)) }); } catch (e) { jiraFail(res, e); }
+  }));
+  admin.post('/import/jira/start', wrap(async (req, res) => {
+    const job = jiraImporter.start(jiraConn(req.body), {
+      projects: req.body.projects, statusMap: req.body.statusMap || {}, typeMap: req.body.typeMap || {}, options: req.body.options || {},
+    }, req.user.id);
+    log.info(`Jira-Import gestartet von ${req.user.username}`, { projects: job.projects.map((p) => p.key) });
+    res.status(202).json({ job });
+  }));
+  admin.get('/import/status', (req, res) => res.json({ job: jiraImporter.status() }));
+  admin.post('/import/cancel', (req, res) => res.json({ job: jiraImporter.cancel() }));
 
   r.use('/admin', admin);
   return r;

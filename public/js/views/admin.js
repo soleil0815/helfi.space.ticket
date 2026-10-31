@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
 import { state, reloadBase } from '../app.js';
+import { importPage } from './import.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
@@ -11,6 +12,7 @@ const SECTIONS = [
   ['ldap', 'admin.ldap', 'server'],
   ['sso', 'admin.sso', 'key'],
   ['mail', 'admin.mail', 'mail'],
+  ['import', 'admin.import', 'download'],
   ['system', 'admin.system', 'info'],
 ];
 
@@ -26,6 +28,7 @@ export async function renderAdmin(content, section) {
   if (section === 'projects') return projectsPage(body);
   if (section === 'users') return usersPage(body);
   if (section === 'system') return systemPage(body);
+  if (section === 'import') return importPage(body);
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };

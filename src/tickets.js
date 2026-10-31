@@ -89,7 +89,7 @@ export function createTickets(db, users) {
       assignee: t.assignee_id ? { id: t.assignee_id, displayName: t.a_name, username: t.a_username, email: t.a_email || '' } : null,
       reporter: t.reporter_id
         ? { id: t.reporter_id, displayName: t.r_name, username: t.r_username, email: t.r_email || t.reporter_email || '' }
-        : (t.reporter_email ? { id: null, displayName: t.reporter_name || t.reporter_email, email: t.reporter_email } : null),
+        : (t.reporter_email || t.reporter_name ? { id: null, displayName: t.reporter_name || t.reporter_email, email: t.reporter_email || '' } : null),
       commentCount: agent ? t.comment_count : t.public_comment_count,
       createdAt: t.created_at,
       updatedAt: t.updated_at,
@@ -312,7 +312,7 @@ export function createTickets(db, users) {
       .map((a) => ({ id: a.id, filename: a.filename, mime: a.mime, size: a.size, commentId: a.comment_id, createdAt: a.created_at }));
   }
 
-  function addAttachment(ticketId, { filename, mime, buffer, tmpPath, size }, userId = null, commentId = null) {
+  function addAttachment(ticketId, { filename, mime, buffer, tmpPath, size, createdAt }, userId = null, commentId = null, { silent = false } = {}) {
     const dir = path.join(paths.attachments, String(ticketId));
     fs.mkdirSync(dir, { recursive: true });
     const storage = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -328,9 +328,9 @@ export function createTickets(db, users) {
       }
     }
     const safeName = String(filename || 'datei').replace(/[\\/\0\r\n]/g, '_').slice(0, 200);
-    const info = db.prepare('INSERT INTO attachments(ticket_id,comment_id,filename,mime,size,storage_name,uploaded_by) VALUES(?,?,?,?,?,?,?)')
-      .run(ticketId, commentId, safeName, String(mime || 'application/octet-stream').slice(0, 100), size ?? buffer.length, storage, userId);
-    if (commentId === null) logActivity(ticketId, userId, 'attached', null, null, safeName);
+    const info = db.prepare("INSERT INTO attachments(ticket_id,comment_id,filename,mime,size,storage_name,uploaded_by,created_at) VALUES(?,?,?,?,?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%fZ','now')))")
+      .run(ticketId, commentId, safeName, String(mime || 'application/octet-stream').slice(0, 100), size ?? buffer.length, storage, userId, createdAt || null);
+    if (commentId === null && !silent) logActivity(ticketId, userId, 'attached', null, null, safeName);
     return info.lastInsertRowid;
   }
 

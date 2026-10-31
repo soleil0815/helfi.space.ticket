@@ -70,5 +70,10 @@ export const api = {
     testSmtp: (settings, to) => request('POST', '/api/admin/smtp/test', { settings, to }),
     system: () => request('GET', '/api/admin/system'),
     backup: () => request('POST', '/api/admin/backup'),
+    jiraConnect: (connection) => request('POST', '/api/admin/import/jira/connect', { connection }),
+    jiraInspect: (connection, projects) => request('POST', '/api/admin/import/jira/inspect', { connection, projects }),
+    jiraStart: (connection, projects, statusMap, typeMap, options) => request('POST', '/api/admin/import/jira/start', { connection, projects, statusMap, typeMap, options }),
+    importStatus: () => request('GET', '/api/admin/import/status'),
+    importCancel: () => request('POST', '/api/admin/import/cancel'),
   },
 };
