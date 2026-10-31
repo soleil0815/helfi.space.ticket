@@ -1,0 +1,27 @@
+# Helfi.Space – docker-compose.yml
+#
+# Diese Datei bleibt bei Updates in der Regel gleich. Einstellungen gehören in die .env,
+# alles Weitere (AD, SSO, E-Mail) wird in der Weboberfläche eingerichtet.
+#
+#   Installation:  .env.example nach .env kopieren, anpassen, dann  docker compose up -d
+#   Update:        Dockhand/Watchtower – oder  ./update.sh
+#   Ersteinrichtung: Einrichtungscode steht im Protokoll:  docker compose logs helfi
+
+services:
+  helfi:
+    image: ghcr.io/soleil0815/helfi.space.ticket:${HELFI_VERSION:-latest}
+    container_name: helfi
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Version dieser Datei – nicht ändern. Das Programm meldet sich, wenn sie veraltet ist.
+      HELFI_COMPOSE_VERSION: "1"
+    ports:
+      - "${HELFI_HTTP_PORT:-8080}:8080"
+    volumes:
+      # Datenbank, Anhänge, Sicherungen, Schlüssel
+      - ./data:/data
+    labels:
+      # Automatische Updates per Watchtower erlauben (Dockhand erkennt neue Images selbst)
+      - com.centurylinklabs.watchtower.enable=true
+    stop_grace_period: 15s

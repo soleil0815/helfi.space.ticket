@@ -1,0 +1,149 @@
+# Tests + Image bauen.
+# - Pull Requests und main: Tests, AD-Integrationstest, Image bauen und auf Schwachstellen prüfen (nichts veröffentlichen)
+# - Tag v1.2.3: zusätzlich Image für amd64/arm64 nach ghcr.io (Tags 1.2.3 und latest) und GitHub-Release
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests (inkl. update.sh mit dash)
+        run: npm test
+      - name: Abhängigkeiten auf bekannte Lücken prüfen
+        run: npm audit --omit=dev --audit-level=high
+      - name: Shell-Skripte prüfen
+        run: |
+          sudo apt-get install -y -q shellcheck dash >/dev/null
+          shellcheck -s sh update.sh docker/entrypoint.sh scripts/*.sh
+          dash -n update.sh && dash -n docker/entrypoint.sh
+
+  ad-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Samba AD installieren und starten
+        run: |
+          sudo apt-get update -q
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends samba samba-ad-dc samba-ad-provision winbind >/dev/null
+          sudo systemctl stop samba-ad-dc smbd nmbd winbind 2>/dev/null || true
+          sudo sh scripts/test-samba-ad.sh
+      - name: Integrationstest LDAPS/StartTLS/Gruppen
+        run: npm run test:integration
+        env:
+          HELFI_TEST_LDAP_HOST: dc01.firma.local
+
+  image:
+    needs: [test, ad-integration]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version bestimmen
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+            pkg="$(node -p "require('./package.json').version")"
+            [ "$v" = "$pkg" ] || { echo "Tag $v passt nicht zu package.json ($pkg)"; exit 1; }
+            echo "version=$v" >> "$GITHUB_OUTPUT"; echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(node -p "require('./package.json').version")-dev" >> "$GITHUB_OUTPUT"; echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Image bauen (amd64, zum Prüfen)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: helfi-test:ci
+          build-args: VERSION=${{ steps.v.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Rauchtest – Container startet und ist gesund
+        run: |
+          mkdir -p /tmp/helfi-data
+          docker run -d --name helfi-ci -p 8080:8080 -v /tmp/helfi-data:/data -e HELFI_COMPOSE_VERSION=1 helfi-test:ci
+          for i in $(seq 1 30); do
+            s="$(docker inspect -f '{{.State.Health.Status}}' helfi-ci)"; [ "$s" = healthy ] && break; sleep 2
+          done
+          docker logs helfi-ci
+          [ "$(docker inspect -f '{{.State.Health.Status}}' helfi-ci)" = healthy ]
+          curl -fsS http://localhost:8080/api/bootstrap | grep -q '"setupRequired":true'
+          docker logs helfi-ci 2>&1 | grep -q 'Einrichtungscode'
+          [ "$(stat -c %u /tmp/helfi-data/helfi.sqlite)" = 1000 ]
+
+      - name: Schwachstellenprüfung
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: helfi-test:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Bei ghcr.io anmelden
+        if: steps.v.outputs.release == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Veröffentlichen (amd64 + arm64)
+        if: steps.v.outputs.release == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ steps.v.outputs.version }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.v.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+
+      - name: Release-Dateien (für Installation ohne Internet)
+        if: steps.v.outputs.release == 'true'
+        run: |
+          v="${{ steps.v.outputs.version }}"
+          mkdir -p release
+          for arch in amd64 arm64; do
+            docker pull --platform "linux/$arch" "$IMAGE:$v"
+            docker save "$IMAGE:$v" | gzip > "release/helfi-$v-$arch.tar.gz"
+          done
+          cp docker-compose.yml .env.example update.sh release/
+
+      - name: GitHub-Release
+        if: steps.v.outputs.release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
