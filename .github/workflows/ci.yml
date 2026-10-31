@@ -1,7 +1,7 @@
 # Tests, Image prüfen und (nur bei Tags von main) veröffentlichen.
 # - Pull Requests und main: Tests, AD-Integrationstest, Image bauen, Rauchtest (gehärtet), Schwachstellenprüfung
-# - Tag v1.2.3 (Commit muss auf main liegen): Image für amd64/arm64 bauen und als Kandidat pushen,
-#   GENAU DIESES Image testen und prüfen, erst dann als 1.2.3 (+ latest, wenn höchste Version) freigeben,
+# - Tag v1.2.3 (Commit muss auf main liegen): Image für amd64/arm64 nativ bauen (ohne QEMU), je Architektur
+#   testen, als Kandidat zusammenführen, GENAU DIESES Image auf Schwachstellen prüfen, erst dann als 1.2.3 (+ latest, wenn höchste Version) freigeben,
 #   GitHub-Release mit Offline-Images und Prüfsummen.
 # Actions sind auf Commit-SHAs festgelegt (Dependabot hält sie aktuell).
 name: CI
@@ -98,16 +98,13 @@ jobs:
         run: sh .github/scripts/trivy-check.sh trivy.json
 
   # Veröffentlichen: nur Tags, nur von main, nur nach erfolgreichen Prüfungen
-  publish:
+  release-check:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [image]
     runs-on: ubuntu-24.04
-    concurrency:
-      group: publish
-      cancel-in-progress: false
-    permissions:
-      contents: write
-      packages: write
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      latest: ${{ steps.v.outputs.latest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,26 +120,78 @@ jobs:
           highest="$(git tag -l 'v*.*.*' --sort=-v:refname | head -n 1)"
           echo "version=$v" >> "$GITHUB_OUTPUT"
           if [ "$highest" = "$GITHUB_REF_NAME" ]; then echo "latest=true" >> "$GITHUB_OUTPUT"; else echo "latest=false" >> "$GITHUB_OUTPUT"; fi
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+  # Jede Architektur nativ bauen und auf ihrer eigenen Hardware testen.
+  # Kein QEMU: Node bricht unter Emulation mit „Illegal instruction“ (Exit 132) ab.
+  release-build:
+    needs: [release-check]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Kandidat bauen und pushen (amd64 + arm64, ohne Cache)
+      - name: Kandidat bauen und pushen (${{ matrix.arch }}, ohne Cache)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/${{ matrix.arch }}
           push: true
           no-cache: true
-          build-args: VERSION=${{ steps.v.outputs.version }}
-          tags: ${{ env.IMAGE }}:${{ steps.v.outputs.version }}-kandidat
-      - name: Kandidat testen (amd64)
+          provenance: false
+          build-args: VERSION=${{ needs.release-check.outputs.version }}
+          tags: ${{ env.IMAGE }}:${{ needs.release-check.outputs.version }}-kandidat-${{ matrix.arch }}
+      - name: Kandidat testen (${{ matrix.arch }})
         run: |
-          docker pull --platform linux/amd64 "$IMAGE:${{ steps.v.outputs.version }}-kandidat"
-          sh .github/scripts/smoke-test.sh "$IMAGE:${{ steps.v.outputs.version }}-kandidat"
+          img="$IMAGE:${{ needs.release-check.outputs.version }}-kandidat-${{ matrix.arch }}"
+          docker pull "$img"
+          sh .github/scripts/smoke-test.sh "$img"
+
+  publish:
+    needs: [release-check, release-build]
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Version übernehmen
+        id: v
+        run: |
+          echo "version=${{ needs.release-check.outputs.version }}" >> "$GITHUB_OUTPUT"
+          echo "latest=${{ needs.release-check.outputs.latest }}" >> "$GITHUB_OUTPUT"
+      - name: Kandidat aus beiden Architekturen zusammenführen
+        run: |
+          v="${{ steps.v.outputs.version }}"
+          docker buildx imagetools create -t "$IMAGE:$v-kandidat" "$IMAGE:$v-kandidat-amd64" "$IMAGE:$v-kandidat-arm64"
+          docker buildx imagetools inspect "$IMAGE:$v-kandidat"
       - name: Kandidat auf Schwachstellen prüfen (amd64)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
