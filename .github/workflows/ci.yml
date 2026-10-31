@@ -103,8 +103,8 @@ jobs:
           [ "$(docker inspect -f '{{.State.Health.Status}}' helfi-ci)" = healthy ] || fail "nicht healthy: $(docker inspect -f '{{json .State.Health}}' helfi-ci | head -c 400)"
           curl -fsS http://localhost:8080/api/bootstrap | grep -q '"setupRequired":true' || fail "bootstrap"
           docker logs helfi-ci 2>&1 | grep -q 'Einrichtungscode' || fail "kein Einrichtungscode im Protokoll"
-          owner="$(stat -c %u /tmp/helfi-data/helfi.sqlite)"
-          [ "$owner" = 1000 ] || fail "Datenbank gehört $owner statt 1000: $(ls -ln /tmp/helfi-data | tr '\n' '|')"
+          owner="$(sudo stat -c %u /tmp/helfi-data/helfi.sqlite)"
+          [ "$owner" = 1000 ] || fail "Datenbank gehört $owner statt 1000: $(sudo ls -ln /tmp/helfi-data | tr '\n' '|')"
 
       - name: Schwachstellenprüfung
         uses: aquasecurity/trivy-action@v0.36.0
