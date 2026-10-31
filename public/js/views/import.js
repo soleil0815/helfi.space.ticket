@@ -1,4 +1,4 @@
-// Administration → Import aus Jira (Cloud oder Server/Data Center)
+// Administration → Import aus einem anderen Ticketsystem (REST-API, Cloud oder Server/Data Center)
 import { api } from '../api.js';
 import { h, mount, icon, field, select, toast } from '../dom.js';
 import { t } from '../i18n.js';
@@ -49,7 +49,7 @@ function connectStep(body, lastJob) {
         h('div', field(t('imp.verifyTls'), (() => { const c = h('input', { type: 'checkbox', checked: conn.verifyTls }); c.addEventListener('change', () => { conn.verifyTls = c.checked; }); return c; })())),
         h('div')),
       h('details', h('summary', t('imp.caPem')), (() => { const ta = h('textarea.mono', { rows: 4, placeholder: '-----BEGIN CERTIFICATE-----' }); ta.value = conn.caPem; ta.addEventListener('input', () => { conn.caPem = ta.value; }); return ta; })())));
-  const typeSel = select([['cloud', 'Jira Cloud (atlassian.net)'], ['server', 'Jira Server / Data Center']], conn.type, {
+  const typeSel = select([['cloud', t('imp.typeCloud')], ['server', t('imp.typeServer')]], conn.type, {
     onchange: (e) => { conn.type = e.target.value; drawAuth(); },
   });
   drawAuth();
@@ -76,7 +76,7 @@ function connectStep(body, lastJob) {
     lastJob ? lastJobPanel(lastJob) : null,
     h('section.panel',
       err,
-      h('div.grid-2', field(t('imp.type'), typeSel), field(t('imp.url'), bind('baseUrl', { placeholder: 'https://firma.atlassian.net' }), t('imp.urlHint'))),
+      h('div.grid-2', field(t('imp.type'), typeSel), field(t('imp.url'), bind('baseUrl', { placeholder: 'https://tickets.firma.local' }), t('imp.urlHint'))),
       authBox,
       h('p.muted.small', icon('lock'), ' ', t('imp.notStored')),
       h('div.form-actions', btn)));
