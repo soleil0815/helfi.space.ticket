@@ -1,0 +1,88 @@
+// Integrationstest gegen ein echtes Samba-AD (nur wenn HELFI_TEST_LDAP_HOST gesetzt ist).
+//   HELFI_TEST_LDAP_HOST=dc01.firma.local HELFI_TEST_LDAP_BINDPW=... node --test test/integration/
+// Erwartet die Benutzer/Gruppen aus scripts/test-samba-ad.sh.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import * as ldap from '../../src/auth/ldap.js';
+
+const host = process.env.HELFI_TEST_LDAP_HOST;
+const skip = !host && 'HELFI_TEST_LDAP_HOST nicht gesetzt';
+
+const base = {
+  host, port: 636, security: 'ldaps', tlsMode: 'pinned', verifyHostname: true, caPem: '',
+  baseDn: 'DC=firma,DC=local', bindDn: 'svc-helfi@firma.local', bindPassword: process.env.HELFI_TEST_LDAP_BINDPW || 'Dienst!Pass2026',
+  userFilter: '(&(objectCategory=person)(objectClass=user)(sAMAccountName={{username}}))',
+  usernameAttr: 'sAMAccountName', displayNameAttr: 'displayName', emailAttr: 'mail',
+  nestedGroups: true, adminGroup: 'Helfi-Admins', agentGroup: 'Helfi-Bearbeiter', userGroup: '', timeoutMs: 8000,
+};
+
+test('LDAPS: Zertifikat abrufen und damit vertrauen', { skip }, async () => {
+  const r = await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' });
+  assert.ok(r.chain.length >= 1);
+  assert.match(r.chain[0].fingerprint256, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+  base.caPem = r.pem;
+  const res = await ldap.testConnection({ ...base });
+  assert.equal(res.ok, true, JSON.stringify(res.steps));
+  assert.equal(res.rootDse.defaultNamingContext.toLowerCase(), 'dc=firma,dc=local');
+});
+
+test('StartTLS: Zertifikat abrufen', { skip }, async () => {
+  const r = await ldap.fetchCertificateChain({ host, port: 389, security: 'starttls' });
+  assert.ok(r.chain.length >= 1);
+  const res = await ldap.testConnection({ ...base, port: 389, security: 'starttls', caPem: r.pem });
+  assert.equal(res.ok, true, JSON.stringify(res.steps));
+});
+
+test('LDAPS: fremdes Zertifikat wird abgelehnt', { skip }, async () => {
+  // Echtes, aber fremdes Zertifikat erzeugen (openssl)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-cert-'));
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-days', '1',
+    '-subj', '/CN=dc01.firma.local', '-keyout', path.join(dir, 'k.pem'), '-out', path.join(dir, 'c.pem')], { stdio: 'ignore' });
+  const other = fs.readFileSync(path.join(dir, 'c.pem'), 'utf8');
+  fs.rmSync(dir, { recursive: true, force: true });
+  const res = await ldap.testConnection({ ...base, caPem: other });
+  assert.equal(res.ok, false);
+  assert.equal(res.steps.find((st) => st.key === 'bind'), undefined, 'darf nicht bis zur Anmeldung kommen');
+});
+
+test('Anmeldung, Rollen aus (verschachtelten) Gruppen', { skip }, async () => {
+  const cfg = { ...base };
+  if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+
+  const max = await ldap.authenticate(cfg, 'FIRMA\\m.muster', 'Muster!Pass2026');
+  assert.equal(max.username, 'm.muster');
+  assert.equal(max.email, 'm.muster@firma.local');
+  assert.deepEqual(max.groups, { admin: false, agent: true, user: true });
+
+  const erika = await ldap.authenticate(cfg, 'e.beispiel@firma.local', 'Beispiel!Pass2026');
+  assert.equal(erika.groups.admin, true, 'verschachtelte Gruppe IT-Team → Helfi-Admins');
+
+  const flat = await ldap.authenticate({ ...cfg, nestedGroups: false }, 'e.beispiel', 'Beispiel!Pass2026');
+  assert.equal(flat.groups.admin, false, 'ohne Verschachtelung kein Admin');
+
+  assert.equal(await ldap.authenticate(cfg, 'm.muster', 'falsch'), null);
+  assert.equal(await ldap.authenticate(cfg, 'm.muster', ''), null, 'leeres Kennwort = nie anonym');
+  assert.equal(await ldap.authenticate(cfg, 'gibtsnicht', 'x'), null);
+  assert.equal(await ldap.authenticate(cfg, 'm.muster)(|(sAMAccountName=*', 'x'), null, 'Filter-Injection');
+});
+
+test('Ohne Dienstkonto: Suche als anmeldender Benutzer', { skip }, async () => {
+  const cfg = { ...base, bindDn: '', bindPassword: '' };
+  cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+  const u = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
+  assert.equal(u.username, 'k.kunde');
+  assert.deepEqual(u.groups, { admin: false, agent: false, user: true });
+  assert.equal(await ldap.authenticate(cfg, 'k.kunde', 'falsch'), null);
+});
+
+test('Hostname-Prüfung: per IP ohne Namen im Zertifikat schlägt fehl, abschaltbar', { skip }, async () => {
+  const pem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+  const strict = await ldap.testConnection({ ...base, host: '127.0.0.1', caPem: pem, verifyHostname: true });
+  assert.equal(strict.ok, false);
+  const relaxed = await ldap.testConnection({ ...base, host: '127.0.0.1', caPem: pem, verifyHostname: false });
+  assert.equal(relaxed.ok, true, JSON.stringify(relaxed.steps));
+});

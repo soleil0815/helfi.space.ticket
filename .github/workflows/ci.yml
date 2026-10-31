@@ -1,0 +1,189 @@
+# Tests, Image prüfen und (nur bei Tags von main) veröffentlichen.
+# - Pull Requests und main: Tests, AD-Integrationstest, Image bauen, Rauchtest (gehärtet), Schwachstellenprüfung
+# - Tag v1.2.3 (Commit muss auf main liegen): Image für amd64/arm64 bauen und als Kandidat pushen,
+#   GENAU DIESES Image testen und prüfen, erst dann als 1.2.3 (+ latest, wenn höchste Version) freigeben,
+#   GitHub-Release mit Offline-Images und Prüfsummen.
+# Actions sind auf Commit-SHAs festgelegt (Dependabot hält sie aktuell).
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Werkzeuge für Shell-Tests
+        run: sudo apt-get update -q && sudo apt-get install -y -q shellcheck dash >/dev/null
+      - name: Tests (inkl. update.sh mit dash, entrypoint.sh als root)
+        run: npm test && sudo -E env "PATH=$PATH" node --test test/entrypoint.test.js
+      - name: Abhängigkeiten auf bekannte Lücken prüfen
+        run: npm audit --omit=dev --audit-level=high
+      - name: Shell-Skripte prüfen
+        run: |
+          shellcheck -s sh update.sh docker/entrypoint.sh scripts/*.sh
+          dash -n update.sh && dash -n docker/entrypoint.sh
+
+  ad-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Samba AD installieren und starten
+        run: |
+          sudo apt-get update -q
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends samba samba-ad-dc samba-ad-provision winbind >/dev/null
+          sudo systemctl stop samba-ad-dc smbd nmbd winbind 2>/dev/null || true
+          sudo sh scripts/test-samba-ad.sh
+      - name: Integrationstest LDAPS/StartTLS/Gruppen
+        run: npm run test:integration
+        env:
+          HELFI_TEST_LDAP_HOST: dc01.firma.local
+
+  # Image bauen und prüfen (ohne Schreibrechte, ohne Veröffentlichung)
+  image:
+    needs: [test, ad-integration]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Image bauen (amd64)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: helfi-test:ci
+          build-args: VERSION=0.0.0-ci
+          cache-from: type=gha
+          # Cache nur von main schreiben (PRs können ihn nicht vergiften)
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
+      - name: Rauchtest (gehärtet wie in docker-compose.yml)
+        run: sh .github/scripts/smoke-test.sh helfi-test:ci
+      - name: Schwachstellenprüfung
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: helfi-test:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: json
+          output: trivy.json
+          exit-code: '0'
+      - name: Schwachstellen auswerten
+        run: sh .github/scripts/trivy-check.sh trivy.json
+
+  # Veröffentlichen: nur Tags, nur von main, nur nach erfolgreichen Prüfungen
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [image]
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Herkunft und Version prüfen
+        id: v
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          [ "$v" = "$pkg" ] || { echo "::error::Tag $v passt nicht zu package.json ($pkg)"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::Tag liegt nicht auf main"; exit 1; }
+          highest="$(git tag -l 'v*.*.*' --sort=-v:refname | head -n 1)"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [ "$highest" = "$GITHUB_REF_NAME" ]; then echo "latest=true" >> "$GITHUB_OUTPUT"; else echo "latest=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Kandidat bauen und pushen (amd64 + arm64, ohne Cache)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          no-cache: true
+          build-args: VERSION=${{ steps.v.outputs.version }}
+          tags: ${{ env.IMAGE }}:${{ steps.v.outputs.version }}-kandidat
+      - name: Kandidat testen (amd64)
+        run: |
+          docker pull --platform linux/amd64 "$IMAGE:${{ steps.v.outputs.version }}-kandidat"
+          sh .github/scripts/smoke-test.sh "$IMAGE:${{ steps.v.outputs.version }}-kandidat"
+      - name: Kandidat auf Schwachstellen prüfen (amd64)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ steps.v.outputs.version }}-kandidat
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: json
+          output: trivy-amd64.json
+          exit-code: '0'
+      - run: sh .github/scripts/trivy-check.sh trivy-amd64.json
+      - name: Kandidat auf Schwachstellen prüfen (arm64)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ steps.v.outputs.version }}-kandidat
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: json
+          output: trivy-arm64.json
+          exit-code: '0'
+      - run: sh .github/scripts/trivy-check.sh trivy-arm64.json
+      - name: Geprüftes Image freigeben (gleicher Digest)
+        run: |
+          v="${{ steps.v.outputs.version }}"
+          tags="-t $IMAGE:$v"
+          [ "${{ steps.v.outputs.latest }}" = true ] && tags="$tags -t $IMAGE:latest"
+          # shellcheck disable=SC2086
+          docker buildx imagetools create $tags "$IMAGE:$v-kandidat"
+      - name: Release-Dateien (Offline-Images + Prüfsummen)
+        run: |
+          v="${{ steps.v.outputs.version }}"
+          mkdir -p release
+          for arch in amd64 arm64; do
+            docker pull --platform "linux/$arch" "$IMAGE:$v"
+            docker save "$IMAGE:$v" | gzip > "release/helfi-$v-$arch.tar.gz"
+          done
+          cp docker-compose.yml .env.example update.sh release/
+          (cd release && sha256sum -- * > SHA256SUMS)
+      - name: GitHub-Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: release/*
+          generate_release_notes: true
