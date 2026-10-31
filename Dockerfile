@@ -1,14 +1,14 @@
 # Helfi.Space – Container-Image
 # Gebaut von GitHub Actions für linux/amd64 und linux/arm64 (ghcr.io/soleil0815/helfi.space.ticket)
 
-FROM node:22-alpine AS deps
+FROM node:25-alpine AS deps
 WORKDIR /app
 # Werkzeuge nur für den Fall, dass better-sqlite3 kein fertiges Binärpaket findet
 RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-FROM node:22-alpine
+FROM node:25-alpine
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Helfi.Space" \
       org.opencontainers.image.description="Ticketsystem mit Active-Directory-Anbindung, SSO und E-Mail-Abruf" \
