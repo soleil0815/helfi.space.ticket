@@ -98,17 +98,17 @@ export function createJiraClient(c) {
       if ([502, 504].includes(r.status) && attempt < 3) { await new Promise((res) => setTimeout(res, 1000 * (attempt + 1))); continue; }
       if ((r.status === 429 || r.status === 503) && attempt < 6) {
         const wait = Math.min(60, Number(r.headers['retry-after']) || 2 ** attempt) * 1000;
-        log.info(`Jira bremst (HTTP ${r.status}), warte ${wait / 1000}s`);
+        log.info(`Quellsystem bremst (HTTP ${r.status}), warte ${wait / 1000}s`);
         await new Promise((res) => setTimeout(res, wait));
         continue;
       }
       const text = r.body.toString('utf8');
-      if (r.status === 401) throw new JiraError('Anmeldung bei Jira fehlgeschlagen (Benutzer/Token prüfen).', 401);
-      if (r.status === 403) throw new JiraError('Keine Berechtigung in Jira für diese Abfrage.', 403);
+      if (r.status === 401) throw new JiraError('Anmeldung beim Quellsystem fehlgeschlagen (Benutzer/Token prüfen).', 401);
+      if (r.status === 403) throw new JiraError('Keine Berechtigung im Quellsystem für diese Abfrage.', 403);
       if (r.status >= 400) {
         let msg = text.slice(0, 300);
         try { const j = JSON.parse(text); msg = [...(j.errorMessages || []), ...Object.values(j.errors || {})].join('; ') || msg; } catch { /* kein JSON */ }
-        throw new JiraError(`Jira antwortet mit HTTP ${r.status}: ${msg}`, r.status);
+        throw new JiraError(`Quellsystem antwortet mit HTTP ${r.status}: ${msg}`, r.status);
       }
       try { return text ? JSON.parse(text) : null; }
       catch { throw new JiraError(`Unerwartete Antwort von ${base.host} (kein JSON) – ist die Adresse richtig?`, 502); }
@@ -171,7 +171,7 @@ export function createJiraClient(c) {
           for (const i of r.issues || []) yield i;
           nextPageToken = r.nextPageToken;
           // Schutz vor Endlosschleife: gleiches Token zweimal oder leere Seite mit Token
-          if (nextPageToken && (seenTokens.has(nextPageToken) || !(r.issues || []).length)) throw new JiraError('Jira liefert beim Blättern immer wieder dieselbe Seite – Abbruch.', 502);
+          if (nextPageToken && (seenTokens.has(nextPageToken) || !(r.issues || []).length)) throw new JiraError('Das Quellsystem liefert beim Blättern immer wieder dieselbe Seite – Abbruch.', 502);
           if (nextPageToken) seenTokens.add(nextPageToken);
           if (seenTokens.size > MAX_PAGES) throw new JiraError('Zu viele Seiten – Abbruch.', 502);
         } while (nextPageToken);

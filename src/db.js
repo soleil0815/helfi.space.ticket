@@ -130,7 +130,7 @@ export const MIGRATIONS = [
   },
   {
     id: 2,
-    name: 'Import-Zuordnung (Jira)',
+    name: 'Import-Zuordnung',
     sql: `
     -- Welcher fremde Datensatz (Jira-Vorgang, -Kommentar, -Anhang) wurde zu welchem lokalen?
     -- Damit lässt sich ein Import wiederholen, ohne Doppelte anzulegen.

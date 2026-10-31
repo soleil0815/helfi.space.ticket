@@ -215,7 +215,7 @@ export function createJiraImporter({ db, tickets, users }) {
         entry.state = 'running';
         let project = tickets.projects.get(p.targetKey);
         if (!project) {
-          tickets.projects.create({ key: p.targetKey, name: p.name || p.targetKey, description: `Importiert aus Jira (${client.host}, ${p.key})` });
+          tickets.projects.create({ key: p.targetKey, name: p.name || p.targetKey, description: `Importiert von ${client.host} (${p.key})` });
           project = tickets.projects.get(p.targetKey);
         }
         try { entry.total = await client.countIssues(p.key); } catch { entry.total = null; }

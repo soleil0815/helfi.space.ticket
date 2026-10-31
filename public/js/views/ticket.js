@@ -1,4 +1,4 @@
-// Ticketansicht (Jira-ähnlich, zweispaltig) und Dialog "Ticket erstellen"
+// Ticketansicht (zweispaltig) und Dialog "Ticket erstellen"
 import { api } from '../api.js';
 import {
   h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize,
@@ -103,7 +103,7 @@ export async function renderTicket(content, key) {
     const items = [];
     if (tab !== 'history') for (const c of tk.comments) items.push({ at: c.createdAt, el: commentEl(c) });
     if (tab !== 'comments') for (const a of tk.activity) items.push({ at: a.createdAt, el: historyEl(a) });
-    items.sort((a, b) => (a.at < b.at ? 1 : -1)); // neueste oben, wie in Jira
+    items.sort((a, b) => (a.at < b.at ? 1 : -1)); // neueste oben
 
     return h('section.ticket-section',
       h('h3', t('ticket.activity')),

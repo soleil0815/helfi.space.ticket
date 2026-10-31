@@ -1,4 +1,4 @@
-// Einstieg der Oberfläche: Zustand, Router, Grundlayout im Jira-Stil.
+// Einstieg der Oberfläche: Zustand, Router, Grundlayout.
 import { api } from './api.js';
 import { h, mount, icon, avatar, dropdown, toast } from './dom.js';
 import { t, setLang, getLang, browserLang } from './i18n.js';

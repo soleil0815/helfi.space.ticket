@@ -2,19 +2,23 @@
 
 # Helfi.Space
 
-Ein schlankes Ticketsystem für IT-Abteilungen und Institute. Die Oberfläche ist an Jira angelehnt, es gibt sie auf Deutsch und Englisch. Helfi.Space läuft als ein einzelner Docker-Container mit SQLite.
+**Deutsch** · [English](README.en.md)
 
-*English summary below.*
+Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und Englisch. Helfi.Space läuft als ein einzelner Docker-Container mit SQLite.
+
+![Board mit Tickets in vier Spalten](docs/images/board-de.png)
 
 - **Active Directory** (Windows Server oder Samba AD): Anmeldung mit Windows-Konten, Rollen über AD-Gruppen (auch verschachtelt), **LDAPS-Zertifikat per Knopfdruck abrufen**
 - **Single Sign-on** über OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
-- **Jira-ähnlich:** Board mit Drag & Drop, Ticketliste mit Filtern, Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
-- **Import aus Jira** (Cloud und Server/Data Center): Projekte, Tickets, Kommentare und Anhänge. Die Ticketnummern bleiben erhalten.
+- **Übersichtlich:** Board mit Drag & Drop, Ticketliste mit Filtern, Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
+- **Import aus einem anderen Ticketsystem** (über dessen REST-API, Cloud und Server/Data Center): Projekte, Tickets, Kommentare und Anhänge. Die Ticketnummern bleiben erhalten.
 - **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen.
 - **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
 - Automatische Sicherungen täglich und vor jedem Update
+
+![Ticketansicht mit Kommentaren, interner Notiz und Details](docs/images/ticket-de.png)
 
 ---
 
@@ -36,7 +40,7 @@ Dann `HELFI_BASE_URL` im Browser öffnen. Der Einrichtungsassistent fragt nach d
 > **Repository noch privat?** Dann braucht der Server einmalig eine Anmeldung bei ghcr.io:
 > `docker login ghcr.io -u <GitHub-Name>` mit einem Personal Access Token (Recht `read:packages`).
 
-Auf dem Host liegen nur drei Dinge:
+Auf dem Host liegen nur vier Dinge:
 
 | | |
 |---|---|
@@ -100,6 +104,8 @@ Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Fak
 - **Gilt für** lokale Konten und Active-Directory-Anmeldungen. Bei **SSO** prüft standardmäßig der Identitätsanbieter den zweiten Faktor (z. B. MFA in Entra ID). Das lässt sich abschalten, dann fragt Helfi.Space zusätzlich seinen eigenen Code ab.
 - Docker-Hinweis: Bei manchen Docker-Setups kommen alle Zugriffe scheinbar vom Docker-Gateway, z. B. bei rootless Docker oder IPv6. Diese Adresse gilt deshalb nur als intern, wenn sie einzeln eingetragen ist.
 
+![Einstellungen zur Zwei-Faktor-Anmeldung](docs/images/2fa-de.png)
+
 ## Single Sign-on (OpenID Connect)
 
 *Administration → Single Sign-on*
@@ -127,35 +133,35 @@ Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Fak
 - Schleifenschutz: Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.
 - Absender ohne Konto werden als *E-Mail-Kontakt* geführt. Melden sie sich später per AD oder SSO mit derselben Adresse an, werden ihre Tickets übernommen.
 
-## Import aus Jira
+## Import aus einem anderen Ticketsystem
 
 *Administration → Import*
 
-Funktioniert mit **Jira Cloud** und **Jira Server/Data Center**, auch mit Jira Service Management. Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Import.
+Helfi.Space übernimmt Projekte und Tickets über die REST-API des bisherigen Systems: **Cloud** (REST-API v3) und **Server/Data Center** (REST-API v2), auch Service-Desk-Projekte. Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Import.
 
 1. **Verbinden:**
-   - Cloud: Adresse (`https://firma.atlassian.net`), E-Mail und [API-Token](https://id.atlassian.com/manage-profile/security/api-tokens).
-   - Server/DC: Adresse und Personal Access Token (ab Jira 8.14), alternativ Benutzername und Kennwort.
+   - Cloud: Adresse, E-Mail und API-Token.
+   - Server/Data Center: Adresse und Personal Access Token, alternativ Benutzername und Kennwort.
    - Bei einem internen Zertifikat die eigene Zertifizierungsstelle (PEM) eintragen.
 2. **Projekte wählen** und festlegen, in welches Helfi.Space-Projekt sie kommen. Gibt es das Projekt nicht, wird es angelegt.
-3. **Zuordnen:** Jira-Status und Vorgangstypen auf die vier Status und Typen von Helfi.Space verteilen. Vorschläge sind schon eingetragen, z. B. „Waiting for customer“ → Wartet und „Bug“ → Störung.
+3. **Zuordnen:** Status und Vorgangstypen des Quellsystems auf die vier Status und Typen von Helfi.Space verteilen. Vorschläge sind schon eingetragen, z. B. „Waiting for customer“ → Wartet und „Bug“ → Störung.
 4. **Importieren:** Der Fortschritt wird angezeigt. Der Import lässt sich abbrechen.
 
 Was übernommen wird:
 
 - Zusammenfassung, Beschreibung (als Text), Typ, Status, Priorität, Stichwörter, Fälligkeit, Erstell- und Erledigt-Datum
-- Kommentare. Interne Kommentare aus Jira Service Management und Kommentare mit eingeschränkter Sichtbarkeit werden zu internen Notizen.
+- Kommentare. Interne Kommentare aus Service-Desk-Projekten und Kommentare mit eingeschränkter Sichtbarkeit werden zu internen Notizen.
 - Anhänge bis zur gewählten Größe
 
 So werden Nummern und Personen behandelt:
 
 - **Nummern:** `SUP-123` bleibt `SUP-123`. Ist die Nummer im Zielprojekt schon vergeben, bekommt das Ticket die nächste freie. Neue Tickets schließen an die höchste Nummer an.
-- **Personen** werden über die E-Mail-Adresse zugeordnet. Melder ohne Konto werden zu E-Mail-Kontakten, und meldet sich die Person später per AD oder SSO an, gehören ihr die Tickets. Bearbeiter werden nur zugewiesen, wenn sie in Helfi.Space schon Bearbeiter sind, sonst steht ihr Name im Verlauf. Jira Cloud gibt E-Mail-Adressen je nach Datenschutzeinstellung nicht heraus, dann wird nur der Name übernommen.
+- **Personen** werden über die E-Mail-Adresse zugeordnet. Melder ohne Konto werden zu E-Mail-Kontakten, und meldet sich die Person später per AD oder SSO an, gehören ihr die Tickets. Bearbeiter werden nur zugewiesen, wenn sie in Helfi.Space schon Bearbeiter sind, sonst steht ihr Name im Verlauf. Cloud-Systeme geben E-Mail-Adressen je nach Datenschutzeinstellung nicht heraus, dann wird nur der Name übernommen.
 
 Außerdem gilt:
 
 - Es werden **keine E-Mails** verschickt.
-- **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich in Jira seitdem geändert haben (dann gilt der Stand aus Jira). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren.
+- **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich im Quellsystem seitdem geändert haben (dann gilt der Stand von dort). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren.
 
 ---
 
@@ -243,14 +249,3 @@ Releases: Version in `package.json` erhöhen, Tag `v1.2.3` setzen. Die CI testet
 
 MIT – siehe [LICENSE](LICENSE).
 
----
-
-## English summary
-
-Helfi.Space is a lightweight, Jira-style help desk running as a single Docker container with SQLite. The UI is available in German and English (switch via the user menu).
-
-- **Install:** download `docker-compose.yml` and `.env.example` from the latest release, copy `.env.example` to `.env` and set `HELFI_BASE_URL`. Then run `docker compose up -d`, get the setup code from `docker compose logs helfi`, open the URL and create the local admin.
-- **Active Directory** (Windows or Samba): *Administration → Active Directory*. Enter the DC host name, click **Fetch certificate**, compare the SHA-256 fingerprint and accept it. Then add a service account and the admin/agent groups (nested groups supported) and run **Test connection**.
-- **SSO:** OpenID Connect (Entra ID, ADFS, Keycloak, …). Register the redirect URI shown on the settings page.
-- **Email:** an IMAP mailbox is polled. New mails become tickets, and replies containing `[KEY-123]` become comments. SMTP sends confirmations and agent replies.
-- **Updates:** use Dockhand/Watchtower on the `latest` tag (preferably at night), or run `./update.sh [version] [-y]`, which offers a rollback if the new version fails its health check (automatic with `-y`). The database is backed up automatically before every version change.

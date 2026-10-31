@@ -1,0 +1,250 @@
+<p align="center"><img src="public/logo.svg" width="72" alt=""></p>
+
+# Helfi.Space
+
+[Deutsch](README.md) · **English**
+
+A lightweight ticket system for IT departments and institutes, in German and English. Helfi.Space runs as a single Docker container with SQLite.
+
+![Board with tickets in four columns](docs/images/board-en.png)
+
+- **Active Directory** (Windows Server or Samba AD): sign in with Windows accounts, roles from AD groups (nested groups too), **fetch the LDAPS certificate with one click**
+- **Single sign-on** via OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
+- **Email → ticket:** a mailbox is polled via IMAP, new mails become tickets and replies land in the matching ticket. Reporters get answers by email.
+- **Clear and simple:** board with drag & drop, ticket list with filters, ticket view with details, comments, internal notes, attachments and history
+- **Import from another ticket system** (via its REST API, cloud and Server/Data Center): projects, tickets, comments and attachments. Ticket numbers are kept.
+- **Roles:** administrator, agent, user. Users only see their own requests.
+- **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required.
+- **Local emergency admin:** created during first setup, works even when the AD is unreachable.
+- Automatic backups daily and before every update
+
+![Ticket view with comments, internal note and details](docs/images/ticket-en.png)
+
+---
+
+## Installation
+
+Requirement: Docker with Compose (Linux server, Synology, …).
+
+```sh
+mkdir helfi && cd helfi
+# download docker-compose.yml, .env.example and update.sh from the latest release
+cp .env.example .env
+nano .env            # at least set HELFI_BASE_URL
+docker compose up -d
+docker compose logs helfi   # shows the setup code
+```
+
+Then open `HELFI_BASE_URL` in the browser. The setup wizard asks for the **setup code** from the log and creates the **local administrator** and the first project. After that it takes you straight to the AD setup.
+
+> **Repository still private?** Then the server needs a one-time login to ghcr.io:
+> `docker login ghcr.io -u <GitHub name>` with a personal access token (scope `read:packages`).
+
+The host only holds a few things:
+
+| | |
+|---|---|
+| `docker-compose.yml` | usually stays the same across updates |
+| `update.sh` | manual update (optional, not needed with a container manager) |
+| `.env` | your settings (address, port, version, PUID/PGID) |
+| `data/` | database, attachments, backups, key file |
+
+**Synology:** set `PUID`/`PGID` in `.env` to your user (e.g. `1026`/`100`, see `id` via SSH) so the files in `data/` belong to you.
+
+### HTTPS (recommended)
+
+Helfi.Space itself speaks HTTP on port 8080. In production, put a reverse proxy with HTTPS in front of it (Synology reverse proxy, Nginx Proxy Manager, Caddy, Traefik …). Then set `HELFI_BASE_URL=https://helfi.firma.local`. Cookies are then marked `Secure` automatically.
+
+So that the brake against password guessing sees the real client address, enter the proxy's address in `.env`, e.g. `HELFI_TRUST_PROXY=10.0.10.5`. Without it, Helfi.Space trusts no `X-Forwarded-For` header, because it could otherwise be forged.
+
+Example Caddy:
+
+```
+helfi.firma.local {
+    reverse_proxy 10.0.10.20:8080
+}
+```
+
+---
+
+## Setting up Active Directory
+
+*Administration → Active Directory*
+
+1. Enter the **domain controller** using the name in its certificate (e.g. `dc01.firma.local`). Encryption: **LDAPS (636)** or **StartTLS (389)**.
+2. **Fetch certificate** retrieves the certificate directly from the DC and shows the SHA-256 fingerprint. Compare it with the one on the server, then click **Accept certificate**.
+   - Windows: `certlm.msc` → Personal → Certificates → the DC's certificate → Details → Thumbprint (SHA-256 via PowerShell: `Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, @{n='SHA256';e={$_.GetCertHashString('SHA256')}}`)
+   - Samba: `openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256`
+3. Enter a **service account**, e.g. `svc-helfi@firma.local` (a normal domain account, no special rights needed). Without a service account, Helfi.Space searches with the account that is signing in.
+4. Enter the **groups** for administrators and agents, e.g. `Helfi-Admins` and `Helfi-Agents` (name or full DN). Nested groups are taken into account. Optionally, an "allowed users" group restricts who may sign in at all (admins and agents always may). If a group name is ambiguous (same name in several OUs), no role is assigned and the log says so – enter the full DN in that case.
+5. **Test connection**, ideally with a test sign-in. If the base DN is empty, it is taken from the AD. If there is a Microsoft certification authority (AD CS), the test finds it and offers to accept it too. Renewed DC certificates then stay valid automatically.
+6. **Enable AD sign-in** and save.
+
+Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users are created on their first sign-in. Their role follows from their groups at every sign-in, unless an admin has locked it under *Users* with "fixed role". If an admin changes a role by hand, it is locked automatically.
+
+**Good to know**
+
+- A Windows DC only offers LDAPS if it has a certificate (AD CS or installed manually). Samba AD creates one itself during provisioning.
+- Every day Helfi.Space checks whether the stored certificate still matches and whether it expires soon. Problems appear as a notice for admins. After a renewal on the DC, simply **fetch the certificate** again.
+- Local accounts take precedence: if a local account has the same name as an AD account, the local one wins.
+- If the AD is unreachable, local accounts (the emergency admin) can still sign in.
+
+## Two-factor sign-in (2FA)
+
+*Administration → Security*
+
+Default: **on the internal network a password is enough, from outside a second factor is required.** That is a 6-digit code from an authenticator app such as Microsoft Authenticator, Google Authenticator, Aegis or 2FAS. Alternatively, 2FA can be required "always" or "never (optional)".
+
+- **Requests from the server itself** (127.0.0.1) do not count as internal automatically. A reverse proxy on the same host must set X-Forwarded-For, otherwise every request would look like it came from the server itself. For testing, `127.0.0.1` can be added to the list.
+- **Internal networks** are a list in the settings (default: `10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7`). The page shows how your current address is classified.
+- **Behind a reverse proxy** its address must be in `HELFI_TRUST_PROXY`. Otherwise Helfi.Space only sees the proxy and, to be safe, treats every request as external. Admins then get a notice.
+- **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Security* can allow "first-time setup from outside too".
+- **Sessions:** if you signed in at the office without a code and later use the same browser from home, you have to sign in again with a code there.
+- **Lost phone:** sign in with a recovery code. Alternatively, an admin resets 2FA under *Users → Reset 2FA*, and the person sets it up again at the office.
+- **Applies to** local accounts and Active Directory sign-ins. With **SSO**, the identity provider checks the second factor by default (e.g. MFA in Entra ID). This can be turned off, and Helfi.Space then asks for its own code as well.
+- Docker note: with some Docker setups all requests seem to come from the Docker gateway, e.g. with rootless Docker or IPv6. That address therefore only counts as internal if it is listed on its own.
+
+![Two-factor sign-in settings](docs/images/2fa-en.png)
+
+## Single sign-on (OpenID Connect)
+
+*Administration → Single sign-on*
+
+1. Create an app or client at your provider and enter the displayed address as redirect URI: `https://helfi.firma.local/auth/oidc/callback`.
+2. Enter issuer URL, client ID and client secret, then **Test**.
+   - **Microsoft Entra ID:** `https://login.microsoftonline.com/<tenant ID>/v2.0`. Add the groups claim under *Token configuration*. The token then contains group IDs, and you enter those IDs as admin/agent group.
+   - **ADFS (Windows Server):** `https://adfs.firma.local/adfs`, application group "Server application accessing a web API". Issue the `groups` claim via a claim rule.
+   - **Keycloak:** `https://keycloak.firma.local/realms/<realm>`, mapper "Group Membership" with claim `groups`.
+3. Optionally enable "redirect straight to SSO". The normal sign-in page stays reachable at `/login?local=1`, e.g. for the emergency admin.
+
+**SSO and AD together:** if you enter your domain under "Merge with AD accounts for domain" (e.g. `firma.local`), `m.muster@firma.local` from SSO is the same account as the AD user `m.muster`. Only enter the domain if the provider really controls it, i.e. does not allow guest accounts from other organizations. Without it, SSO accounts stay separate, and a guest `m.muster@fremd.example` can never take over the account `m.muster`. Email addresses from SSO are only taken over if the provider reports them as verified or they belong to the allowed domain.
+
+## Email
+
+*Administration → Email*
+
+- **Polling a mailbox (IMAP):** enter server, user and password of the help desk mailbox. New mails become tickets (including attachments up to 20 MB each and up to 30 attachments; anything not taken over is noted in the ticket; mails over 80 MB are skipped and flagged in the mailbox). Replies to mails from Helfi.Space and replies from participants with `[IT-123]` in the subject become comments, quoted history is cut off. If the reporter replies to a waiting or resolved ticket, it is reopened. Out-of-office notes and automatic mails are ignored. Processed mails are marked as read or moved to a folder.
+- **Sending (SMTP):** ideally use the same address as the mailbox as sender, so replies land back in the ticket.
+- **Internal notes** never go out by email.
+- Only participants (reporter, assignee, previous writers) may reply by ticket number in the subject. Anyone who merely guesses the number gets a new ticket of their own. Replies to mails from Helfi.Space are always matched correctly via the Message-ID.
+- Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the reporter. Agents reply through the web interface.
+- Preferably do not read the mailbox in parallel in Outlook or on a phone: Helfi.Space only fetches unread mails. A folder for processed mails is recommended.
+- Confirmations of receipt go out at most 60 times per hour (protection against abuse with forged senders).
+- Loop protection: more than 20 new tickets per hour from the same sender are ignored.
+- Senders without an account are kept as *email contacts*. If they later sign in via AD or SSO with the same address, their tickets are taken over.
+
+## Import from another ticket system
+
+*Administration → Import*
+
+Helfi.Space takes over projects and tickets via the REST API of the previous system: **cloud** (REST API v3) and **Server/Data Center** (REST API v2), service desk projects included. Credentials are not stored; they are only used for the running import.
+
+1. **Connect:**
+   - Cloud: address, email and API token.
+   - Server/Data Center: address and personal access token, alternatively user name and password.
+   - With an internal certificate, enter your own certification authority (PEM).
+2. **Select projects** and choose which Helfi.Space project they go into. If the project does not exist, it is created.
+3. **Map:** distribute the source system's statuses and issue types over the four statuses and types of Helfi.Space. Suggestions are prefilled, e.g. "Waiting for customer" → Waiting and "Bug" → Incident.
+4. **Import:** progress is shown. The import can be cancelled.
+
+What is taken over:
+
+- Summary, description (as text), type, status, priority, labels, due date, created and resolved date
+- Comments. Internal comments from service desk projects and comments with restricted visibility become internal notes.
+- Attachments up to the chosen size
+
+How numbers and people are handled:
+
+- **Numbers:** `SUP-123` stays `SUP-123`. If the number is already taken in the target project, the ticket gets the next free one. New tickets continue after the highest number.
+- **People** are matched by email address. Reporters without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they are already agents in Helfi.Space, otherwise their name appears in the history. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
+
+Also:
+
+- **No emails** are sent.
+- **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day.
+
+---
+
+## Updates
+
+### With a container manager (recommended)
+
+**Dockhand**, **Watchtower** or **Tugtainer** detect new images of `ghcr.io/soleil0815/helfi.space.ticket:latest` and update the container. Recommendation: schedule updates **at night**. Helfi.Space backs up the database itself when a new version starts (`data/backups/helfi-vor-<version>-….sqlite`) and migrates it afterwards.
+
+### Manually
+
+```sh
+./update.sh            # latest version
+./update.sh 1.2.0      # specific version (recorded in .env)
+./update.sh -y         # no prompts
+```
+
+`update.sh` remembers the running version and pulls the new one. If the bundled `docker-compose.yml` is newer, it replaces the old one and keeps it as `docker-compose.yml.alt`. Then it starts the container and waits for the health check. If the new version does not start, it asks and restarts the previous version with the matching database backup (automatically with `-y`). It does not unpack or build anything. It runs with `/bin/sh`, on a Synology too.
+
+### Pinning a version and going back
+
+1. Set `HELFI_VERSION=1.1.0` in `.env` (instead of `latest`).
+2. If the newer version has already migrated the database, the older one will not start. It then tells you in the log which backup fits. In that case:
+   ```sh
+   docker compose down
+   cp data/helfi.sqlite data/helfi.sqlite.neu
+   cp data/backups/helfi-vor-1.2.0-<date>.sqlite data/helfi.sqlite
+   rm -f data/helfi.sqlite-wal data/helfi.sqlite-shm
+   docker compose up -d
+   ```
+
+### Without internet
+
+Every release contains the image file (`helfi-<version>-amd64.tar.gz` or `-arm64`). Copy it to the server and run:
+
+```sh
+./update.sh --offline helfi-1.2.0-amd64.tar.gz 1.2.0
+```
+
+### Your own changes to docker-compose.yml
+
+`update.sh` only replaces `docker-compose.yml` if it is unchanged. If you have customized it (e.g. a different data path), it stays as it is. The new version is then placed next to it as `docker-compose.yml.neu`. After a failed update, `update.sh` restores the previous version, its database backup and the old `docker-compose.yml`. It also records the old version in `.env`, so Watchtower or Dockhand do not immediately pull the broken one again.
+
+More variables for `update.sh`: `HELFI_UPDATE_WAIT` (time to wait for startup, default 120 seconds) and `HELFI_IMAGE_REPO` (your own registry).
+
+### Notice "docker-compose.yml is outdated"
+
+The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program version needs a newer file, Helfi.Space shows admins a notice. `./update.sh` takes over the new file automatically, or you download it from the release.
+
+---
+
+## Backup
+
+- Automatic: daily (kept 14 days, `HELFI_BACKUP_KEEP_DAYS`) and before every version change, in `data/backups/`
+- Manual: *Administration → System → Back up now*
+- **Back up as well:** the whole `data/` folder, including `secret.key`. Without this file, stored passwords (service account, mailbox, SSO) and 2FA keys can no longer be decrypted. Helfi.Space then does not start and says so in the log. Alternatively set `HELFI_SECRET` (at least 16 characters) in `.env`, but right at setup: switching between `secret.key` and `HELFI_SECRET` later makes stored data unreadable.
+- The backups in `data/backups/` only contain the database. Attachments (`data/attachments/`) and `secret.key` live next to it. So always back up the whole `data/` folder to another drive.
+- Retention: daily backups 14 days (the newest always stays). Backups before version changes are limited to the last 10, manual ones are never deleted.
+
+## Security
+
+- Two-factor sign-in per RFC 6238. Each code is valid only once; after 5 failed attempts sign-in starts over. The key is stored encrypted, recovery codes only as a hash.
+- Passwords of local accounts are stored with scrypt. Stored credentials (service account, mailbox, SSO) are encrypted with AES-256-GCM and never sent to the browser.
+- First-time setup is only possible with the setup code from the container log.
+- After several wrong passwords, sign-in is slowed down. Session cookies are `HttpOnly` and `SameSite`, plus CSRF protection and a strict Content Security Policy.
+- Empty passwords are never passed to the AD, because an anonymous bind would otherwise count as a sign-in. Input in LDAP filters is escaped.
+- The container runs without root rights (`PUID`/`PGID`, 0 is not allowed), with a read-only program part, without extra Linux capabilities and with `no-new-privileges` (see `docker-compose.yml`). Files in `data/` are readable only by this user.
+- Attachments are served as downloads (only images are shown directly), so uploaded files never run in the context of Helfi.Space.
+- In connection tests, a stored password is only sent to the stored server. Anyone entering a different server must enter the password again.
+
+## Development
+
+```sh
+npm install
+npm run dev                  # http://localhost:8080, data in ./data
+npm test                     # unit, API and update.sh tests
+sudo scripts/test-samba-ad.sh && HELFI_TEST_LDAP_HOST=dc01.firma.local npm run test:integration
+```
+
+Structure: `src/` server (Express, better-sqlite3), `public/` UI (plain JavaScript without a build step), `src/i18n.js` and `public/js/i18n.js` for the texts (de/en).
+
+Releases: bump the version in `package.json`, set tag `v1.2.3`. CI tests, builds the images for amd64 and arm64, scans for vulnerabilities and only then publishes.
+
+## License
+
+MIT – see [LICENSE](LICENSE).
