@@ -5,7 +5,8 @@ import { simpleParser } from 'mailparser';
 import { convert as htmlToText } from 'html-to-text';
 import { log } from '../lib/log.js';
 import { roleFromGroups } from '../users.js';
-import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail } from './parse.js';
+import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail, deliveryReport } from './parse.js';
+import { parseRules, matchRule } from './rules.js';
 
 export const MAX_NEW_TICKETS_PER_HOUR = 20;
 export const MAX_ATTACHMENTS = 30;
@@ -33,7 +34,7 @@ export function imapOptions(cfg) {
   };
 }
 
-export function createMailProcessor({ db, settings, tickets, users, adLookup = null }) {
+export function createMailProcessor({ db, settings, tickets, users, adLookup = null, suppressions = null }) {
   const adMisses = new Map(); // Adresse → Zeitpunkt, bis zu dem nicht erneut gesucht wird
   const seen = db.prepare('SELECT ticket_id FROM mail_messages WHERE message_id=?');
   // Zuordnung über Referenzen NUR über eigene, ausgehende Message-IDs (zufällig, nicht erratbar).
@@ -75,7 +76,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
   async function lookupSender(parsed, now = Date.now()) {
     const from = parsed.from?.value?.[0];
     const addr = String(from?.address || '').toLowerCase();
-    if (!isEmail(addr) || isAutomated(parsed.headers, addr)) return null;
+    if (!isEmail(addr) || isAutomated(parsed.headers, addr) || deliveryReport(parsed, parsed.raw)) return null;
+    if (matchRule(parseRules(settings.get('imap.senderRules')), addr)?.action === 'ignore') return null;
     return lookupAddress(addr, now);
   }
 
@@ -164,7 +166,32 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       || 'nomsgid-' + crypto.createHash('sha256').update(`${fromAddr}|${parsed.subject}|${parsed.date}|${parsed.text?.slice(0, 500)}`).digest('hex');
 
     if (seen.get(messageId)) return { action: 'duplicate', messageId };
+
+    // Unzustellbarkeitsberichte und Lesebestätigungen: nie Ticket/Kommentar, nie eine Antwort (kein Ping-Pong)
+    const report = deliveryReport(parsed, parsed.raw);
+    if (report?.kind === 'receipt') { remember.run(messageId, null); return { action: 'skipped', reason: 'receipt', messageId }; }
+    if (report?.kind === 'bounce') {
+      // Nur Berichte zu eigenen Mails (nicht erratbare Message-ID) landen als Notiz im Ticket
+      const ticketId = report.refs.map((r) => seenOut.get(r)?.ticket_id).find(Boolean) || null;
+      return db.transaction(() => {
+        for (const a of report.failed) suppressions?.add(a, cleanSubject(parsed.subject) || 'Unzustellbar');
+        if (ticketId && report.failed.length) {
+          tickets.addComment(null, ticketId, {
+            body: `Zustellung fehlgeschlagen / delivery failed: ${report.failed.join(', ')}
+
+`
+              + 'Helfi.Space schickt diesen Adressen 7 Tage lang keine Mails (Administration → E-Mail → Gesperrte Empfänger). / '
+              + 'Helfi.Space will not send mail to these addresses for 7 days.',
+          }, { source: 'system', authorName: 'Helfi.Space', skipPermission: true, system: true });
+        }
+        remember.run(messageId, ticketId);
+        return { action: 'bounce', ticketId, failed: report.failed, messageId };
+      })();
+    }
+
     if (!isEmail(fromAddr)) { remember.run(messageId, null); return { action: 'skipped', reason: 'no-sender', messageId }; }
+    const rule = matchRule(parseRules(cfg.senderRules), fromAddr);
+    if (rule?.action === 'ignore') { remember.run(messageId, null); return { action: 'skipped', reason: 'rule', messageId }; }
 
     const own = [settings.get('smtp.from'), cfg.user].filter(Boolean).map((x) => x.toLowerCase());
     if (own.includes(fromAddr) || isAutomated(parsed.headers, fromAddr)) {
@@ -225,7 +252,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
         remember.run(messageId, existingId);
         return { action: 'comment', ticketId: existingId, messageId };
       }
-      const projectKey = cfg.project || settings.get('general.defaultProject');
+      const projectKey = (rule?.project && tickets.projects.get(rule.project) ? rule.project : '') || cfg.project || settings.get('general.defaultProject');
       const project = projectKey ? tickets.projects.get(projectKey) : null;
       const ticket = tickets.create(sender, {
         title: cleanSubject(parsed.subject) || '(ohne Betreff / no subject)',
@@ -240,7 +267,15 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     })();
   }
 
-  return { process, lookupSender, lookupParticipants, parse: (source) => simpleParser(source) };
+  /** Mail zerlegen; den Anfang der Rohmail behalten (Kopfzeilen/Zustellbericht, die mailparser verwirft). */
+  async function parse(source) {
+    const p = await simpleParser(source);
+    const buf = Buffer.isBuffer(source) ? source : Buffer.from(String(source));
+    Object.defineProperty(p, 'raw', { value: buf.subarray(0, 256 * 1024).toString('latin1'), enumerable: false });
+    return p;
+  }
+
+  return { process, lookupSender, lookupParticipants, parse };
 }
 
 export function createImapPoller({ settings, processor }) {
@@ -282,6 +317,7 @@ export function createImapPoller({ settings, processor }) {
             const participants = processor.lookupParticipants ? await processor.lookupParticipants(parsed) : null;
             const r = processor.process(parsed, { ...(sender ? { sender } : {}), ...(participants ? { participants } : {}) });
             if (r.action === 'ticket') { result.tickets++; log.info(`E-Mail → neues Ticket ${r.key}`); }
+            else if (r.action === 'bounce') { result.skipped++; log.info(`Unzustellbarkeitsbericht für ${r.failed.join(', ') || '?'}${r.ticketId ? ` (Ticket #${r.ticketId})` : ''} – nicht beantwortet`); }
             else if (r.action === 'comment') { result.comments++; log.info(`E-Mail → Kommentar zu Ticket #${r.ticketId}`); }
             else result.skipped++;
             await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });

@@ -199,6 +199,56 @@ async function usersPage(body, showContacts = false) {
           u.id !== state.user.id ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => update(u, { active: !u.active }) }, u.active ? t('users.deactivate') : t('users.activate')) : null)))))));
 }
 
+// Schutz vor Mail-Schleifen: Absender-Regeln und gesperrte Empfänger
+function loopPanel(s) {
+  let rules = [];
+  try { rules = JSON.parse(s['imap.senderRules'] || '[]'); } catch { rules = []; }
+  if (!Array.isArray(rules)) rules = [];
+  const rulesHost = h('div');
+  const suppHost = h('div', h('div.loading', t('app.loading')));
+  const projOpts = [['', t('mail.rules.defaultProject')], ...state.projects.map((p) => [p.key, `${p.name} (${p.key})`])];
+  const drawRules = () => mount(rulesHost,
+    rules.length ? h('table.data.rules-table',
+      h('thead', h('tr', h('th', t('mail.rules.pattern')), h('th', t('mail.rules.action')), h('th', t('mail.rules.project')), h('th', ''))),
+      h('tbody', rules.map((r, i) => h('tr',
+        h('td', h('input', { value: r.pattern || '', placeholder: 'monitor@firma.local', oninput: (e) => { r.pattern = e.target.value; } })),
+        h('td', select([['noreply', t('mail.rules.noreply')], ['ignore', t('mail.rules.ignore')]], r.action || 'noreply', { class: 'select-sm', onchange: (e) => { r.action = e.target.value; drawRules(); } })),
+        h('td', r.action === 'ignore' ? h('span.muted', '–') : select(projOpts, r.project || '', { class: 'select-sm', onchange: (e) => { r.project = e.target.value; } })),
+        h('td', h('button.btn-icon.small', { type: 'button', title: t('app.delete'), onclick: () => { rules.splice(i, 1); drawRules(); } }, icon('trash'))))))) : h('p.muted', t('mail.rules.none')),
+    h('div.actions',
+      h('button.btn.btn-subtle', { type: 'button', onclick: () => { rules.push({ pattern: '', action: 'noreply', project: '' }); drawRules(); rulesHost.querySelector('tbody tr:last-child input')?.focus(); } }, icon('plus'), t('mail.rules.add')),
+      h('button.btn.btn-primary', {
+        type: 'button',
+        onclick: async () => {
+          const clean = rules.map((r) => ({ pattern: String(r.pattern || '').trim().toLowerCase(), action: r.action || 'noreply', project: r.action === 'ignore' ? '' : (r.project || '') }));
+          const bad = clean.find((r) => !r.pattern || !/@|\*/.test(r.pattern));
+          if (bad) { toast(t('mail.rules.invalid'), 'error'); return; }
+          rules = clean.filter((r) => r.pattern);
+          s['imap.senderRules'] = JSON.stringify(rules);
+          await saveKeys(s, ['imap.senderRules']);
+          drawRules();
+        },
+      }, t('app.save'))));
+  const drawSupp = (list) => mount(suppHost, list.length
+    ? h('table.data',
+      h('thead', h('tr', h('th', t('mail.supp.address')), h('th', t('mail.supp.reason')), h('th', t('mail.supp.until')), h('th', ''))),
+      h('tbody', list.map((x) => h('tr',
+        h('td', x.address), h('td.muted', x.reason || '–'), h('td', { title: fmtDate(x.until) }, fmtDate(x.until)),
+        h('td', h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { try { drawSupp((await api.admin.releaseSuppression(x.address)).suppressions); } catch (e) { toast(e.message, 'error'); } } }, t('mail.supp.release')))))))
+    : h('p.muted', t('mail.supp.none')));
+  api.admin.suppressions().then((r) => drawSupp(r.suppressions)).catch((e) => mount(suppHost, h('p.error-text', e.message)));
+  drawRules();
+  return h('section.panel',
+    h('h2', t('mail.loop.title')),
+    h('p.muted', t('mail.loop.intro')),
+    h('h3', t('mail.rules.title')),
+    h('p.muted.small', t('mail.rules.hint')),
+    rulesHost,
+    h('h3', t('mail.supp.title')),
+    h('p.muted.small', t('mail.supp.hint')),
+    suppHost);
+}
+
 // ---------- Active Directory ----------
 function ldapPage(body, s) {
   const certInfo = h('div');
@@ -421,6 +471,7 @@ async function mailPage(body, s) {
       }, icon('mail'), t('mail.sendTest')))),
       smtpRes,
       saveBar(() => saveKeys(s, ['smtp.', 'notify.']))));
+  body.append(loopPanel(s));
 }
 
 // ---------- System ----------

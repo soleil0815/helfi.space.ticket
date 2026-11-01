@@ -189,6 +189,19 @@ export const MIGRATIONS = [
     CREATE INDEX canned_responses_owner ON canned_responses(owner_id);
     `,
   },
+  {
+    id: 6,
+    name: 'Gesperrte Empfänger',
+    sql: `
+    -- Adressen, für die ein Unzustellbarkeitsbericht kam: eine Zeit lang keine Mails dorthin (gegen Mail-Ping-Pong)
+    CREATE TABLE mail_suppressions (
+      address TEXT PRIMARY KEY,
+      reason TEXT,
+      until TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

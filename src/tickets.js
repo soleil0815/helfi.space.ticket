@@ -318,18 +318,19 @@ export function createTickets(db, users) {
     }));
   }
 
-  function addComment(user, idOrKey, { body, internal = false }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false } = {}) {
+  /** system: Hinweis von Helfi.Space selbst (z. B. Zustellfehler) – immer intern, öffnet nichts wieder. */
+  function addComment(user, idOrKey, { body, internal = false }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false } = {}) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
     const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
     const agent = user && isAgent(user);
-    const isInternal = agent && internal ? 1 : 0;
+    const isInternal = system || (agent && internal) ? 1 : 0;
     const info = db.transaction(() => {
       const r = db.prepare('INSERT INTO comments(ticket_id,author_id,author_email,author_name,body,internal,source) VALUES(?,?,?,?,?,?,?)')
         .run(row.id, user ? user.id : null, authorEmail, authorName, text, isInternal, source);
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
       // Antwort des Meldenden auf ein wartendes/erledigtes Ticket → wieder öffnen
-      const fromCustomer = !agent && (user ? isCustomer(user, row) : true);
+      const fromCustomer = !system && !agent && (user ? isCustomer(user, row) : true);
       if (fromCustomer && (row.status === 'waiting' || row.status === 'done')) {
         db.prepare("UPDATE tickets SET status='open', resolved_at=NULL WHERE id=?").run(row.id);
         logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'open');

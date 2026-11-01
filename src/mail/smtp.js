@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer';
 import { config } from '../config.js';
 import { t, normalizeLang } from '../i18n.js';
 import { log } from '../lib/log.js';
+import { parseRules, matchRule } from './rules.js';
 
 export function transportOptions(cfg) {
   return {
@@ -22,7 +23,7 @@ export function transportOptions(cfg) {
 
 export const MAX_CONFIRMATIONS_PER_HOUR = 60;
 
-export function createMailer(db, settings) {
+export function createMailer(db, settings, { suppressions = null } = {}) {
   const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'out')");
   let transport = null;
   let transportKey = '';
@@ -38,9 +39,19 @@ export function createMailer(db, settings) {
     return { transport, cfg };
   }
 
+  /** Keine Mails an Absender mit Regel „nie antworten“ und an gesperrte (unzustellbare) Adressen. */
+  function blocked(to) {
+    const rule = matchRule(parseRules(settings.get('imap.senderRules')), to);
+    if (rule) return 'Regel';
+    if (suppressions?.isBlocked(to)) return 'gesperrt (unzustellbar)';
+    return null;
+  }
+
   async function send({ to, subject, text, ticketId = null, inReplyTo = null }) {
     const tr = getTransport();
     if (!tr) return false;
+    const why = blocked(to);
+    if (why) { log.info(`Keine Mail an ${to}: ${why}`); return false; }
     const domain = tr.cfg.from.split('@')[1] || 'helfi.space';
     // Nicht erratbar: über diese ID werden Antworten Tickets zugeordnet
     const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${crypto.randomBytes(16).toString('hex')}@${domain}>`;
@@ -69,7 +80,7 @@ export function createMailer(db, settings) {
     });
   }
 
-  return { send, test, enabled: () => !!getTransport() };
+  return { send, test, blocked, enabled: () => !!getTransport() };
 }
 
 /** Hängt die Benachrichtigungen an die Ticket-Ereignisse. */

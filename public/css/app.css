@@ -523,3 +523,6 @@ table.issues tbody tr.kbd-focus { background: var(--blue-subtle); box-shadow: in
 .palette-item.active { background: var(--blue-subtle); }
 .palette-group { min-width: 110px; font-size: 12px; color: var(--text-subtle); }
 .palette-hint { margin-left: auto; font-size: 11px; color: var(--text-subtle); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; }
+
+.rules-table input { width: 100%; }
+.rules-table td { vertical-align: middle; }

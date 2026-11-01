@@ -79,6 +79,8 @@ export const api = {
   admin: {
     settings: () => request('GET', '/api/admin/settings'),
     saveSettings: (settings) => request('PUT', '/api/admin/settings', { settings }),
+    suppressions: () => request('GET', '/api/admin/mail/suppressions'),
+    releaseSuppression: (address) => request('DELETE', `/api/admin/mail/suppressions/${encodeURIComponent(address)}`),
     fetchCert: (settings) => request('POST', '/api/admin/ldap/fetch-cert', { settings }),
     testLdap: (settings, username, password) => request('POST', '/api/admin/ldap/test', { settings, username, password }),
     testOidc: (settings) => request('POST', '/api/admin/oidc/test', { settings }),

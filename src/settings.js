@@ -71,6 +71,7 @@ export const DEFAULTS = {
   'imap.folder': 'INBOX',
   'imap.processedFolder': '', // leer = nur als gelesen markieren
   'imap.processedKeepDays': 0, // verarbeitete Mails im Ordner nach X Tagen löschen; 0 = nie, sonst mind. 7
+  'imap.senderRules': '[]', // JSON: [{ pattern, action: noreply|ignore, project }] – siehe src/mail/rules.js
   'imap.ccParticipants': true, // An/CC-Empfänger neuer Mails werden Anfrage-Teilnehmer
   'imap.adLookup': true, // unbekannte Absender im AD suchen (nur mit aktiver AD-Anmeldung und Dienstkonto)
   'imap.intervalSec': 60,

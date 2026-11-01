@@ -38,6 +38,7 @@ async function main() {
   const daily = async () => {
     try {
       ctx.sessions.purgeExpired();
+      ctx.suppressions.purgeExpired();
       await backupDatabase(db, 'taeglich');
       pruneBackups(config.backupKeepDays);
     } catch (e) { log.error('Tägliche Sicherung fehlgeschlagen', { error: e.message }); }

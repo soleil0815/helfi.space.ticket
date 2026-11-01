@@ -12,6 +12,7 @@ import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
 import { createMailProcessor, createImapPoller } from './mail/imap.js';
+import { createSuppressions } from './mail/rules.js';
 import { createCanned } from './canned.js';
 import { createReports } from './reports.js';
 import { findByEmail as ldapFindByEmail } from './auth/ldap.js';
@@ -30,8 +31,9 @@ export function createApp(db) {
   const sessions = createSessions(db, { policy });
   const users = createUsers(db);
   const tickets = createTickets(db, users);
-  const mailer = createMailer(db, settings);
-  const processor = createMailProcessor({ db, settings, tickets, users, adLookup: ldapFindByEmail });
+  const suppressions = createSuppressions(db);
+  const mailer = createMailer(db, settings, { suppressions });
+  const processor = createMailProcessor({ db, settings, tickets, users, adLookup: ldapFindByEmail, suppressions });
   const poller = createImapPoller({ settings, processor });
   const limiter = createLoginLimiter();
   const mfa = createMfa({ db, settings, sessions, users, policy, limiter });
@@ -48,7 +50,7 @@ export function createApp(db) {
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
   const reports = createReports(db);
-  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, ldapCertWarning: null };
+  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');
