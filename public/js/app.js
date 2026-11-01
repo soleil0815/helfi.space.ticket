@@ -100,7 +100,8 @@ export async function route() {
     if (path === '/' ) return navigate(state.isAgent ? '/board' : '/requests', { replace: true });
     if (path === '/board') return await renderBoard(content, params);
     if (path === '/issues') return await renderList(content, params);
-    if (path === '/requests') return await renderList(content, new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }), { requests: true });
+    // Benutzer sehen hier ohnehin nur eigene und geteilte Anfragen (Teilnehmer); Bearbeiter standardmäßig die selbst gemeldeten
+    if (path === '/requests') return await renderList(content, state.isAgent && !params.has('participant') ? new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }) : params, { requests: true });
     if (path === '/my') return await renderMyWork(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
