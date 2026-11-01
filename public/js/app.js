@@ -1,4 +1,5 @@
 // Einstieg der Oberfläche: Zustand, Router, Grundlayout.
+import { installShortcuts, clearPageShortcuts, listKeys } from './shortcuts.js';
 import { api } from './api.js';
 import { h, mount, icon, avatar, dropdown, toast } from './dom.js';
 import { t, setLang, getLang, browserLang } from './i18n.js';
@@ -73,10 +74,21 @@ async function start() {
     const a = e.target.closest('a[data-link]');
     if (a && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); navigate(a.getAttribute('href')); }
   });
-  document.addEventListener('keydown', (e) => {
-    if (!state.user || e.target.closest('input,textarea,select,[contenteditable]') || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === 'c' && !document.querySelector('.overlay')) { e.preventDefault(); openCreateDialog(); }
-    if (e.key === '/') { e.preventDefault(); document.querySelector('.topbar-search input')?.focus(); }
+  installShortcuts({
+    isActive: () => !!state.user,
+    isAgent: () => state.isAgent,
+    global: {
+      keys: {
+        c: () => openCreateDialog(),
+        '/': () => document.querySelector('.topbar-search input')?.focus(),
+        ...listKeys((key) => navigate(`/browse/${key}`)),
+      },
+      go: {
+        b: () => state.isAgent && navigate('/board'),
+        i: () => state.isAgent && navigate('/issues'),
+        m: () => navigate(state.isAgent ? '/my' : '/requests'),
+      },
+    },
   });
   route();
 }
@@ -85,6 +97,7 @@ export async function route() {
   const url = new URL(location.href);
   const path = url.pathname;
   document.querySelectorAll('.menu').forEach((m) => m.remove());
+  clearPageShortcuts();
 
   if (state.boot.setupRequired && !state.user) return renderSetup(root);
   if (!state.user) {

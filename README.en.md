@@ -178,6 +178,25 @@ For replies that are always the same (e.g. "Please restart your computer"):
   - **Replies and internal notes**
   - **Avg. resolution time:** from "created" to "resolved"
 
+## Keyboard shortcuts
+
+`?` shows all shortcuts in the UI. They never fire while typing in a field.
+
+| Where | Key | Action |
+|---|---|---|
+| everywhere | `c` | create ticket |
+| | `/` | search |
+| | `g` then `b` / `i` / `m` | board / all tickets / my work |
+| ticket | `i` | assign to me |
+| | `a` | choose assignee |
+| | `m` | comment |
+| | `e` | edit title |
+| | `l` | edit labels |
+| | `.` | actions with search (status, priority, type, template …) |
+| | `Ctrl` + `Enter` | save comment |
+| lists | `j` / `k` | next / previous ticket |
+| | `o` / `Enter` | open selected ticket |
+
 ## Import from another ticket system
 
 *Administration → Import*
