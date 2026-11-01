@@ -12,12 +12,15 @@ import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
 import { parseNetworks } from '../auth/network.js';
 import { testImap } from '../mail/imap.js';
-import { normalizeLang, LANGUAGES } from '../i18n.js';
+import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
+import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
 import { backupDatabase } from '../db.js';
 import { log } from '../lib/log.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
+
+const MAX_BULK = 500;
 
 export function createApi(ctx) {
   const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions } = ctx;
@@ -312,6 +315,43 @@ export function createApi(ctx) {
     const projectId = req.body.projectId || settings.get('general.defaultProject') || undefined;
     const t = tickets.create(req.user, { ...req.body, projectId });
     res.status(201).json({ ticket: t });
+  }));
+
+  /**
+   * Sammelaktionen (Bearbeiter): für jedes Ticket die normale Logik (Rechte, Verlauf, Benachrichtigungen).
+   * changes: { status, assigneeId, priority, projectId } · comment: Antwort an Melder/Teilnehmer
+   * (Platzhalter je Ticket ersetzt) · delete: nur Admins. Fehler einzelner Tickets brechen den Rest nicht ab.
+   */
+  r.post('/tickets/bulk', requireRole('agent'), wrap(async (req, res) => {
+    const keys = [...new Set((Array.isArray(req.body.keys) ? req.body.keys : []).map((k) => str(k, 30)).filter(Boolean))];
+    if (!keys.length || keys.length > MAX_BULK) throw new HttpError(400, 'err.badRequest', 'keys');
+    const changes = {};
+    const c = req.body.changes || {};
+    for (const k of ['status', 'assigneeId', 'priority', 'projectId']) if (c[k] !== undefined) changes[k] = c[k];
+    const comment = str(req.body.comment, 100000).trim();
+    const del = !!req.body.delete;
+    if (del && req.user.role !== 'admin') throw forbidden();
+    if (!del && !comment && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
+    const ok = [];
+    const failed = [];
+    for (const key of keys) {
+      try {
+        if (del) { tickets.remove(req.user, key); ok.push(key); continue; }
+        let current = key;
+        if (comment) {
+          const row = tickets.load(req.user, key);
+          const tk = tickets.ticketOut(row);
+          tickets.addComment(req.user, row.id, { body: fillPlaceholders(comment, tk, { displayName: req.user.display_name }) });
+        }
+        // Mit Antwort keine zweite „Erledigt“-Mail – die Antwort informiert bereits
+        if (Object.keys(changes).length) current = tickets.update(req.user, key, changes, { quietResolved: !!comment }).key;
+        ok.push(current);
+      } catch (e) {
+        failed.push({ key, error: e instanceof HttpError ? (hasKey(e.code) ? t(normalizeLang(req.user?.language || langFromHeader(req.get('accept-language'))), e.code) : e.code) : 'error' });
+      }
+    }
+    log.info(`Sammelaktion von ${req.user.username}: ${ok.length} ok, ${failed.length} fehlgeschlagen`, { delete: del, changes: Object.keys(changes), comment: !!comment });
+    res.json({ ok, failed });
   }));
 
   r.get('/tickets/:key', (req, res) => res.json({ ticket: tickets.detail(req.user, req.params.key) }));

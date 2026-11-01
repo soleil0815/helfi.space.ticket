@@ -252,7 +252,8 @@ export function createTickets(db, users) {
     return t;
   }
 
-  function update(user, idOrKey, data) {
+  /** opts.quietResolved: keine „Erledigt“-Mail (z. B. wenn gleichzeitig eine Antwort rausgeht). */
+  function update(user, idOrKey, data, opts = {}) {
     const row = load(user, idOrKey);
     const agent = isAgent(user);
     const isReporter = row.reporter_id === user.id;
@@ -314,7 +315,7 @@ export function createTickets(db, users) {
     const t = ticketOut(rawById(row.id));
     const result = agent ? t : ticketOut(rawById(row.id), false);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
-    if (changes.status && changes.status.new === 'done') emitLater('resolved', { ticket: t, user });
+    if (changes.status && changes.status.new === 'done' && !opts.quietResolved) emitLater('resolved', { ticket: t, user });
     return result;
   }
 
