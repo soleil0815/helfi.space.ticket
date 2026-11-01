@@ -1,11 +1,11 @@
 # Helfi.Space – docker-compose.yml
 #
-# Diese Datei bleibt bei Updates in der Regel gleich. Einstellungen gehören in die .env,
-# alles Weitere (AD, SSO, E-Mail) wird in der Weboberfläche eingerichtet.
+# This file usually stays the same across updates. Settings belong in .env,
+# everything else (AD, SSO, email) is configured in the web interface.
 #
-#   Installation:  env.example nach .env kopieren, anpassen, dann  docker compose up -d
-#   Update:        Dockhand/Watchtower – oder  ./update.sh  (Reste aufräumen: ./update.sh --cleanup)
-#   Ersteinrichtung: Einrichtungscode steht im Protokoll:  docker compose logs helfi
+#   Install:      copy env.example to .env, adjust it, then  docker compose up -d
+#   Update:       Dockhand/Watchtower – or  ./update.sh  (remove leftovers: ./update.sh --cleanup)
+#   First setup:  the setup code is in the log:  docker compose logs helfi
 
 services:
   helfi:
@@ -14,18 +14,18 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # Version dieser Datei – nicht ändern. Das Programm meldet sich, wenn sie veraltet ist.
+      # Version of this file – do not change. Helfi.Space shows a notice when it is outdated.
       HELFI_COMPOSE_VERSION: "1"
     ports:
       - "${HELFI_HTTP_PORT:-8080}:8080"
     volumes:
-      # Datenbank, Anhänge, Sicherungen, Schlüssel
+      # Database, attachments, backups, key file
       - ./data:/data
     labels:
-      # Automatische Updates per Watchtower erlauben (Dockhand erkennt neue Images selbst)
+      # Allow automatic updates via Watchtower (Dockhand detects new images by itself)
       - com.centurylinklabs.watchtower.enable=true
     stop_grace_period: 15s
-    # Härtung: Programmdateien schreibgeschützt, keine zusätzlichen Rechte
+    # Hardening: program files read-only, no extra privileges
     read_only: true
     tmpfs:
       - /tmp
@@ -34,7 +34,7 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      # nur zum Setzen der Rechte von ./data beim Start und zum Wechsel auf PUID/PGID
+      # only to set the permissions of ./data at startup and to switch to PUID/PGID
       - CHOWN
       - FOWNER
       - DAC_OVERRIDE
