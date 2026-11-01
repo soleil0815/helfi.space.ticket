@@ -353,7 +353,9 @@ async function mailPage(body, s) {
   const drawStatus = (st) => {
     if (!st?.lastRun) return mount(status, '');
     const r = st.lastResult || {};
-    mount(status, `${t('mail.lastRun')}: ${relTime(st.lastRun)} – ${t('mail.result', { tickets: r.tickets ?? 0, comments: r.comments ?? 0, skipped: r.skipped ?? 0, errors: r.errors ?? 0 })}`, st.lastError ? h('span.block.error-text', st.lastError) : null);
+    mount(status, `${t('mail.lastRun')}: ${relTime(st.lastRun)} – ${t('mail.result', { tickets: r.tickets ?? 0, comments: r.comments ?? 0, skipped: r.skipped ?? 0, errors: r.errors ?? 0 })}`,
+      st.lastPurge ? h('span.block', t('mail.lastPurge', { when: relTime(st.lastPurge.at), count: st.lastPurge.deleted })) : null,
+      st.lastError ? h('span.block.error-text', st.lastError) : null);
   };
   api.admin.system().then((sys) => drawStatus(sys.imap)).catch(() => {});
 
@@ -378,6 +380,9 @@ async function mailPage(body, s) {
       h('div.grid-2',
         field(t('mail.project'), bindSelect(s, 'imap.project', [['', '—'], ...state.projects.map((p) => [p.key, `${p.name} (${p.key})`])])),
         h('div', field(t('mail.verifyTls'), bindCheck(s, 'imap.verifyTls')))),
+      h('div.grid-2',
+        field(t('mail.keepDays'), bindInput(s, 'imap.processedKeepDays', { type: 'number', min: 0, step: 1 }), t('mail.keepDaysHint')),
+        h('div', field(t('mail.adLookup'), bindCheck(s, 'imap.adLookup'), t('mail.adLookupHint')))),
       imapRes,
       status,
       saveBar(() => saveKeys(s, ['imap.']),

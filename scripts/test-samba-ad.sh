@@ -23,6 +23,9 @@ ad user create svc-helfi 'Dienst!Pass2026' --given-name=Helfi --surname=Dienst
 ad user create m.muster 'Muster!Pass2026' --given-name=Max --surname=Muster --mail-address=m.muster@firma.local
 ad user create e.beispiel 'Beispiel!Pass2026' --given-name=Erika --surname=Beispiel --mail-address=e.beispiel@firma.local
 ad user create k.kunde 'Kunde!Pass2026' --given-name=Karl --surname=Kunde --mail-address=k.kunde@firma.local
+# deaktiviertes Konto (Absender-Suche per E-Mail darf es nicht finden)
+ad user create d.alt 'Alt!Pass2026' --given-name=Dora --surname=Alt --mail-address=d.alt@firma.local
+ad user disable d.alt
 ad group add Helfi-Admins
 ad group add Helfi-Bearbeiter
 ad group add IT-Team

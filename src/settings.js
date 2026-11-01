@@ -70,6 +70,8 @@ export const DEFAULTS = {
   'imap.password': '', // geheim
   'imap.folder': 'INBOX',
   'imap.processedFolder': '', // leer = nur als gelesen markieren
+  'imap.processedKeepDays': 0, // verarbeitete Mails im Ordner nach X Tagen löschen; 0 = nie, sonst mind. 7
+  'imap.adLookup': true, // unbekannte Absender im AD suchen (nur mit aktiver AD-Anmeldung und Dienstkonto)
   'imap.intervalSec': 60,
   'imap.project': '',
   'imap.maxAttachmentMb': 20,

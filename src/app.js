@@ -12,6 +12,7 @@ import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
 import { createMailProcessor, createImapPoller } from './mail/imap.js';
+import { findByEmail as ldapFindByEmail } from './auth/ldap.js';
 import { createJiraImporter } from './import/jira-import.js';
 import { createApi } from './routes/api.js';
 import { createOidcRoutes } from './routes/oidc.js';
@@ -28,7 +29,7 @@ export function createApp(db) {
   const users = createUsers(db);
   const tickets = createTickets(db, users);
   const mailer = createMailer(db, settings);
-  const processor = createMailProcessor({ db, settings, tickets, users });
+  const processor = createMailProcessor({ db, settings, tickets, users, adLookup: ldapFindByEmail });
   const poller = createImapPoller({ settings, processor });
   const limiter = createLoginLimiter();
   const mfa = createMfa({ db, settings, sessions, users, policy, limiter });

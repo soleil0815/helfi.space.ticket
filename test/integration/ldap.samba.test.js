@@ -86,3 +86,36 @@ test('Hostname-Prüfung: per IP ohne Namen im Zertifikat schlägt fehl, abschalt
   const relaxed = await ldap.testConnection({ ...base, host: '127.0.0.1', caPem: pem, verifyHostname: false });
   assert.equal(relaxed.ok, true, JSON.stringify(relaxed.steps));
 });
+
+test('Absender per E-Mail finden: Hauptadresse, UPN, Zweitadresse, nicht deaktiviert, nicht mehrdeutig', { skip }, async () => {
+  const cfg = { ...base };
+  if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+
+  // Testvorbereitung als Domänen-Admin: Zweitadresse für Erika
+  const { Change, Attribute } = await import('ldapts');
+  const adm = await ldap.connect(cfg);
+  try {
+    await adm.bind('Administrator@firma.local', 'Passw0rd!2026');
+    await adm.modify('CN=Erika Beispiel,CN=Users,DC=firma,DC=local', [
+      new Change({ operation: 'replace', modification: new Attribute({ type: 'proxyAddresses', values: ['SMTP:e.beispiel@firma.local', 'smtp:erika.alt@firma.de'] }) }),
+    ]);
+  } finally { await adm.unbind().catch(() => {}); }
+
+  const max = await ldap.findByEmail(cfg, 'M.Muster@firma.local');
+  assert.equal(max.username, 'm.muster');
+  assert.equal(max.groups.agent, true);
+  assert.ok(max.externalId);
+
+  const upn = await ldap.findByEmail(cfg, 'k.kunde@firma.local');
+  assert.equal(upn.username, 'k.kunde');
+
+  const alias = await ldap.findByEmail(cfg, 'erika.alt@firma.de');
+  assert.equal(alias.username, 'e.beispiel');
+  assert.equal(alias.email, 'e.beispiel@firma.local');
+  assert.equal(alias.groups.admin, true, 'verschachtelte Gruppe auch bei der Absender-Suche');
+
+  assert.equal(await ldap.findByEmail(cfg, 'd.alt@firma.local'), null, 'deaktiviertes Konto');
+  assert.equal(await ldap.findByEmail(cfg, 'niemand@firma.local'), null);
+  assert.equal(await ldap.findByEmail(cfg, '*@firma.local'), null, 'Platzhalter wird maskiert');
+  await assert.rejects(ldap.findByEmail({ ...cfg, bindDn: '' }, 'm.muster@firma.local'), /Dienstkonto/);
+});
