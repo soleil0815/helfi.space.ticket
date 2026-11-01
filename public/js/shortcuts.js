@@ -10,7 +10,8 @@ let pendingG = 0;
 export function setPageShortcuts(map) { page = map || {}; }
 export function clearPageShortcuts() { page = {}; }
 
-const typing = (el) => !!el?.closest?.('input,textarea,select,[contenteditable],[contenteditable=""]');
+// Kästchen und Auswahlknöpfe sind keine Texteingabe – dort greifen die Kürzel (z. B. x nach einem Klick)
+const typing = (el) => !!el?.closest?.('input:not([type=checkbox]):not([type=radio]),textarea,select,[contenteditable],[contenteditable=""]');
 
 export function installShortcuts({ isActive, global, isAgent }) {
   document.addEventListener('keydown', (e) => {
@@ -59,6 +60,7 @@ export function showHelp(agent) {
       row(['j'], t('keys.next')),
       row(['k'], t('keys.prev')),
       row(['o'], t('keys.open')),
+      agent ? row(['x'], t('keys.select')) : null,
     ]),
     h('p.muted.small', t('keys.note')));
   modal(t('keys.title'), body);
@@ -110,5 +112,7 @@ export function listKeys(open) {
     next.scrollIntoView({ block: 'nearest' });
   };
   const go = () => { const r = document.querySelector('table.issues tr.kbd-focus'); if (r) open(r.dataset.key); };
-  return { j: () => move(1), k: () => move(-1), o: go, Enter: go };
+  // x: markiertes Ticket aus- bzw. abwählen (Mehrfachauswahl)
+  const pick = () => document.querySelector('table.issues tr.kbd-focus input.row-check')?.click();
+  return { j: () => move(1), k: () => move(-1), o: go, Enter: go, x: pick };
 }

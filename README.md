@@ -156,6 +156,17 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
+## Mehrere Tickets auf einmal bearbeiten
+
+In *Alle Tickets* (Bearbeiter):
+- **Auswählen:** Kästchen vor jeder Zeile, „alle“ im Kopf, Umschalt+Klick für einen Bereich, `x` für das mit `j`/`k` markierte Ticket.
+- **Aktionsleiste:**
+  - **Erledigen:** optional mit einer Antwort an Melder und Teilnehmer, mit Vorlagen und Platzhaltern je Ticket. Mit Antwort gibt es keine zusätzliche „Erledigt“-Mail.
+  - **Status**, **Zuweisen**, **Priorität**
+  - **In ein anderes Projekt verschieben**
+  - **Löschen** (nur Admins)
+- Jede Änderung landet im Verlauf des Tickets. Klappt ein Ticket nicht, laufen die anderen trotzdem durch, und die Meldung nennt es.
+
 ## Antwortvorlagen
 
 Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rechner neu“):
@@ -201,6 +212,7 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
 | | `Strg` + `Enter` | Kommentar speichern |
 | Listen | `j` / `k` | nächstes / voriges Ticket |
 | | `o` / `Enter` | markiertes Ticket öffnen |
+| | `x` | markiertes Ticket auswählen (Mehrfachauswahl) |
 
 ## Import aus einem anderen Ticketsystem
 

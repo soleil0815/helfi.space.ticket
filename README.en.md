@@ -156,6 +156,17 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
+## Editing several tickets at once
+
+In *All tickets* (agents):
+- **Select:** checkbox in front of each row, "all" in the header, Shift+click for a range, `x` for the ticket highlighted with `j`/`k`.
+- **Action bar:**
+  - **Resolve:** optionally with a reply to reporters and participants, with templates and per-ticket placeholders. With a reply there is no extra "resolved" mail.
+  - **Status**, **Assign**, **Priority**
+  - **Move to another project**
+  - **Delete** (admins only)
+- Every change goes into the ticket history. If one ticket fails, the others still go through and the message names it.
+
 ## Reply templates
 
 For replies that are always the same (e.g. "Please restart your computer"):
@@ -201,6 +212,7 @@ For replies that are always the same (e.g. "Please restart your computer"):
 | | `Ctrl` + `Enter` | save comment |
 | lists | `j` / `k` | next / previous ticket |
 | | `o` / `Enter` | open selected ticket |
+| | `x` | select the highlighted ticket (multi-select) |
 
 ## Import from another ticket system
 
