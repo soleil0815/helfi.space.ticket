@@ -167,7 +167,7 @@ test('Benachrichtigungen: nie für interne Notizen oder Kommentare aus E-Mails (
   const sent = [];
   const events = new EventEmitter();
   const settings = { get: (k) => (k === 'general.defaultLanguage' ? 'de' : (k === 'general.title' ? 'Helfi.Space' : true)) };
-  const tickets = { events, rawById: (id) => (id === 1 ? { id } : undefined) };
+  const tickets = { events, rawById: (id) => (id === 1 ? { id } : undefined), customerRecipients: () => [{ id: 5, email: 'p@x.de', displayName: 'P' }] };
   const users = { byId: () => ({ language: 'de' }) };
   const mailer = { enabled: () => true, send: async (m) => { sent.push(m); } };
   wireNotifications({ tickets, mailer, settings, users });

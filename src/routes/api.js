@@ -191,6 +191,19 @@ export function createApi(ctx) {
     res.json({ users: rows.map(all ? publicUser : userRef) });
   });
 
+  // Personen suchen (z. B. Anfrage-Teilnehmer): nur Name/Anmeldename, ab 2 Zeichen, höchstens 10 Treffer.
+  // Benutzer finden nur echte Konten (keine E-Mail-Kontakte); Adressen sehen nur Bearbeiter.
+  r.get('/people', (req, res) => {
+    const q = str(req.query.q, 100).trim();
+    if (q.length < 2) return res.json({ people: [] });
+    const agent = isAgent(req.user);
+    const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+    const rows = db.prepare(`SELECT * FROM users WHERE active=1 ${agent ? '' : "AND source<>'email'"}
+      AND (display_name LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\' ${agent ? "OR email LIKE ? ESCAPE '\\'" : ''})
+      ORDER BY display_name LIMIT 10`).all(...(agent ? [like, like, like] : [like, like]));
+    res.json({ people: rows.map((u) => ({ id: u.id, displayName: u.display_name, username: u.username, email: agent ? (u.email || '') : undefined })) });
+  });
+
   r.post('/users', requireRole('admin'), wrap(async (req, res) => {
     const username = str(req.body.username, 64).trim();
     if (!/^[\p{L}\p{N}._@-]{2,64}$/u.test(username)) throw new HttpError(400, 'err.badRequest', 'username');
@@ -272,6 +285,16 @@ export function createApi(ctx) {
   r.delete('/tickets/:key', requireRole('admin'), (req, res) => {
     tickets.remove(req.user, req.params.key);
     res.json({ ok: true });
+  });
+
+  // ---------- Anfrage-Teilnehmer ----------
+  r.post('/tickets/:key/participants', wrap(async (req, res) => {
+    const out = tickets.addParticipant(req.user, req.params.key, { userId: req.body.userId, email: req.body.email });
+    res.status(out.added ? 201 : 200).json({ participants: out.participants });
+  }));
+
+  r.delete('/tickets/:key/participants/:userId', (req, res) => {
+    res.json(tickets.removeParticipant(req.user, req.params.key, req.params.userId));
   });
 
   r.post('/tickets/:key/comments', wrap(async (req, res) => {

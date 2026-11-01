@@ -102,24 +102,39 @@ export function wireNotifications({ tickets, mailer, settings, users }) {
     await mailer.send({ to, subject: t(lang, 'mail.created.subject', vars), text: t(lang, 'mail.created.body', vars), ticketId: ticket.id, inReplyTo: ticket.sourceMessageId });
   }));
 
+  /** Je Empfänger (Melder und Anfrage-Teilnehmer) eine eigene Mail in seiner Sprache – keine
+   *  Adressen anderer Beteiligter im Kopf. Der Auslöser selbst bekommt nichts. */
+  async function toCustomers(ticket, actorId, build) {
+    for (const r of tickets.customerRecipients(ticket.id)) {
+      if (actorId && r.id === actorId) continue;
+      const lang = recipientLang(r.id);
+      const { subject, text } = build(lang, r.displayName || t(lang, 'mail.greetingFallback'));
+      await mailer.send({ to: r.email, subject, text, ticketId: ticket.id });
+    }
+  }
+
   tickets.events.on('commented', safe(async ({ ticket, comment, user, internal }) => {
     // Kommentare aus E-Mails nie weiterleiten: Absender von Mails lassen sich fälschen
-    if (internal || comment.source === 'email' || !settings.get('notify.reporterOnComment')) return;
-    const to = ticket.reporter?.email;
-    if (!to || !user || user.id === ticket.reporter?.id) return; // eigene Kommentare nicht zurückschicken
-    if (user.role === 'user') return;
-    const lang = recipientLang(ticket.reporter.id);
-    const vars = { key: ticket.key, title: ticket.title, name: ticket.reporter.displayName || t(lang, 'mail.greetingFallback'), author: user.display_name, body: comment.body, link: link(ticket), app: appName() };
-    await mailer.send({ to, subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars), ticketId: ticket.id });
+    if (internal || comment.source === 'email' || !settings.get('notify.reporterOnComment') || !user) return;
+    await toCustomers(ticket, user.id, (lang, name) => {
+      const vars = { key: ticket.key, title: ticket.title, name, author: user.display_name, body: comment.body, link: link(ticket), app: appName() };
+      return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars) };
+    });
   }));
 
   tickets.events.on('resolved', safe(async ({ ticket, user }) => {
     if (!settings.get('notify.reporterOnDone')) return;
-    const to = ticket.reporter?.email;
-    if (!to || user?.id === ticket.reporter?.id) return;
-    const lang = recipientLang(ticket.reporter.id);
-    const vars = { key: ticket.key, title: ticket.title, name: ticket.reporter.displayName || t(lang, 'mail.greetingFallback'), link: link(ticket), app: appName() };
-    await mailer.send({ to, subject: t(lang, 'mail.done.subject', vars), text: t(lang, 'mail.done.body', vars), ticketId: ticket.id });
+    await toCustomers(ticket, user?.id, (lang, name) => {
+      const vars = { key: ticket.key, title: ticket.title, name, link: link(ticket), app: appName() };
+      return { subject: t(lang, 'mail.done.subject', vars), text: t(lang, 'mail.done.body', vars) };
+    });
+  }));
+
+  tickets.events.on('participantAdded', safe(async ({ ticket, participant, user }) => {
+    if (!settings.get('notify.participantAdded') || !participant.email || participant.id === user?.id) return;
+    const lang = recipientLang(participant.id);
+    const vars = { key: ticket.key, title: ticket.title, name: participant.display_name || t(lang, 'mail.greetingFallback'), author: user?.display_name || appName(), link: link(ticket), app: appName() };
+    await mailer.send({ to: participant.email, subject: t(lang, 'mail.participant.subject', vars), text: t(lang, 'mail.participant.body', vars), ticketId: ticket.id });
   }));
 
   tickets.events.on('assigned', safe(async ({ ticket, user }) => {

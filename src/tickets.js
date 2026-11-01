@@ -12,6 +12,7 @@ export const TYPES = ['incident', 'request', 'task', 'question'];
 export const PRIORITIES = ['highest', 'high', 'medium', 'low'];
 
 const KEY_RE = /^[A-Z][A-Z0-9]{1,9}$/;
+export const MAX_PARTICIPANTS = 20;
 
 export function normalizeLabels(v) {
   const arr = Array.isArray(v) ? v : str(v, 2000).split(/[,;\s]+/);
@@ -124,14 +125,27 @@ export function createTickets(db, users) {
     return row;
   }
 
+  const participantStmt = db.prepare('SELECT 1 FROM ticket_participants WHERE ticket_id=? AND user_id=?');
+  function isParticipant(ticketId, userId) {
+    return !!userId && !!participantStmt.get(ticketId, userId);
+  }
+
+  /** Melder oder Anfrage-Teilnehmer ("Kunde" der Anfrage) */
+  function isCustomer(user, row) {
+    return !!user && (row.reporter_id === user.id || isParticipant(row.id, user.id));
+  }
+
   function canSee(user, row) {
-    return isAgent(user) || row.reporter_id === user.id;
+    return isAgent(user) || isCustomer(user, row);
   }
 
   function list(user, f = {}) {
     const where = [];
     const args = [];
-    if (!isAgent(user)) { where.push('t.reporter_id=?'); args.push(user.id); }
+    if (!isAgent(user)) {
+      where.push('(t.reporter_id=? OR t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?))');
+      args.push(user.id, user.id);
+    }
     if (f.project) { where.push('(p.key=? OR p.id=?)'); args.push(String(f.project).toUpperCase(), Number(f.project) || 0); }
     else where.push('p.archived=0');
     if (f.status) {
@@ -146,6 +160,7 @@ export function createTickets(db, users) {
     else if (f.assignee === 'none') where.push('t.assignee_id IS NULL');
     else if (f.assignee) { where.push('t.assignee_id=?'); args.push(Number(f.assignee) || 0); }
     if (f.reporter === 'me') { where.push('t.reporter_id=?'); args.push(user.id); }
+    if (f.participant === 'me') { where.push('t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?)'); args.push(user.id); }
     if (f.label) { where.push("(','||t.labels||',') LIKE ?"); args.push(`%,${String(f.label).toLowerCase()},%`); }
     if (f.q) {
       const q = String(f.q).trim();
@@ -314,8 +329,8 @@ export function createTickets(db, users) {
         .run(row.id, user ? user.id : null, authorEmail, authorName, text, isInternal, source);
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
       // Antwort des Meldenden auf ein wartendes/erledigtes Ticket → wieder öffnen
-      const fromReporter = !agent && (user ? user.id === row.reporter_id : true);
-      if (fromReporter && (row.status === 'waiting' || row.status === 'done')) {
+      const fromCustomer = !agent && (user ? isCustomer(user, row) : true);
+      if (fromCustomer && (row.status === 'waiting' || row.status === 'done')) {
         db.prepare("UPDATE tickets SET status='open', resolved_at=NULL WHERE id=?").run(row.id);
         logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'open');
       }
@@ -374,6 +389,85 @@ export function createTickets(db, users) {
     logActivity(a.ticket_id, user.id, 'detached', null, a.filename, null);
   }
 
+  // ---------- Anfrage-Teilnehmer ----------
+  /** Teilnehmerliste. E-Mail-Adressen nur für Bearbeiter (bzw. die eigene). */
+  function participants(ticketId, viewer = null) {
+    const agent = !viewer || isAgent(viewer);
+    return db.prepare(`SELECT u.id, u.display_name, u.username, u.email, u.source, p.created_at FROM ticket_participants p
+      JOIN users u ON u.id=p.user_id WHERE p.ticket_id=? ORDER BY p.created_at, u.display_name`).all(ticketId)
+      .map((u) => ({
+        id: u.id, displayName: u.display_name, username: agent ? u.username : undefined,
+        email: agent || viewer?.id === u.id ? (u.email || '') : undefined, contact: u.source === 'email', addedAt: u.created_at,
+      }));
+  }
+
+  /**
+   * Teilnehmer hinzufügen.
+   * Web: Bearbeiter (Benutzer oder beliebige Adresse) und Melder/Teilnehmer (nur bestehende Konten,
+   *      keine freien Adressen – sonst ließen sich Benachrichtigungen an Fremde auslösen).
+   * system: aus E-Mails (CC) – Rechte prüft der Aufrufer.
+   */
+  function addParticipant(user, idOrKey, { userId, email } = {}, { system = false, notify = true } = {}) {
+    const row = system ? load(null, idOrKey) : load(user, idOrKey);
+    const agent = !system && isAgent(user);
+    if (!system && !agent && !isCustomer(user, row)) throw forbidden();
+    let target = null;
+    if (userId) {
+      target = users.byId(int(userId) || 0);
+      if (!target || !target.active) throw new HttpError(400, 'err.badRequest', 'userId');
+      if (!system && !agent && target.source === 'email') throw forbidden();
+    } else if (email) {
+      if (!system && !agent) throw forbidden();
+      const e = str(email, 254).trim().toLowerCase();
+      if (!/^[^\s@<>()",;]+@[^\s@<>()",;]+\.[^\s@<>()",;]+$/.test(e)) throw new HttpError(400, 'err.badRequest', 'email');
+      target = users.byEmail(e) || users.contactForEmail(e, '');
+      if (!target.active) throw new HttpError(400, 'err.badRequest', 'email');
+    } else throw new HttpError(400, 'err.badRequest');
+
+    if (target.id === row.reporter_id || isParticipant(row.id, target.id)) return { added: false, participants: participants(row.id, user) };
+    const count = db.prepare('SELECT COUNT(*) n FROM ticket_participants WHERE ticket_id=?').get(row.id).n;
+    if (count >= MAX_PARTICIPANTS) throw new HttpError(400, 'err.tooManyParticipants');
+    db.transaction(() => {
+      db.prepare('INSERT INTO ticket_participants(ticket_id,user_id,added_by) VALUES(?,?,?)').run(row.id, target.id, user ? user.id : null);
+      logActivity(row.id, user ? user.id : null, 'participantAdded', null, null, target.display_name);
+    })();
+    if (notify) emitLater('participantAdded', { ticket: ticketOut(rawById(row.id)), participant: target, user });
+    return { added: true, participants: participants(row.id, user) };
+  }
+
+  /** Teilnehmer entfernen: Bearbeiter, Melder oder die Person selbst. */
+  function removeParticipant(user, idOrKey, userId) {
+    const row = load(user, idOrKey);
+    const target = users.byId(int(userId) || 0);
+    if (!target || !isParticipant(row.id, target.id)) throw notFound();
+    if (!isAgent(user) && row.reporter_id !== user.id && target.id !== user.id) throw forbidden();
+    db.transaction(() => {
+      db.prepare('DELETE FROM ticket_participants WHERE ticket_id=? AND user_id=?').run(row.id, target.id);
+      logActivity(row.id, user.id, 'participantRemoved', null, target.display_name, null);
+    })();
+    // Wer sich selbst entfernt, sieht das Ticket danach nicht mehr
+    return { participants: canSee(user, row) ? participants(row.id, user) : [] };
+  }
+
+  /** Empfänger für Benachrichtigungen an "Kunden": Melder und Teilnehmer (aktiv, mit Adresse). */
+  function customerRecipients(ticketId) {
+    const t = db.prepare('SELECT reporter_id, reporter_email, reporter_name FROM tickets WHERE id=?').get(ticketId);
+    if (!t) return [];
+    const out = [];
+    const seen = new Set();
+    const push = (id, email, name) => {
+      const e = String(email || '').trim().toLowerCase();
+      if (!e || seen.has(e)) return;
+      seen.add(e);
+      out.push({ id, email: e, displayName: name || e });
+    };
+    const rep = t.reporter_id ? users.byId(t.reporter_id) : null;
+    if (rep) { if (rep.active) push(rep.id, rep.email, rep.display_name); } else push(null, t.reporter_email, t.reporter_name);
+    for (const u of db.prepare(`SELECT u.* FROM ticket_participants p JOIN users u ON u.id=p.user_id
+      WHERE p.ticket_id=? AND u.active=1 ORDER BY p.created_at`).all(ticketId)) push(u.id, u.email, u.display_name);
+    return out;
+  }
+
   function activity(ticketId) {
     return db.prepare(`SELECT a.*, u.display_name u_name FROM activity a LEFT JOIN users u ON u.id=a.user_id WHERE ticket_id=? ORDER BY a.created_at, a.id`)
       .all(ticketId).map((a) => ({ id: a.id, action: a.action, field: a.field, oldValue: a.old_value, newValue: a.new_value, createdAt: a.created_at, user: a.user_id ? { id: a.user_id, displayName: a.u_name } : null }));
@@ -383,6 +477,8 @@ export function createTickets(db, users) {
     const row = load(user, idOrKey);
     return {
       ...ticketOut(row, isAgent(user)),
+      participants: participants(row.id, user),
+      canManageParticipants: isAgent(user) || row.reporter_id === user.id || isParticipant(row.id, user.id),
       comments: comments(user, row.id),
       attachments: attachments(row.id).filter((a) => isAgent(user) || !a.commentId || !db.prepare('SELECT internal FROM comments WHERE id=?').get(a.commentId)?.internal),
       activity: isAgent(user) ? activity(row.id) : [],
@@ -400,5 +496,6 @@ export function createTickets(db, users) {
   return {
     events, projects, list, load, detail, create, update, remove, addComment, comments,
     addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
+    participants, addParticipant, removeParticipant, isParticipant, customerRecipients,
   };
 }

@@ -9,6 +9,7 @@ import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEm
 
 export const MAX_NEW_TICKETS_PER_HOUR = 20;
 export const MAX_ATTACHMENTS = 30;
+export const MAX_CC_PARTICIPANTS = 10; // so viele Empfänger (An/CC) je Mail werden höchstens Teilnehmer
 const MAX_MESSAGE_BYTES = 80 * 1024 * 1024; // größere Mails nicht laden (Speicher)
 export const MIN_KEEP_DAYS = 7; // Aufbewahrung: kleinere Werte (außer 0) gelten als 7
 export const MAX_PURGE_PER_RUN = 500;
@@ -62,6 +63,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const t = db.prepare('SELECT reporter_id, reporter_email FROM tickets WHERE id=?').get(ticketId);
     if (!t) return false;
     if (t.reporter_id === sender.id || String(t.reporter_email || '').toLowerCase() === fromAddr) return true;
+    if (tickets.isParticipant(ticketId, sender.id)) return true;
     return !!db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND (author_id=? OR lower(author_email)=?) LIMIT 1').get(ticketId, sender.id, fromAddr);
   }
 
@@ -71,14 +73,58 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
    * Gibt nie Bearbeiter-Rechte für die Mail selbst: process() behandelt Mails immer als Meldung.
    */
   async function lookupSender(parsed, now = Date.now()) {
-    if (!adLookup || !settings.get('imap.adLookup') || !settings.get('ldap.enabled')) return null;
-    const ldapCfg = settings.group('ldap');
-    if (!ldapCfg.bindDn) return null;
     const from = parsed.from?.value?.[0];
     const addr = String(from?.address || '').toLowerCase();
     if (!isEmail(addr) || isAutomated(parsed.headers, addr)) return null;
-    const own = [settings.get('smtp.from'), settings.get('imap.user')].filter(Boolean).map((x) => x.toLowerCase());
-    if (own.includes(addr)) return null;
+    return lookupAddress(addr, now);
+  }
+
+  /** Empfänger (An/CC) einer Mail im AD suchen, damit sie als AD-Benutzer Teilnehmer werden. */
+  async function lookupParticipants(parsed, now = Date.now()) {
+    const found = new Map();
+    if (!settings.get('imap.ccParticipants') || isAutomated(parsed.headers, String(parsed.from?.value?.[0]?.address || '').toLowerCase())) return found;
+    for (const addr of recipientAddresses(parsed)) {
+      const u = await lookupAddress(addr, now);
+      if (u) found.set(addr, u);
+    }
+    return found;
+  }
+
+  function ownAddresses() {
+    return [settings.get('smtp.from'), settings.get('imap.user')].filter(Boolean).map((x) => x.toLowerCase());
+  }
+
+  /** An- und CC-Adressen ohne eigene Adressen und Absender, höchstens MAX_CC_PARTICIPANTS. */
+  function recipientAddresses(parsed) {
+    const own = ownAddresses();
+    const from = String(parsed.from?.value?.[0]?.address || '').toLowerCase();
+    const list = [];
+    for (const field of [parsed.to, parsed.cc]) {
+      for (const group of Array.isArray(field) ? field : [field]) {
+        for (const v of group?.value || []) {
+          const a = String(v.address || '').toLowerCase();
+          if (isEmail(a) && a !== from && !own.includes(a) && !list.some((x) => x.address === a)) list.push({ address: a, name: v.name || '' });
+        }
+      }
+    }
+    return list.slice(0, MAX_CC_PARTICIPANTS).map((x) => x.address);
+  }
+
+  function recipientNames(parsed) {
+    const names = new Map();
+    for (const field of [parsed.to, parsed.cc]) {
+      for (const group of Array.isArray(field) ? field : [field]) {
+        for (const v of group?.value || []) if (v.address) names.set(String(v.address).toLowerCase(), v.name || '');
+      }
+    }
+    return names;
+  }
+
+  async function lookupAddress(addr, now) {
+    if (!adLookup || !settings.get('imap.adLookup') || !settings.get('ldap.enabled')) return null;
+    const ldapCfg = settings.group('ldap');
+    if (!ldapCfg.bindDn) return null;
+    if (ownAddresses().includes(addr)) return null;
     const existing = users.byEmail(addr);
     if (existing && existing.source !== 'email') return null; // schon ein richtiges Konto
     if ((adMisses.get(addr) || 0) > now) return null;
@@ -108,7 +154,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
   }
 
   /** Verarbeitet eine geparste E-Mail. Liefert eine kurze Beschreibung, was passiert ist.
-   *  opts.sender: Konto aus lookupSender() (z. B. bei Zweitadresse aus proxyAddresses). */
+   *  opts.sender: Konto aus lookupSender() (z. B. bei Zweitadresse aus proxyAddresses).
+   *  opts.participants: Map Adresse → Konto aus lookupParticipants(). */
   function process(parsed, opts = {}) {
     const cfg = settings.group('imap');
     const from = parsed.from?.value?.[0];
@@ -155,12 +202,26 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       if (recent >= MAX_NEW_TICKETS_PER_HOUR) { remember.run(messageId, null); return { action: 'skipped', reason: 'rate', messageId }; }
     }
 
+    // An/CC-Empfänger werden Anfrage-Teilnehmer.
+    // Bearbeiter nicht – sie sehen das Ticket ohnehin. Keine Benachrichtigung: sie haben die Mail schon.
+    const addCcParticipants = (ticketId) => {
+      if (!settings.get('imap.ccParticipants')) return;
+      const names = recipientNames(parsed);
+      for (const addr of recipientAddresses(parsed)) {
+        const u = opts.participants?.get(addr) || users.byEmail(addr) || users.contactForEmail(addr, names.get(addr) || '');
+        if (!u.active || u.role === 'agent' || u.role === 'admin') continue;
+        try { tickets.addParticipant(sender, ticketId, { userId: u.id }, { system: true, notify: false }); }
+        catch (e) { log.warn(`Teilnehmer ${addr} nicht hinzugefügt`, { error: e.message }); break; }
+      }
+    };
+
     return db.transaction(() => {
       if (existingId) {
         const comment = tickets.addComment(privileged ? null : sender, existingId, { body: (stripQuotedReply(text) || '(leer)') + droppedNote }, {
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
         });
         for (const a of files) tickets.addAttachment(existingId, { filename: a.filename, mime: a.contentType, buffer: a.content }, privileged ? null : sender.id, comment.id);
+        if (!privileged) addCcParticipants(existingId);
         remember.run(messageId, existingId);
         return { action: 'comment', ticketId: existingId, messageId };
       }
@@ -173,12 +234,13 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
         type: 'request',
       }, { source: 'email', reporterEmail: fromAddr, reporterName: from?.name || null, reporterId: sender.id, messageId });
       for (const a of files) tickets.addAttachment(ticket.id, { filename: a.filename, mime: a.contentType, buffer: a.content }, sender.id, null);
+      addCcParticipants(ticket.id);
       remember.run(messageId, ticket.id);
       return { action: 'ticket', ticketId: ticket.id, key: ticket.key, messageId };
     })();
   }
 
-  return { process, lookupSender, parse: (source) => simpleParser(source) };
+  return { process, lookupSender, lookupParticipants, parse: (source) => simpleParser(source) };
 }
 
 export function createImapPoller({ settings, processor }) {
@@ -217,7 +279,8 @@ export function createImapPoller({ settings, processor }) {
             if (!msg?.source) continue;
             const parsed = await processor.parse(msg.source);
             const sender = processor.lookupSender ? await processor.lookupSender(parsed) : null;
-            const r = processor.process(parsed, sender ? { sender } : {});
+            const participants = processor.lookupParticipants ? await processor.lookupParticipants(parsed) : null;
+            const r = processor.process(parsed, { ...(sender ? { sender } : {}), ...(participants ? { participants } : {}) });
             if (r.action === 'ticket') { result.tickets++; log.info(`E-Mail → neues Ticket ${r.key}`); }
             else if (r.action === 'comment') { result.comments++; log.info(`E-Mail → Kommentar zu Ticket #${r.ticketId}`); }
             else result.skipped++;

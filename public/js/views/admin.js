@@ -383,6 +383,7 @@ async function mailPage(body, s) {
       h('div.grid-2',
         field(t('mail.keepDays'), bindInput(s, 'imap.processedKeepDays', { type: 'number', min: 0, step: 1 }), t('mail.keepDaysHint')),
         h('div', field(t('mail.adLookup'), bindCheck(s, 'imap.adLookup'), t('mail.adLookupHint')))),
+      field(t('mail.ccParticipants'), bindCheck(s, 'imap.ccParticipants'), t('mail.ccParticipantsHint')),
       imapRes,
       status,
       saveBar(() => saveKeys(s, ['imap.']),
@@ -400,7 +401,7 @@ async function mailPage(body, s) {
       h('div.grid-2', field(t('mail.from'), bindInput(s, 'smtp.from', { type: 'email', placeholder: 'helpdesk@firma.local' }), t('mail.fromHint')), field(t('mail.fromName'), bindInput(s, 'smtp.fromName'))),
       field(t('mail.verifyTls'), bindCheck(s, 'smtp.verifyTls')),
       h('h3', t('mail.notifications')),
-      ['reporterOnCreate', 'reporterOnComment', 'reporterOnDone', 'assignee'].map((k) => field(t(`mail.notify.${k}`), bindCheck(s, `notify.${k}`))),
+      ['reporterOnCreate', 'reporterOnComment', 'reporterOnDone', 'assignee', 'participantAdded'].map((k) => field(t(`mail.notify.${k}`), bindCheck(s, `notify.${k}`))),
       h('div.grid-2', field(t('mail.testTo'), testTo), h('div.field.field-btn', h('button.btn', {
         type: 'button',
         onclick: async () => { const r = await api.admin.testSmtp(pick(s, 'smtp.'), testTo.value); showResult(smtpRes, r.ok, r.ok ? t('mail.testSent') : r.error); },

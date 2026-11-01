@@ -65,6 +65,9 @@ export const api = {
     return request('POST', `/api/tickets/${encodeURIComponent(key)}/attachments`, fd);
   },
   deleteAttachment: (id) => request('DELETE', `/api/attachments/${id}`),
+  people: (q) => request('GET', `/api/people${qs({ q })}`),
+  addParticipant: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/participants`, d),
+  removeParticipant: (key, userId) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/participants/${userId}`),
 
   admin: {
     settings: () => request('GET', '/api/admin/settings'),

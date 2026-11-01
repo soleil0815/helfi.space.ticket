@@ -157,6 +157,21 @@ export const MIGRATIONS = [
     ALTER TABLE sessions ADD COLUMN mfa INTEGER NOT NULL DEFAULT 0;  -- zweiter Faktor in dieser Sitzung erbracht
     `,
   },
+  {
+    id: 4,
+    name: 'Anfrage-Teilnehmer',
+    sql: `
+    -- Weitere Personen, die ein Ticket sehen, kommentieren und benachrichtigt werden
+    CREATE TABLE ticket_participants (
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      added_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (ticket_id, user_id)
+    );
+    CREATE INDEX ticket_participants_user ON ticket_participants(user_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

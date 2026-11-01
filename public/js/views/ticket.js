@@ -140,6 +140,7 @@ export async function renderTicket(content, key) {
         t(`act.${a.action}`, { field: fieldLabel }),
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
         h('span.muted', { title: fmtDate(a.createdAt) }, ' · ', relTime(a.createdAt))));
   }
@@ -190,6 +191,65 @@ export async function renderTicket(content, key) {
     }, render(current));
   }
 
+  // Anfrage-Teilnehmer: sehen das Ticket, können kommentieren, werden benachrichtigt
+  function participantsEl() {
+    const list = tk.participants || [];
+    const canRemove = (p) => agent || tk.reporter?.id === state.user.id || p.id === state.user.id;
+    const chips = list.map((p) => h('span.chip', { title: p.email || p.displayName },
+      avatar(p, 'xs'), h('span', p.displayName),
+      p.contact && agent ? h('span.chip-mail', { title: t('ticket.contact') }, icon('mail')) : null,
+      canRemove(p) ? h('button.chip-x', {
+        type: 'button', title: t('ticket.removeParticipant'), 'aria-label': t('ticket.removeParticipant'),
+        onclick: async () => {
+          try {
+            await api.removeParticipant(tk.key, p.id);
+            if (p.id === state.user.id && !agent && tk.reporter?.id !== state.user.id) { navigate('/requests'); return; }
+            await refresh();
+          } catch (e) { toast(e.message, 'error'); }
+        },
+      }, '×') : null));
+    const box = h('div.participants', chips.length ? chips : h('span.muted', t('app.none')));
+    if (!tk.canManageParticipants) return box;
+
+    const add = h('button.link', { type: 'button', onclick: () => openPicker() }, icon('plus'), t('ticket.addParticipant'));
+    box.append(add);
+    const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    function openPicker() {
+      const input = h('input.input-inline', { type: 'search', placeholder: agent ? t('ticket.participantSearchAgent') : t('ticket.participantSearch'), autocomplete: 'off' });
+      add.replaceWith(input);
+      input.focus();
+      let timer = null;
+      let seq = 0;
+      const pick = async (d) => {
+        try { await api.addParticipant(tk.key, d); await refresh(); }
+        catch (e) { toast(e.message, 'error'); }
+      };
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const q = input.value.trim();
+          const my = ++seq;
+          if (q.length < 2) { document.querySelectorAll('.menu').forEach((m) => m.remove()); return; }
+          let people = [];
+          try { people = (await api.people(q)).people; } catch { /* egal */ }
+          if (my !== seq) return;
+          const taken = new Set([tk.reporter?.id, ...list.map((p) => p.id)]);
+          const items = people.filter((p) => !taken.has(p.id)).map((p) => ({
+            label: p.email ? `${p.displayName} · ${p.email}` : p.displayName, icon: avatar(p, 'xs'), onClick: () => pick({ userId: p.id }),
+          }));
+          if (agent && looksLikeEmail(q) && !people.some((p) => (p.email || '').toLowerCase() === q.toLowerCase())) {
+            items.push({ label: t('ticket.addEmailParticipant', { email: q }), icon: icon('mail'), onClick: () => pick({ email: q }) });
+          }
+          if (!items.length) items.push({ label: t('ticket.noPeopleFound'), onClick: () => input.focus() });
+          dropdown(input, items);
+        }, 200);
+      });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Escape') draw(); });
+      input.addEventListener('blur', () => setTimeout(() => { if (!document.querySelector('.menu')) draw(); }, 200));
+    }
+    return box;
+  }
+
   function sidePanel() {
     const assignee = h('div',
       pick(tk.assignee?.id ?? null, [[null, t('app.unassigned'), avatar(null, 'sm')], ...state.agents.map((a) => [a.id, a.displayName, avatar(a, 'sm')])],
@@ -231,6 +291,7 @@ export async function renderTicket(content, key) {
         h('div.details-head', t('ticket.details')),
         detailRow(t('ticket.assignee'), assignee),
         detailRow(t('ticket.reporter'), h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—', tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.muted.block', tk.reporter.email) : null))),
+        detailRow(t('ticket.participants'), participantsEl()),
         detailRow(t('ticket.priority'), pick(tk.priority, PRIOS.map((p) => [p, t(`priority.${p}`), priorityIcon(p)]), (v) => save({ priority: v }),
           (v) => h('span.person', priorityIcon(v), h('span', t(`priority.${v}`))))),
         detailRow(t('ticket.type'), pick(tk.type, TYPES.map((p) => [p, t(`type.${p}`), typeIcon(p)]), (v) => save({ type: v }),
