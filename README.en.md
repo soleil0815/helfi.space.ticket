@@ -151,6 +151,17 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
+## Reply templates
+
+For replies that are always the same (e.g. "Please restart your computer"):
+
+- **Insert:** click **Template** in the comment box, type to search, press Enter or click to insert. The text goes to the cursor position and can still be edited before saving. Works for replies and internal notes. Only agents see templates.
+- **Placeholders:** `{reporter}`, `{ticket}`, `{title}`, `{agent}` (German `{melder}`, `{titel}`, `{bearbeiter}`) are replaced when inserting.
+- **Create:**
+  - Write a text in the comment box and choose **Save as template**.
+  - Admins manage templates for everyone under *Administration → Reply templates*.
+  - Every agent manages personal templates in their *profile*; only they can see them.
+
 ## Import from another ticket system
 
 *Administration → Import*

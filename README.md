@@ -151,6 +151,17 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
+## Antwortvorlagen
+
+Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rechner neu“):
+
+- **Einfügen:** im Kommentarfeld auf **Vorlage** klicken, tippen zum Suchen, mit Enter oder Klick einfügen. Der Text landet an der Cursorposition und lässt sich vor dem Speichern noch anpassen. Funktioniert für Antworten und interne Notizen. Nur Bearbeiter sehen die Vorlagen.
+- **Platzhalter:** `{melder}`, `{ticket}`, `{titel}`, `{bearbeiter}` (englisch `{reporter}`, `{title}`, `{agent}`) werden beim Einfügen ersetzt.
+- **Anlegen:**
+  - Text im Kommentarfeld schreiben und **Als Vorlage speichern** wählen.
+  - Vorlagen für alle pflegen Admins unter *Administration → Antwortvorlagen*.
+  - Persönliche Vorlagen pflegt jeder Bearbeiter in seinem *Profil*; sie sieht nur er selbst.
+
 ## Import aus einem anderen Ticketsystem
 
 *Administration → Import*

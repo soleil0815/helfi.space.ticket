@@ -6,6 +6,7 @@ import {
 } from '../dom.js';
 import { t } from '../i18n.js';
 import { state, navigate, route } from '../app.js';
+import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -152,10 +153,28 @@ export async function renderTicket(content, key) {
     const modeBtns = agent ? h('div.composer-modes',
       h('button.mode.active', { type: 'button', onclick: (e) => setMode(false, e.currentTarget) }, t('ticket.reply')),
       h('button.mode', { type: 'button', onclick: (e) => setMode(true, e.currentTarget) }, icon('lock'), t('ticket.internalNote'))) : null;
+    // Antwortvorlagen (nur Bearbeiter): an der Cursorposition einfügen, Platzhalter ersetzen
+    const insertTemplate = (x) => {
+      const text = fillPlaceholders(x.body, tk);
+      ta.focus();
+      ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end');
+      ta.dispatchEvent(new Event('input'));
+    };
+    const templateBtn = agent ? h('button.btn.btn-subtle.small', {
+      type: 'button', title: t('canned.insertHint'),
+      onclick: (e) => openTemplatePicker(e.currentTarget, insertTemplate),
+    }, icon('comment'), t('canned.insert'), icon('chevron-down')) : null;
+    const saveAsBtn = agent ? h('button.link.small', {
+      type: 'button',
+      onclick: () => { if (!ta.value.trim()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: ta.value }); },
+    }, t('canned.saveAs')) : null;
     const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, ta, hint,
       h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: submit }, t('app.save')),
-        h('span.muted.small', 'Ctrl+Enter'))));
+        templateBtn,
+        h('span.muted.small', 'Ctrl+Enter'),
+        saveAsBtn ? h('span.spacer') : null,
+        saveAsBtn)));
     function setMode(isInternal, btn) {
       internal = isInternal;
       modeBtns.querySelectorAll('.mode').forEach((b) => b.classList.toggle('active', b === btn));
