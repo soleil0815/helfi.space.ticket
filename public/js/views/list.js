@@ -5,6 +5,7 @@ import { openTemplatePicker } from './canned.js';
 import { t } from '../i18n.js';
 import { state, navigate } from '../app.js';
 import { openCreateDialog } from './ticket.js';
+import { matchQueue } from '../queues.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -43,7 +44,8 @@ export async function renderList(content, params, { requests = false } = {}) {
     Object.keys(f).some((k) => f[k] && k !== 'reporter') ? h('button.btn.btn-subtle', { type: 'button', onclick: () => navigate(location.pathname, { replace: true }) }, t('filter.reset')) : null,
   );
 
-  const title = requests ? t('nav.myRequests') : t('nav.list');
+  const queue = requests ? null : matchQueue(params);
+  const title = requests ? t('nav.myRequests') : (queue ? t(queue.label) : (f.overdue ? t('summary.overdue') : t('nav.list')));
   const tableHost = h('div', h('div.loading', t('app.loading')));
   mount(content,
     h('div.page-head', h('h1', title), requests && state.boot.allowSelfService ? h('button.btn.btn-primary', { type: 'button', onclick: () => openCreateDialog() }, icon('plus'), t('app.create')) : null),

@@ -195,6 +195,9 @@ export function createTickets(db, users) {
     if (f.reporter === 'me') { where.push('t.reporter_id=?'); args.push(user.id); }
     if (f.participant === 'me') { where.push('t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?)'); args.push(user.id); }
     if (f.label) { where.push("(','||t.labels||',') LIKE ?"); args.push(`%,${String(f.label).toLowerCase()},%`); }
+    if (f.overdue === '1' || f.overdue === 1 || f.overdue === true) where.push("t.status<>'done' AND t.due_date IS NOT NULL AND t.due_date < date('now')");
+    const rd = int(f.resolvedDays);
+    if (rd && rd > 0 && rd <= 3660) { where.push("t.resolved_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now',?)"); args.push(`-${rd} days`); }
     if (f.q) {
       const q = String(f.q).trim();
       const km = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/.exec(q);
@@ -526,6 +529,51 @@ export function createTickets(db, users) {
     };
   }
 
+  /** Zahlen für die Warteschlangen der Seitenleiste (eine Abfrage, nur aktive Projekte). */
+  function queueCounts(user, projectKey = null) {
+    const p = projectKey ? projects.get(projectKey) : null;
+    const r = db.prepare(`SELECT
+        SUM(t.status<>'done') open,
+        SUM(t.status<>'done' AND t.assignee_id=?) mine,
+        SUM(t.status<>'done' AND t.assignee_id IS NULL) unassigned,
+        SUM(t.status='waiting') waiting,
+        SUM(t.status='done' AND t.resolved_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days')) recent,
+        COUNT(*) total,
+        SUM(t.status<>'done' AND t.type='request') requests,
+        SUM(t.status<>'done' AND t.type='incident') incidents
+      FROM tickets t JOIN projects pr ON pr.id=t.project_id
+      WHERE pr.archived=0 ${p ? 'AND t.project_id=?' : ''}`).get(user.id, ...(p ? [p.id] : []));
+    return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v || 0]));
+  }
+
+  /** Zusammenfassung eines Projekts (oder aller aktiven). */
+  function summary(user, projectKey = null) {
+    const p = projectKey ? projects.get(projectKey) : null;
+    if (projectKey && !p) throw notFound();
+    const where = p ? 'AND t.project_id=?' : '';
+    const a = p ? [p.id] : [];
+    const one = (sql) => db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id WHERE pr.archived=0 ${where} AND ${sql}`).get(...a).n;
+    const group = (col, cond) => Object.fromEntries(db.prepare(`SELECT t.${col} k, COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id
+      WHERE pr.archived=0 ${where} AND ${cond} GROUP BY t.${col}`).all(...a).map((x) => [x.k, x.n]));
+    const urgent = db.prepare(`${SELECT} WHERE p.archived=0 ${p ? 'AND t.project_id=?' : ''} AND t.status<>'done'
+      ORDER BY CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+        CASE WHEN t.due_date IS NOT NULL AND t.due_date < date('now') THEN 0 ELSE 1 END, t.created_at LIMIT 8`).all(...a);
+    return {
+      project: p ? projectOut(p) : null,
+      counts: {
+        open: one("t.status<>'done'"),
+        created7: one("t.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days')"),
+        resolved7: one("t.status='done' AND t.resolved_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days')"),
+        overdue: one("t.status<>'done' AND t.due_date IS NOT NULL AND t.due_date < date('now')"),
+        unassigned: one("t.status<>'done' AND t.assignee_id IS NULL"),
+      },
+      byStatus: { ...Object.fromEntries(STATUSES.map((x) => [x, 0])), ...group('status', '1=1') },
+      byType: { ...Object.fromEntries(TYPES.map((x) => [x, 0])), ...group('type', "t.status<>'done'") },
+      byPriority: { ...Object.fromEntries(PRIORITIES.map((x) => [x, 0])), ...group('priority', "t.status<>'done'") },
+      urgent: urgent.map((r) => ticketOut(r, isAgent(user))),
+    };
+  }
+
   function stats(user) {
     const mine = db.prepare("SELECT COUNT(*) n FROM tickets WHERE assignee_id=? AND status<>'done'").get(user.id).n;
     const unassigned = db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND assignee_id IS NULL AND status<>'done'").get().n;
@@ -537,6 +585,6 @@ export function createTickets(db, users) {
   return {
     events, projects, list, load, detail, create, update, remove, addComment, comments,
     addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
-    participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject,
+    participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
 }

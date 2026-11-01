@@ -78,8 +78,9 @@ export function renderProfile(content) {
     h('section.panel', h('h2', t('app.language')), field(t('app.language'), lang)),
     mfaPanel,
     pwForm,
-    state.isAgent ? templatesPanel({ shared: false }) : null,
+    state.isAgent ? (() => { const tp = templatesPanel({ shared: false }); tp.id = 'templates'; return tp; })() : null,
   );
+  if (location.hash === '#templates') setTimeout(() => document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }), 50);
 }
 
 async function drawMfa(panel) {
