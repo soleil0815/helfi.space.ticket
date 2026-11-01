@@ -4,6 +4,7 @@ import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, 
 import { t } from '../i18n.js';
 import { state, reloadBase } from '../app.js';
 import { importPage } from './import.js';
+import { templatesPanel } from './canned.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
@@ -13,6 +14,7 @@ const SECTIONS = [
   ['ldap', 'admin.ldap', 'server'],
   ['sso', 'admin.sso', 'key'],
   ['mail', 'admin.mail', 'mail'],
+  ['templates', 'admin.templates', 'comment'],
   ['import', 'admin.import', 'download'],
   ['system', 'admin.system', 'info'],
 ];
@@ -30,6 +32,7 @@ export async function renderAdmin(content, section) {
   if (section === 'users') return usersPage(body);
   if (section === 'system') return systemPage(body);
   if (section === 'import') return importPage(body);
+  if (section === 'templates') return mount(body, templatesPanel({ shared: true }));
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };

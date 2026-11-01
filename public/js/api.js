@@ -66,6 +66,12 @@ export const api = {
   },
   deleteAttachment: (id) => request('DELETE', `/api/attachments/${id}`),
   people: (q) => request('GET', `/api/people${qs({ q })}`),
+  canned: {
+    list: () => request('GET', '/api/canned'),
+    create: (d) => request('POST', '/api/canned', d),
+    update: (id, d) => request('PATCH', `/api/canned/${id}`, d),
+    remove: (id) => request('DELETE', `/api/canned/${id}`),
+  },
   addParticipant: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/participants`, d),
   removeParticipant: (key, userId) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/participants/${userId}`),
 

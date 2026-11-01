@@ -4,6 +4,7 @@ import { h, mount, avatar, field, select, toast, icon } from '../dom.js';
 import { recoveryCodesBox } from './auth.js';
 import { t } from '../i18n.js';
 import { state, setLanguage } from '../app.js';
+import { templatesPanel } from './canned.js';
 
 export function renderProfile(content) {
   const u = state.user;
@@ -46,6 +47,7 @@ export function renderProfile(content) {
     h('section.panel', h('h2', t('app.language')), field(t('app.language'), lang)),
     mfaPanel,
     pwForm,
+    state.isAgent ? templatesPanel({ shared: false }) : null,
   );
 }
 

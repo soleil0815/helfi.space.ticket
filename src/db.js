@@ -172,6 +172,23 @@ export const MIGRATIONS = [
     CREATE INDEX ticket_participants_user ON ticket_participants(user_id);
     `,
   },
+  {
+    id: 5,
+    name: 'Antwortvorlagen',
+    sql: `
+    -- Vorlagen für häufige Antworten. owner_id NULL = für alle Bearbeiter, sonst persönlich.
+    CREATE TABLE canned_responses (
+      id INTEGER PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX canned_responses_owner ON canned_responses(owner_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

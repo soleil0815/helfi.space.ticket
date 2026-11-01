@@ -20,7 +20,7 @@ import { log } from '../lib/log.js';
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
 export function createApi(ctx) {
-  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa } = ctx;
+  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned } = ctx;
   const r = express.Router();
   // Zwischenablage im Datenordner: gleiches Dateisystem wie die Anhänge (kein EXDEV im Container)
   const uploadTmp = path.join(paths.attachments, '.tmp');
@@ -286,6 +286,12 @@ export function createApi(ctx) {
     tickets.remove(req.user, req.params.key);
     res.json({ ok: true });
   });
+
+  // ---------- Antwortvorlagen (nur Bearbeiter) ----------
+  r.get('/canned', requireRole('agent'), (req, res) => res.json({ responses: canned.list(req.user) }));
+  r.post('/canned', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ response: canned.create(req.user, req.body || {}) })));
+  r.patch('/canned/:id', requireRole('agent'), wrap(async (req, res) => res.json({ response: canned.update(req.user, req.params.id, req.body || {}) })));
+  r.delete('/canned/:id', requireRole('agent'), (req, res) => { canned.remove(req.user, req.params.id); res.json({ ok: true }); });
 
   // ---------- Anfrage-Teilnehmer ----------
   r.post('/tickets/:key/participants', wrap(async (req, res) => {

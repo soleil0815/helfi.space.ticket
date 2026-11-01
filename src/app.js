@@ -12,6 +12,7 @@ import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
 import { createMailProcessor, createImapPoller } from './mail/imap.js';
+import { createCanned } from './canned.js';
 import { findByEmail as ldapFindByEmail } from './auth/ldap.js';
 import { createJiraImporter } from './import/jira-import.js';
 import { createApi } from './routes/api.js';
@@ -44,7 +45,8 @@ export function createApp(db) {
   }
 
   const jiraImporter = createJiraImporter({ db, tickets, users });
-  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, ldapCertWarning: null };
+  const canned = createCanned(db);
+  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');
