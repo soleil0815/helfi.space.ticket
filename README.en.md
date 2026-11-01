@@ -28,8 +28,8 @@ Requirement: Docker with Compose (Linux server, Synology, …).
 
 ```sh
 mkdir helfi && cd helfi
-# download docker-compose.yml, .env.example and update.sh from the latest release
-cp .env.example .env
+# download docker-compose.yml, env.example and update.sh from the latest release
+cp env.example .env
 nano .env            # at least set HELFI_BASE_URL
 docker compose up -d
 docker compose logs helfi   # shows the setup code
