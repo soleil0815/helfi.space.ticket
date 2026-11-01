@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
-import { state, reloadBase } from '../app.js';
+import { state, reloadBase, route } from '../app.js';
 import { importPage } from './import.js';
 import { templatesPanel } from './canned.js';
 
@@ -128,6 +128,44 @@ async function projectsPage(body) {
     }, h('div.grid-2', field(t('projects.key'), key, t('setup.projectKeyHint')), field(t('projects.name'), name)), field(t('projects.description'), desc), field(t('projects.lead'), lead)),
     { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'proj-form' }, t('app.create'))] });
   };
+  const removeProject = (p) => {
+    const others = projects.filter((x) => x.id !== p.id && !x.archived);
+    const count = p.ticketCount || 0;
+    const err = h('div.form-error', { role: 'alert', hidden: true });
+    const target = select(others.map((x) => [x.key, `${x.name} (${x.key})`]), others[0]?.key || '');
+    const modeMove = h('input', { type: 'radio', name: 'del-mode', value: 'move', checked: true });
+    const modeDelete = h('input', { type: 'radio', name: 'del-mode', value: 'delete' });
+    const confirmKey = h('input', { autocomplete: 'off', placeholder: p.key, disabled: true });
+    const sync = () => { target.disabled = !modeMove.checked; confirmKey.disabled = !modeDelete.checked; };
+    modeMove.addEventListener('change', sync); modeDelete.addEventListener('change', sync);
+    const content = count === 0
+      ? h('p', t('projects.deleteEmpty', { key: p.key, name: p.name }))
+      : h('div',
+        h('p', t('projects.deleteHasTickets', { key: p.key, count })),
+        h('label.radio-block', modeMove, h('span', h('strong', t('projects.deleteMove')), h('span.muted.block.small', t('projects.deleteMoveHint')))),
+        h('div.radio-detail', target),
+        h('label.radio-block', modeDelete, h('span', h('strong', t('projects.deleteAll')), h('span.muted.block.small', t('projects.deleteAllHint', { key: p.key })))),
+        h('div.radio-detail', confirmKey));
+    const submit = h('button.btn.btn-danger', { type: 'submit', form: 'del-proj-form' }, t('projects.delete'));
+    const dlg = modal(`${t('projects.delete')}: ${p.name} (${p.key})`, h('form#del-proj-form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        err.hidden = true;
+        const d = count === 0 ? {} : (modeMove.checked ? { moveTo: target.value } : { deleteTickets: true, confirmKey: confirmKey.value });
+        if (count && modeMove.checked && !target.value) { err.textContent = t('projects.deleteNoTarget'); err.hidden = false; return; }
+        submit.disabled = true;
+        try {
+          const r = await api.deleteProject(p.id, d);
+          dlg.close();
+          toast(r.moved ? t('projects.deletedMoved', { key: r.key, count: r.moved, target: r.target }) : t('projects.deleted', { key: r.key }), 'success');
+          await reloadBase();
+          route(); // ganze Seite neu – die Seitenleiste darf kein gelöschtes Projekt mehr zeigen
+        } catch (ex) { err.textContent = ex.message; err.hidden = false; submit.disabled = false; }
+      },
+    }, err, content, h('p.muted.small', t('projects.deleteBackup'))),
+    { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), submit] });
+    sync();
+  };
   mount(body, h('section.panel',
     h('div.section-head', h('h2', t('admin.projects')), h('button.btn.btn-primary', { type: 'button', onclick: newForm }, icon('plus'), t('projects.new'))),
     h('table.data',
@@ -137,7 +175,9 @@ async function projectsPage(body) {
         h('td', h('input.input-inline', { value: p.name, onchange: async (e) => { await api.updateProject(p.id, { name: e.target.value }); await reloadBase(); toast(t('app.saved'), 'success'); } })),
         h('td', select([['', '—'], ...users.map((u) => [u.id, u.displayName])], p.leadId || '', { class: 'select-sm', onchange: async (e) => { await api.updateProject(p.id, { leadId: e.target.value || null }); toast(t('app.saved'), 'success'); } })),
         h('td', String(p.openCount ?? '')),
-        h('td', h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { await api.updateProject(p.id, { archived: !p.archived }); await reloadBase(); projectsPage(body); } }, p.archived ? t('projects.unarchive') : t('projects.archive')))))))));
+        h('td.actions-cell',
+          h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { await api.updateProject(p.id, { archived: !p.archived }); await reloadBase(); projectsPage(body); } }, p.archived ? t('projects.unarchive') : t('projects.archive')),
+          projects.length > 1 ? h('button.btn-icon.small', { type: 'button', title: t('projects.delete'), 'aria-label': t('projects.delete'), onclick: () => removeProject(p) }, icon('trash')) : null)))))));
 }
 
 // ---------- Benutzer ----------
