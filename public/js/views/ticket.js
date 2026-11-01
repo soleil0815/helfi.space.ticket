@@ -7,6 +7,7 @@ import {
 import { t } from '../i18n.js';
 import { state, navigate, route } from '../app.js';
 import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.js';
+import { setPageShortcuts, openPalette } from '../shortcuts.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -36,7 +37,10 @@ export async function renderTicket(content, key) {
     if (!canEditText) return el;
     const edit = () => {
       const input = h('input.title-input', { value: tk.title, maxLength: 255 });
+      let finished = false; // Esc entfernt das Feld – das folgende „blur“ darf nicht mehr speichern
       const done = async (commit) => {
+        if (finished) return;
+        finished = true;
         if (commit && input.value.trim() && input.value.trim() !== tk.title) await save({ title: input.value.trim() });
         else draw();
       };
@@ -161,7 +165,7 @@ export async function renderTicket(content, key) {
       ta.dispatchEvent(new Event('input'));
     };
     const templateBtn = agent ? h('button.btn.btn-subtle.small', {
-      type: 'button', title: t('canned.insertHint'),
+      type: 'button', title: t('canned.insertHint'), 'data-shortcut': 'template',
       onclick: (e) => openTemplatePicker(e.currentTarget, insertTemplate),
     }, icon('comment'), t('canned.insert'), icon('chevron-down')) : null;
     const saveAsBtn = agent ? h('button.link.small', {
@@ -270,7 +274,7 @@ export async function renderTicket(content, key) {
   }
 
   function sidePanel() {
-    const assignee = h('div',
+    const assignee = h('div', { 'data-shortcut': 'assignee' },
       pick(tk.assignee?.id ?? null, [[null, t('app.unassigned'), avatar(null, 'sm')], ...state.agents.map((a) => [a.id, a.displayName, avatar(a, 'sm')])],
         (v) => save({ assigneeId: v }),
         () => h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),
@@ -279,10 +283,11 @@ export async function renderTicket(content, key) {
     const labels = (() => {
       const view = h('div.labels', tk.labels.length ? tk.labels.map((l) => h('a.label', { href: `/issues?label=${encodeURIComponent(l)}`, 'data-link': '' }, l)) : h('span.muted', t('app.none')));
       if (!agent) return view;
-      const wrap = h('div.editable-inline', { tabindex: 0 }, view);
+      const wrap = h('div.editable-inline', { tabindex: 0, 'data-shortcut': 'labels' }, view);
       const edit = () => {
         const input = h('input', { value: tk.labels.join(', '), placeholder: t('create.labelsHint') });
-        const done = (commit) => (commit ? save({ labels: input.value }) : draw());
+        let finished = false; // Esc = abbrechen, auch wenn danach noch „blur“ kommt
+        const done = (commit) => { if (finished) return; finished = true; if (commit) save({ labels: input.value }); else draw(); };
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); });
         input.addEventListener('blur', () => done(true));
         wrap.replaceWith(input);
@@ -347,6 +352,41 @@ export async function renderTicket(content, key) {
   }
 
   draw();
+
+  // ---------- Tastenkürzel ----------
+  const focusComment = () => {
+    if (tab === 'history') { tab = 'comments'; draw(); }
+    const ta = document.querySelector('.composer textarea');
+    ta?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    ta?.focus();
+  };
+  const click = (sel) => document.querySelector(sel)?.click();
+  const keys = {
+    m: focusComment,
+    e: () => { if (canEditText) click('.ticket-title.editable'); },
+  };
+  if (agent) {
+    Object.assign(keys, {
+      i: () => { if (tk.assignee?.id !== state.user.id) save({ assigneeId: state.user.id }); },
+      a: () => click('[data-shortcut=assignee] .detail-pick'),
+      l: () => click('[data-shortcut=labels]'),
+      '.': () => {
+        const g = (k) => t(k);
+        openPalette([
+          ...STATUSES.filter((x) => x !== tk.status).map((x) => ({ group: g('list.status'), label: t(`status.${x}`), run: () => save({ status: x }) })),
+          tk.assignee?.id !== state.user.id ? { group: g('ticket.assignee'), label: t('ticket.assignToMe'), hint: 'i', run: () => save({ assigneeId: state.user.id }) } : null,
+          tk.assignee ? { group: g('ticket.assignee'), label: t('app.unassigned'), run: () => save({ assigneeId: null }) } : null,
+          ...PRIOS.filter((x) => x !== tk.priority).map((x) => ({ group: g('ticket.priority'), label: t(`priority.${x}`), run: () => save({ priority: x }) })),
+          ...TYPES.filter((x) => x !== tk.type).map((x) => ({ group: g('ticket.type'), label: t(`type.${x}`), run: () => save({ type: x }) })),
+          { group: g('ticket.comments'), label: t('ticket.addComment'), hint: 'm', run: focusComment },
+          { group: g('ticket.comments'), label: t('canned.insertHint'), run: () => { focusComment(); setTimeout(() => click('[data-shortcut=template]'), 50); } },
+          { group: g('ticket.labels'), label: t('keys.labels'), hint: 'l', run: () => click('[data-shortcut=labels]') },
+          { group: g('ticket.details'), label: t('ticket.copyLink'), run: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* egal */ } } },
+        ].filter(Boolean));
+      },
+    });
+  }
+  setPageShortcuts(keys);
 }
 
 // ---------- Ticket erstellen ----------

@@ -178,6 +178,25 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
   - **Antworten und interne Notizen**
   - **Ø Lösungsdauer:** von „erstellt“ bis „erledigt“
 
+## Tastenkürzel
+
+`?` zeigt alle Kürzel in der Oberfläche. Sie greifen nie, während man in ein Feld schreibt.
+
+| Wo | Taste | Wirkung |
+|---|---|---|
+| überall | `c` | Ticket erstellen |
+| | `/` | Suchen |
+| | `g` dann `b` / `i` / `m` | Board / alle Tickets / Meine Arbeit |
+| Ticket | `i` | mir zuweisen |
+| | `a` | Bearbeiter wählen |
+| | `m` | kommentieren |
+| | `e` | Titel bearbeiten |
+| | `l` | Stichwörter bearbeiten |
+| | `.` | Aktionen mit Suche (Status, Priorität, Typ, Vorlage …) |
+| | `Strg` + `Enter` | Kommentar speichern |
+| Listen | `j` / `k` | nächstes / voriges Ticket |
+| | `o` / `Enter` | markiertes Ticket öffnen |
+
 ## Import aus einem anderen Ticketsystem
 
 *Administration → Import*

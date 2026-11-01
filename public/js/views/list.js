@@ -70,7 +70,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         th(t('list.priority'), 'priority'),
         th(t('list.updated'), 'updated'),
       )),
-      h('tbody', tickets.map((tk) => h('tr', { onclick: (e) => { if (!e.target.closest('a')) navigate(`/browse/${tk.key}`); } },
+      h('tbody', tickets.map((tk) => h('tr', { 'data-key': tk.key, onclick: (e) => { if (!e.target.closest('a')) navigate(`/browse/${tk.key}`); } },
         h('td.col-type', typeIcon(tk.type)),
         h('td.col-key', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key)),
         h('td.col-summary', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.title), tk.source === 'email' ? h('span.src-mail', { title: t('source.email') }, icon('mail')) : null),
