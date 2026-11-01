@@ -141,7 +141,7 @@ else
 fi
 
 [ -f docker-compose.yml ] || { err "docker-compose.yml fehlt in $(pwd)"; exit 1; }
-[ -f .env ] || { err ".env fehlt – bitte aus .env.example erstellen."; exit 1; }
+[ -f .env ] || { err ".env fehlt – bitte aus env.example erstellen."; exit 1; }
 
 env_get() {
   # Windows-Zeilenenden und Anführungszeichen entfernen

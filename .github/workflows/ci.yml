@@ -253,7 +253,7 @@ jobs:
             docker pull --platform "linux/$arch" "$IMAGE:$v"
             docker save "$IMAGE:$v" | gzip > "release/helfi-$v-$arch.tar.gz"
           done
-          cp docker-compose.yml .env.example update.sh release/
+          cp docker-compose.yml env.example update.sh release/
           (cd release && sha256sum -- * > SHA256SUMS)
       - name: GitHub-Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3

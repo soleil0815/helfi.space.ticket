@@ -32,7 +32,7 @@ COPY package.json ./
 COPY src ./src
 COPY public ./public
 # Aktuelle Betriebsdateien liegen im Image – update.sh übernimmt sie bei Bedarf
-COPY docker-compose.yml .env.example update.sh docker/compose-hashes.txt ./deploy/
+COPY docker-compose.yml env.example update.sh docker/compose-hashes.txt ./deploy/
 COPY docker/entrypoint.sh /usr/local/bin/helfi-entrypoint
 
 RUN chmod 0755 /usr/local/bin/helfi-entrypoint ./deploy/update.sh && mkdir -p /data
