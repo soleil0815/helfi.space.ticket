@@ -11,3 +11,10 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      # Neue Node-Hauptversionen nicht automatisch vorschlagen: Ungerade Versionen bis 25
+      # bekommen keine Langzeitpflege. Der Wechsel auf die nächste LTS-Version (z. B. 26)
+      # erfolgt bewusst, zusammen mit node-version in .github/workflows/ci.yml.
+      # Sicherheitskorrekturen kommen trotzdem: node:24-alpine zieht bei jedem Build die neueste 24.x.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
