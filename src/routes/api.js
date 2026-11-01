@@ -305,6 +305,8 @@ export function createApi(ctx) {
 
   // ---------- Tickets ----------
   r.get('/stats', requireRole('agent'), (req, res) => res.json(tickets.stats(req.user)));
+  r.get('/queues', requireRole('agent'), (req, res) => res.json({ counts: tickets.queueCounts(req.user, req.query.project ? str(req.query.project, 20) : null) }));
+  r.get('/summary', requireRole('agent'), (req, res) => res.json(tickets.summary(req.user, req.query.project ? str(req.query.project, 20) : null)));
 
   r.get('/tickets', (req, res) => {
     res.json({ tickets: tickets.list(req.user, req.query) });

@@ -9,6 +9,8 @@ import { renderList, renderMyWork } from './views/list.js';
 import { renderTicket, openCreateDialog } from './views/ticket.js';
 import { renderAdmin } from './views/admin.js';
 import { renderReports } from './views/reports.js';
+import { renderSummary } from './views/summary.js';
+import { QUEUES, VIEWS, queueHref, matchQueue } from './queues.js';
 import { renderProfile } from './views/profile.js';
 
 export const state = {
@@ -118,6 +120,7 @@ export async function route() {
     if (path === '/requests') return await renderList(content, state.isAgent && !params.has('participant') ? new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }) : params, { requests: true });
     if (path === '/my') return await renderMyWork(content);
     if (path === '/reports' && state.isAgent) return await renderReports(content, params);
+    if (path === '/summary' && state.isAgent) return await renderSummary(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
     if (path === '/profile') return renderProfile(content);
@@ -131,6 +134,26 @@ function layout(content, path) {
   const u = state.user;
   const p = state.project;
   const nav = (href, label, ic, active) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', label));
+  const activeQueue = path === '/issues' ? matchQueue(new URL(location.href).searchParams) : null;
+  // Zahl an einem Eintrag – wird nach dem Laden von /api/queues gefüllt (vorher letzter bekannter Wert)
+  const countEl = (field) => h('span.nav-count', { 'data-count': field }, state.queueCounts?.[field] ?? '');
+  const countedNav = (href, label, ic, active, field) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', label), countEl(field));
+  function queuesNav(curPath, proj) {
+    let open = true;
+    try { open = localStorage.getItem('helfi.queuesOpen') !== '0'; } catch { /* egal */ }
+    const list = h('div.queue-list', { hidden: !open }, QUEUES.map((q) => h('a.nav-item.nav-sub', {
+      href: queueHref(q, proj?.key), 'data-link': '', class: curPath === '/issues' && activeQueue?.id === q.id ? 'active' : '',
+    }, h('span', t(q.label)), countEl(q.count))));
+    const head = h('button.nav-item.nav-group', {
+      type: 'button', 'aria-expanded': String(open),
+      onclick: () => {
+        open = !open; list.hidden = !open; head.setAttribute('aria-expanded', String(open)); head.classList.toggle('collapsed', !open);
+        try { localStorage.setItem('helfi.queuesOpen', open ? '1' : '0'); } catch { /* egal */ }
+      },
+    }, icon('inbox'), h('span', t('nav.queues')), icon('chevron-down', 'nav-chevron'));
+    head.classList.toggle('collapsed', !open);
+    return h('div.queue-group', head, list);
+  }
 
   const search = h('input', {
     type: 'search', placeholder: t('app.searchPlaceholder'), 'aria-label': t('app.search'),
@@ -181,11 +204,13 @@ function layout(content, path) {
           }))),
         }, icon('chevron-down')) : null,
       ) : null,
-      h('div.sidebar-label', t('nav.planning')),
+      nav('/summary', t('nav.summary'), 'globe', path === '/summary'),
+      queuesNav(path, p),
       nav('/board', t('nav.board'), 'board', path === '/board'),
-      nav(`/issues?project=${p?.key || ''}`, t('nav.list'), 'list', path === '/issues'),
-      nav('/my', t('nav.myWork'), 'inbox', path === '/my'),
+      ...VIEWS.map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
+      nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
+      state.isAdmin ? nav('/admin/mail', t('nav.channelsMail'), 'mail', path === '/admin/mail') : null,
       state.isAdmin ? h('div.sidebar-label', t('nav.admin')) : null,
       state.isAdmin ? nav('/admin', t('app.settings'), 'settings', path.startsWith('/admin')) : null,
       h('div.sidebar-foot', `Helfi.Space ${state.boot.app.version}`),
@@ -202,7 +227,17 @@ function layout(content, path) {
   if (m && m.mode === 'external' && !m.enabled && u.source !== 'oidc' && path !== '/profile') {
     warnings.push(h('div.banner.banner-info', icon('shield'), h('span', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup'))));
   }
+  if (state.isAgent) refreshQueueCounts(p?.key);
   return h('div.shell', topbar, h('div.body', sidebar, h('div.main', warnings, content)));
+}
+
+/** Zahlen der Warteschlangen neu laden und in die Seitenleiste schreiben (still bei Fehlern). */
+export async function refreshQueueCounts(projectKey = state.project?.key) {
+  try {
+    const { counts } = await api.queues(projectKey);
+    state.queueCounts = counts;
+    document.querySelectorAll('[data-count]').forEach((el) => { el.textContent = counts[el.dataset.count] ?? ''; });
+  } catch { /* egal */ }
 }
 
 start().catch((e) => { console.error(e); toast(e.message, 'error'); });

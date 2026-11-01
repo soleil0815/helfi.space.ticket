@@ -54,6 +54,8 @@ export const api = {
   deleteProject: (id, d) => request('DELETE', `/api/projects/${id}`, d),
 
   stats: () => request('GET', '/api/stats'),
+  queues: (project) => request('GET', `/api/queues${qs({ project })}`),
+  summary: (project) => request('GET', `/api/summary${qs({ project })}`),
   tickets: (f) => request('GET', `/api/tickets${qs(f)}`),
   ticket: (key) => request('GET', `/api/tickets/${encodeURIComponent(key)}`),
   createTicket: (d) => request('POST', '/api/tickets', d),
