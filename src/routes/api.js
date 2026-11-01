@@ -283,6 +283,23 @@ export function createApi(ctx) {
     res.json({ project: tickets.projects.update(int(req.params.id), { name: req.body.name, description: req.body.description, leadId: req.body.leadId !== undefined ? int(req.body.leadId) : undefined, archived: req.body.archived }) });
   }));
 
+  r.delete('/projects/:id', requireRole('admin'), wrap(async (req, res) => {
+    const p = tickets.projects.get(int(req.params.id) || 0);
+    if (!p) throw notFound();
+    const body = req.body || {};
+    // Erst prüfen (wirft bei fehlender Entscheidung), dann sichern, dann löschen
+    if (!body.moveTo && !(body.deleteTickets && String(body.confirmKey || '').trim().toUpperCase() === p.key)
+      && db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) throw new HttpError(400, 'err.projectHasTickets');
+    await backupDatabase(db, `vor-loeschen-${p.key}`);
+    const out = tickets.projects.remove(req.user, p.id, { moveTo: body.moveTo || null, deleteTickets: !!body.deleteTickets, confirmKey: body.confirmKey });
+    // Einstellungen, die auf das Projekt zeigen, umstellen (auf das Zielprojekt bzw. „Standard“)
+    for (const k of ['general.defaultProject', 'imap.project']) {
+      if (String(settings.get(k)).toUpperCase() === p.key) settings.set(k, out.target || '');
+    }
+    log.info(`Projekt ${p.key} gelöscht von ${req.user.username}`, { moved: out.moved, deleted: out.deleted, target: out.target });
+    res.json(out);
+  }));
+
   // ---------- Tickets ----------
   r.get('/stats', requireRole('agent'), (req, res) => res.json(tickets.stats(req.user)));
 

@@ -51,6 +51,7 @@ export const api = {
   projects: (all = false) => request('GET', `/api/projects${all ? '?all=1' : ''}`),
   createProject: (d) => request('POST', '/api/projects', d),
   updateProject: (id, d) => request('PATCH', `/api/projects/${id}`, d),
+  deleteProject: (id, d) => request('DELETE', `/api/projects/${id}`, d),
 
   stats: () => request('GET', '/api/stats'),
   tickets: (f) => request('GET', `/api/tickets${qs(f)}`),

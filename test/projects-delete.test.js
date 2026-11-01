@@ -1,0 +1,120 @@
+// Tests: Projekte löschen (leer, mit Verschieben, mit Mitlöschen, Schutzregeln)
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-projdel-'));
+process.env.HELFI_DATA_DIR = dataDir;
+process.env.HELFI_SETUP_TOKEN = 'code';
+process.env.HELFI_LOG_LEVEL = 'error';
+
+const { openDatabase } = await import('../src/db.js');
+const { initMasterKey } = await import('../src/lib/crypto.js');
+const { createApp } = await import('../src/app.js');
+const { paths } = await import('../src/config.js');
+
+let server; let base; let db; let ctx;
+before(async () => {
+  initMasterKey();
+  db = await openDatabase(paths.db);
+  const built = createApp(db);
+  ctx = built.ctx;
+  ctx.settings.set('mfa.internalNetworks', '127.0.0.1, ::1');
+  await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+after(async () => { await new Promise((r) => setTimeout(r, 100)); server?.close(); db?.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+
+function client() {
+  let cookie = '';
+  return async (method, url, body) => {
+    const headers = { Accept: 'application/json', 'X-Helfi-Request': '1' };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (cookie) headers.cookie = cookie;
+    const r = await fetch(base + url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const sc = r.headers.get('set-cookie');
+    if (sc) cookie = sc.split(';')[0];
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+}
+const admin = client();
+const anna = client();
+const pid = {};
+
+test('Vorbereitung', async () => {
+  assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
+  await admin('POST', '/api/users', { username: 'anna', displayName: 'Anna', email: 'anna@firma.local', role: 'agent', password: 'Sehrgeheim123' });
+  assert.equal((await anna('POST', '/api/auth/login', { username: 'anna', password: 'Sehrgeheim123' })).status, 200);
+  for (const [k, n] of [['HR', 'Personal'], ['ALT', 'Altlasten'], ['LEER', 'Leer']]) await admin('POST', '/api/projects', { key: k, name: n });
+  for (const p of (await admin('GET', '/api/projects')).body.projects) pid[p.key] = p.id;
+  for (const title of ['Eins', 'Zwei']) await admin('POST', '/api/tickets', { title, projectId: pid.ALT });
+  await admin('POST', '/api/tickets', { title: 'HR-Ticket', projectId: pid.HR });
+});
+
+test('Leeres Projekt löschen; nur Admins', async () => {
+  assert.equal((await anna('DELETE', `/api/projects/${pid.LEER}`, {})).status, 403);
+  const r = await admin('DELETE', `/api/projects/${pid.LEER}`, {});
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { key: 'LEER', moved: 0, deleted: 0, target: null });
+  assert.equal(ctx.tickets.projects.get('LEER'), null);
+  assert.equal((await admin('DELETE', `/api/projects/${pid.LEER}`, {})).status, 404);
+});
+
+test('Projekt mit Tickets: ohne Entscheidung abgelehnt, falscher Schlüssel abgelehnt', async () => {
+  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, {})).status, 400);
+  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { deleteTickets: true, confirmKey: 'IT' })).status, 400);
+  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'ALT' })).status, 400, 'nicht in sich selbst');
+  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'GIBTSNICHT' })).status, 400);
+  assert.ok(ctx.tickets.projects.get('ALT'), 'nichts gelöscht');
+});
+
+test('Verschieben: neue Nummern im Ziel, alte im Verlauf, Einstellungen umgestellt, Sicherung angelegt', async () => {
+  ctx.settings.set('imap.project', 'ALT');
+  ctx.settings.set('general.defaultProject', 'ALT');
+  const itBefore = (await admin('GET', '/api/tickets?project=IT')).body.tickets.length;
+  const r = await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'it' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body, { key: 'ALT', moved: 2, deleted: 0, target: 'IT' });
+  const it = (await admin('GET', '/api/tickets?project=IT')).body.tickets;
+  assert.equal(it.length, itBefore + 2);
+  const eins = it.find((x) => x.title === 'Eins');
+  assert.match(eins.key, /^IT-\d+$/);
+  const hist = (await admin('GET', `/api/tickets/${eins.key}`)).body.ticket.activity.find((a) => a.field === 'project');
+  assert.equal(hist.oldValue, 'ALT-1');
+  assert.equal(hist.newValue, eins.key);
+  assert.equal(ctx.settings.get('imap.project'), 'IT');
+  assert.equal(ctx.settings.get('general.defaultProject'), 'IT');
+  assert.ok(fs.readdirSync(paths.backups).some((f) => f.includes('vor-loeschen-ALT')), 'Sicherung vorher');
+});
+
+test('Mitlöschen mit Schlüssel: Tickets und Anhänge weg', async () => {
+  const hr = (await admin('GET', '/api/tickets?project=HR')).body.tickets[0];
+  const fd = new FormData();
+  fd.append('files', new Blob(['hallo']), 'notiz.txt');
+  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Helfi-Request': '1' }, body: JSON.stringify({ username: 'admin', password: 'Sehrgeheim123' }) });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const up = await fetch(`${base}/api/tickets/${hr.key}/attachments`, { method: 'POST', headers: { 'X-Helfi-Request': '1', cookie }, body: fd });
+  assert.equal(up.status, 201);
+  assert.ok(fs.existsSync(path.join(paths.attachments, String(hr.id))));
+  ctx.settings.set('imap.project', 'HR');
+  const r = await admin('DELETE', `/api/projects/${pid.HR}`, { deleteTickets: true, confirmKey: ' hr ' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { key: 'HR', moved: 0, deleted: 1, target: null });
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM tickets WHERE id=?').get(hr.id).n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM attachments WHERE ticket_id=?').get(hr.id).n, 0);
+  assert.equal(fs.existsSync(path.join(paths.attachments, String(hr.id))), false, 'Anhänge-Ordner gelöscht');
+  assert.equal(ctx.settings.get('imap.project'), '', 'zurück auf Standard');
+});
+
+test('Das letzte Projekt bleibt; nicht in archivierte Projekte verschieben', async () => {
+  await admin('POST', '/api/projects', { key: 'ARCH', name: 'Archiv' });
+  const arch = (await admin('GET', '/api/projects?all=1')).body.projects.find((p) => p.key === 'ARCH')
+    || ctx.tickets.projects.get('ARCH');
+  await admin('PATCH', `/api/projects/${arch.id}`, { archived: true });
+  assert.equal((await admin('DELETE', `/api/projects/${pid.IT}`, { moveTo: 'ARCH' })).status, 400);
+  assert.equal((await admin('DELETE', `/api/projects/${arch.id}`, {})).status, 200);
+  assert.equal((await admin('DELETE', `/api/projects/${pid.IT}`, { deleteTickets: true, confirmKey: 'IT' })).status, 400, 'letztes Projekt');
+  assert.ok(ctx.tickets.projects.get('IT'));
+});
