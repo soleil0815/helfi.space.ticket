@@ -20,7 +20,7 @@ import { log } from '../lib/log.js';
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
 export function createApi(ctx) {
-  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports } = ctx;
+  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions } = ctx;
   const r = express.Router();
   // Zwischenablage im Datenordner: gleiches Dateisystem wie die Anhänge (kein EXDEV im Container)
   const uploadTmp = path.join(paths.attachments, '.tmp');
@@ -507,6 +507,10 @@ export function createApi(ctx) {
     log.info(`Jira-Import gestartet von ${req.user.username}`, { projects: job.projects.map((p) => p.key) });
     res.status(202).json({ job });
   }));
+  // Gesperrte Empfänger (nach Unzustellbarkeitsberichten)
+  admin.get('/mail/suppressions', (req, res) => res.json({ suppressions: suppressions.list() }));
+  admin.delete('/mail/suppressions/:address', (req, res) => { suppressions.remove(req.params.address); res.json({ suppressions: suppressions.list() }); });
+
   admin.get('/import/status', (req, res) => res.json({ job: jiraImporter.status() }));
   admin.post('/import/cancel', (req, res) => res.json({ job: jiraImporter.cancel() }));
 

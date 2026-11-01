@@ -71,3 +71,39 @@ export function isAutomated(headers, fromAddress) {
 export function isEmail(v) {
   return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(v || ''));
 }
+
+/**
+ * Unzustellbarkeitsbericht (Bounce/NDR) oder Lesebestätigung erkennen.
+ * raw: Anfang der Rohmail als Text (für Kopfzeilen, die mailparser verwirft, und den Teil
+ * message/delivery-status). Liefert null oder { kind: 'bounce'|'receipt', failed: [Adressen], refs: [Message-IDs] }.
+ */
+export function deliveryReport(parsed, raw = '') {
+  const ct = parsed?.headers?.get?.('content-type');
+  const type = String(ct?.value || '').toLowerCase();
+  const reportType = String(ct?.params?.['report-type'] || '').toLowerCase();
+  const from = String(parsed?.from?.value?.[0]?.address || '').toLowerCase();
+  const rp = parsed?.headers?.get?.('return-path');
+  const nullSender = !!rp && !(rp.value || []).some((a) => a.address) && !/@/.test(String(rp.text || ''));
+  const text = String(raw || '');
+
+  if (type === 'multipart/report' && reportType === 'disposition-notification') return { kind: 'receipt', failed: [], refs: [] };
+  const bounce = (type === 'multipart/report' && reportType === 'delivery-status')
+    || /^x-ms-exchange-message-is-ndr:/im.test(text)
+    || /^x-failed-recipients:/im.test(text)
+    || /^(mailer-daemon|postmaster|microsoftexchange[0-9a-f]{32})@/i.test(from)
+    || nullSender;
+  if (!bounce) return null;
+
+  const failed = new Set();
+  for (const m of text.matchAll(/^(?:final|original)-recipient:\s*rfc822\s*;\s*<?([^\s<>;]+@[^\s<>;]+)>?/gim)) failed.add(m[1].toLowerCase());
+  for (const m of text.matchAll(/^x-failed-recipients:\s*(.+)$/gim)) {
+    for (const a of m[1].split(/[,\s]+/)) if (/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(a)) failed.add(a.toLowerCase());
+  }
+  const refs = new Set();
+  for (const r of [parsed?.inReplyTo, ...(Array.isArray(parsed?.references) ? parsed.references : [parsed?.references])]) {
+    if (r) refs.add(String(r).replace(/[<>]/g, '').trim());
+  }
+  // Die zurückgekommene Originalmail steckt meist im Bericht (Message-ID einer Helfi-Mail)
+  for (const m of text.matchAll(/<(helfi\.\d+\.\d+\.[0-9a-f]+@[^>\s]+)>/gi)) refs.add(m[1]);
+  return { kind: 'bounce', failed: [...failed], refs: [...refs] };
+}
