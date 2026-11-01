@@ -7,6 +7,7 @@ import { renderBoard } from './views/board.js';
 import { renderList, renderMyWork } from './views/list.js';
 import { renderTicket, openCreateDialog } from './views/ticket.js';
 import { renderAdmin } from './views/admin.js';
+import { renderReports } from './views/reports.js';
 import { renderProfile } from './views/profile.js';
 
 export const state = {
@@ -103,6 +104,7 @@ export async function route() {
     // Benutzer sehen hier ohnehin nur eigene und geteilte Anfragen (Teilnehmer); Bearbeiter standardmäßig die selbst gemeldeten
     if (path === '/requests') return await renderList(content, state.isAgent && !params.has('participant') ? new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }) : params, { requests: true });
     if (path === '/my') return await renderMyWork(content);
+    if (path === '/reports' && state.isAgent) return await renderReports(content, params);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
     if (path === '/profile') return renderProfile(content);
@@ -170,6 +172,7 @@ function layout(content, path) {
       nav('/board', t('nav.board'), 'board', path === '/board'),
       nav(`/issues?project=${p?.key || ''}`, t('nav.list'), 'list', path === '/issues'),
       nav('/my', t('nav.myWork'), 'inbox', path === '/my'),
+      nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       state.isAdmin ? h('div.sidebar-label', t('nav.admin')) : null,
       state.isAdmin ? nav('/admin', t('app.settings'), 'settings', path.startsWith('/admin')) : null,
       h('div.sidebar-foot', `Helfi.Space ${state.boot.app.version}`),

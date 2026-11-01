@@ -20,7 +20,7 @@ import { log } from '../lib/log.js';
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
 export function createApi(ctx) {
-  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned } = ctx;
+  const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports } = ctx;
   const r = express.Router();
   // Zwischenablage im Datenordner: gleiches Dateisystem wie die Anhänge (kein EXDEV im Container)
   const uploadTmp = path.join(paths.attachments, '.tmp');
@@ -286,6 +286,9 @@ export function createApi(ctx) {
     tickets.remove(req.user, req.params.key);
     res.json({ ok: true });
   });
+
+  // ---------- Berichte (alle Bearbeiter) ----------
+  r.get('/reports', requireRole('agent'), (req, res) => res.json(reports.report(req.query)));
 
   // ---------- Antwortvorlagen (nur Bearbeiter) ----------
   r.get('/canned', requireRole('agent'), (req, res) => res.json({ responses: canned.list(req.user) }));

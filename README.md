@@ -162,6 +162,22 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
   - Vorlagen für alle pflegen Admins unter *Administration → Antwortvorlagen*.
   - Persönliche Vorlagen pflegt jeder Bearbeiter in seinem *Profil*; sie sieht nur er selbst.
 
+## Berichte
+
+*Berichte* (für alle Bearbeiter sichtbar) zeigt, wer wie viele Tickets bearbeitet und erledigt hat:
+
+- **Zeitraum:** letzte 7, 30 oder 90 Tage, dieses Jahr oder frei wählbar; optional ein Projekt.
+- **Kennzahlen:** erstellt, erledigt, aktuell offen.
+- **Diagramme:**
+  - „Erledigt pro Bearbeiter“
+  - „Erstellt und erledigt“ je Tag, ab 93 Tagen je Woche; beim Überfahren mit der Maus erscheinen die Werte
+- **Tabelle je Bearbeiter**, nach jeder Spalte sortierbar und als CSV herunterladbar:
+  - **Erledigt:** von der Person auf „Erledigt“ gesetzt (laut Verlauf)
+  - **Offen zugewiesen:** aktueller Stand
+  - **Bearbeitet:** Tickets mit eigener Änderung oder eigenem Kommentar
+  - **Antworten und interne Notizen**
+  - **Ø Lösungsdauer:** von „erstellt“ bis „erledigt“
+
 ## Import aus einem anderen Ticketsystem
 
 *Administration → Import*
