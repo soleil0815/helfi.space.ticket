@@ -24,6 +24,16 @@ export async function renderList(content, params, { requests = false } = {}) {
       onkeydown: (e) => { if (e.key === 'Enter') set('q', e.target.value.trim()); },
       onsearch: (e) => set('q', e.target.value.trim()),
     })),
+    requests ? select([['', t('filter.allRequests')], ['reporter', t('filter.reportedByMe')], ['participant', t('filter.participating')]],
+      f.reporter === 'me' ? 'reporter' : (f.participant === 'me' ? 'participant' : ''), {
+        class: 'select-sm',
+        onchange: (e) => {
+          const p = new URLSearchParams(location.search);
+          p.delete('reporter'); p.delete('participant');
+          if (e.target.value) p.set(e.target.value, 'me');
+          navigate(`${location.pathname}?${p}`, { replace: true });
+        },
+      }) : null,
     !requests && state.projects.length > 1 ? select([['', t('nav.allProjects')], ...state.projects.map((p) => [p.key, p.name])], f.project || '', { class: 'select-sm', onchange: (e) => set('project', e.target.value) }) : null,
     select([['', t('filter.allStatus')], ['unresolved', t('status.unresolved')], ...STATUSES.map((s) => [s, t(`status.${s}`)])], f.status || '', { class: 'select-sm', onchange: (e) => set('status', e.target.value) }),
     !requests ? select([['', t('filter.allTypes')], ...TYPES.map((s) => [s, t(`type.${s}`)])], f.type || '', { class: 'select-sm', onchange: (e) => set('type', e.target.value) }) : null,

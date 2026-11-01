@@ -135,6 +135,22 @@ Default: **on the internal network a password is enough, from outside a second f
 - **Look up senders in AD** (default: on, requires AD sign-in with a service account): Helfi.Space searches unknown senders in AD. It checks `mail`, `userPrincipalName` and the alias addresses in `proxyAddresses`, and skips disabled accounts. With exactly one match, the person is created as an AD user right away, with the role from their groups, as if they had signed in. An existing email contact is taken over. Not found, ambiguous or AD unreachable: they become an email contact as before. Unknown addresses are not looked up again for one hour. A mail still never grants agent rights.
 - **Retention:** "Delete processed mail after … days" (default 0 = never, otherwise at least 7). Once a day, older mails in the processed-mail folder are permanently deleted, at most 500 per run. Nothing is ever deleted in the inbox. If no separate folder is set, Helfi.Space deletes nothing. The content stays in the tickets.
 
+## Request participants
+
+Besides the reporter, other people can be involved in a ticket, e.g. colleagues with the same problem or a manager.
+
+- **Add:** in the ticket view under *Request participants → Add*.
+  - Agents search by name or enter any email address.
+  - Reporters and participants can add colleagues who have an account, but no arbitrary addresses.
+  - At most 20 per ticket.
+- **By email:** anyone in *To* or *CC* of a new mail or a reply automatically becomes a participant. This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email*.
+- **What participants can do:**
+  - see the ticket, also under *My requests* with the filter "I am a participant"
+  - comment and attach files on the web or by replying to a mail
+- **What participants cannot do:** see internal notes, change status, assignee or title.
+- **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
+- **Remove:** agents, the reporter or the person themselves.
+
 ## Import from another ticket system
 
 *Administration → Import*
