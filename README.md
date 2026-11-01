@@ -68,6 +68,10 @@ helfi.firma.local {
 
 ---
 
+## Anmeldeseite anpassen
+
+*Administration → Allgemein → Anmeldeseite*: eigene Überschrift (z. B. „Hilfecenter“), Begrüßungstext auf Deutsch und optional Englisch, z. B. wie man Hilfe bekommt, und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: `**fett**`, Links und Mailadressen werden automatisch anklickbar, HTML wird nie ausgeführt. Eine Vorschau zeigt das Ergebnis sofort.
+
 ## Active Directory einrichten
 
 *Administration → Active Directory*

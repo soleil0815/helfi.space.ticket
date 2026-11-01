@@ -5,6 +5,7 @@ import { t } from '../i18n.js';
 import { state, reloadBase, route } from '../app.js';
 import { importPage } from './import.js';
 import { templatesPanel } from './canned.js';
+import { loginIntro, loginUserLabel } from './auth.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
@@ -87,7 +88,37 @@ function generalPage(body, s) {
       field(t('general.defaultProject'), bindSelect(s, 'general.defaultProject', [['', '—'], ...state.projects.map((p) => [p.key, `${p.name} (${p.key})`])]), t('general.defaultProjectHint')),
       field(t('general.defaultLanguage'), bindSelect(s, 'general.defaultLanguage', [['de', 'Deutsch'], ['en', 'English']]), t('general.defaultLanguageHint')),
       field(t('general.allowSelfService'), bindCheck(s, 'general.allowSelfService')),
-      saveBar(() => saveKeys(s, ['general.']))));
+      saveBar(() => saveKeys(s, ['general.']))),
+    loginPagePanel(s));
+}
+
+// Anmeldeseite: Überschrift, Begrüßungstext (de/en), Bezeichnung des Anmeldefelds – mit Vorschau
+function loginPagePanel(s) {
+  const preview = h('div.auth-card.login-preview');
+  const area = (key, rows, ph) => { const ta = h('textarea', { rows, maxLength: 4000, placeholder: ph }); ta.value = s[key] || ''; ta.addEventListener('input', () => { s[key] = ta.value; draw(); }); return ta; };
+  const input = (key, ph, max = 80) => { const i = h('input', { value: s[key] || '', maxLength: max, placeholder: ph }); i.addEventListener('input', () => { s[key] = i.value; draw(); }); return i; };
+  const draw = () => {
+    const login = { title: s['login.title'], text: { de: s['login.textDe'], en: s['login.textEn'] }, userLabel: { de: s['login.userLabelDe'], en: s['login.userLabelEn'] } };
+    mount(preview,
+      ...loginIntro(login),
+      field(loginUserLabel(login) || t('login.username'), h('input', { disabled: true })),
+      field(t('login.password'), h('input', { type: 'password', disabled: true })),
+      h('button.btn.btn-primary.btn-block', { type: 'button', disabled: true }, t('login.submit')));
+  };
+  draw();
+  return h('section.panel',
+    h('h2', t('loginPage.title')),
+    h('p.muted', t('loginPage.intro')),
+    h('div.login-settings',
+      h('div',
+        field(t('loginPage.heading'), input('login.title', 'Helfi.Space Hilfecenter'), t('loginPage.headingHint')),
+        field(t('loginPage.textDe'), area('login.textDe', 7, t('loginPage.textExample')), t('loginPage.textHint')),
+        field(t('loginPage.textEn'), area('login.textEn', 4, ''), t('loginPage.textEnHint')),
+        h('div.grid-2',
+          field(t('loginPage.userLabelDe'), input('login.userLabelDe', 'Windows-Anmeldename')),
+          field(t('loginPage.userLabelEn'), input('login.userLabelEn', 'Windows user name'))),
+        saveBar(() => saveKeys(s, ['login.']))),
+      h('div', h('div.muted.small.preview-label', t('loginPage.preview')), preview)));
 }
 
 // ---------- Sicherheit (2FA) ----------
