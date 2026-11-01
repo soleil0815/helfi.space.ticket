@@ -66,6 +66,7 @@ export const api = {
   },
   deleteAttachment: (id) => request('DELETE', `/api/attachments/${id}`),
   people: (q) => request('GET', `/api/people${qs({ q })}`),
+  reports: (f) => request('GET', `/api/reports${qs(f)}`),
   canned: {
     list: () => request('GET', '/api/canned'),
     create: (d) => request('POST', '/api/canned', d),

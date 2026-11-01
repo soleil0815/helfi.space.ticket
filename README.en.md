@@ -162,6 +162,22 @@ For replies that are always the same (e.g. "Please restart your computer"):
   - Admins manage templates for everyone under *Administration → Reply templates*.
   - Every agent manages personal templates in their *profile*; only they can see them.
 
+## Reports
+
+*Reports* (visible to all agents) shows who worked on and resolved how many tickets:
+
+- **Period:** last 7, 30 or 90 days, this year or a custom range; optionally one project.
+- **Key figures:** created, resolved, currently open.
+- **Charts:**
+  - "Resolved per agent"
+  - "Created and resolved" per day, per week from 93 days; hover to see the values
+- **Table per agent**, sortable by every column and downloadable as CSV:
+  - **Resolved:** set to "Resolved" by that person (according to history)
+  - **Open assigned:** current state
+  - **Worked on:** tickets with an own change or comment
+  - **Replies and internal notes**
+  - **Avg. resolution time:** from "created" to "resolved"
+
 ## Import from another ticket system
 
 *Administration → Import*
