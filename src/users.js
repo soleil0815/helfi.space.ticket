@@ -26,10 +26,21 @@ export function userRef(u) {
   return { id: u.id, displayName: u.display_name, username: u.username, email: u.email || '' };
 }
 
+const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[^\s@<>()",;:]+$/;
+
+/** E-Mail-Adresse prüfen und vereinheitlichen (klein geschrieben). Leer = keine Adresse. */
+export function normalizeEmail(value) {
+  const e = String(value ?? '').trim().toLowerCase();
+  if (!e) return '';
+  if (e.length > 254 || !EMAIL_RE.test(e)) throw new HttpError(400, 'err.invalidEmail');
+  return e;
+}
+
 export function createUsers(db) {
   const byId = db.prepare('SELECT * FROM users WHERE id=?');
   const byName = db.prepare('SELECT * FROM users WHERE username=?');
-  const byEmail = db.prepare("SELECT * FROM users WHERE email=? AND email<>'' ORDER BY (source='email'), id LIMIT 1");
+  // Groß-/Kleinschreibung egal: AD liefert z. B. "Max.Muster@firma.local", Mails kommen klein geschrieben
+  const byEmail = db.prepare("SELECT * FROM users WHERE lower(email)=lower(?) AND email<>'' ORDER BY (source='email'), id LIMIT 1");
 
   function countActiveAdmins(exceptId = 0) {
     return db.prepare("SELECT COUNT(*) n FROM users WHERE role='admin' AND active=1 AND id<>?").get(exceptId).n;
@@ -38,10 +49,47 @@ export function createUsers(db) {
   function createLocal({ username, displayName, email, role = 'user', password, language = null }) {
     if (!password || password.length < 10) throw new HttpError(400, 'err.passwordWeak');
     if (byName.get(username)) throw new HttpError(409, 'err.usernameTaken');
-    const info = db.prepare(
-      `INSERT INTO users(username,display_name,email,role,source,password_hash,language) VALUES(?,?,?,?,'local',?,?)`,
-    ).run(username, displayName || username, email || null, role, hashPassword(password), language);
-    return byId.get(info.lastInsertRowid);
+    const mail = normalizeEmail(email);
+    return db.transaction(() => {
+      const info = db.prepare(
+        `INSERT INTO users(username,display_name,email,role,source,password_hash,language) VALUES(?,?,NULL,?,'local',?,?)`,
+      ).run(username, displayName || username, role, hashPassword(password), language);
+      if (mail) setEmail(info.lastInsertRowid, mail);
+      return byId.get(info.lastInsertRowid);
+    })();
+  }
+
+  /**
+   * E-Mail-Adresse eines Kontos setzen. Eingehende Mails werden über die Adresse zugeordnet, deshalb:
+   * gehört sie einem anderen Konto → 409; gehört sie einem E-Mail-Kontakt (aus Mails entstanden),
+   * wird der Kontakt mit seinen Tickets, Kommentaren und Teilnahmen in dieses Konto übernommen.
+   */
+  function setEmail(userId, email) {
+    const mail = normalizeEmail(email);
+    db.transaction(() => {
+      if (mail) {
+        const others = db.prepare('SELECT * FROM users WHERE lower(email)=? AND id<>?').all(mail, userId);
+        if (others.some((o) => o.source !== 'email')) throw new HttpError(409, 'err.emailTaken');
+        for (const c of others) mergeContact(c.id, userId);
+      }
+      db.prepare('UPDATE users SET email=? WHERE id=?').run(mail || null, userId);
+    })();
+    return byId.get(userId);
+  }
+
+  /** E-Mail-Kontakt in ein Konto übernehmen und den Kontakt löschen. */
+  function mergeContact(fromId, intoId) {
+    const from = byId.get(fromId);
+    if (!from || from.source !== 'email') throw new Error('Nur E-Mail-Kontakte lassen sich übernehmen');
+    db.prepare('UPDATE tickets SET reporter_id=? WHERE reporter_id=?').run(intoId, fromId);
+    db.prepare('UPDATE comments SET author_id=? WHERE author_id=?').run(intoId, fromId);
+    db.prepare('UPDATE attachments SET uploaded_by=? WHERE uploaded_by=?').run(intoId, fromId);
+    db.prepare('UPDATE activity SET user_id=? WHERE user_id=?').run(intoId, fromId);
+    // Teilnahmen übernehmen, aber nicht bei eigenen Tickets (dort ist das Konto schon Melder)
+    db.prepare(`INSERT OR IGNORE INTO ticket_participants(ticket_id,user_id,added_by,created_at)
+      SELECT p.ticket_id, ?, p.added_by, p.created_at FROM ticket_participants p JOIN tickets t ON t.id=p.ticket_id
+      WHERE p.user_id=? AND (t.reporter_id IS NULL OR t.reporter_id<>?)`).run(intoId, fromId, intoId);
+    db.prepare('DELETE FROM users WHERE id=?').run(fromId);
   }
 
   /**
@@ -118,7 +166,7 @@ export function createUsers(db) {
     return byId.get(info.lastInsertRowid);
   }
 
-  return { byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, countActiveAdmins };
+  return { byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, countActiveAdmins, setEmail };
 }
 
 /** Rolle aus Gruppenmitgliedschaft ableiten. Keine Gruppen konfiguriert → null (Rolle bleibt). */

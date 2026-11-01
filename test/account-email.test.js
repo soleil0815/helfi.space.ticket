@@ -1,0 +1,133 @@
+// Tests: Name und E-Mail-Adresse ändern (Profil und Administration)
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-email-'));
+process.env.HELFI_DATA_DIR = dataDir;
+process.env.HELFI_SETUP_TOKEN = 'code';
+process.env.HELFI_LOG_LEVEL = 'error';
+
+const { openDatabase } = await import('../src/db.js');
+const { initMasterKey } = await import('../src/lib/crypto.js');
+const { createApp } = await import('../src/app.js');
+const { paths } = await import('../src/config.js');
+const { normalizeEmail } = await import('../src/users.js');
+
+let server; let base; let db; let ctx;
+before(async () => {
+  initMasterKey();
+  db = await openDatabase(paths.db);
+  const built = createApp(db);
+  ctx = built.ctx;
+  ctx.settings.set('mfa.internalNetworks', '127.0.0.1, ::1');
+  await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+after(() => { server?.close(); db?.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+
+function client() {
+  let cookie = '';
+  return async (method, url, body) => {
+    const headers = { Accept: 'application/json', 'X-Helfi-Request': '1' };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (cookie) headers.cookie = cookie;
+    const r = await fetch(base + url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const sc = r.headers.get('set-cookie');
+    if (sc) cookie = sc.split(';')[0];
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+}
+const admin = client();
+const karl = client();
+const PW = 'Sehrgeheim123';
+
+test('Vorbereitung', async () => {
+  assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: PW, projectKey: 'IT', projectName: 'IT' })).status, 200);
+  assert.equal((await admin('POST', '/api/users', { username: 'karl', displayName: 'Karl', email: 'Karl@Firma.local', role: 'user', password: PW })).status, 201);
+  assert.equal((await karl('POST', '/api/auth/login', { username: 'karl', password: PW })).status, 200);
+  assert.equal(ctx.users.byName('karl').email, 'karl@firma.local', 'Adressen werden klein gespeichert');
+});
+
+test('Lokaler Admin ändert Name und Adresse im Profil – Adresse nur mit aktuellem Kennwort', async () => {
+  let r = await admin('PATCH', '/api/me', { displayName: 'Anna Admin' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.displayName, 'Anna Admin');
+
+  r = await admin('PATCH', '/api/me', { email: 'admin@firma.local' });
+  assert.equal(r.status, 400, 'ohne Kennwort');
+  r = await admin('PATCH', '/api/me', { email: 'admin@firma.local', currentPassword: 'falsch' });
+  assert.equal(r.status, 400);
+  assert.equal(ctx.users.byName('admin').email, null, 'nichts gespeichert');
+  r = await admin('PATCH', '/api/me', { email: 'Admin@Firma.local', currentPassword: PW });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.email, 'admin@firma.local');
+
+  // Gleiche Adresse (nur andere Schreibweise) braucht kein Kennwort
+  assert.equal((await admin('PATCH', '/api/me', { email: 'ADMIN@firma.local', displayName: 'Anna A.' })).status, 200);
+  // Leeren geht (mit Kennwort)
+  assert.equal((await admin('PATCH', '/api/me', { email: '', currentPassword: PW })).body.user.email, '');
+  assert.equal((await admin('PATCH', '/api/me', { email: 'admin@firma.local', currentPassword: PW })).status, 200);
+});
+
+test('Ungültige oder fremde Adressen werden abgelehnt', async () => {
+  assert.equal((await admin('PATCH', '/api/me', { email: 'kein-mail', currentPassword: PW })).status, 400);
+  assert.equal((await admin('PATCH', '/api/me', { email: 'a@b', currentPassword: PW })).status, 400);
+  assert.equal((await admin('PATCH', '/api/me', { email: 'x"@firma.local', currentPassword: PW })).status, 400);
+  const r = await admin('PATCH', '/api/me', { email: 'KARL@firma.local', currentPassword: PW });
+  assert.equal(r.status, 409, 'gehört Karl');
+  assert.equal(ctx.users.byName('admin').email, 'admin@firma.local');
+  assert.equal((await admin('POST', '/api/users', { username: 'karl2', email: 'karl@firma.local', password: PW })).status, 409, 'auch beim Anlegen');
+});
+
+test('Adresse eines E-Mail-Kontakts: Kontakt samt Tickets wird übernommen', async () => {
+  const p = ctx.processor;
+  const r = p.process(await p.parse(Buffer.from(['From: Karl Privat <karl.privat@example.org>', 'Subject: Laptop', 'Message-ID: <k1@x>', '', 'Hilfe'].join('\r\n'))));
+  const contact = ctx.users.byEmail('karl.privat@example.org');
+  assert.equal(contact.source, 'email');
+
+  const k = await karl('PATCH', '/api/me', { email: 'karl.privat@example.org', currentPassword: PW });
+  assert.equal(k.status, 200);
+  const karlId = ctx.users.byName('karl').id;
+  assert.equal(ctx.users.byId(contact.id), undefined, 'Kontakt gelöscht');
+  assert.equal(db.prepare('SELECT reporter_id FROM tickets WHERE id=?').get(r.ticketId).reporter_id, karlId);
+  assert.ok((await karl('GET', '/api/tickets')).body.tickets.some((x) => x.id === r.ticketId), 'Karl sieht sein Ticket');
+  // Neue Mails von der Adresse landen bei Karl
+  const r2 = p.process(await p.parse(Buffer.from(['From: KARL.PRIVAT@example.org', 'Subject: Noch was', 'Message-ID: <k2@x>', '', 'x'].join('\r\n'))));
+  assert.equal(db.prepare('SELECT reporter_id FROM tickets WHERE id=?').get(r2.ticketId).reporter_id, karlId, 'Groß-/Kleinschreibung egal');
+});
+
+test('Administration: Name, Adresse und Kennwort lokaler Konten; AD-/SSO-Konten und Kontakte nicht', async () => {
+  const karlId = ctx.users.byName('karl').id;
+  let r = await admin('PATCH', `/api/users/${karlId}`, { displayName: 'Karl Kunde', email: 'k.kunde@firma.local' });
+  assert.equal(r.status, 200);
+  assert.equal(ctx.users.byId(karlId).email, 'k.kunde@firma.local');
+  assert.equal(ctx.users.byId(karlId).display_name, 'Karl Kunde');
+  assert.equal((await admin('PATCH', `/api/users/${karlId}`, { email: 'admin@firma.local' })).status, 409);
+  assert.equal((await admin('PATCH', `/api/users/${karlId}`, { email: 'kaputt' })).status, 400);
+  assert.equal(ctx.users.byId(karlId).email, 'k.kunde@firma.local', 'bei Fehler nichts geändert');
+
+  const ad = ctx.users.upsertExternal({ source: 'ldap', username: 'm.muster', displayName: 'Max', email: 'Max.Muster@firma.local', externalId: 'g1', role: 'user' });
+  assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { email: 'x@firma.local' })).status, 400);
+  assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { displayName: 'X' })).status, 400);
+  assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { role: 'agent' })).status, 200, 'Rolle weiterhin änderbar');
+  assert.equal(ctx.users.byEmail('max.muster@firma.local')?.id, ad.id, 'AD-Adresse in anderer Schreibweise gefunden');
+});
+
+test('Benutzer mit AD-Konto kann Name/Adresse nicht im Profil ändern', async () => {
+  const ad = ctx.users.byName('m.muster');
+  db.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa) VALUES('s-ad',?,?,?,NULL,'ldap',1)").run(ad.id, Date.now() + 3600e3, Date.now());
+  const r = await fetch(`${base}/api/me`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Helfi-Request': '1', cookie: 'helfi_sid=s-ad' }, body: JSON.stringify({ email: 'neu@firma.local' }) });
+  assert.equal(r.status, 400);
+  assert.equal((await r.json()).error.code, 'err.managedExternally');
+  assert.equal(ctx.users.byId(ad.id).email, 'Max.Muster@firma.local', 'unverändert');
+});
+
+test('normalizeEmail', () => {
+  assert.equal(normalizeEmail('  A@B.de '), 'a@b.de');
+  assert.equal(normalizeEmail(''), '');
+  assert.throws(() => normalizeEmail('a@b'), /invalidEmail/);
+  assert.throws(() => normalizeEmail(`${'x'.repeat(250)}@b.de`), /invalidEmail/);
+});

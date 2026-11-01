@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { h, mount, avatar, field, select, toast, icon } from '../dom.js';
 import { recoveryCodesBox } from './auth.js';
 import { t } from '../i18n.js';
-import { state, setLanguage } from '../app.js';
+import { state, setLanguage, reloadBase } from '../app.js';
 import { templatesPanel } from './canned.js';
 
 export function renderProfile(content) {
@@ -33,6 +33,36 @@ export function renderProfile(content) {
     h('button.btn.btn-primary', { type: 'submit' }, t('app.save')));
   }
 
+  // Name und E-Mail: lokale Konten selbst, sonst kommen sie aus AD/SSO
+  let personal;
+  if (u.source === 'local') {
+    const name = h('input', { value: u.displayName, maxLength: 120, required: true, autocomplete: 'name' });
+    const email = h('input', { type: 'email', value: u.email || '', maxLength: 254, autocomplete: 'email' });
+    const pwField = h('input', { type: 'password', autocomplete: 'current-password' });
+    const pwRow = field(t('profile.currentPassword'), pwField, t('profile.emailNeedsPassword'));
+    const syncPw = () => { const changed = email.value.trim().toLowerCase() !== (u.email || '').toLowerCase(); pwRow.hidden = !changed; pwField.required = changed; };
+    email.addEventListener('input', syncPw);
+    personal = h('form.panel', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        try {
+          const patch = { displayName: name.value.trim(), email: email.value.trim() };
+          if (!pwRow.hidden) patch.currentPassword = pwField.value;
+          const r = await api.updateMe(patch);
+          Object.assign(state.user, r.user);
+          toast(t('app.saved'), 'success');
+          await reloadBase();
+        } catch (ex) { toast(ex.message, 'error'); }
+      },
+    }, h('h2', t('profile.personal')),
+    h('div.grid-2', field(t('users.displayName'), name), field(t('users.email'), email, t('profile.emailHint'))),
+    pwRow,
+    h('button.btn.btn-primary', { type: 'submit' }, t('app.save')));
+    syncPw();
+  } else {
+    personal = h('section.panel', h('h2', t('profile.personal')), h('p.muted', t(u.source === 'email' ? 'profile.personalContact' : 'profile.personalExternal')));
+  }
+
   const mfaPanel = h('section.panel', h('h2', t('mfa.title')), h('div.loading', t('app.loading')));
   drawMfa(mfaPanel);
 
@@ -44,6 +74,7 @@ export function renderProfile(content) {
         h('h2', u.displayName),
         h('div.muted', u.username, u.email ? ` · ${u.email}` : ''),
         h('div.profile-tags', h('span.badge', t(`role.${u.role}`)), h('span.badge', t(`profile.source.${u.source}`))))),
+    personal,
     h('section.panel', h('h2', t('app.language')), field(t('app.language'), lang)),
     mfaPanel,
     pwForm,

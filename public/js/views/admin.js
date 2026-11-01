@@ -163,10 +163,20 @@ async function usersPage(body, showContacts = false) {
     }, h('div.grid-2', field(t('users.username'), username), field(t('users.displayName'), name)), h('div.grid-2', field(t('users.email'), email), field(t('users.role'), role)), field(t('setup.password'), pw)),
     { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'user-form' }, t('app.create'))] });
   };
-  const setPw = (u) => {
-    const pw = h('input', { type: 'password', required: true, minLength: 10, autocomplete: 'new-password' });
-    const dlg = modal(`${t('users.resetPassword')}: ${u.username}`, h('form#pw-form', { onsubmit: async (e) => { e.preventDefault(); dlg.close(); await update(u, { password: pw.value }); } }, field(t('setup.password'), pw)),
-      { footer: [h('span.spacer'), h('button.btn.btn-primary', { type: 'submit', form: 'pw-form' }, t('app.save'))] });
+  const editUser = (u) => {
+    const name = h('input', { value: u.displayName, maxLength: 120, required: true });
+    const email = h('input', { type: 'email', value: u.email || '', maxLength: 254 });
+    const pw = h('input', { type: 'password', minLength: 10, autocomplete: 'new-password', placeholder: t('users.passwordUnchanged') });
+    const dlg = modal(`${t('users.edit')}: ${u.username}`, h('form#edit-user-form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const patch = { displayName: name.value.trim(), email: email.value.trim() };
+        if (pw.value) patch.password = pw.value;
+        try { await api.updateUser(u.id, patch); dlg.close(); toast(t('app.saved'), 'success'); await reloadBase(); usersPage(body, showContacts); }
+        catch (ex) { toast(ex.message, 'error'); }
+      },
+    }, h('div.grid-2', field(t('users.displayName'), name), field(t('users.email'), email, t('profile.emailHint'))), field(t('users.newPassword'), pw)),
+    { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'edit-user-form' }, t('app.save'))] });
   };
   const contactsToggle = h('input', { type: 'checkbox', checked: showContacts, onchange: (e) => usersPage(body, e.target.checked) });
   mount(body, h('section.panel',
@@ -184,7 +194,7 @@ async function usersPage(body, showContacts = false) {
         h('td', u.mfaEnabled ? h('span.badge.badge-ok', { title: t('mfa.statusOn') }, icon('check')) : h('span.muted', '—')),
         h('td', { title: u.lastLogin ? fmtDate(u.lastLogin) : '' }, u.lastLogin ? relTime(u.lastLogin) : '—'),
         h('td.actions-cell',
-          u.source === 'local' ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => setPw(u) }, t('users.resetPassword')) : null,
+          u.source === 'local' ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => editUser(u) }, t('app.edit')) : null,
           u.mfaEnabled ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => { if (confirm(t('mfa.resetConfirm', { name: u.displayName }))) update(u, { resetMfa: true }); } }, t('mfa.reset')) : null,
           u.id !== state.user.id ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => update(u, { active: !u.active }) }, u.active ? t('users.deactivate') : t('users.activate')) : null)))))));
 }

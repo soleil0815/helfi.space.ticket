@@ -7,7 +7,7 @@ import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
 import { requireAuth, requireRole, isAgent } from '../auth/session.js';
-import { publicUser, userRef, roleFromGroups } from '../users.js';
+import { publicUser, userRef, roleFromGroups, normalizeEmail } from '../users.js';
 import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
 import { parseNetworks } from '../auth/network.js';
@@ -154,6 +154,21 @@ export function createApi(ctx) {
     const u = req.user;
     // Erst alles prüfen, dann speichern
     let newHash = null;
+    // Name und Adresse: nur lokale Konten (bei AD/SSO kommen sie von dort und würden überschrieben)
+    let displayName = null;
+    let email;
+    if (req.body.displayName !== undefined || req.body.email !== undefined) {
+      if (u.source !== 'local') throw new HttpError(400, 'err.managedExternally');
+      if (req.body.displayName !== undefined) displayName = str(req.body.displayName, 120).trim() || null;
+      if (req.body.email !== undefined) {
+        email = normalizeEmail(str(req.body.email, 254));
+        // Neue Adresse = neue Zuordnung eingehender Mails → aktuelles Kennwort verlangen
+        if (email !== String(u.email || '').toLowerCase()) {
+          limiter.check(req.ip, u.username);
+          if (!u.password_hash || !verifyPassword(str(req.body.currentPassword, 1024), u.password_hash)) { limiter.fail(req.ip, u.username); throw new HttpError(400, 'err.invalidLogin'); }
+        } else email = undefined;
+      }
+    }
     if (req.body.newPassword !== undefined) {
       if (u.source !== 'local' || !u.password_hash) throw forbidden();
       limiter.check(req.ip, u.username);
@@ -166,6 +181,8 @@ export function createApi(ctx) {
       if (req.body.language !== undefined) {
         db.prepare('UPDATE users SET language=? WHERE id=?').run(req.body.language ? normalizeLang(req.body.language) : null, u.id);
       }
+      if (displayName) db.prepare('UPDATE users SET display_name=? WHERE id=?').run(displayName, u.id);
+      if (email !== undefined) users.setEmail(u.id, email);
       if (newHash) {
         db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
         // Kennwort geändert → alle anderen (evtl. gestohlenen) Sitzungen beenden
@@ -225,6 +242,10 @@ export function createApi(ctx) {
     const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (req.body.role !== undefined && role !== u.role ? 1 : u.role_locked);
     // Erst alles prüfen, dann in einer Transaktion speichern (kein halbes Speichern bei Fehlern)
     let newHash = null;
+    // Name und Adresse nur bei lokalen Konten (AD/SSO: kommen von dort, E-Mail-Kontakte: aus Mails)
+    let email;
+    if ((req.body.displayName !== undefined || req.body.email !== undefined) && u.source !== 'local') throw new HttpError(400, 'err.managedExternally');
+    if (req.body.email !== undefined) email = normalizeEmail(str(req.body.email, 254));
     if (req.body.password) {
       if (u.source !== 'local') throw new HttpError(400, 'err.badRequest');
       const pw = str(req.body.password, 1024);
@@ -232,12 +253,12 @@ export function createApi(ctx) {
       newHash = hashPassword(pw);
     }
     db.transaction(() => {
-      db.prepare('UPDATE users SET role=?, active=?, role_locked=?, display_name=?, email=? WHERE id=?').run(
+      db.prepare('UPDATE users SET role=?, active=?, role_locked=?, display_name=? WHERE id=?').run(
         role, active, roleLocked,
         req.body.displayName !== undefined ? str(req.body.displayName, 120).trim() || u.display_name : u.display_name,
-        req.body.email !== undefined ? str(req.body.email, 254).trim() || null : u.email,
         u.id,
       );
+      if (email !== undefined) users.setEmail(u.id, email);
       if (newHash) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
     })();
     if (newHash || !active) sessions.destroyAllForUser(u.id);
