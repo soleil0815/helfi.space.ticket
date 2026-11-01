@@ -202,6 +202,15 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 7,
+    name: 'Eingefügte Bilder',
+    sql: `
+    -- Per Zwischenablage eingefügte Bilder sind Entwürfe, bis der Kommentar/die Beschreibung gespeichert ist:
+    -- nur für Bearbeiter und den Hochladenden sichtbar (z. B. Screenshot in einer internen Notiz)
+    ALTER TABLE attachments ADD COLUMN draft INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

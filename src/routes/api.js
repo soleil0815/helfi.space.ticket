@@ -401,10 +401,16 @@ export function createApi(ctx) {
       }
       try {
         const row = tickets.load(req.user, req.params.key);
+        // draft=1: eingefügtes Bild – unsichtbar für andere, bis der Text mit dem Bild gespeichert ist
+        const draft = req.body?.draft === '1';
+        if (draft && (req.files || []).some((f) => !/^image\/(png|jpeg|gif|webp)$/.test(f.mimetype))) {
+          for (const f of req.files || []) fs.rmSync(f.path, { force: true });
+          throw new HttpError(400, 'err.badRequest', 'draft');
+        }
         const ids = (req.files || []).map((f) => tickets.addAttachment(row.id, {
           // Multer liefert Dateinamen als latin1 – in UTF-8 umwandeln
           filename: Buffer.from(f.originalname, 'latin1').toString('utf8'), mime: f.mimetype, tmpPath: f.path, size: f.size,
-        }, req.user.id));
+        }, req.user.id, null, { draft }));
         res.status(201).json({ ids });
       } catch (e) {
         for (const f of req.files || []) fs.rmSync(f.path, { force: true });

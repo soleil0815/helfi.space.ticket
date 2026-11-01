@@ -312,6 +312,7 @@ export function createTickets(db, users) {
         db.prepare('UPDATE tickets SET resolved_at=? WHERE id=?').run(changes.status.new === 'done' ? new Date().toISOString() : null, row.id);
       }
       if (rankChanged) db.prepare('UPDATE tickets SET rank=? WHERE id=?').run(Number(data.rank), row.id);
+      if (changes.description) claimInlineImages(row.id, changes.description.new, user.id);
       if (Object.keys(changes).length) db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
     })();
 
@@ -371,6 +372,7 @@ export function createTickets(db, users) {
     const info = db.transaction(() => {
       const r = db.prepare('INSERT INTO comments(ticket_id,author_id,author_email,author_name,body,internal,source) VALUES(?,?,?,?,?,?,?)')
         .run(row.id, user ? user.id : null, authorEmail, authorName, text, isInternal, source);
+      if (user && source !== 'email') claimInlineImages(row.id, text, user.id, r.lastInsertRowid);
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
       // Antwort des Meldenden auf ein wartendes/erledigtes Ticket → wieder öffnen
       const fromCustomer = !system && !agent && (user ? isCustomer(user, row) : true);
@@ -386,13 +388,25 @@ export function createTickets(db, users) {
     return comment;
   }
 
+  /**
+   * Im Text eingebettete Bilder (![name](/api/attachments/ID)) übernehmen: Entwürfe dieses Tickets,
+   * die die Person selbst hochgeladen hat, werden sichtbar und – bei Kommentaren – dem Kommentar
+   * zugeordnet (interne Notiz → Bild bleibt intern).
+   */
+  function claimInlineImages(ticketId, text, userId, commentId = null) {
+    const ids = [...String(text || '').matchAll(/\]\(\/api\/attachments\/(\d+)\)/g)].map((m) => Number(m[1]));
+    if (!ids.length || !userId) return;
+    const stmt = db.prepare('UPDATE attachments SET draft=0, comment_id=COALESCE(?, comment_id) WHERE id=? AND ticket_id=? AND draft=1 AND uploaded_by=?');
+    for (const id of ids) stmt.run(commentId, id, ticketId, userId);
+  }
+
   // ---------- Anhänge ----------
   function attachments(ticketId) {
-    return db.prepare('SELECT id, filename, mime, size, comment_id, created_at FROM attachments WHERE ticket_id=? ORDER BY id').all(ticketId)
+    return db.prepare('SELECT id, filename, mime, size, comment_id, created_at FROM attachments WHERE ticket_id=? AND draft=0 ORDER BY id').all(ticketId)
       .map((a) => ({ id: a.id, filename: a.filename, mime: a.mime, size: a.size, commentId: a.comment_id, createdAt: a.created_at }));
   }
 
-  function addAttachment(ticketId, { filename, mime, buffer, tmpPath, size, createdAt }, userId = null, commentId = null, { silent = false } = {}) {
+  function addAttachment(ticketId, { filename, mime, buffer, tmpPath, size, createdAt }, userId = null, commentId = null, { silent = false, draft = false } = {}) {
     const dir = path.join(paths.attachments, String(ticketId));
     fs.mkdirSync(dir, { recursive: true });
     const storage = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -408,9 +422,9 @@ export function createTickets(db, users) {
       }
     }
     const safeName = String(filename || 'datei').replace(/[\\/\0\r\n]/g, '_').slice(0, 200);
-    const info = db.prepare("INSERT INTO attachments(ticket_id,comment_id,filename,mime,size,storage_name,uploaded_by,created_at) VALUES(?,?,?,?,?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%fZ','now')))")
-      .run(ticketId, commentId, safeName, String(mime || 'application/octet-stream').slice(0, 100), size ?? buffer.length, storage, userId, createdAt || null);
-    if (commentId === null && !silent) logActivity(ticketId, userId, 'attached', null, null, safeName);
+    const info = db.prepare("INSERT INTO attachments(ticket_id,comment_id,filename,mime,size,storage_name,uploaded_by,created_at,draft) VALUES(?,?,?,?,?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%fZ','now')),?)")
+      .run(ticketId, commentId, safeName, String(mime || 'application/octet-stream').slice(0, 100), size ?? buffer.length, storage, userId, createdAt || null, draft ? 1 : 0);
+    if (commentId === null && !silent && !draft) logActivity(ticketId, userId, 'attached', null, null, safeName);
     return info.lastInsertRowid;
   }
 
@@ -418,6 +432,7 @@ export function createTickets(db, users) {
     const a = db.prepare('SELECT * FROM attachments WHERE id=?').get(attId);
     if (!a) throw notFound();
     load(user, a.ticket_id); // Rechte
+    if (a.draft && !isAgent(user) && a.uploaded_by !== user.id) throw notFound();
     if (a.comment_id && !isAgent(user)) {
       const c = db.prepare('SELECT internal FROM comments WHERE id=?').get(a.comment_id);
       if (c?.internal) throw notFound();

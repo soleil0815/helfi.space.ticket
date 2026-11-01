@@ -83,6 +83,11 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
   return { send, test, blocked, enabled: () => !!getTransport() };
 }
 
+/** Eingebettete Bilder in Mails als Hinweis statt Markup (die Bilder liegen im Ticket). */
+export function inlineImagesAsText(text, lang) {
+  return String(text || '').replace(/!\[([^\]]*)\]\(\/api\/attachments\/\d+\)/g, (m, name) => `[${lang === 'en' ? 'Image' : 'Bild'}: ${name || '…'}]`);
+}
+
 /** Hängt die Benachrichtigungen an die Ticket-Ereignisse. */
 export function wireNotifications({ tickets, mailer, settings, users }) {
   const link = (tk) => `${config.baseUrl}/browse/${tk.key}`;
@@ -128,7 +133,7 @@ export function wireNotifications({ tickets, mailer, settings, users }) {
     // Kommentare aus E-Mails nie weiterleiten: Absender von Mails lassen sich fälschen
     if (internal || comment.source === 'email' || !settings.get('notify.reporterOnComment') || !user) return;
     await toCustomers(ticket, user.id, (lang, name) => {
-      const vars = { key: ticket.key, title: ticket.title, name, author: user.display_name, body: comment.body, link: link(ticket), app: appName() };
+      const vars = { key: ticket.key, title: ticket.title, name, author: user.display_name, body: inlineImagesAsText(comment.body, lang), link: link(ticket), app: appName() };
       return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars) };
     });
   }));

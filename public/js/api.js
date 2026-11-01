@@ -63,8 +63,9 @@ export const api = {
   deleteTicket: (key) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}`),
   bulk: (d) => request('POST', '/api/tickets/bulk', d),
   comment: (key, body, internal) => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal }),
-  upload: (key, files) => {
+  upload: (key, files, { draft = false } = {}) => {
     const fd = new FormData();
+    if (draft) fd.append('draft', '1');
     for (const f of files) fd.append('files', f, f.name);
     return request('POST', `/api/tickets/${encodeURIComponent(key)}/attachments`, fd);
   },

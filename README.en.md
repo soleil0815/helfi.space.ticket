@@ -13,6 +13,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Email → ticket:** a mailbox is polled via IMAP, new mails become tickets and replies land in the matching ticket. Reporters get answers by email.
 - **Clear and simple:** sidebar with queues (open, assigned to me, unassigned, waiting, recently resolved, all) with live counts, per-project summary, board with drag & drop, ticket list with filters, ticket view with details, comments, internal notes, attachments and history
 - **Import from another ticket system** (via its REST API, cloud and Server/Data Center): projects, tickets, comments and attachments. Ticket numbers are kept.
+- **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **Roles:** administrator, agent, user. Users only see their own requests.
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
