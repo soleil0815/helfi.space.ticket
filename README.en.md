@@ -177,9 +177,23 @@ Also:
 ./update.sh            # latest version
 ./update.sh 1.2.0      # specific version (recorded in .env)
 ./update.sh -y         # no prompts
+./update.sh --cleanup  # list leftovers from earlier updates and delete them after confirmation
 ```
 
-`update.sh` remembers the running version and pulls the new one. If the bundled `docker-compose.yml` is newer, it replaces the old one and keeps it as `docker-compose.yml.alt`. Then it starts the container and waits for the health check. If the new version does not start, it asks and restarts the previous version with the matching database backup (automatically with `-y`). It does not unpack or build anything. It runs with `/bin/sh`, on a Synology too.
+`update.sh` remembers the running version and pulls the new one. If the bundled `docker-compose.yml` is newer, it replaces the old one and keeps it as `docker-compose.yml.alt-<date>-<time>`. Then it starts the container and waits for the health check. If the new version does not start, it asks and restarts the previous version with the matching database backup (automatically with `-y`). It does not unpack or build anything. It runs with `/bin/sh`, on a Synology too.
+
+### Cleaning up
+
+Over time, older backup copies of `docker-compose.yml` and loaded image files from the release pile up in the folder. `./update.sh --cleanup` lists these files and only deletes them after confirmation (no prompt with `-y`). The newest `docker-compose.yml.alt-…` is kept.
+
+Only files on this fixed list are deleted:
+
+- older `docker-compose.yml.alt-…`
+- `helfi-<version>-amd64/arm64.tar.gz`
+- temporary files of aborted runs older than one hour
+- a `docker-compose.yml.neu` that has already been taken over
+
+Never touched: `data/`, backups, `.env`, `docker-compose.yml`, folders, links and files mounted into a container.
 
 ### Pinning a version and going back
 

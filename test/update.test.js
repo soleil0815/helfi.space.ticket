@@ -197,3 +197,84 @@ test('Rücksprung stellt auch die alte docker-compose.yml wieder her', () => {
   assert.equal(read(ctx, 'docker-compose.yml'), before);
   assert.match(read(ctx, 'docker-compose.yml.neu'), /HELFI_COMPOSE_VERSION: "2"/);
 });
+
+// --- update.sh --cleanup -------------------------------------------------------------------
+
+function cleanupSetup() {
+  const ctx = setup();
+  const f = (name, text = 'x') => fs.writeFileSync(path.join(ctx.dir, name), text);
+  const old = (name) => { const t = new Date(Date.now() - 2 * 3600 * 1000); fs.utimesSync(path.join(ctx.dir, name), t, t); };
+  f('docker-compose.yml.alt-20261001-080000');
+  f('docker-compose.yml.alt-20261031-200000'); // neueste – bleibt
+  f('helfi-1.0.1-amd64.tar.gz');
+  f('helfi-1.0.1-arm64.tar.gz');
+  f('.docker-compose.neu.4711'); old('.docker-compose.neu.4711');
+  f('.env.tmp.4712'); // frisch – gehört evtl. zu einem laufenden Update
+  f('notizen.txt');
+  f('helfi-sicherung.tar.gz'); // passt nicht zum Muster der Release-Dateien
+  fs.writeFileSync(path.join(ctx.dir, 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite'), 'sicherung');
+  return ctx;
+}
+const exists = (ctx, name) => fs.existsSync(path.join(ctx.dir, name)) || (() => { try { fs.lstatSync(path.join(ctx.dir, name)); return true; } catch { return false; } })();
+
+test('--cleanup: zeigt nur Reste von update.sh und löscht sie mit -y', () => {
+  const ctx = cleanupSetup();
+  fs.copyFileSync(path.join(ctx.dir, 'docker-compose.yml'), path.join(ctx.dir, 'docker-compose.yml.neu')); // schon übernommen
+  const r = run(ctx, ['--cleanup', '-y']);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  for (const gone of ['docker-compose.yml.alt-20261001-080000', 'helfi-1.0.1-amd64.tar.gz', 'helfi-1.0.1-arm64.tar.gz', '.docker-compose.neu.4711', 'docker-compose.yml.neu']) {
+    assert.ok(!exists(ctx, gone), `${gone} hätte gelöscht werden sollen`);
+  }
+  for (const kept of ['docker-compose.yml.alt-20261031-200000', '.env.tmp.4712', 'notizen.txt', 'helfi-sicherung.tar.gz', '.env', 'docker-compose.yml', 'update.sh', 'data/helfi.sqlite', 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite']) {
+    assert.ok(exists(ctx, kept), `${kept} darf nicht gelöscht werden`);
+  }
+  assert.doesNotMatch(r.calls, /compose (pull|up)/, 'Aufräumen startet kein Update');
+});
+
+test('--cleanup: ohne Bestätigung wird nichts gelöscht', () => {
+  const ctx = cleanupSetup();
+  const r = run(ctx, ['--cleanup']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /helfi-1\.0\.1-amd64\.tar\.gz/);
+  assert.match(r.stdout, /Nichts gelöscht/);
+  assert.ok(exists(ctx, 'helfi-1.0.1-amd64.tar.gz'));
+  assert.ok(exists(ctx, 'docker-compose.yml.alt-20261001-080000'));
+});
+
+test('--cleanup: Links werden nie verfolgt oder gelöscht, Daten bleiben', () => {
+  const ctx = cleanupSetup();
+  fs.symlinkSync(path.join(ctx.dir, 'data/helfi.sqlite'), path.join(ctx.dir, 'helfi-1.0.0.tar.gz'));
+  fs.symlinkSync(path.join(ctx.dir, 'data'), path.join(ctx.dir, 'docker-compose.yml.alt-20260101-000000'));
+  fs.symlinkSync(path.join(ctx.dir, 'data/backups'), path.join(ctx.dir, 'helfi-0.9.0.tar'));
+  const r = run(ctx, ['--cleanup', '-y']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'original');
+  assert.ok(fs.existsSync(path.join(ctx.dir, 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite')));
+  for (const link of ['helfi-1.0.0.tar.gz', 'docker-compose.yml.alt-20260101-000000', 'helfi-0.9.0.tar']) {
+    assert.ok(fs.lstatSync(path.join(ctx.dir, link)).isSymbolicLink(), `${link} bleibt unangetastet`);
+  }
+});
+
+test('--cleanup: in einen Container eingebundene Datei bleibt', () => {
+  const ctx = cleanupSetup();
+  const r = run(ctx, ['--cleanup', '-y'], { FAKE_MOUNTS: path.join(fs.realpathSync(ctx.dir), 'helfi-1.0.1-arm64.tar.gz') });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(exists(ctx, 'helfi-1.0.1-arm64.tar.gz'));
+  assert.match(r.stderr, /Übersprungen.*helfi-1\.0\.1-arm64\.tar\.gz/);
+  assert.ok(!exists(ctx, 'helfi-1.0.1-amd64.tar.gz'));
+});
+
+test('--cleanup: docker nicht erreichbar → nichts löschen; angepasste docker-compose.yml.neu bleibt', () => {
+  let ctx = cleanupSetup();
+  let r = run(ctx, ['--cleanup', '-y'], { FAKE_DOCKER_DOWN: '1' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /nichts gelöscht/);
+  assert.ok(exists(ctx, 'helfi-1.0.1-amd64.tar.gz'));
+
+  ctx = setup();
+  fs.writeFileSync(path.join(ctx.dir, 'docker-compose.yml.neu'), 'neuere Fassung');
+  r = run(ctx, ['--cleanup', '-y']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Nichts aufzuräumen/);
+  assert.ok(exists(ctx, 'docker-compose.yml.neu'));
+});

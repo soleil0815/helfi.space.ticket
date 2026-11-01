@@ -177,9 +177,23 @@ Außerdem gilt:
 ./update.sh            # neueste Version
 ./update.sh 1.2.0      # bestimmte Version (wird in .env festgehalten)
 ./update.sh -y         # ohne Rückfragen
+./update.sh --cleanup  # Reste früherer Updates anzeigen und nach Rückfrage löschen
 ```
 
-`update.sh` merkt sich die laufende Version und holt die neue. Ist die mitgelieferte `docker-compose.yml` neuer, ersetzt es die alte und behält sie als `docker-compose.yml.alt`. Danach startet es den Container und wartet auf den Gesundheitscheck. Startet die neue Version nicht, fragt es nach und startet die vorherige Version mit der passenden Datenbanksicherung wieder (mit `-y` automatisch). Es entpackt nichts und baut nichts. Es läuft mit `/bin/sh`, auch auf einer Synology.
+`update.sh` merkt sich die laufende Version und holt die neue. Ist die mitgelieferte `docker-compose.yml` neuer, ersetzt es die alte und behält sie als `docker-compose.yml.alt-<Datum>-<Uhrzeit>`. Danach startet es den Container und wartet auf den Gesundheitscheck. Startet die neue Version nicht, fragt es nach und startet die vorherige Version mit der passenden Datenbanksicherung wieder (mit `-y` automatisch). Es entpackt nichts und baut nichts. Es läuft mit `/bin/sh`, auch auf einer Synology.
+
+### Aufräumen
+
+Mit der Zeit sammeln sich im Ordner ältere Sicherheitskopien der `docker-compose.yml` und geladene Image-Dateien aus dem Release. `./update.sh --cleanup` zeigt diese Dateien an und löscht sie erst nach Rückfrage (mit `-y` ohne). Die neueste `docker-compose.yml.alt-…` bleibt.
+
+Gelöscht wird nur, was auf dieser festen Liste steht:
+
+- ältere `docker-compose.yml.alt-…`
+- `helfi-<Version>-amd64/arm64.tar.gz`
+- Zwischendateien abgebrochener Läufe, die älter als eine Stunde sind
+- eine `docker-compose.yml.neu`, die schon übernommen wurde
+
+Nie angefasst werden `data/`, Sicherungen, `.env`, `docker-compose.yml`, Ordner, Links und Dateien, die ein Container eingebunden hat.
 
 ### Version festhalten und zurückgehen
 
