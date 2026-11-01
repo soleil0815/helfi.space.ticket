@@ -575,3 +575,13 @@ a.stat-link:hover { border-color: var(--blue); }
 /* Eingefügte Bilder im Text */
 .rich .inline-image { display: inline-block; margin: 6px 0; }
 .rich .inline-image img { display: block; max-width: min(100%, 720px); max-height: 480px; border: 1px solid var(--border); border-radius: 3px; cursor: zoom-in; }
+
+/* Anmeldeseite: eigene Texte */
+.auth-card h1.login-custom-title { font-size: 22px; color: var(--text); text-align: left; margin-bottom: 12px; }
+.login-intro { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); }
+.login-intro p { margin: 0 0 8px; }
+.login-intro p:last-child { margin-bottom: 0; }
+.login-settings { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 24px; align-items: start; }
+@media (max-width: 1200px) { .login-settings { grid-template-columns: 1fr; } }
+.login-preview { box-shadow: 0 0 0 1px var(--border); max-width: 440px; }
+.preview-label { margin-bottom: 6px; }

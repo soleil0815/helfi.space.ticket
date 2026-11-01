@@ -39,6 +39,12 @@ export function createApi(ctx) {
     const userCount = db.prepare('SELECT COUNT(*) n FROM users').get().n;
     res.json({
       app: { title: settings.get('general.title'), version: config.version },
+      // Eigene Texte der Anmeldeseite (Länge begrenzt; Darstellung ohne HTML)
+      login: {
+        title: String(settings.get('login.title')).slice(0, 80),
+        text: { de: String(settings.get('login.textDe')).slice(0, 4000), en: String(settings.get('login.textEn')).slice(0, 4000) },
+        userLabel: { de: String(settings.get('login.userLabelDe')).slice(0, 80), en: String(settings.get('login.userLabelEn')).slice(0, 80) },
+      },
       setupRequired: userCount === 0,
       user: req.user ? publicUser(req.user) : null,
       auth: {

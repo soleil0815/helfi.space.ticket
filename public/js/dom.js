@@ -50,14 +50,28 @@ export function richText(text) {
   const re = /(https?:\/\/[^\s<>"')]+)/g;
   // Eingefügte Bilder: nur Anhänge dieses Systems (/api/attachments/ID), nie fremde Adressen
   const img = /!\[([^\]\n]{0,200})\]\(\/api\/attachments\/(\d+)\)/g;
-  const links = (p, part) => {
+  // Links (http/https) und Mailadressen anklickbar, **fett** – alles als Text, nie als HTML
+  const mail = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/;
+  const linksOnly = (p, part) => {
     let last = 0;
-    for (const m of part.matchAll(re)) {
+    for (const m of part.matchAll(new RegExp(`${re.source}|${mail.source}`, 'g'))) {
       p.append(part.slice(last, m.index));
-      p.append(h('a', { href: m[0], target: '_blank', rel: 'noopener noreferrer' }, m[0]));
+      if (m[1]) p.append(h('a', { href: m[1], target: '_blank', rel: 'noopener noreferrer' }, m[1]));
+      else p.append(h('a', { href: `mailto:${m[2]}` }, m[2]));
       last = m.index + m[0].length;
     }
     p.append(part.slice(last));
+  };
+  const links = (p, part) => {
+    let last = 0;
+    for (const m of part.matchAll(/\*\*([^*\n]+)\*\*/g)) {
+      linksOnly(p, part.slice(last, m.index));
+      const b = h('strong');
+      linksOnly(b, m[1]);
+      p.append(b);
+      last = m.index + m[0].length;
+    }
+    linksOnly(p, part.slice(last));
   };
   for (const para of String(text || '').split(/\n{2,}/)) {
     const p = h('p');

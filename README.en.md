@@ -68,6 +68,10 @@ helfi.firma.local {
 
 ---
 
+## Customizing the sign-in page
+
+*Administration → General → Sign-in page*: your own heading (e.g. "Help center"), welcome text in German and optionally English, e.g. how to get help, and your own label for the user name field ("Windows user name"). Text only: `**bold**`, links and email addresses become clickable, HTML is never executed. A preview shows the result right away.
+
 ## Setting up Active Directory
 
 *Administration → Active Directory*

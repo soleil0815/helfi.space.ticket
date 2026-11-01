@@ -1,6 +1,6 @@
 // Anmeldung und Ersteinrichtung
 import { api } from '../api.js';
-import { h, mount, field, icon, select, toast } from '../dom.js';
+import { h, mount, field, icon, select, toast, richText } from '../dom.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { state, navigate, reloadBase, route } from '../app.js';
 
@@ -145,16 +145,34 @@ export function renderLogin(root) {
       }
     },
   },
-  h('h1', t('login.title')),
+  ...loginIntro(state.boot.login),
   mfaHint,
   err,
-  field(t('login.username'), user, state.boot.auth.ldap ? t('login.usernameHint') : null),
+  field(loginUserLabel(state.boot.login) || t('login.username'), user, state.boot.auth.ldap ? t('login.usernameHint') : null),
   field(t('login.password'), pass),
   btn,
   oidc ? [h('div.divider', h('span', t('login.or'))), h('a.btn.btn-block.btn-sso', { href: '/auth/oidc/start' }, icon('key'), oidc.label)] : null,
   );
   mount(root, authFrame(form));
   setTimeout(() => user.focus(), 0);
+}
+
+/** Eigener Text der Anmeldeseite in der passenden Sprache (Englisch fällt auf Deutsch zurück). */
+function pickLang(obj) {
+  if (!obj) return '';
+  return (getLang() === 'en' && obj.en) ? obj.en : (obj.de || obj.en || '');
+}
+export function loginUserLabel(login) { return pickLang(login?.userLabel).trim(); }
+
+/** Überschrift und Begrüßungstext (Text ohne HTML, **fett**, Links/Mailadressen anklickbar). */
+export function loginIntro(login) {
+  const title = String(login?.title || '').trim();
+  const text = pickLang(login?.text).trim();
+  if (!title && !text) return [h('h1', t('login.title'))];
+  return [
+    title ? h('h1.login-custom-title', title) : h('h1', t('login.title')),
+    text ? h('div.login-intro', richText(text)) : null,
+  ];
 }
 
 export function renderSetup(root) {

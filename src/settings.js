@@ -10,6 +10,13 @@ export const DEFAULTS = {
   'general.allowSelfService': true, // Benutzer (Rolle "user") dürfen Tickets anlegen
   'general.defaultLanguage': 'de', // de | en – für E-Mails an Absender ohne Konto
 
+  // Anmeldeseite (Text ohne HTML; **fett**, Links und Mailadressen werden erkannt)
+  'login.title': '',
+  'login.textDe': '',
+  'login.textEn': '',
+  'login.userLabelDe': '',
+  'login.userLabelEn': '',
+
   // Zwei-Faktor-Anmeldung (TOTP)
   'mfa.mode': 'external', // off | external (nur von außerhalb Pflicht) | always
   'mfa.internalNetworks': '10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7',
