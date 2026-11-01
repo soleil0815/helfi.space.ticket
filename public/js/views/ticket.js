@@ -8,6 +8,7 @@ import { t } from '../i18n.js';
 import { state, navigate, route } from '../app.js';
 import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.js';
 import { setPageShortcuts, openPalette } from '../shortcuts.js';
+import { enableImagePaste, replacePending } from '../paste.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -62,6 +63,7 @@ export async function renderTicket(content, key) {
     const edit = () => {
       const ta = h('textarea.desc-input', { rows: Math.min(20, Math.max(6, tk.description.split('\n').length + 2)) }, tk.description);
       ta.value = tk.description;
+      enableImagePaste(ta, { upload: (files) => api.upload(tk.key, files, { draft: true }) });
       const wrap = h('div.desc-edit', ta, h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: () => save({ description: ta.value }) }, t('app.save')),
         h('button.btn.btn-subtle', { type: 'button', onclick: () => draw() }, t('app.cancel'))));
@@ -153,6 +155,7 @@ export async function renderTicket(content, key) {
   function composer() {
     let internal = false;
     const ta = h('textarea', { rows: 3, placeholder: t('ticket.addComment') });
+    enableImagePaste(ta, { upload: (files) => api.upload(tk.key, files, { draft: true }) });
     const hint = h('div.hint');
     const modeBtns = agent ? h('div.composer-modes',
       h('button.mode.active', { type: 'button', onclick: (e) => setMode(false, e.currentTarget) }, t('ticket.reply')),
@@ -176,7 +179,7 @@ export async function renderTicket(content, key) {
       h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: submit }, t('app.save')),
         templateBtn,
-        h('span.muted.small', 'Ctrl+Enter'),
+        h('span.muted.small', `Ctrl+Enter · ${t('paste.hint')}`),
         saveAsBtn ? h('span.spacer') : null,
         saveAsBtn)));
     function setMode(isInternal, btn) {
@@ -398,6 +401,7 @@ export function openCreateDialog(defaults = {}) {
   const type = select(TYPES.map((x) => [x, t(`type.${x}`)]), defaults.type || (agent ? 'task' : 'request'));
   const summary = h('input', { required: true, maxLength: 255 });
   const desc = h('textarea', { rows: 6, placeholder: t('create.descriptionHint') });
+  const descPaste = enableImagePaste(desc); // noch kein Ticket: Bilder nach dem Anlegen hochladen
   const prio = select(PRIOS.map((x) => [x, t(`priority.${x}`)]), 'medium');
   const assignee = select([['', t('app.unassigned')], ...state.agents.map((a) => [a.id, a.displayName])], '');
   const labels = h('input', { placeholder: t('create.labelsHint') });
@@ -414,8 +418,16 @@ export function openCreateDialog(defaults = {}) {
       try {
         const body = { projectId: Number(project.value), type: type.value, title: summary.value.trim(), description: desc.value, priority: prio.value };
         if (agent) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null });
+        const pend = descPaste.takePending();
+        if (pend.length) body.description = replacePending(body.description, new Map()); // Platzhalter erst nach dem Hochladen ersetzen
         const r = await api.createTicket(body);
         if (files.files.length) await api.upload(r.ticket.key, [...files.files]);
+        if (pend.length) {
+          // eingefügte Bilder hochladen und in die Beschreibung einsetzen
+          const { ids } = await api.upload(r.ticket.key, pend.map(([, f]) => f), { draft: true });
+          const map = new Map(pend.map(([token], i) => [token, ids[i]]));
+          await api.updateTicket(r.ticket.key, { description: replacePending(desc.value, map) });
+        }
         toast(t('create.done', { key: r.ticket.key }), 'success');
         if (another.checked) { summary.value = ''; desc.value = ''; files.value = ''; summary.focus(); }
         else { dlg.close(); navigate(`/browse/${r.ticket.key}`); }

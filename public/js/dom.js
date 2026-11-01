@@ -48,17 +48,29 @@ export function icon(name, cls = '') {
 export function richText(text) {
   const wrap = h('div.rich');
   const re = /(https?:\/\/[^\s<>"')]+)/g;
+  // Eingefügte Bilder: nur Anhänge dieses Systems (/api/attachments/ID), nie fremde Adressen
+  const img = /!\[([^\]\n]{0,200})\]\(\/api\/attachments\/(\d+)\)/g;
+  const links = (p, part) => {
+    let last = 0;
+    for (const m of part.matchAll(re)) {
+      p.append(part.slice(last, m.index));
+      p.append(h('a', { href: m[0], target: '_blank', rel: 'noopener noreferrer' }, m[0]));
+      last = m.index + m[0].length;
+    }
+    p.append(part.slice(last));
+  };
   for (const para of String(text || '').split(/\n{2,}/)) {
     const p = h('p');
     String(para).split('\n').forEach((line, i) => {
       if (i) p.append(h('br'));
       let last = 0;
-      for (const m of line.matchAll(re)) {
-        p.append(line.slice(last, m.index));
-        p.append(h('a', { href: m[0], target: '_blank', rel: 'noopener noreferrer' }, m[0]));
+      for (const m of line.matchAll(img)) {
+        links(p, line.slice(last, m.index));
+        const src = `/api/attachments/${m[2]}`;
+        p.append(h('a.inline-image', { href: src, target: '_blank', rel: 'noopener' }, h('img', { src, alt: m[1] || '', loading: 'lazy' })));
         last = m.index + m[0].length;
       }
-      p.append(line.slice(last));
+      links(p, line.slice(last));
     });
     wrap.append(p);
   }
