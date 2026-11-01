@@ -251,20 +251,53 @@ export async function authenticate(cfg, rawUsername, password) {
       finally { await userClient.unbind().catch(() => {}); }
     }
 
-    const groups = {
-      admin: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.adminGroup),
-      agent: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.agentGroup),
-      user: cfg.userGroup ? await isMember(client, cfg, entry.dn, entry.memberOf, cfg.userGroup) : true,
-    };
-    const guid = first(entry.objectGUID);
-    return {
-      username: String(first(entry[cfg.usernameAttr]) || username),
-      displayName: String(first(entry[cfg.displayNameAttr]) || username),
-      email: String(first(entry[cfg.emailAttr]) || ''),
-      dn: entry.dn,
-      externalId: Buffer.isBuffer(guid) ? guid.toString('hex') : (guid ? String(guid) : entry.dn),
-      groups,
-    };
+    return await entryToUser(client, cfg, entry, username);
+  } finally {
+    await client.unbind().catch(() => {});
+  }
+}
+
+/** AD-Eintrag → Benutzerdaten mit Gruppenzugehörigkeit (für Anmeldung und Absender-Suche). */
+async function entryToUser(client, cfg, entry, fallbackName) {
+  const groups = {
+    admin: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.adminGroup),
+    agent: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.agentGroup),
+    user: cfg.userGroup ? await isMember(client, cfg, entry.dn, entry.memberOf, cfg.userGroup) : true,
+  };
+  const guid = first(entry.objectGUID);
+  return {
+    username: String(first(entry[cfg.usernameAttr]) || fallbackName),
+    displayName: String(first(entry[cfg.displayNameAttr]) || fallbackName),
+    email: String(first(entry[cfg.emailAttr]) || ''),
+    dn: entry.dn,
+    externalId: Buffer.isBuffer(guid) ? guid.toString('hex') : (guid ? String(guid) : entry.dn),
+    groups,
+  };
+}
+
+/** LDAP-Filter: aktives Benutzerkonto mit dieser Adresse (Hauptadresse, UPN oder Zweitadresse). */
+export function buildEmailFilter(email) {
+  const e = escapeFilter(String(email).trim().toLowerCase());
+  return '(&(objectCategory=person)(objectClass=user)'
+    + '(!(userAccountControl:1.2.840.113556.1.4.803:=2))' // deaktivierte Konten nicht
+    + `(|(mail=${e})(userPrincipalName=${e})(proxyAddresses=smtp:${e})))`;
+}
+
+/**
+ * Absender einer E-Mail im AD suchen (nur mit Dienstkonto).
+ * Ergebnis: Benutzerdaten wie bei authenticate(), null (nicht gefunden) oder { ambiguous: true }.
+ */
+export async function findByEmail(cfg, email) {
+  if (!cfg.bindDn) throw new Error('Kein Dienstkonto (Bind-DN) eingetragen.');
+  const client = await connect(cfg);
+  try {
+    await serviceBind(client, cfg);
+    cfg = await ensureBaseDn(client, cfg);
+    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID'];
+    const { searchEntries } = await client.search(cfg.baseDn, { scope: 'sub', filter: buildEmailFilter(email), attributes: attrs, sizeLimit: 2 });
+    if (searchEntries.length === 0) return null;
+    if (searchEntries.length > 1) return { ambiguous: true };
+    return await entryToUser(client, cfg, searchEntries[0], String(email).split('@')[0]);
   } finally {
     await client.unbind().catch(() => {});
   }

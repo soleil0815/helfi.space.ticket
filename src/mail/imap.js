@@ -4,11 +4,18 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { convert as htmlToText } from 'html-to-text';
 import { log } from '../lib/log.js';
+import { roleFromGroups } from '../users.js';
 import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail } from './parse.js';
 
 export const MAX_NEW_TICKETS_PER_HOUR = 20;
 export const MAX_ATTACHMENTS = 30;
 const MAX_MESSAGE_BYTES = 80 * 1024 * 1024; // größere Mails nicht laden (Speicher)
+export const MIN_KEEP_DAYS = 7; // Aufbewahrung: kleinere Werte (außer 0) gelten als 7
+export const MAX_PURGE_PER_RUN = 500;
+const PURGE_EVERY_MS = 24 * 3600 * 1000;
+const AD_MISS_TTL_MS = 3600 * 1000; // unbekannte Adressen eine Stunde lang nicht erneut im AD suchen
+const AD_ERROR_TTL_MS = 5 * 60 * 1000; // nach einem AD-Fehler 5 Minuten Pause für diese Adresse
+const AD_CACHE_MAX = 5000;
 
 export function imapOptions(cfg) {
   return {
@@ -25,7 +32,8 @@ export function imapOptions(cfg) {
   };
 }
 
-export function createMailProcessor({ db, settings, tickets, users }) {
+export function createMailProcessor({ db, settings, tickets, users, adLookup = null }) {
+  const adMisses = new Map(); // Adresse → Zeitpunkt, bis zu dem nicht erneut gesucht wird
   const seen = db.prepare('SELECT ticket_id FROM mail_messages WHERE message_id=?');
   // Zuordnung über Referenzen NUR über eigene, ausgehende Message-IDs (zufällig, nicht erratbar).
   // Eingehende Message-IDs kennt jeder Empfänger der Ursprungsmail (z. B. in CC).
@@ -57,8 +65,51 @@ export function createMailProcessor({ db, settings, tickets, users }) {
     return !!db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND (author_id=? OR lower(author_email)=?) LIMIT 1').get(ticketId, sender.id, fromAddr);
   }
 
-  /** Verarbeitet eine geparste E-Mail. Liefert eine kurze Beschreibung, was passiert ist. */
-  function process(parsed) {
+  /**
+   * Unbekannten Absender im AD suchen und als AD-Benutzer anlegen (wie bei der ersten Anmeldung).
+   * Liefert das Konto oder null (dann wird der Absender wie bisher zum E-Mail-Kontakt).
+   * Gibt nie Bearbeiter-Rechte für die Mail selbst: process() behandelt Mails immer als Meldung.
+   */
+  async function lookupSender(parsed, now = Date.now()) {
+    if (!adLookup || !settings.get('imap.adLookup') || !settings.get('ldap.enabled')) return null;
+    const ldapCfg = settings.group('ldap');
+    if (!ldapCfg.bindDn) return null;
+    const from = parsed.from?.value?.[0];
+    const addr = String(from?.address || '').toLowerCase();
+    if (!isEmail(addr) || isAutomated(parsed.headers, addr)) return null;
+    const own = [settings.get('smtp.from'), settings.get('imap.user')].filter(Boolean).map((x) => x.toLowerCase());
+    if (own.includes(addr)) return null;
+    const existing = users.byEmail(addr);
+    if (existing && existing.source !== 'email') return null; // schon ein richtiges Konto
+    if ((adMisses.get(addr) || 0) > now) return null;
+
+    const miss = (ttl) => {
+      if (adMisses.size >= AD_CACHE_MAX) adMisses.delete(adMisses.keys().next().value);
+      adMisses.set(addr, now + ttl);
+      return null;
+    };
+    let info;
+    try {
+      info = await adLookup(ldapCfg, addr);
+    } catch (e) {
+      log.warn('Absender im AD suchen fehlgeschlagen – wird E-Mail-Kontakt', { error: e.message });
+      return miss(AD_ERROR_TTL_MS);
+    }
+    if (!info) return miss(AD_MISS_TTL_MS);
+    if (info.ambiguous) { log.warn('Absender-Adresse ist im AD mehrfach vergeben – wird E-Mail-Kontakt'); return miss(AD_MISS_TTL_MS); }
+    const role = roleFromGroups(info.groups, ldapCfg);
+    if (!info.groups.user && role !== 'admin' && role !== 'agent') return miss(AD_MISS_TTL_MS); // nicht zugelassen
+    const u = users.upsertExternal({
+      source: 'ldap', username: info.username, displayName: info.displayName,
+      email: info.email || addr, externalId: info.externalId, role,
+    });
+    log.info(`E-Mail-Absender im AD gefunden: ${u.username}`);
+    return u;
+  }
+
+  /** Verarbeitet eine geparste E-Mail. Liefert eine kurze Beschreibung, was passiert ist.
+   *  opts.sender: Konto aus lookupSender() (z. B. bei Zweitadresse aus proxyAddresses). */
+  function process(parsed, opts = {}) {
     const cfg = settings.group('imap');
     const from = parsed.from?.value?.[0];
     const fromAddr = String(from?.address || '').toLowerCase();
@@ -74,7 +125,7 @@ export function createMailProcessor({ db, settings, tickets, users }) {
       return { action: 'skipped', reason: 'automated', messageId };
     }
 
-    const sender = users.byEmail(fromAddr) || users.contactForEmail(fromAddr, from?.name || '');
+    const sender = opts.sender || users.byEmail(fromAddr) || users.contactForEmail(fromAddr, from?.name || '');
     if (!sender.active) { remember.run(messageId, null); return { action: 'skipped', reason: 'inactive', messageId }; }
 
     // Reine HTML-Mails (z. B. aus Outlook) in lesbaren Text umwandeln
@@ -127,13 +178,14 @@ export function createMailProcessor({ db, settings, tickets, users }) {
     })();
   }
 
-  return { process, parse: (source) => simpleParser(source) };
+  return { process, lookupSender, parse: (source) => simpleParser(source) };
 }
 
 export function createImapPoller({ settings, processor }) {
-  const status = { running: false, lastRun: null, lastError: null, lastResult: null, processedTotal: 0 };
+  const status = { running: false, lastRun: null, lastError: null, lastResult: null, processedTotal: 0, lastPurge: null };
   const failures = new Map();
   let timer = null;
+  let lastPurge = 0;
 
   async function pollOnce() {
     const cfg = settings.group('imap');
@@ -164,7 +216,8 @@ export function createImapPoller({ settings, processor }) {
             const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
             if (!msg?.source) continue;
             const parsed = await processor.parse(msg.source);
-            const r = processor.process(parsed);
+            const sender = processor.lookupSender ? await processor.lookupSender(parsed) : null;
+            const r = processor.process(parsed, sender ? { sender } : {});
             if (r.action === 'ticket') { result.tickets++; log.info(`E-Mail → neues Ticket ${r.key}`); }
             else if (r.action === 'comment') { result.comments++; log.info(`E-Mail → Kommentar zu Ticket #${r.ticketId}`); }
             else result.skipped++;
@@ -185,6 +238,14 @@ export function createImapPoller({ settings, processor }) {
         }
       } finally {
         lock.release();
+      }
+      if (Date.now() - lastPurge >= PURGE_EVERY_MS) {
+        lastPurge = Date.now();
+        const p = await purgeProcessed(client, cfg);
+        if (!p.skipped) {
+          status.lastPurge = { at: new Date().toISOString(), deleted: p.deleted };
+          if (p.deleted) log.info(`Postfach: ${p.deleted} verarbeitete Mail(s) älter als ${p.days} Tage gelöscht (${cfg.processedFolder})`);
+        }
       }
       await client.logout();
       status.lastError = null;
@@ -209,6 +270,43 @@ export function createImapPoller({ settings, processor }) {
   }
 
   return { pollOnce, start: schedule, stop: () => clearTimeout(timer), status: () => ({ ...status }) };
+}
+
+/** Wirksame Aufbewahrung in Tagen: 0 = nie löschen, sonst mindestens MIN_KEEP_DAYS. */
+export function effectiveKeepDays(value) {
+  const n = Math.floor(Number(value) || 0);
+  if (n <= 0) return 0;
+  return Math.max(MIN_KEEP_DAYS, n);
+}
+
+/** Löschen ist nur erlaubt, wenn ein eigener Ordner für verarbeitete Mails eingetragen ist –
+ *  nie im Posteingang bzw. im abgerufenen Ordner. */
+export function purgeFolder(cfg) {
+  const folder = String(cfg.processedFolder || '').trim();
+  if (!folder) return null;
+  const source = String(cfg.folder || 'INBOX').trim();
+  if (folder.toLowerCase() === source.toLowerCase() || folder.toLowerCase() === 'inbox') return null;
+  return folder;
+}
+
+/**
+ * Verarbeitete Mails im Ordner löschen, die älter als die eingestellte Zahl Tage sind
+ * (Eingangsdatum am Server, IMAP SEARCH BEFORE). Höchstens MAX_PURGE_PER_RUN pro Lauf.
+ */
+export async function purgeProcessed(client, cfg, now = new Date()) {
+  const days = effectiveKeepDays(cfg.processedKeepDays);
+  const folder = purgeFolder(cfg);
+  if (!days || !folder) return { skipped: true, deleted: 0 };
+  const before = new Date(now.getTime() - days * 24 * 3600 * 1000);
+  const lock = await client.getMailboxLock(folder);
+  try {
+    const uids = ((await client.search({ before }, { uid: true })) || []).slice(0, MAX_PURGE_PER_RUN);
+    if (!uids.length) return { deleted: 0, days };
+    await client.messageDelete(uids.join(','), { uid: true });
+    return { deleted: uids.length, days };
+  } finally {
+    lock.release();
+  }
 }
 
 /** Verbindungstest für die Einstellungsseite. */
