@@ -2,12 +2,13 @@
 import express from 'express';
 import { requireRole } from '../auth/session.js';
 import { int, str } from '../lib/http.js';
+import { t, hasKey, normalizeLang } from '../i18n.js';
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog, cmdb } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -73,6 +74,21 @@ export function createItilRoutes(ctx) {
   r.get('/tickets/:key/kb-draft', requireRole('agent'), (req, res) => res.json({ draft: kb.draftFromTicket(req.user, req.params.key) }));
 
   // ---------- Servicekatalog ----------
+  // ---------- Geräte und Dienste ----------
+  r.get('/cis', requireRole('agent'), (req, res) => res.json({ items: cmdb.list(req.user, { q: str(req.query.q, 200), kind: str(req.query.kind, 20), status: str(req.query.status, 20) }) }));
+  r.get('/cis/:id', requireRole('agent'), (req, res) => res.json({ item: cmdb.get(req.user, req.params.id) }));
+  r.post('/cis', requireRole('agent'), (req, res) => res.status(201).json({ item: cmdb.create(req.user, req.body || {}) }));
+  r.put('/cis/:id', requireRole('agent'), (req, res) => res.json({ item: cmdb.update(req.user, req.params.id, req.body || {}) }));
+  r.delete('/cis/:id', requireRole('admin'), (req, res) => { cmdb.remove(req.user, req.params.id); res.json({ ok: true }); });
+  r.post('/cis/import', requireRole('admin'), (req, res) => {
+    const result = cmdb.importCsv(req.user, str(req.body?.csv, 5_000_000));
+    const lang = normalizeLang(req.user.language);
+    result.errors = result.errors.map((e) => ({ line: e.line, message: hasKey(e.error) ? t(lang, e.error, { detail: e.detail ?? '' }) : e.error }));
+    res.json(result);
+  });
+  r.post('/tickets/:key/cis', requireRole('agent'), (req, res) => res.json({ cis: cmdb.link(req.user, req.params.key, req.body || {}) }));
+  r.delete('/tickets/:key/cis/:id', requireRole('agent'), (req, res) => res.json({ cis: cmdb.unlink(req.user, req.params.key, req.params.id) }));
+
   r.get('/catalog', (req, res) => res.json({ items: catalog.list(req.user, { all: req.query.all === '1' }) }));
   r.get('/catalog/:id', (req, res) => res.json({ item: catalog.get(req.user, req.params.id) }));
   r.post('/catalog', requireRole('admin'), wrap(async (req, res) => res.status(201).json({ item: catalog.save(req.user, null, req.body || {}) })));

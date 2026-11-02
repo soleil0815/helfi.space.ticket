@@ -18,6 +18,7 @@ import { problemSection, problemHint, createProblemButton } from './problem.js';
 import { changeSection } from './change.js';
 import { kbSuggestions, kbFromTicketButton } from './kb.js';
 import { catalogApprovalBox } from './catalog.js';
+import { ciSection } from './cmdb.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -167,6 +168,7 @@ export async function renderTicket(content, key) {
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'ciLinked' || a.action === 'ciUnlinked' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'approvalRequested' ? h('span.change', a.newValue) : null,
         a.action === 'kbCreated' ? h('span.change', h('a', { href: `/kb/${String(a.newValue).replace('KB-', '')}`, 'data-link': '' }, a.newValue)) : null,
         a.action === 'approval' ? h('span.change', t(`change.decision.${a.field}`), a.newValue ? ` – „${a.newValue}“` : '') : null,
@@ -383,6 +385,7 @@ export async function renderTicket(content, key) {
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,
         attachmentsEl(),
         agent ? linksSection(tk, refresh) : null,
+        agent ? ciSection(tk, refresh) : null,
         activityEl()),
       sidePanel());
     // Dateien per Drag & Drop auf die Seite

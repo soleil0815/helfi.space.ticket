@@ -13,6 +13,7 @@ import { createApprovals } from './itil/approvals.js';
 import { createChanges } from './itil/changes.js';
 import { createKb } from './itil/kb.js';
 import { createCatalog } from './itil/catalog.js';
+import { createCmdb } from './itil/cmdb.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -55,6 +56,7 @@ export function createApp(db) {
   const problems = createProblems(db, tickets, fields);
   const approvals = createApprovals(db, users);
   const kb = createKb(db, tickets);
+  const cmdb = createCmdb(db, tickets, users);
   const catalog = createCatalog(db, tickets, approvals, fields, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const changes = createChanges(db, tickets, fields, approvals, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
@@ -70,7 +72,7 @@ export function createApp(db) {
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
   const reports = createReports(db);
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, catalog, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, catalog, cmdb, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');
