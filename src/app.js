@@ -101,7 +101,8 @@ export function createApp(db) {
   brandRoutes(app, ctx.settings);
 
   // Statische Dateien + SPA
-  app.use(express.static(config.publicDir, { index: false, maxAge: '1h' }));
+  // Immer kurz nachfragen (ETag): nach einem Update kommt sofort die neue Oberfläche, Unverändertes wird nicht neu übertragen
+  app.use(express.static(config.publicDir, { index: false, maxAge: 0, setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));
   const indexHtml = path.join(config.publicDir, 'index.html');
   app.get(/^\/(?!api\/|auth\/).*/, (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
