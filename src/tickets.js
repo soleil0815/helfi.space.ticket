@@ -171,16 +171,18 @@ export function createTickets(db, users) {
     return !!user && (row.reporter_id === user.id || isParticipant(row.id, user.id));
   }
 
+  // Genehmigende Personen (z. B. Vorgesetzte bei Katalog-Anfragen) sehen das Ticket wie ein Teilnehmer
+  const approverStmt = db.prepare('SELECT 1 FROM approvals WHERE ticket_id=? AND approver_id=?');
   function canSee(user, row) {
-    return isAgent(user) || isCustomer(user, row);
+    return isAgent(user) || isCustomer(user, row) || (!!user && !!approverStmt.get(row.id, user.id));
   }
 
   function list(user, f = {}) {
     const where = [];
     const args = [];
     if (!isAgent(user)) {
-      where.push('(t.reporter_id=? OR t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?))');
-      args.push(user.id, user.id);
+      where.push('(t.reporter_id=? OR t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?) OR t.id IN (SELECT ticket_id FROM approvals WHERE approver_id=?))');
+      args.push(user.id, user.id, user.id);
     }
     if (f.project) { where.push('(p.key=? OR p.id=?)'); args.push(String(f.project).toUpperCase(), Number(f.project) || 0); }
     else where.push('p.archived=0');

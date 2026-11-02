@@ -7,7 +7,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets, kb } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -38,8 +38,15 @@ export function createItilRoutes(ctx) {
   r.post('/tickets/:key/change/request-approval', requireRole('agent'), wrap(async (req, res) => {
     res.json({ ticket: changes.requestLate(req.user, req.params.key) });
   }));
-  r.post('/tickets/:key/approval', requireRole('agent'), wrap(async (req, res) => {
-    res.json({ ticket: changes.decide(req.user, req.params.key, str(req.body.decision, 10), req.body.comment) });
+  // Entscheidung: Change (Bearbeiter) oder Katalog-Anfrage (auch Nicht-Bearbeiter, z. B. Vorgesetzte)
+  r.post('/tickets/:key/approval', wrap(async (req, res) => {
+    const row = tickets.load(req.user, req.params.key);
+    const decision = str(req.body.decision, 10);
+    if (row.type === 'change') {
+      if (!['agent', 'admin'].includes(req.user.role)) return res.status(403).json({ error: { code: 'err.forbidden' } });
+      return res.json({ ticket: changes.decide(req.user, req.params.key, decision, req.body.comment) });
+    }
+    res.json({ ticket: catalog.decide(req.user, req.params.key, decision, req.body.comment) });
   }));
   r.get('/changes/calendar', requireRole('agent'), (req, res) => {
     const from = new Date(String(req.query.from || ''));
@@ -48,7 +55,7 @@ export function createItilRoutes(ctx) {
     res.json({ changes: changes.calendar(from.toISOString(), to.toISOString()) });
   });
   r.get('/changes/templates', requireRole('agent'), (req, res) => res.json({ templates: changes.standardTemplates() }));
-  r.get('/approvals/mine', requireRole('agent'), (req, res) => {
+  r.get('/approvals/mine', (req, res) => {
     res.json({ tickets: approvals.pendingFor(req.user.id).map((id) => tickets.ticketOut(tickets.rawById(id))) });
   });
 
@@ -64,6 +71,14 @@ export function createItilRoutes(ctx) {
   r.put('/kb/:id', requireRole('agent'), wrap(async (req, res) => res.json({ article: kb.update(req.user, req.params.id, req.body || {}) })));
   r.delete('/kb/:id', requireRole('agent'), (req, res) => { kb.remove(req.user, req.params.id); res.json({ ok: true }); });
   r.get('/tickets/:key/kb-draft', requireRole('agent'), (req, res) => res.json({ draft: kb.draftFromTicket(req.user, req.params.key) }));
+
+  // ---------- Servicekatalog ----------
+  r.get('/catalog', (req, res) => res.json({ items: catalog.list(req.user, { all: req.query.all === '1' }) }));
+  r.get('/catalog/:id', (req, res) => res.json({ item: catalog.get(req.user, req.params.id) }));
+  r.post('/catalog', requireRole('admin'), wrap(async (req, res) => res.status(201).json({ item: catalog.save(req.user, null, req.body || {}) })));
+  r.put('/catalog/:id', requireRole('admin'), wrap(async (req, res) => res.json({ item: catalog.save(req.user, req.params.id, req.body || {}) })));
+  r.delete('/catalog/:id', requireRole('admin'), (req, res) => { catalog.remove(req.user, req.params.id); res.json({ ok: true }); });
+  r.post('/catalog/:id/order', wrap(async (req, res) => res.status(201).json({ ticket: catalog.order(req.user, req.params.id, req.body?.answers || {}) })));
 
   // ---------- Major Incident ----------
   r.post('/tickets/:key/broadcast', requireRole('agent'), wrap(async (req, res) => {

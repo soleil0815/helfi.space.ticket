@@ -17,6 +17,7 @@ import { slaChip } from './sla.js';
 import { problemSection, problemHint, createProblemButton } from './problem.js';
 import { changeSection } from './change.js';
 import { kbSuggestions, kbFromTicketButton } from './kb.js';
+import { catalogApprovalBox } from './catalog.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -166,6 +167,7 @@ export async function renderTicket(content, key) {
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'approvalRequested' ? h('span.change', a.newValue) : null,
         a.action === 'kbCreated' ? h('span.change', h('a', { href: `/kb/${String(a.newValue).replace('KB-', '')}`, 'data-link': '' }, a.newValue)) : null,
         a.action === 'approval' ? h('span.change', t(`change.decision.${a.field}`), a.newValue ? ` – „${a.newValue}“` : '') : null,
         a.action === 'sla' ? h('span.change', t(`sla.kind.${a.field}`), ' ', t(`sla.state.${a.newValue}`)) : null,
@@ -375,6 +377,7 @@ export async function renderTicket(content, key) {
         titleEl(),
         agent ? majorBanner(tk, refresh) : null,
         agent ? problemHint(tk) : null,
+        catalogApprovalBox(tk, refresh),
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,

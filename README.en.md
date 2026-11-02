@@ -258,6 +258,15 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 - **From a ticket:** *Knowledge article* in a ticket creates a draft with description, last reply and, for problems, root cause and workaround. Remove personal details before publishing. The ticket history links to the article.
 - **Known errors:** tab with all problems marked as known error, including the workaround.
 
+## Service catalog
+
+Standard requests with their own form, e.g. “New employee”, “Software request” or “Access to a network drive”. Create them under *Administration → Service catalog*.
+
+- **Form:** fields of type text, multi-line, choice, check box or date, each optionally required. The answers appear neatly in the ticket description (type *Request*).
+- **Request a service** in the sidebar shows all offers as tiles to users and agents.
+- **Approval (optional):** per offer you decide who has to agree and whether one approval is enough or everybody has to agree. Approvers can be people without the agent role, such as managers; they then only see the requests they decide on. They get an email and find open decisions under **My approvals**.
+- **Result:** the decision is added to the ticket as a reply, so the reporter also gets it by email. A rejection closes the request.
+
 ## Emojis
 
 In comments, descriptions and reply templates:

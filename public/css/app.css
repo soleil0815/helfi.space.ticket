@@ -653,6 +653,21 @@ input.num { width: 100px; }
 .kb-suggest { background: var(--blue-subtle); border-radius: 4px; padding: 8px 12px; margin: -6px 0 12px; font-size: 13px; }
 .kb-suggest-head { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 4px; }
 .kb-suggest-item { display: block; padding: 2px 0 2px 22px; }
+.catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-width: 1100px; }
+.catalog-card { display: flex; gap: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 14px; color: var(--text); background: #fff; }
+.catalog-card:hover { box-shadow: var(--shadow-overlay); text-decoration: none; }
+.catalog-emoji { font-size: 28px; line-height: 1; }
+.catalog-title { font-weight: 600; font-size: 15px; }
+.catalog-desc { color: var(--text-subtle); font-size: 13px; margin-top: 2px; }
+.catalog-approval { font-size: 12px; color: #5E4DB2; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+.catalog-form { max-width: 720px; }
+.catalog-field-row { border: 1px solid var(--border); border-radius: 4px; padding: 8px; margin-bottom: 6px; }
+.catalog-field-main { display: flex; gap: 8px; align-items: center; }
+.catalog-field-main input:first-child { flex: 1; }
+.catalog-field-main select { width: 140px; }
+.catalog-field-row textarea { margin-top: 6px; }
+.inline-check { display: flex; align-items: center; gap: 4px; white-space: nowrap; font-weight: 400; }
+.inline-check input { width: auto; }
 .radio-block { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; cursor: pointer; }
 .radio-block input[type=radio] { width: auto; flex: none; margin: 3px 0 0; }
 .radio-detail { margin-left: 26px; }

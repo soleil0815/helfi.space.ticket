@@ -52,6 +52,8 @@ export function createApi(ctx) {
       setupRequired: userCount === 0,
       majorIncidents: req.user && isAgent(req.user) ? ctx.major.open() : [],
       sla: { enabled: ctx.sla.enabled() },
+      pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
+      hasCatalog: !!db.prepare('SELECT 1 FROM catalog_items WHERE active=1 LIMIT 1').get(),
       user: req.user ? publicUser(req.user) : null,
       auth: {
         ldap: settings.get('ldap.enabled'),
@@ -342,7 +344,7 @@ export function createApi(ctx) {
       if (req.query.sla === 'risk') list = list.filter((tk) => ['warning', 'breached'].includes(tk.sla?.state));
     }
     // Meine offenen Genehmigungen
-    if (req.query.approval === 'mine' && isAgent(req.user)) {
+    if (req.query.approval === 'mine') {
       const ids = new Set(ctx.approvals.pendingFor(req.user.id));
       list = list.filter((tk) => ids.has(tk.id));
     }
