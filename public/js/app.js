@@ -16,6 +16,7 @@ import { brandLogo, brandTitle } from './brand.js';
 import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
 import { renderCatalog } from './views/catalog.js';
+import { renderCmdb } from './views/cmdb.js';
 
 export const state = {
   boot: null,
@@ -127,6 +128,7 @@ export async function route() {
     if (path === '/changes' && state.isAgent) return await renderChangeCalendar(content, params);
     if (path === '/kb' || path.startsWith('/kb/')) return await renderKb(content, params, path);
     if (path === '/catalog' || path.startsWith('/catalog/')) return await renderCatalog(content, path);
+    if (state.isAgent && (path === '/cis' || path.startsWith('/cis/'))) return await renderCmdb(content, params, path);
     if (path === '/summary' && state.isAgent) return await renderSummary(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
@@ -217,6 +219,7 @@ function layout(content, path) {
       ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/changes', t('change.calendar'), 'board', path === '/changes'),
       state.boot.hasCatalog ? nav('/catalog', t('catalog.title'), 'inbox', path.startsWith('/catalog')) : null,
+      nav('/cis', t('ci.title'), 'server', path.startsWith('/cis')),
       nav('/kb', t('kb.title'), 'file', path.startsWith('/kb')),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),

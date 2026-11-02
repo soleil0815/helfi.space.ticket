@@ -653,6 +653,21 @@ input.num { width: 100px; }
 .kb-suggest { background: var(--blue-subtle); border-radius: 4px; padding: 8px 12px; margin: -6px 0 12px; font-size: 13px; }
 .kb-suggest-head { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 4px; }
 .kb-suggest-item { display: block; padding: 2px 0 2px 22px; }
+.ci-filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.ci-filters .kb-search-row { flex: 1; min-width: 240px; max-width: 420px; margin-bottom: 0; }
+.ci-filters select { height: 42px; }
+.ci-filters select { width: auto; }
+.ci-table td.mono { font-family: var(--mono, monospace); font-size: 13px; }
+.ci-detail { display: grid; grid-template-columns: minmax(280px, 1fr) 2fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .ci-detail { grid-template-columns: 1fr; } }
+.ci-props th { text-align: left; color: var(--text-subtle); font-weight: 500; padding: 4px 12px 4px 0; vertical-align: top; white-space: nowrap; }
+.ci-props td { padding: 4px 0; }
+.ci-desc { white-space: pre-wrap; margin-top: 12px; }
+.badge.ci-maintenance { background: #FFF7D6; color: #7F5F01; }
+.badge.ci-retired { background: #F1F2F4; color: #626F86; }
+.ci-form { max-width: 900px; }
+.ci-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ci-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 14px; padding: 2px 4px 2px 10px; font-size: 13px; background: #fff; }
 .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-width: 1100px; }
 .catalog-card { display: flex; gap: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 14px; color: var(--text); background: #fff; }
 .catalog-card:hover { box-shadow: var(--shadow-overlay); text-decoration: none; }

@@ -267,6 +267,16 @@ Standardanfragen mit eigenem Formular, z. B. „Neuer Mitarbeiter“, „Softwar
 - **Genehmigung (optional):** Pro Angebot legst du fest, wer zustimmen muss und ob eine Zustimmung genügt oder alle zustimmen müssen. Genehmiger dürfen auch Personen ohne Bearbeiter-Rolle sein, etwa Vorgesetzte; sie sehen dann nur die Anfragen, über die sie entscheiden. Sie bekommen eine Mail und finden offene Entscheidungen unter **Meine Genehmigungen**.
 - **Ergebnis:** Die Entscheidung kommt als Antwort ins Ticket, der Melder bekommt sie also auch per Mail. Eine Ablehnung schließt die Anfrage.
 
+## Geräte & Dienste
+
+Ein schlankes Verzeichnis der IT-Ausstattung und Dienste (CI-Verzeichnis), nur für Bearbeiter: *Geräte & Dienste* in der Seitenleiste.
+
+- **Einträge** mit Name (z. B. `PC-0001`), Art (Arbeitsplatz, Server, Netzwerk, Drucker, Telefon/Mobil, Dienst, Anwendung, Sonstiges), Status (in Betrieb, in Wartung, ausgemustert), Standort, Benutzer bzw. Verantwortlichem, IP-Adresse, Seriennummer, Hersteller, Modell und Beschreibung. Suche über alle Angaben; ausgemusterte Einträge sind standardmäßig ausgeblendet.
+- **Im Ticket** verknüpfst du betroffene Geräte und Dienste im Abschnitt *Geräte & Dienste*. Das funktioniert für alle Tickettypen, auch für Changes (betroffene Dienste) und Probleme. Eine Zahl am Eintrag zeigt, dass noch weitere offene Tickets dazu existieren.
+- **Verlauf je Eintrag:** Alle Tickets zu einem Gerät oder Dienst auf einen Blick, z. B. um wiederkehrende Störungen zu erkennen.
+- **CSV-Import** (Administratoren) aus der Inventarisierung: erste Zeile = Spaltennamen (u. a. Name/Hostname, Typ, Standort, IP-Adresse, Seriennummer, Hersteller, Modell, Benutzer, Status). Trennzeichen `;`, `,` oder Tab. Vorhandene Einträge mit gleichem Namen werden aktualisiert.
+- **Löschen** nur, solange keine Tickets verknüpft sind. Danach setzt du den Eintrag auf „ausgemustert“; der Verlauf bleibt erhalten.
+
 ## Emojis
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:

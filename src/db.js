@@ -375,6 +375,34 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 16,
+    name: 'Geräte und Dienste (CI-Verzeichnis)',
+    sql: `
+    CREATE TABLE config_items (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      kind TEXT NOT NULL DEFAULT 'device',
+      status TEXT NOT NULL DEFAULT 'active',
+      location TEXT NOT NULL DEFAULT '',
+      owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ip TEXT NOT NULL DEFAULT '',
+      serial TEXT NOT NULL DEFAULT '',
+      vendor TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE TABLE ticket_cis (
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      ci_id INTEGER NOT NULL REFERENCES config_items(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (ticket_id, ci_id)
+    );
+    CREATE INDEX idx_ticket_cis_ci ON ticket_cis(ci_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

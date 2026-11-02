@@ -267,6 +267,16 @@ Standard requests with their own form, e.g. “New employee”, “Software requ
 - **Approval (optional):** per offer you decide who has to agree and whether one approval is enough or everybody has to agree. Approvers can be people without the agent role, such as managers; they then only see the requests they decide on. They get an email and find open decisions under **My approvals**.
 - **Result:** the decision is added to the ticket as a reply, so the reporter also gets it by email. A rejection closes the request.
 
+## Devices & services
+
+A lean register of IT equipment and services (CI register), for agents only: *Devices & services* in the sidebar.
+
+- **Entries** with name (e.g. `PC-0001`), kind (workstation, server, network, printer, phone/mobile, service, application, other), status (in operation, in maintenance, retired), location, user or owner, IP address, serial number, vendor, model and description. Search covers all details; retired entries are hidden by default.
+- **In a ticket** you link affected devices and services in the *Devices & services* section. This works for all ticket types, including changes (affected services) and problems. A number on the entry shows that more open tickets exist for it.
+- **History per entry:** all tickets for a device or service at a glance, e.g. to spot recurring faults.
+- **CSV import** (administrators) from your inventory tool: first line = column names (including name/hostname, type, location, IP address, serial number, vendor, model, user, status). Separator `;`, `,` or tab. Existing entries with the same name are updated.
+- **Deleting** is only possible while no tickets are linked. After that, set the entry to “retired”; the history is kept.
+
 ## Emojis
 
 In comments, descriptions and reply templates:
