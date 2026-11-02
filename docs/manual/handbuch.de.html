@@ -15,7 +15,8 @@
   <div class="audience">
     <div><strong>Benutzer</strong>Probleme melden, Anfragen verfolgen, antworten – Kapitel 2</div>
     <div><strong>Bearbeiter</strong>Tickets bearbeiten, Vorlagen, Berichte, Tastenkürzel – Kapitel 3</div>
-    <div><strong>Administratoren</strong>Installation, AD, SSO, 2FA, E-Mail, Updates, Sicherung – Kapitel 4 und 5</div>
+    <div><strong>IT-Service-Management</strong>Störungen, SLA, Probleme, Changes, Wissen, Servicekatalog, Geräte, Zufriedenheit – Kapitel 4</div>
+    <div><strong>Administratoren</strong>Installation, AD, SSO, 2FA, E-Mail, Updates, Sicherung – Kapitel 5 und 6</div>
   </div>
   <div class="meta">Version {{VERSION}} · Stand {{DATE}}<br>Alle Namen, Adressen und Rechner in diesem Handbuch sind Beispiele.</div>
 </section>
@@ -26,9 +27,11 @@
     <li><a href="#ueberblick">Überblick</a>
       <ol><li><a href="#rollen">Rollen</a></li><li><a href="#begriffe">Status, Typen und Prioritäten</a></li><li><a href="#oberflaeche">Aufbau der Oberfläche</a></li></ol></li>
     <li><a href="#benutzer">Für alle: Anmelden und Anfragen stellen</a>
-      <ol><li><a href="#anmelden">Anmelden</a></li><li><a href="#melden">Ein Problem melden</a></li><li><a href="#anfragen">Meine Anfragen</a></li><li><a href="#antworten">Antworten und Dateien</a></li><li><a href="#teilnehmer">Anfrage-Teilnehmer</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profil">Profil, Sprache und Kennwort</a></li><li><a href="#2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</a></li></ol></li>
+      <ol><li><a href="#anmelden">Anmelden</a></li><li><a href="#melden">Ein Problem melden</a></li><li><a href="#anfragen">Meine Anfragen</a></li><li><a href="#antworten">Antworten und Dateien</a></li><li><a href="#teilnehmer">Anfrage-Teilnehmer</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profil">Profil, Sprache und Kennwort</a></li><li><a href="#2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</a></li><li><a href="#katalog">Service anfordern</a></li><li><a href="#genehmigen">Genehmigen</a></li><li><a href="#hilfe-wissen">Hilfe &amp; Wissen</a></li><li><a href="#bewerten">Bewerten</a></li></ol></li>
     <li><a href="#bearbeiter">Für Bearbeiter</a>
       <ol><li><a href="#warteschlangen">Warteschlangen und Zusammenfassung</a></li><li><a href="#board">Board</a></li><li><a href="#liste">Ticketliste und Filter</a></li><li><a href="#ticket">Ein Ticket bearbeiten</a></li><li><a href="#notizen">Antworten und interne Notizen</a></li><li><a href="#html-mails">HTML-Mails</a></li><li><a href="#vorlagen">Antwortvorlagen</a></li><li><a href="#mehrfach">Mehrere Tickets auf einmal</a></li><li><a href="#berichte">Berichte</a></li><li><a href="#kuerzel">Tastenkürzel</a></li><li><a href="#nie-loeschen">Tickets werden nie gelöscht</a></li></ol></li>
+    <li><a href="#itil">IT-Service-Management (ITIL)</a>
+      <ol><li><a href="#verknuepfungen">Verknüpfungen und Unteraufgaben</a></li><li><a href="#major">Auswirkung, Dringlichkeit und Major Incident</a></li><li><a href="#sla">Service Level (SLA)</a></li><li><a href="#probleme">Probleme und bekannte Fehler</a></li><li><a href="#changes">Change-Management</a></li><li><a href="#wissen">Wissensdatenbank</a></li><li><a href="#servicekatalog">Servicekatalog einrichten</a></li><li><a href="#geraete">Geräte &amp; Dienste</a></li><li><a href="#zufriedenheit">Zufriedenheitsumfrage</a></li><li><a href="#kennzahlen">ITIL-Kennzahlen</a></li></ol></li>
     <li><a href="#admin">Für Administratoren: Einrichtung</a>
       <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS und Reverse-Proxy</a></li><li><a href="#ersteinrichtung">Ersteinrichtung</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single Sign-on</a></li><li><a href="#2fa">Zwei-Faktor-Anmeldung und Netze</a></li><li><a href="#email">E-Mail</a></li><li><a href="#projekte">Projekte</a></li><li><a href="#benutzerverwaltung">Benutzer</a></li><li><a href="#design">Erscheinungsbild</a></li><li><a href="#anmeldeseite">Anmeldeseite</a></li><li><a href="#import">Import aus einem anderen Ticketsystem</a></li></ol></li>
     <li><a href="#betrieb">Für Administratoren: Betrieb</a>
@@ -50,7 +53,7 @@
   <tr><td><strong>Bearbeiter</strong></td><td>Alle Tickets sehen und bearbeiten: Status, Zuweisung, Priorität, Typ, Stichwörter, interne Notizen, Antwortvorlagen, Mehrfachauswahl, Berichte.</td></tr>
   <tr><td><strong>Administrator</strong></td><td>Alles, was Bearbeiter dürfen, und zusätzlich die <em>Administration</em>: Projekte, Benutzer, AD, SSO, Sicherheit, E-Mail, Erscheinungsbild, Import, System.</td></tr>
 </table>
-<p>Mit Active Directory ergibt sich die Rolle bei jeder Anmeldung aus den AD-Gruppen (Kapitel <a href="#ad">4.4</a>). Bei der Ersteinrichtung entsteht außerdem ein <strong>lokaler Administrator</strong>, der auch funktioniert, wenn das AD nicht erreichbar ist.</p>
+<p>Mit Active Directory ergibt sich die Rolle bei jeder Anmeldung aus den AD-Gruppen (Kapitel <a href="#ad">5.4</a>). Bei der Ersteinrichtung entsteht außerdem ein <strong>lokaler Administrator</strong>, der auch funktioniert, wenn das AD nicht erreichbar ist.</p>
 
 <h2 id="begriffe">Status, Typen und Prioritäten</h2>
 <table>
@@ -60,14 +63,14 @@
   <tr><td>Wartet</td><td>Es wird auf eine Antwort des Melders gewartet. Antwortet er, öffnet sich das Ticket wieder.</td></tr>
   <tr><td>Erledigt</td><td>Abgeschlossen. Der Melder bekommt eine Mail. Antwortet er darauf, öffnet sich das Ticket wieder.</td></tr>
 </table>
-<p><strong>Typen:</strong> Störung (etwas funktioniert nicht), Anfrage (etwas wird gebraucht), Aufgabe (interne Arbeit), Frage. <strong>Prioritäten:</strong> Sehr hoch, Hoch, Mittel, Niedrig.</p>
+<p><strong>Typen:</strong> Störung (etwas funktioniert nicht), Anfrage (etwas wird gebraucht), Aufgabe (interne Arbeit), Frage; für Bearbeiter zusätzlich Problem (gemeinsame Ursache mehrerer Störungen) und Change (geplante Änderung), siehe Kapitel <a href="#itil">4</a>. <strong>Prioritäten:</strong> Sehr hoch, Hoch, Mittel, Niedrig.</p>
 <p>Jedes Ticket hat eine <strong>Nummer</strong> aus Projektschlüssel und laufender Zahl, z. B. <code>IT-42</code>. Sie steht auch im Betreff aller Mails, z. B. <code>[IT-42]</code>.</p>
 
 <h2 id="oberflaeche">Aufbau der Oberfläche</h2>
 <ul>
   <li><strong>Kopfzeile:</strong> Logo, <em>Meine Arbeit</em>, <em>Alle Tickets</em>, der Knopf <strong>Erstellen</strong>, die Suche (Ticketnummer oder Stichwort) und rechts das Benutzermenü mit Profil, Sprache (Deutsch/English) und Abmelden.</li>
-  <li><strong>Seitenleiste (Bearbeiter):</strong> das aktuelle Projekt, Zusammenfassung, Warteschlangen mit Live-Zahlen, Board, Serviceanfragen, Vorfälle, Berichte, Antwortvorlagen und für Admins die Einstellungen.</li>
-  <li><strong>Seitenleiste (Benutzer):</strong> nur <em>Meine Anfragen</em>.</li>
+  <li><strong>Seitenleiste (Bearbeiter):</strong> das aktuelle Projekt, Zusammenfassung, Warteschlangen mit Live-Zahlen, Board, Serviceanfragen, Vorfälle, Probleme, Changes, Meine Genehmigungen, Change-Kalender, Servicekatalog, Geräte &amp; Dienste, Wissen, Berichte, Antwortvorlagen und für Admins die Einstellungen.</li>
+  <li><strong>Seitenleiste (Benutzer):</strong> <em>Meine Anfragen</em>, je nach Einrichtung <em>Service anfordern</em> und <em>Meine Genehmigungen</em>, sowie <em>Hilfe &amp; Wissen</em>.</li>
 </ul>
 <div class="tip"><p>Die Oberfläche gibt es auf Deutsch und Englisch. Ohne eigene Wahl richtet sie sich nach der Sprache des Browsers.</p></div>
 
@@ -132,6 +135,24 @@
   <li>Die <strong>10 Wiederherstellungscodes</strong> sicher aufbewahren (ausdrucken oder im Passwortmanager). Jeder gilt genau einmal, falls das Handy nicht zur Hand ist.</li>
 </ol>
 <div class="note"><p>Die Ersteinrichtung geht aus Sicherheitsgründen normalerweise nur im <strong>Firmennetz</strong>. So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. <strong>Handy verloren?</strong> Mit einem Wiederherstellungscode anmelden oder die IT bitten, die 2FA zurückzusetzen.</p></div>
+
+<h2 id="katalog">Service anfordern</h2>
+<p>Für häufige Wünsche gibt es fertige Formulare, z. B. „Neuer Mitarbeiter“ oder „Software-Wunsch“: <em>Service anfordern</em> in der Seitenleiste. Ein Klick auf eine Kachel öffnet das Formular; Pflichtfelder sind mit * markiert. Nach dem Absenden landest du im neuen Ticket.</p>
+<figure><img src="img/de/itil-catalog.jpg" alt=""><figcaption>Servicekatalog aus Sicht eines Benutzers</figcaption></figure>
+<figure><img src="img/de/itil-catalog-form.jpg" alt=""><figcaption>Formular „Neuer Mitarbeiter“ – diese Anfrage muss genehmigt werden</figcaption></figure>
+<p>Steht bei einem Angebot „mit Genehmigung“, muss erst jemand zustimmen, z. B. deine Vorgesetzte. Den Stand siehst du oben im Ticket.</p>
+
+<h2 id="genehmigen">Genehmigen</h2>
+<p>Wer als Genehmiger eingetragen ist, bekommt eine Mail und sieht in der Seitenleiste <em>Meine Genehmigungen</em>. Im Ticket genügt ein Klick auf <strong>Genehmigen</strong> oder <strong>Ablehnen</strong>, auf Wunsch mit Kommentar. Die Entscheidung geht als Antwort an den Melder; eine Ablehnung schließt die Anfrage. Genehmiger ohne Bearbeiter-Rolle sehen nur die Anfragen, über die sie entscheiden.</p>
+<figure><img src="img/de/itil-catalog-approval.jpg" alt=""><figcaption>Genehmigung im Ticket aus Sicht der Vorgesetzten</figcaption></figure>
+
+<h2 id="hilfe-wissen">Hilfe &amp; Wissen</h2>
+<p>Unter <em>Hilfe &amp; Wissen</em> findest du Anleitungen der IT, z. B. „VPN im Homeoffice einrichten“. Schon beim Melden schlägt Helfi.Space passende Artikel vor („Vielleicht hilft das schon“), sobald du die Zusammenfassung tippst. Ein Klick öffnet den Artikel, ohne dass deine Meldung verloren geht.</p>
+<figure><img src="img/de/itil-kb-suggest.jpg" alt=""><figcaption>Vorschlag aus der Wissensdatenbank beim Melden</figcaption></figure>
+
+<h2 id="bewerten">Bewerten</h2>
+<p>Ist dein Ticket erledigt, bittet dich die IT eventuell um eine kurze Bewertung. In der „Erledigt“-Mail stehen fünf Links von „sehr zufrieden“ bis „sehr unzufrieden“: Ein Klick genügt, eine Anmeldung ist nicht nötig. Auf der Seite kannst du die Sterne noch ändern und freiwillig einen Kommentar schreiben. Angemeldet geht das auch direkt im Ticket.</p>
+<figure class="medium"><img src="img/de/itil-rating.jpg" alt=""><figcaption>Bewertungsseite nach einem Klick in der Mail</figcaption></figure>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="bearbeiter">Für Bearbeiter <span class="role role-agent">Bearbeiter</span></h1>
@@ -216,7 +237,74 @@
 </table>
 
 <h2 id="nie-loeschen">Tickets werden nie gelöscht</h2>
-<p>Tickets sind Nachweise: Wer hat wann was gemeldet, was wurde getan? Deshalb lassen sie sich <strong>nicht löschen</strong>, auch nicht von Administratoren. Erledigtes wird auf „Erledigt“ gesetzt. Gegen Spam hilft eine Absender-Regel „Ignorieren“ (<a href="#email">4.7</a>) – dann entsteht gar nicht erst ein Ticket.</p>
+<p>Tickets sind Nachweise: Wer hat wann was gemeldet, was wurde getan? Deshalb lassen sie sich <strong>nicht löschen</strong>, auch nicht von Administratoren. Erledigtes wird auf „Erledigt“ gesetzt. Gegen Spam hilft eine Absender-Regel „Ignorieren“ (<a href="#email">5.7</a>) – dann entsteht gar nicht erst ein Ticket.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="itil">IT-Service-Management (ITIL) <span class="role role-agent">Bearbeiter</span></h1>
+<p>Helfi.Space bildet die wichtigsten ITIL-Prozesse ab, ohne dass man sie alle nutzen muss: Störungen und Major Incidents, Service Level, Probleme, Changes, Wissen, Servicekatalog, Geräte und Dienste sowie Zufriedenheit. Was nicht eingeschaltet oder eingerichtet ist, bleibt unsichtbar.</p>
+
+<h2 id="verknuepfungen">Verknüpfungen und Unteraufgaben</h2>
+<p>Im Abschnitt <em>Verknüpfungen</em> eines Tickets verbindest du Tickets miteinander: „bezieht sich auf“, „ist Duplikat von“ (auf Wunsch wird das Duplikat gleich erledigt), „blockiert“, „verursacht“ und „ist Unteraufgabe von“. <strong>Unteraufgabe</strong> legt direkt eine Aufgabe mit Bearbeiter an; ein Balken zeigt, wie viele schon erledigt sind.</p>
+<figure><img src="img/de/itil-links.jpg" alt=""><figcaption>Unteraufgaben mit Fortschritt und verursachte Störungen</figcaption></figure>
+
+<h2 id="major">Auswirkung, Dringlichkeit und Major Incident</h2>
+<p>In den Details setzt du <strong>Auswirkung</strong> (wie viele sind betroffen?) und <strong>Dringlichkeit</strong> (wie schnell muss es gehen?). Sind beide gesetzt, ergibt sich die Priorität aus der ITIL-Matrix, z. B. hoch/hoch = Sehr hoch.</p>
+<p>Eine schwere Störung mit vielen Betroffenen markierst du als <strong>Major Incident</strong>. Dann erscheint für alle Bearbeiter oben ein roter Balken. Einzelne Meldungen verknüpfst du mit „verursacht“. <strong>Info an alle Betroffenen</strong> schickt eine Nachricht an die Melder aller verknüpften Tickets; mit „lösen“ werden sie zusammen erledigt.</p>
+<figure><img src="img/de/itil-major.jpg" alt=""><figcaption>Major Incident mit Unteraufgaben, betroffenen Tickets und Gerät</figcaption></figure>
+
+<h2 id="sla">Service Level (SLA)</h2>
+<p>Sind SLAs eingeschaltet, hat jedes Ticket von Benutzern zwei Uhren: <strong>erste Reaktion</strong> (bis zur ersten öffentlichen Antwort der IT) und <strong>Lösung</strong>. Beide laufen nur in der Geschäftszeit; Feiertage und auf Wunsch der Status „Wartet“ halten sie an. Bei 80 % der Zeit wird das Ticket gelb und der Bearbeiter (sonst die Projektleitung) bekommt eine Mail, bei Überschreitung wird es rot. Die Warteschlange <em>SLA gefährdet</em> zeigt alle Tickets, die knapp werden.</p>
+<figure><img src="img/de/itil-sla-list.jpg" alt=""><figcaption>Warteschlange „SLA gefährdet“ mit Restzeit</figcaption></figure>
+<p><span class="role role-admin">Admin</span> Ziele je Priorität, Geschäftszeit, Feiertage und Warnschwelle unter <em>Administration → Service Level</em>. Standard: aus.</p>
+<figure><img src="img/de/admin-sla.jpg" alt=""><figcaption>Administration → Service Level</figcaption></figure>
+
+<h2 id="probleme">Probleme und bekannte Fehler</h2>
+<p>Häufen sich gleiche Störungen, steckt meist eine gemeinsame Ursache dahinter. <strong>Problem anlegen</strong> im Ticket erzeugt ein Problem und verknüpft die Störung. Weitere Störungen hängst du mit „verursacht“ an. Im Problem hältst du <strong>Ursache</strong> und <strong>Workaround</strong> fest. Als <strong>bekannter Fehler</strong> markiert, sehen Bearbeiter den Workaround in allen verknüpften Störungen und übernehmen ihn mit einem Klick als Antwort. Der Reiter <em>Bekannte Fehler</em> unter <em>Wissen</em> listet alle.</p>
+<figure><img src="img/de/itil-problem.jpg" alt=""><figcaption>Problem mit Ursache, Workaround und „bekannter Fehler“</figcaption></figure>
+
+<h2 id="changes">Change-Management</h2>
+<p>Geplante Änderungen an der IT (Firewall-Regel, Update, Umzug) laufen als Ticket vom Typ <strong>Change</strong>. Es gibt drei Arten:</p>
+<ul>
+  <li><strong>Normal:</strong> braucht eine Genehmigung.</li>
+  <li><strong>Standard:</strong> vorab genehmigte Routine nach einer Vorlage.</li>
+  <li><strong>Notfall:</strong> sofort umsetzen, Genehmigung nachträglich.</li>
+</ul>
+<p>Der Abschnitt <em>Change</em> führt durch die Phasen Entwurf → Zur Genehmigung → Genehmigt → Geplant → In Umsetzung → Überprüfung → Abgeschlossen. Fehlende Angaben (Grund, Zeitfenster, Umsetzungs- und Rückfallplan) nennt Helfi.Space beim jeweiligen Schritt. Genehmiger entscheiden im Ticket oder unter <em>Meine Genehmigungen</em>. Beim Abschluss wählst du das Ergebnis; bei „Mit Problemen“ und „Zurückgerollt“ ist eine Nachbetrachtung Pflicht.</p>
+<figure><img src="img/de/itil-change.jpg" alt=""><figcaption>Change mit Phasen, Genehmigung und Planung</figcaption></figure>
+<p>Der <strong>Change-Kalender</strong> zeigt alle geplanten Changes im Monat; zeitliche Überschneidungen sind rot markiert.</p>
+<figure><img src="img/de/itil-change-calendar.jpg" alt=""><figcaption>Change-Kalender mit Überschneidung</figcaption></figure>
+<p><span class="role role-admin">Admin</span> Genehmiger, Regel („eine Zustimmung genügt“ oder „alle müssen zustimmen“) und Vorlagen für Standard-Changes unter <em>Administration → Change</em>.</p>
+<figure><img src="img/de/admin-change.jpg" alt=""><figcaption>Administration → Change</figcaption></figure>
+
+<h2 id="wissen">Wissensdatenbank</h2>
+<p><em>Wissen</em> sammelt Anleitungen und Lösungen. Artikel sind <strong>intern</strong> (nur Bearbeiter) oder <strong>öffentlich</strong> (alle Angemeldeten, auch als Vorschlag beim Melden). Die Suche gewichtet Treffer im Titel höher. Aus einem gelösten Ticket legt <strong>Wissensartikel</strong> oben im Ticket einen Entwurf an; vor dem Veröffentlichen persönliche Angaben entfernen.</p>
+<figure><img src="img/de/itil-kb.jpg" alt=""><figcaption>Wissensdatenbank mit Kategorien</figcaption></figure>
+
+<h2 id="servicekatalog">Servicekatalog einrichten <span class="role role-admin">Admin</span></h2>
+<p>Unter <em>Administration → Servicekatalog</em> legst du Angebote an: Bezeichnung, Emoji, Beschreibung, Projekt und Formularfelder (Text, mehrzeilig, Auswahl, Häkchen, Datum; jeweils optional Pflicht). Optional wählst du Genehmiger, auch ohne Bearbeiter-Rolle, und ob eine oder alle Zustimmungen nötig sind. Anfragen werden Tickets vom Typ <em>Anfrage</em>; die Antworten stehen in der Beschreibung. Wie Benutzer den Katalog sehen, steht in <a href="#katalog">2.9</a>.</p>
+<figure><img src="img/de/admin-catalog.jpg" alt=""><figcaption>Administration → Servicekatalog</figcaption></figure>
+
+<h2 id="geraete">Geräte &amp; Dienste</h2>
+<p>Ein schlankes Verzeichnis der IT-Ausstattung und Dienste (CI-Verzeichnis). Jeder Eintrag hat Art, Status (in Betrieb, in Wartung, ausgemustert), Standort, Benutzer, IP-Adresse, Seriennummer, Hersteller und Modell. Im Ticket verknüpfst du betroffene Geräte und Dienste im Abschnitt <em>Geräte &amp; Dienste</em>. Bei Changes sind das die betroffenen Dienste. Die Detailseite eines Eintrags zeigt alle Tickets dazu, so fallen wiederkehrende Störungen auf.</p>
+<figure><img src="img/de/itil-cis.jpg" alt=""><figcaption>Geräte &amp; Dienste mit offenen Tickets je Eintrag</figcaption></figure>
+<figure><img src="img/de/itil-ci.jpg" alt=""><figcaption>Ein Gerät mit seiner Ticket-Geschichte</figcaption></figure>
+<p><span class="role role-admin">Admin</span> <strong>CSV-Import</strong> aus der Inventarisierung: Die erste Zeile enthält die Spaltennamen (Name/Hostname, Typ, Standort, IP-Adresse, Seriennummer, Hersteller, Modell, Benutzer, Status – deutsch oder englisch). Werte wie „Notebook“ oder „Switch“ werden der passenden Art zugeordnet. Vorhandene Namen werden aktualisiert. Gelöscht werden kann ein Eintrag nur, solange keine Tickets verknüpft sind; sonst „ausgemustert“ setzen.</p>
+
+<h2 id="zufriedenheit">Zufriedenheitsumfrage <span class="role role-admin">Admin</span></h2>
+<p>Einschalten unter <em>Administration → E-Mail → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Melder die Bewertungslinks (<a href="#bewerten">2.12</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
+<figure class="medium"><img src="img/de/admin-mail-survey.jpg" alt=""><figcaption>Administration → E-Mail mit der Zufriedenheitsumfrage</figcaption></figure>
+
+<h2 id="kennzahlen">ITIL-Kennzahlen</h2>
+<p>Unter <em>Berichte</em> folgen auf die Bearbeiter-Statistik (<a href="#berichte">3.9</a>) weitere Kennzahlen für denselben Zeitraum:</p>
+<ul>
+  <li><strong>Servicequalität:</strong> erledigte Anfragen und Störungen, beim ersten Kontakt gelöst (höchstens eine Antwort, keine Rückfrage, nie wieder geöffnet), Quote der Wiedereröffnungen, Major Incidents.</li>
+  <li><strong>SLA-Einhaltung</strong> für Reaktion und Lösung, gesamt und je Priorität.</li>
+  <li><strong>Changes</strong> je Monat: Arten, abgelehnte, Ergebnisse, Erfolgsquote und Anteil der Notfall-Changes.</li>
+  <li><strong>Probleme:</strong> neu, gelöst, offen, bekannte Fehler.</li>
+  <li><strong>Zufriedenheit:</strong> Durchschnitt, Rücklaufquote, Verteilung der Sterne, Werte je Bearbeiter und die neuesten Kommentare.</li>
+</ul>
+<figure><img src="img/de/itil-reports.jpg" alt=""><figcaption>ITIL-Kennzahlen im Bericht</figcaption></figure>
+<figure><img src="img/de/itil-reports-survey.jpg" alt=""><figcaption>Zufriedenheit im Bericht</figcaption></figure>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="admin">Für Administratoren: Einrichtung <span class="role role-admin">Admin</span></h1>

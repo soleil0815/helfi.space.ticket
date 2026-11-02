@@ -15,7 +15,8 @@
   <div class="audience">
     <div><strong>Users</strong>Report problems, follow requests, reply – chapter 2</div>
     <div><strong>Agents</strong>Work on tickets, templates, reports, keyboard shortcuts – chapter 3</div>
-    <div><strong>Administrators</strong>Installation, AD, SSO, 2FA, email, updates, backup – chapters 4 and 5</div>
+    <div><strong>IT service management</strong>Incidents, SLA, problems, changes, knowledge, service catalog, devices, satisfaction – chapter 4</div>
+    <div><strong>Administrators</strong>Installation, AD, SSO, 2FA, email, updates, backup – chapters 5 and 6</div>
   </div>
   <div class="meta">Version {{VERSION}} · {{DATE}}<br>All names, addresses and computers in this manual are examples.</div>
 </section>
@@ -26,9 +27,11 @@
     <li><a href="#overview">Overview</a>
       <ol><li><a href="#roles">Roles</a></li><li><a href="#terms">Statuses, types and priorities</a></li><li><a href="#layout">The interface</a></li></ol></li>
     <li><a href="#users">For everyone: signing in and making requests</a>
-      <ol><li><a href="#signin">Signing in</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li></ol></li>
+      <ol><li><a href="#signin">Signing in</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li><li><a href="#catalog">Requesting a service</a></li><li><a href="#approving">Approving</a></li><li><a href="#help-knowledge">Help &amp; knowledge</a></li><li><a href="#rating">Rating</a></li></ol></li>
     <li><a href="#agents">For agents</a>
       <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
+    <li><a href="#itil">IT service management (ITIL)</a>
+      <ol><li><a href="#links">Links and subtasks</a></li><li><a href="#major">Impact, urgency and major incident</a></li><li><a href="#sla">Service levels (SLA)</a></li><li><a href="#problems">Problems and known errors</a></li><li><a href="#changes">Change management</a></li><li><a href="#knowledge">Knowledge base</a></li><li><a href="#servicecatalog">Setting up the service catalog</a></li><li><a href="#devices">Devices &amp; services</a></li><li><a href="#satisfaction">Satisfaction survey</a></li><li><a href="#kpis">ITIL key figures</a></li></ol></li>
     <li><a href="#admin">For administrators: setup</a>
       <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS and reverse proxy</a></li><li><a href="#initial">Initial setup</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single sign-on</a></li><li><a href="#2fa">Two-factor authentication and networks</a></li><li><a href="#email">Email</a></li><li><a href="#projects">Projects</a></li><li><a href="#usermgmt">Users</a></li><li><a href="#design">Appearance</a></li><li><a href="#signinpage">Sign-in page</a></li><li><a href="#import">Import from another ticket system</a></li></ol></li>
     <li><a href="#operation">For administrators: operation</a>
@@ -50,7 +53,7 @@
   <tr><td><strong>Agent</strong></td><td>See and work on all tickets: status, assignee, priority, type, labels, internal notes, reply templates, bulk actions, reports.</td></tr>
   <tr><td><strong>Administrator</strong></td><td>Everything agents may do, plus <em>Administration</em>: projects, users, AD, SSO, security, email, appearance, import, system.</td></tr>
 </table>
-<p>With Active Directory the role is derived from the AD groups at every sign-in (chapter <a href="#ad">4.4</a>). The initial setup also creates a <strong>local administrator</strong> that keeps working when AD is unreachable.</p>
+<p>With Active Directory the role is derived from the AD groups at every sign-in (chapter <a href="#ad">5.4</a>). The initial setup also creates a <strong>local administrator</strong> that keeps working when AD is unreachable.</p>
 
 <h2 id="terms">Statuses, types and priorities</h2>
 <table>
@@ -60,14 +63,14 @@
   <tr><td>Waiting</td><td>Waiting for the reporter. If they reply, the ticket reopens.</td></tr>
   <tr><td>Done</td><td>Finished. The reporter gets an email. If they reply to it, the ticket reopens.</td></tr>
 </table>
-<p><strong>Types:</strong> Incident (something is broken), Request (something is needed), Task (internal work), Question. <strong>Priorities:</strong> Highest, High, Medium, Low.</p>
+<p><strong>Types:</strong> Incident (something is broken), Request (something is needed), Task (internal work), Question; for agents also Problem (common cause of several incidents) and Change (planned change), see chapter <a href="#itil">4</a>. <strong>Priorities:</strong> Highest, High, Medium, Low.</p>
 <p>Every ticket has a <strong>key</strong> made of the project key and a running number, e.g. <code>IT-42</code>. It also appears in the subject of all emails, e.g. <code>[IT-42]</code>.</p>
 
 <h2 id="layout">The interface</h2>
 <ul>
   <li><strong>Header:</strong> logo, <em>My work</em>, <em>All tickets</em>, the <strong>Create</strong> button, search (ticket key or keyword) and, on the right, the user menu with profile, language (Deutsch/English) and sign-out.</li>
-  <li><strong>Sidebar (agents):</strong> current project, summary, queues with live counts, board, service requests, incidents, reports, reply templates and, for admins, settings.</li>
-  <li><strong>Sidebar (users):</strong> only <em>My requests</em>.</li>
+  <li><strong>Sidebar (agents):</strong> current project, summary, queues with live counts, board, service requests, incidents, problems, changes, my approvals, change calendar, service catalog, devices &amp; services, knowledge, reports, reply templates and, for admins, settings.</li>
+  <li><strong>Sidebar (users):</strong> <em>My requests</em>, depending on the setup <em>Request a service</em> and <em>My approvals</em>, and <em>Help &amp; knowledge</em>.</li>
 </ul>
 <div class="tip"><p>The interface is available in German and English. Without a choice of your own it follows the browser language.</p></div>
 
@@ -132,6 +135,24 @@
   <li>Keep the <strong>10 recovery codes</strong> safe (print them or store them in a password manager). Each works exactly once if your phone is not at hand.</li>
 </ol>
 <div class="note"><p>For security reasons, first-time setup normally only works <strong>inside the company network</strong>. This way nobody with a stolen password can register their own second factor from outside. <strong>Lost your phone?</strong> Sign in with a recovery code or ask IT to reset your 2FA.</p></div>
+
+<h2 id="catalog">Requesting a service</h2>
+<p>For frequent requests there are ready-made forms, e.g. “New employee” or “Software request”: <em>Request a service</em> in the sidebar. Clicking a tile opens the form; required fields are marked with *. After sending you land in the new ticket.</p>
+<figure><img src="img/en/itil-catalog.jpg" alt=""><figcaption>Service catalog as a user sees it</figcaption></figure>
+<figure><img src="img/en/itil-catalog-form.jpg" alt=""><figcaption>Form “New employee” – this request needs approval</figcaption></figure>
+<p>If an offer says “requires approval”, someone has to agree first, e.g. your manager. You can see the status at the top of the ticket.</p>
+
+<h2 id="approving">Approving</h2>
+<p>Approvers get an email and see <em>My approvals</em> in the sidebar. In the ticket one click on <strong>Approve</strong> or <strong>Reject</strong> is enough, optionally with a comment. The decision is sent to the reporter as a reply; a rejection closes the request. Approvers without the agent role only see the requests they decide on.</p>
+<figure><img src="img/en/itil-catalog-approval.jpg" alt=""><figcaption>Approval in the ticket as the manager sees it</figcaption></figure>
+
+<h2 id="help-knowledge">Help &amp; knowledge</h2>
+<p>Under <em>Help &amp; knowledge</em> you find guides from IT, e.g. “Set up VPN when working from home”. While you report a problem, Helfi.Space already suggests matching articles (“Maybe this helps already”) as soon as you type the summary. A click opens the article without losing your report.</p>
+<figure><img src="img/en/itil-kb-suggest.jpg" alt=""><figcaption>Knowledge suggestion while reporting</figcaption></figure>
+
+<h2 id="rating">Rating</h2>
+<p>When your ticket is done, IT may ask you for a short rating. The “Resolved” email contains five links from “very satisfied” to “very dissatisfied”: one click is enough, no sign-in needed. On the page you can still change the stars and optionally write a comment. When signed in, you can also rate directly in the ticket.</p>
+<figure class="medium"><img src="img/en/itil-rating.jpg" alt=""><figcaption>Rating page after one click in the email</figcaption></figure>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="agents">For agents <span class="role role-agent">agents</span></h1>
@@ -216,7 +237,74 @@
 </table>
 
 <h2 id="never-delete">Tickets are never deleted</h2>
-<p>Tickets are records: who reported what and when, and what was done? That is why they <strong>cannot be deleted</strong>, not even by administrators. Finished work is set to “Done”. Against spam, use a sender rule “Ignore” (<a href="#email">4.7</a>) – then no ticket is created in the first place.</p>
+<p>Tickets are records: who reported what and when, and what was done? That is why they <strong>cannot be deleted</strong>, not even by administrators. Finished work is set to “Done”. Against spam, use a sender rule “Ignore” (<a href="#email">5.7</a>) – then no ticket is created in the first place.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="itil">IT service management (ITIL) <span class="role role-agent">agents</span></h1>
+<p>Helfi.Space covers the most important ITIL processes without forcing you to use all of them: incidents and major incidents, service levels, problems, changes, knowledge, service catalog, devices and services, and satisfaction. Whatever is not switched on or set up stays invisible.</p>
+
+<h2 id="links">Links and subtasks</h2>
+<p>In the <em>Links</em> section of a ticket you connect tickets: “relates to”, “duplicates” (optionally resolving the duplicate right away), “blocks”, “causes” and “is subtask of”. <strong>Subtask</strong> directly creates a task with an assignee; a bar shows how many are done.</p>
+<figure><img src="img/en/itil-links.jpg" alt=""><figcaption>Subtasks with progress and caused incidents</figcaption></figure>
+
+<h2 id="major">Impact, urgency and major incident</h2>
+<p>In the details you set <strong>impact</strong> (how many are affected?) and <strong>urgency</strong> (how fast must it be fixed?). When both are set, the priority follows the ITIL matrix, e.g. high/high = Highest.</p>
+<p>Mark a severe incident affecting many people as a <strong>major incident</strong>. All agents then see a red bar at the top. Link individual reports with “causes”. <strong>Inform everyone affected</strong> sends a message to the reporters of all linked tickets; with “resolve” they are resolved together.</p>
+<figure><img src="img/en/itil-major.jpg" alt=""><figcaption>Major incident with subtasks, affected tickets and device</figcaption></figure>
+
+<h2 id="sla">Service levels (SLA)</h2>
+<p>With SLAs switched on, every ticket from users has two clocks: <strong>first response</strong> (until IT’s first public reply) and <strong>resolution</strong>. Both only run during business hours; holidays and, optionally, the status “Waiting” pause them. At 80 % of the time the ticket turns yellow and the assignee (otherwise the project lead) gets an email; when the target is exceeded it turns red. The queue <em>SLA at risk</em> shows all tickets running short.</p>
+<figure><img src="img/en/itil-sla-list.jpg" alt=""><figcaption>Queue “SLA at risk” with remaining time</figcaption></figure>
+<p><span class="role role-admin">admin</span> Targets per priority, business hours, holidays and warning threshold under <em>Administration → Service level</em>. Default: off.</p>
+<figure><img src="img/en/admin-sla.jpg" alt=""><figcaption>Administration → Service level</figcaption></figure>
+
+<h2 id="problems">Problems and known errors</h2>
+<p>When the same incidents pile up, there is usually a common cause. <strong>Create problem</strong> in the ticket creates a problem and links the incident. Attach further incidents with “causes”. In the problem you record the <strong>root cause</strong> and <strong>workaround</strong>. Marked as a <strong>known error</strong>, agents see the workaround in all linked incidents and can send it as a reply with one click. The tab <em>Known errors</em> under <em>Knowledge</em> lists them all.</p>
+<figure><img src="img/en/itil-problem.jpg" alt=""><figcaption>Problem with root cause, workaround and “known error”</figcaption></figure>
+
+<h2 id="changes">Change management</h2>
+<p>Planned changes to IT (firewall rule, update, move) are tickets of type <strong>Change</strong>. There are three kinds:</p>
+<ul>
+  <li><strong>Normal:</strong> needs approval.</li>
+  <li><strong>Standard:</strong> pre-approved routine based on a template.</li>
+  <li><strong>Emergency:</strong> implement immediately, approve afterwards.</li>
+</ul>
+<p>The <em>Change</em> section guides you through the phases Draft → Awaiting approval → Approved → Scheduled → Implementing → Review → Closed. Helfi.Space names missing details (reason, time window, implementation and backout plan) at the respective step. Approvers decide in the ticket or under <em>My approvals</em>. When closing you choose the outcome; for “With issues” and “Rolled back” a review is required.</p>
+<figure><img src="img/en/itil-change.jpg" alt=""><figcaption>Change with phases, approval and planning</figcaption></figure>
+<p>The <strong>change calendar</strong> shows all planned changes in the month; overlaps are marked red.</p>
+<figure><img src="img/en/itil-change-calendar.jpg" alt=""><figcaption>Change calendar with an overlap</figcaption></figure>
+<p><span class="role role-admin">admin</span> Approvers, rule (“one approval is enough” or “everyone must approve”) and templates for standard changes under <em>Administration → Change</em>.</p>
+<figure><img src="img/en/admin-change.jpg" alt=""><figcaption>Administration → Change</figcaption></figure>
+
+<h2 id="knowledge">Knowledge base</h2>
+<p><em>Knowledge</em> collects guides and solutions. Articles are <strong>internal</strong> (agents only) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing.</p>
+<figure><img src="img/en/itil-kb.jpg" alt=""><figcaption>Knowledge base with categories</figcaption></figure>
+
+<h2 id="servicecatalog">Setting up the service catalog <span class="role role-admin">admin</span></h2>
+<p>Under <em>Administration → Service catalog</em> you create offers: name, emoji, description, project and form fields (text, multi-line, choice, check box, date; each optionally required). Optionally choose approvers, also without the agent role, and whether one or all approvals are needed. Requests become tickets of type <em>Request</em>; the answers appear in the description. How users see the catalog is described in <a href="#catalog">2.9</a>.</p>
+<figure><img src="img/en/admin-catalog.jpg" alt=""><figcaption>Administration → Service catalog</figcaption></figure>
+
+<h2 id="devices">Devices &amp; services</h2>
+<p>A lean register of IT equipment and services (CI register). Each entry has a kind, status (in operation, in maintenance, retired), location, user, IP address, serial number, vendor and model. In a ticket you link affected devices and services in the <em>Devices &amp; services</em> section. For changes these are the affected services. An entry’s detail page lists all its tickets, so recurring faults stand out.</p>
+<figure><img src="img/en/itil-cis.jpg" alt=""><figcaption>Devices &amp; services with open tickets per entry</figcaption></figure>
+<figure><img src="img/en/itil-ci.jpg" alt=""><figcaption>A device with its ticket history</figcaption></figure>
+<p><span class="role role-admin">admin</span> <strong>CSV import</strong> from your inventory tool: the first line contains the column names (name/hostname, type, location, IP address, serial number, vendor, model, user, status – German or English). Values like “Notebook” or “Switch” are mapped to the matching kind. Existing names are updated. An entry can only be deleted while no tickets are linked; otherwise set it to “retired”.</p>
+
+<h2 id="satisfaction">Satisfaction survey <span class="role role-admin">admin</span></h2>
+<p>Switch it on under <em>Administration → Email → Satisfaction survey</em>. The “Resolved” email to the reporter then contains the rating links (<a href="#rating">2.12</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
+<figure class="medium"><img src="img/en/admin-mail-survey.jpg" alt=""><figcaption>Administration → Email with the satisfaction survey</figcaption></figure>
+
+<h2 id="kpis">ITIL key figures</h2>
+<p>Under <em>Reports</em>, the agent statistics (<a href="#reports">3.9</a>) are followed by further figures for the same period:</p>
+<ul>
+  <li><strong>Service quality:</strong> resolved requests and incidents, resolved at first contact (at most one reply, no follow-up question, never reopened), reopen rate, major incidents.</li>
+  <li><strong>SLA compliance</strong> for response and resolution, overall and per priority.</li>
+  <li><strong>Changes</strong> per month: kinds, rejected, outcomes, success rate and share of emergency changes.</li>
+  <li><strong>Problems:</strong> new, resolved, open, known errors.</li>
+  <li><strong>Satisfaction:</strong> average, response rate, distribution of stars, values per agent and the latest comments.</li>
+</ul>
+<figure><img src="img/en/itil-reports.jpg" alt=""><figcaption>ITIL key figures in the report</figcaption></figure>
+<figure><img src="img/en/itil-reports-survey.jpg" alt=""><figcaption>Satisfaction in the report</figcaption></figure>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="admin">For administrators: setup <span class="role role-admin">admin</span></h1>
