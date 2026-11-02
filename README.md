@@ -163,6 +163,15 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 - **Absender im AD nachschlagen** (Standard: an, braucht AD-Anmeldung mit Dienstkonto): Unbekannte Absender sucht Helfi.Space im AD. Gesucht wird in `mail`, `userPrincipalName` und den Zweitadressen in `proxyAddresses`, deaktivierte Konten nicht. Bei genau einem Treffer wird die Person gleich als AD-Benutzer angelegt, mit der Rolle aus ihren Gruppen, als hätte sie sich angemeldet. Ein vorhandener E-Mail-Kontakt wird dabei übernommen. Nicht gefunden, mehrdeutig oder AD nicht erreichbar: Sie wird wie bisher E-Mail-Kontakt. Unbekannte Adressen werden eine Stunde lang nicht erneut gesucht. Eine Mail gibt auch dann nie Bearbeiter-Rechte.
 - **Aufbewahrung:** „Verarbeitete Mails löschen nach … Tagen“ (Standard 0 = nie, sonst mindestens 7). Einmal täglich werden im Ordner für verarbeitete Mails die älteren Mails endgültig gelöscht, höchstens 500 pro Lauf. Im Posteingang wird nie gelöscht. Ist kein eigener Ordner eingetragen, löscht Helfi.Space gar nichts. Die Inhalte bleiben in den Tickets.
 
+### HTML-Mails
+
+Mails im HTML-Format zeigt Helfi.Space bei Beschreibung und Antworten **formatiert** an, mit Tabellen, Fettdruck, Farben, Signatur und eingebetteten Bildern. Ein Umschalter **„Formatiert | Text“** wechselt zur Textfassung; die Wahl merkt sich der Browser. Bearbeitet wird immer die Textfassung. Nach dem Bearbeiten einer Beschreibung gilt nur noch der Text.
+
+- **Sicherheit:** Das HTML wird beim Empfang bereinigt. Skripte, Formulare, eingebettete Seiten, Ereignis-Attribute und `javascript:`-Links werden entfernt. Angezeigt wird es zusätzlich in einem abgeschotteten Rahmen mit eigener Sicherheitsrichtlinie, in dem kein Skript laufen kann.
+- **Bilder:** Eingebettete Bilder wie Logos, Signaturen oder eingefügte Screenshots werden angezeigt. Kleine Logos tauchen nicht in der Anhangsliste auf. **Bilder aus dem Internet** (oft Zählpixel) werden nie geladen; ein Hinweis nennt ihre Anzahl.
+- **Antworten:** Der zitierte Verlauf (Outlook, Gmail, Apple Mail, Thunderbird) ist eingeklappt: „Zitierten Text anzeigen“.
+- Gilt für Mails, die nach dem Update eingehen.
+
 ## Anfrage-Teilnehmer
 
 Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem oder die Vorgesetzte.

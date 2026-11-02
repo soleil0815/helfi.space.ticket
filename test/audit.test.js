@@ -230,7 +230,7 @@ test('Sicherung auch vor ausstehender Migration bei gleicher Version (Audit 4.1)
   const file = path.join(dir, 'h.sqlite');
   let d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });
   d.prepare("UPDATE meta SET value='2' WHERE key='schema_version'").run();
-  d.exec('ALTER TABLE attachments DROP COLUMN draft; DROP TABLE mail_suppressions; DROP TABLE canned_responses; DROP TABLE ticket_participants; ALTER TABLE users DROP COLUMN recovery_codes; ALTER TABLE users DROP COLUMN totp_last_step; ALTER TABLE users DROP COLUMN totp_enabled; ALTER TABLE users DROP COLUMN totp_secret; ALTER TABLE sessions DROP COLUMN mfa;');
+  d.exec('DROP TABLE mail_html; ALTER TABLE attachments DROP COLUMN inline; ALTER TABLE attachments DROP COLUMN draft; DROP TABLE mail_suppressions; DROP TABLE canned_responses; DROP TABLE ticket_participants; ALTER TABLE users DROP COLUMN recovery_codes; ALTER TABLE users DROP COLUMN totp_last_step; ALTER TABLE users DROP COLUMN totp_enabled; ALTER TABLE users DROP COLUMN totp_secret; ALTER TABLE sessions DROP COLUMN mfa;');
   d.close();
   d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });
   d.close();

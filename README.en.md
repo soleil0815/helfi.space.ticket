@@ -163,6 +163,15 @@ Example: reporters without a code, agents with a code from outside, administrato
 - **Look up senders in AD** (default: on, requires AD sign-in with a service account): Helfi.Space searches unknown senders in AD. It checks `mail`, `userPrincipalName` and the alias addresses in `proxyAddresses`, and skips disabled accounts. With exactly one match, the person is created as an AD user right away, with the role from their groups, as if they had signed in. An existing email contact is taken over. Not found, ambiguous or AD unreachable: they become an email contact as before. Unknown addresses are not looked up again for one hour. A mail still never grants agent rights.
 - **Retention:** "Delete processed mail after … days" (default 0 = never, otherwise at least 7). Once a day, older mails in the processed-mail folder are permanently deleted, at most 500 per run. Nothing is ever deleted in the inbox. If no separate folder is set, Helfi.Space deletes nothing. The content stays in the tickets.
 
+### HTML emails
+
+Helfi.Space shows HTML emails **formatted** in descriptions and replies, with tables, bold text, colours, signature and embedded images. A **"Formatted | Text"** switch changes to the text version; the browser remembers the choice. Editing always uses the text version. After a description has been edited, only the text applies.
+
+- **Security:** the HTML is cleaned when the mail arrives. Scripts, forms, embedded pages, event attributes and `javascript:` links are removed. It is also shown in an isolated frame with its own security policy in which no script can run.
+- **Images:** embedded images such as logos, signatures or pasted screenshots are shown. Small logos do not appear in the attachment list. **Images from the internet** (often tracking pixels) are never loaded; a notice states how many there were.
+- **Replies:** the quoted history (Outlook, Gmail, Apple Mail, Thunderbird) is collapsed: "Show quoted text".
+- Applies to mails received after the update.
+
 ## Request participants
 
 Besides the reporter, other people can be involved in a ticket, e.g. colleagues with the same problem or a manager.
