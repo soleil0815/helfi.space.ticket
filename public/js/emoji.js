@@ -131,6 +131,24 @@ export function completedShortcode(text, caret) {
   return e ? { start: caret - m[2].length, emoji: e } : null;
 }
 
+// Klassische Smileys → Emoji (nur wenn sie allein stehen: Anfang/Leerraum davor, Leerraum danach)
+export const EMOTICONS = {
+  ':-)': '🙂', ':)': '🙂', ';-)': '😉', ';)': '😉', ':-D': '😄', ':D': '😄', ':-(': '🙁', ':(': '🙁',
+  ':-P': '😛', ':P': '😛', ':p': '😛', ':-O': '😮', ':O': '😮', ':o': '😮', '<3': '❤️', '(y)': '👍', '(Y)': '👍',
+};
+const EMOTICON_LIST = Object.keys(EMOTICONS).sort((a, b) => b.length - a.length);
+
+/** Smiley, der genau bei end endet und allein steht → { start, original, char } */
+export function emoticonBefore(text, end) {
+  for (const e of EMOTICON_LIST) {
+    const start = end - e.length;
+    if (start < 0 || text.slice(start, end) !== e) continue;
+    if (start > 0 && !/\s/.test(text[start - 1])) continue;
+    return { start, original: e, char: EMOTICONS[e] };
+  }
+  return null;
+}
+
 /** Vorschläge beim Tippen von „:kurz“ */
 export function enableEmojiShortcodes(ta) {
   let box = null;
@@ -156,9 +174,36 @@ export function enableEmojiShortcodes(ta) {
       onmousedown: (ev) => { ev.preventDefault(); choose(e); },
     }, h('span.emoji-big', e.char), h('span', `:${e.code}:`))));
   };
-  ta.addEventListener('input', () => {
+  // Letzte automatische Umwandlung – Strg+Z macht sie rückgängig
+  let last = null;
+  let converting = false;
+  const convertAt = (end, caretAfter) => {
+    const hit = emoticonBefore(ta.value, end);
+    if (!hit) return false;
+    converting = true;
+    ta.setRangeText(hit.char, hit.start, end, 'preserve');
+    converting = false;
+    const pos = caretAfter - hit.original.length + hit.char.length;
+    ta.setSelectionRange(pos, pos);
+    last = { ...hit };
+    return true;
+  };
+  /** Smiley ganz am Ende (vor dem Absenden / beim Verlassen des Felds) */
+  const convertTrailing = () => {
+    const trimmed = ta.value.replace(/\s+$/, '');
+    if (!emoticonBefore(trimmed, trimmed.length)) return;
+    convertAt(trimmed.length, ta.selectionStart);
+    // andere (z. B. Entwurfsspeicher) sollen den neuen Text sehen – die eigene Auswertung überspringen
+    converting = true;
+    try { ta.dispatchEvent(new Event('input')); } finally { converting = false; }
+  };
+  ta.addEventListener('input', (ev) => {
+    if (converting) return;
     const caret = ta.selectionStart;
     if (caret !== ta.selectionEnd) { close(); return; }
+    last = null;
+    // gerade Leerzeichen/Zeilenumbruch getippt → Smiley davor umwandeln
+    if (ev.inputType !== 'insertFromPaste' && caret > 0 && /\s/.test(ta.value[caret - 1]) && convertAt(caret - 1, caret)) { close(); return; }
     const done = completedShortcode(ta.value, caret);
     if (done) {
       close();
@@ -174,6 +219,17 @@ export function enableEmojiShortcodes(ta) {
   });
   // Erfassungsphase: vor anderen Tastenkürzeln (Strg+Enter, Esc im Dialog)
   ta.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && last
+      && ta.value.slice(last.start, last.start + last.char.length) === last.char) {
+      e.preventDefault();
+      const delta = last.original.length - last.char.length;
+      const caret = ta.selectionStart;
+      ta.setRangeText(last.original, last.start, last.start + last.char.length, 'preserve');
+      ta.setSelectionRange(caret + delta, caret + delta);
+      last = null;
+      return;
+    }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) convertTrailing();
     if (!box) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -187,7 +243,7 @@ export function enableEmojiShortcodes(ta) {
       close();
     }
   }, true);
-  ta.addEventListener('blur', () => setTimeout(close, 150));
+  ta.addEventListener('blur', () => { convertTrailing(); setTimeout(close, 150); });
 }
 
 /** Knopf zum Öffnen der Auswahl */

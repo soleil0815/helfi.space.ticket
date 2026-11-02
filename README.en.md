@@ -206,6 +206,7 @@ In comments, descriptions and reply templates:
 
 - **🙂 button** at the bottom right of the text field: picker with search (English and German, e.g. "thumbs" or "printer"), groups and "Recently used".
 - **While typing:** `:thu` suggests 👍 (arrow keys, Enter or Tab to accept, Esc to close). A complete short name such as `:tada:` turns into 🎉 right away. Times like `12:30` and addresses are left alone.
+- **Classic smileys** are converted while typing as soon as a space follows (or when sending): `:)` → 🙂, `;)` → 😉, `:D` → 😄, `:(` → 🙁, `:P` → 😛, `:O` → 😮, `<3` → ❤️, `(y)` → 👍. Only when they stand alone, so `C:)` stays as it is. **Ctrl+Z** undoes the conversion right away.
 - Emojis are shown with the operating system's emoji font; nothing is loaded from the internet. They arrive in emails as usual.
 
 ## Reply templates
