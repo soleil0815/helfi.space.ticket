@@ -454,13 +454,13 @@ export function createApi(ctx) {
   admin.put('/settings', wrap(async (req, res) => {
     const incoming = req.body?.settings || {};
     for (const k of Object.keys(incoming)) if (!(k in DEFAULTS)) delete incoming[k];
-    delete incoming['brand.logo']; // nur über den eigenen Upload
-    if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
-    if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     if (incoming['ldap.caPem'] !== undefined && incoming['ldap.caPem']) {
       incoming['ldap.caPem'] = ldap.mergePem('', incoming['ldap.caPem']);
       incoming['ldap.caInfo'] = JSON.stringify(ldap.splitPem(incoming['ldap.caPem']).map((p) => { const { pem, ...rest } = ldap.describeCert(p); return rest; }));
     }
+    delete incoming['brand.logo']; // nur über den eigenen Upload
+    if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
+    if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     settings.setMany(incoming);
     if (Object.keys(incoming).some((k) => k.startsWith('oidc.'))) oidcAuth.resetOidcCache();
     if (Object.keys(incoming).some((k) => k.startsWith('imap.'))) poller.start();
