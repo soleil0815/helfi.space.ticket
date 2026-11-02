@@ -337,6 +337,7 @@ export function createTickets(db, users) {
     const result = agent ? t : ticketOut(rawById(row.id), false);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
     if (changes.status && changes.status.new === 'done' && !opts.quietResolved) emitLater('resolved', { ticket: t, user });
+    if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
     return result;
   }
 

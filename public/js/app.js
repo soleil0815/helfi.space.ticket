@@ -208,7 +208,7 @@ function layout(content, path) {
       nav('/summary', t('nav.summary'), 'globe', path === '/summary'),
       queuesNav(path, p),
       nav('/board', t('nav.board'), 'board', path === '/board'),
-      ...VIEWS.map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
+      ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
       state.isAdmin ? nav('/admin/mail', t('nav.channelsMail'), 'mail', path === '/admin/mail') : null,

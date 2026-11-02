@@ -51,6 +51,7 @@ export function createApi(ctx) {
       },
       setupRequired: userCount === 0,
       majorIncidents: req.user && isAgent(req.user) ? ctx.major.open() : [],
+      sla: { enabled: ctx.sla.enabled() },
       user: req.user ? publicUser(req.user) : null,
       auth: {
         ldap: settings.get('ldap.enabled'),
@@ -322,11 +323,22 @@ export function createApi(ctx) {
 
   // ---------- Tickets ----------
   r.get('/stats', requireRole('agent'), (req, res) => res.json(tickets.stats(req.user)));
-  r.get('/queues', requireRole('agent'), (req, res) => res.json({ counts: tickets.queueCounts(req.user, req.query.project ? str(req.query.project, 20) : null) }));
+  r.get('/queues', requireRole('agent'), (req, res) => {
+    const project = req.query.project ? str(req.query.project, 20) : null;
+    const counts = tickets.queueCounts(req.user, project);
+    if (ctx.sla.enabled()) counts.slaRisk = ctx.sla.atRisk(project).length;
+    res.json({ counts });
+  });
   r.get('/summary', requireRole('agent'), (req, res) => res.json(tickets.summary(req.user, req.query.project ? str(req.query.project, 20) : null)));
 
   r.get('/tickets', (req, res) => {
-    res.json({ tickets: tickets.list(req.user, req.query) });
+    let list = tickets.list(req.user, req.query);
+    // SLA-Stand für Bearbeiter; Filter „SLA gefährdet“
+    if (isAgent(req.user) && ctx.sla.enabled()) {
+      list = list.map((tk) => ({ ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) }));
+      if (req.query.sla === 'risk') list = list.filter((tk) => ['warning', 'breached'].includes(tk.sla?.state));
+    }
+    res.json({ tickets: list });
   });
 
   r.post('/tickets', wrap(async (req, res) => {

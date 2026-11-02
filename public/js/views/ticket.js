@@ -13,6 +13,7 @@ import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
 import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
+import { slaChip } from './sla.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -142,7 +143,7 @@ export async function renderTicket(content, key) {
   }
 
   function historyEl(a) {
-    const fieldLabel = a.field && !a.field.includes(':') ? t(`field.${a.field}`) : '';
+    const fieldLabel = a.field && !a.field.includes(':') && a.action === 'changed' ? t(`field.${a.field}`) : '';
     const show = (v) => {
       if (v === null || v === undefined || v === '') return t('app.none');
       if (a.field === 'status') return t(`status.${v}`);
@@ -155,11 +156,12 @@ export async function renderTicket(content, key) {
     return h('div.history',
       avatar(a.user, 'sm'),
       h('div',
-        h('strong', a.user?.displayName || 'E-Mail'), ' ',
+        h('strong', a.user?.displayName || (a.action === 'sla' ? 'Helfi.Space' : 'E-Mail')), ' ',
         t(`act.${a.action}`, { field: fieldLabel }),
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'sla' ? h('span.change', t(`sla.kind.${a.field}`), ' ', t(`sla.state.${a.newValue}`)) : null,
         (a.action === 'linked' || a.action === 'unlinked') && a.field ? h('span.change', linkLabel(...a.field.split(':')), ' ', a.newValue || a.oldValue) : null,
         a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
         h('span.muted', { title: fmtDate(a.createdAt) }, ' · ', relTime(a.createdAt))));
@@ -329,6 +331,8 @@ export async function renderTicket(content, key) {
         }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null),
       h('div.details-box',
         h('div.details-head', t('ticket.details')),
+        tk.sla ? detailRow(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
+        tk.sla ? detailRow(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
         detailRow(t('ticket.assignee'), assignee),
         detailRow(t('ticket.reporter'), h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—', tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.muted.block', tk.reporter.email) : null))),
         detailRow(t('ticket.participants'), participantsEl()),

@@ -6,6 +6,7 @@ import { t } from '../i18n.js';
 import { state, navigate } from '../app.js';
 import { openCreateDialog } from './ticket.js';
 import { matchQueue } from '../queues.js';
+import { slaBadge } from './sla.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -126,6 +127,8 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
       h('button.btn.btn-subtle', { type: 'button', onclick: () => { sel.clear(); sync(); } }, t('bulk.clear')));
   }
 
+  // SLA-Spalte nur für Bearbeiter, wenn SLAs eingeschaltet sind
+  const showSla = !requests && tickets.some((tk) => tk.sla !== undefined);
   return h('div.table-wrap',
     compact ? null : h('div.table-count', t('list.count', { n: tickets.length })),
     bar,
@@ -136,6 +139,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         th(t('list.key'), 'key'),
         th(t('list.summary')),
         th(t('list.status'), 'status'),
+        showSla ? th(t('sla.short')) : null,
         requests ? null : th(t('list.assignee')),
         requests || compact ? null : th(t('list.reporter')),
         th(t('list.priority'), 'priority'),
@@ -151,6 +155,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         h('td.col-key', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key)),
         h('td.col-summary', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.title), tk.source === 'email' ? h('span.src-mail', { title: t('source.email') }, icon('mail')) : null),
         h('td', lozenge(tk.status)),
+        showSla ? h('td.col-sla', slaBadge(tk.sla)) : null,
         requests ? null : h('td.col-person', h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),
         requests || compact ? null : h('td.col-person', h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—'))),
         h('td', priorityIcon(tk.priority), h('span.prio-label', t(`priority.${tk.priority}`))),

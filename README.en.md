@@ -215,6 +215,17 @@ In the ticket view (agents) under *Links*:
 - **ITIL priority:** in the details, agents set *impact* and *urgency* (high/medium/low). Once both are set, the priority follows the matrix (e.g. high × high = Highest, medium × medium = Medium). It can still be changed manually.
 - **Major incident:** mark an incident with many affected people using the *Major incident* button. All agents see it as a red notice at the top. Attach affected tickets via *Link → causes*. **Inform everyone affected** posts the same reply in the major incident and all open affected tickets, so every reporter and participant receives it by email. Optionally all of them are set to “Done” afterwards.
 
+## Service level (SLA)
+
+*Administration → Service level* (off by default):
+
+- **Targets per priority** for the **first response** (first public reply by an agent) and the **resolution**, in business hours. Default: Highest 0.5 / 4 h, High 2 / 16, Medium 8 / 40, Low 16 / 80.
+- **Business hours** (weekdays, start, end) and **public holidays** (one line per day, `2026-12-24 Christmas Eve`). No SLA time runs outside them; the container’s `TZ` applies.
+- **“Waiting” pauses the resolution time** (can be turned off).
+- Applies to incidents, requests and questions from users, not to tasks and agents’ own tickets and not to imported tickets.
+- **Display:** the ticket view shows both clocks with time left, green, yellow from 80 % (configurable) and red when breached. The ticket list has an SLA column, the sidebar a **SLA at risk** view with a count.
+- **Warning:** when the warning threshold is reached and when the target is breached, the assignee gets an email (without assignee the project lead), once each. The history records it.
+
 ## Emojis
 
 In comments, descriptions and reply templates:

@@ -7,6 +7,7 @@ import { importPage } from './import.js';
 import { templatesPanel } from './canned.js';
 import { loginIntro, loginUserLabel } from './auth.js';
 import { logoUrl, refreshBrandAssets } from '../brand.js';
+import { slaPage } from './sla.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
@@ -16,6 +17,7 @@ const SECTIONS = [
   ['ldap', 'admin.ldap', 'server'],
   ['sso', 'admin.sso', 'key'],
   ['mail', 'admin.mail', 'mail'],
+  ['sla', 'admin.sla', 'chart'],
   ['templates', 'admin.templates', 'comment'],
   ['import', 'admin.import', 'download'],
   ['system', 'admin.system', 'info'],
@@ -38,7 +40,7 @@ export async function renderAdmin(content, section) {
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };
-  const pages = { general: generalPage, security: securityPage, ldap: ldapPage, sso: ssoPage, mail: mailPage };
+  const pages = { general: generalPage, security: securityPage, ldap: ldapPage, sso: ssoPage, mail: mailPage, sla: (b, x) => slaPage(b, x, { saveBar, saveKeys, bindCheck }) };
   pages[section](body, s, { redirectUri });
 }
 
