@@ -84,8 +84,6 @@ export const api = {
   admin: {
     settings: () => request('GET', '/api/admin/settings'),
     saveSettings: (settings) => request('PUT', '/api/admin/settings', { settings }),
-    brandLogo: (data) => request('PUT', '/api/admin/brand/logo', { data }),
-    brandLogoRemove: () => request('DELETE', '/api/admin/brand/logo'),
     suppressions: () => request('GET', '/api/admin/mail/suppressions'),
     releaseSuppression: (address) => request('DELETE', `/api/admin/mail/suppressions/${encodeURIComponent(address)}`),
     fetchCert: (settings) => request('POST', '/api/admin/ldap/fetch-cert', { settings }),
@@ -96,6 +94,8 @@ export const api = {
     testSmtp: (settings, to) => request('POST', '/api/admin/smtp/test', { settings, to }),
     system: () => request('GET', '/api/admin/system'),
     backup: () => request('POST', '/api/admin/backup'),
+    brandLogo: (data) => request('PUT', '/api/admin/brand/logo', { data }),
+    brandLogoRemove: () => request('DELETE', '/api/admin/brand/logo'),
     jiraConnect: (connection) => request('POST', '/api/admin/import/jira/connect', { connection }),
     jiraInspect: (connection, projects) => request('POST', '/api/admin/import/jira/inspect', { connection, projects }),
     jiraStart: (connection, projects, statusMap, typeMap, options) => request('POST', '/api/admin/import/jira/start', { connection, projects, statusMap, typeMap, options }),

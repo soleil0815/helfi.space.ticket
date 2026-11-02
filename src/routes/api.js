@@ -449,19 +449,6 @@ export function createApi(ctx) {
   const admin = express.Router();
   admin.use(requireRole('admin'));
 
-  // Logo hochladen (data-URL, PNG oder geprüftes SVG) bzw. entfernen
-  admin.put('/brand/logo', wrap(async (req, res) => {
-    settings.set('brand.logo', saveLogo(req.body.data));
-    log.info(`Logo geändert von ${req.user.username}`);
-    res.json({ logo: settings.get('brand.logo') });
-  }));
-  admin.delete('/brand/logo', (req, res) => {
-    removeLogo();
-    settings.set('brand.logo', '');
-    log.info(`Logo entfernt von ${req.user.username}`);
-    res.json({ logo: '' });
-  });
-
   admin.get('/settings', (req, res) => res.json({ settings: settings.publicView(), redirectUri: oidcAuth.redirectUri(), languages: LANGUAGES }));
 
   admin.put('/settings', wrap(async (req, res) => {
@@ -533,6 +520,19 @@ export function createApi(ctx) {
       res.json({ ok: false, error: e.message });
     }
   }));
+
+  // Logo hochladen (data-URL, PNG oder geprüftes SVG) bzw. entfernen
+  admin.put('/brand/logo', wrap(async (req, res) => {
+    settings.set('brand.logo', saveLogo(req.body.data));
+    log.info(`Logo geändert von ${req.user.username}`);
+    res.json({ logo: settings.get('brand.logo') });
+  }));
+  admin.delete('/brand/logo', (req, res) => {
+    removeLogo();
+    settings.set('brand.logo', '');
+    log.info(`Logo entfernt von ${req.user.username}`);
+    res.json({ logo: '' });
+  });
 
   admin.get('/system', (req, res) => {
     const backups = fs.existsSync(paths.backups)
