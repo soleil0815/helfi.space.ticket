@@ -38,9 +38,10 @@ export function createKb(db, tickets) {
   const out = (a, withBody = true) => ({
     id: a.id, title: a.title, ...(withBody ? { body: a.body } : { excerpt: plainText(a.body).slice(0, 180) }),
     visibility: a.visibility, category: a.category, views: a.views, updatedAt: a.updated_at, createdAt: a.created_at,
-    author: a.u_name || null, sourceTicket: a.t_key || null,
+    author: a.u_name || null, sourceTicket: a.t_key || null, version: a.version ?? undefined,
   });
-  const SELECT = `SELECT a.*, u.display_name u_name, (p.key || '-' || t.number) t_key FROM kb_articles a
+  const SELECT = `SELECT a.*, u.display_name u_name, (p.key || '-' || t.number) t_key,
+    (SELECT MAX(version) FROM kb_versions v WHERE v.article_id=a.id) version FROM kb_articles a
     LEFT JOIN users u ON u.id=COALESCE(a.updated_by, a.created_by)
     LEFT JOIN tickets t ON t.id=a.source_ticket_id LEFT JOIN projects p ON p.id=t.project_id`;
 
@@ -82,18 +83,85 @@ export function createKb(db, tickets) {
     const id = db.prepare('INSERT INTO kb_articles(title, body, visibility, category, source_ticket_id, created_by, updated_by) VALUES(?,?,?,?,?,?,?)')
       .run(d.title, d.body, d.visibility, d.category, source, user.id, user.id).lastInsertRowid;
     if (source) tickets.logActivity(source, user.id, 'kbCreated', null, null, `KB-${id}`);
+    addVersion(id, d, user, str(data.note, 200).trim());
     claimImages(id, d.body);
     return get(user, id);
   }
 
   function update(user, id, data) {
     if (!isAgent(user)) throw forbidden();
-    get(user, id);
+    const cur = get(user, id);
     const d = clean(data);
-    db.prepare("UPDATE kb_articles SET title=?, body=?, visibility=?, category=?, updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?")
-      .run(d.title, d.body, d.visibility, d.category, user.id, int(id));
+    // unverändert gespeichert → keine neue Version, kein neues Datum
+    if (d.title === cur.title && d.body === cur.body && d.category === cur.category && d.visibility === cur.visibility) return cur;
+    db.transaction(() => {
+      db.prepare("UPDATE kb_articles SET title=?, body=?, visibility=?, category=?, updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?")
+        .run(d.title, d.body, d.visibility, d.category, user.id, int(id));
+      addVersion(int(id), d, user, str(data.note, 200).trim());
+    })();
     claimImages(int(id), d.body);
     return get(user, id);
+  }
+
+  // ---------- Versionen ----------
+  function addVersion(articleId, d, user, note = '') {
+    const next = (db.prepare('SELECT MAX(version) v FROM kb_versions WHERE article_id=?').get(articleId).v || 0) + 1;
+    db.prepare('INSERT INTO kb_versions(article_id, version, title, body, category, visibility, note, author_id) VALUES(?,?,?,?,?,?,?,?)')
+      .run(articleId, next, d.title, d.body, d.category, d.visibility, note, user.id);
+    return next;
+  }
+  const versionOut = (v, withBody) => ({
+    version: v.version, title: v.title, category: v.category, visibility: v.visibility, note: v.note, author: v.u_name || null, createdAt: v.created_at,
+    size: v.body.length, ...(withBody ? { body: v.body } : {}),
+  });
+  /** Verlauf eines Artikels (nur Bearbeiter) */
+  function versions(user, id) {
+    if (!isAgent(user)) throw forbidden();
+    get(user, id);
+    return db.prepare('SELECT v.*, u.display_name u_name FROM kb_versions v LEFT JOIN users u ON u.id=v.author_id WHERE v.article_id=? ORDER BY v.version DESC')
+      .all(int(id)).map((v) => versionOut(v, false));
+  }
+  function version(user, id, nr) {
+    if (!isAgent(user)) throw forbidden();
+    get(user, id);
+    const v = db.prepare('SELECT v.*, u.display_name u_name FROM kb_versions v LEFT JOIN users u ON u.id=v.author_id WHERE v.article_id=? AND v.version=?').get(int(id), int(nr) || 0);
+    if (!v) throw notFound();
+    return versionOut(v, true);
+  }
+  /** Ältere Version zurückholen – als neue Version, der Verlauf bleibt vollständig */
+  function restore(user, id, nr) {
+    const v = version(user, id, nr);
+    return update(user, id, { title: v.title, body: v.body, category: v.category, visibility: v.visibility, note: `↩ ${v.version}` });
+  }
+
+  // ---------- Vorlagen (eigene; die mitgelieferten stecken in der Oberfläche) ----------
+  const tplOut = (x) => ({ id: x.id, title: x.title, description: x.description, body: x.body, author: x.u_name || null, updatedAt: x.updated_at });
+  function templates(user) {
+    if (!isAgent(user)) throw forbidden();
+    return db.prepare('SELECT t.*, u.display_name u_name FROM kb_templates t LEFT JOIN users u ON u.id=COALESCE(t.updated_by, t.created_by) ORDER BY t.title').all().map(tplOut);
+  }
+  function template(user, id) {
+    if (!isAgent(user)) throw forbidden();
+    const x = db.prepare('SELECT t.*, u.display_name u_name FROM kb_templates t LEFT JOIN users u ON u.id=COALESCE(t.updated_by, t.created_by) WHERE t.id=?').get(int(id) || 0);
+    if (!x) throw notFound();
+    return tplOut(x);
+  }
+  function saveTemplate(user, id, data) {
+    if (!isAgent(user)) throw forbidden();
+    const title = str(data.title, 120).trim();
+    if (!title) throw new HttpError(400, 'err.titleRequired');
+    const vals = [title, str(data.description, 300).trim(), str(data.body, 100000)];
+    if (id) {
+      template(user, id);
+      db.prepare("UPDATE kb_templates SET title=?, description=?, body=?, updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(...vals, user.id, int(id));
+      return template(user, id);
+    }
+    const nid = db.prepare('INSERT INTO kb_templates(title, description, body, created_by, updated_by) VALUES(?,?,?,?,?)').run(...vals, user.id, user.id).lastInsertRowid;
+    return template(user, nid);
+  }
+  function removeTemplate(user, id) {
+    template(user, id);
+    db.prepare('DELETE FROM kb_templates WHERE id=?').run(int(id));
   }
 
   function remove(user, id) {
@@ -163,5 +231,5 @@ export function createKb(db, tickets) {
     return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}` };
   }
 
-  return { search, get, create, update, remove, categories, draftFromTicket, addImage, imageFile };
+  return { search, get, create, update, remove, categories, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
 }
