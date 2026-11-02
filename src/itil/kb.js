@@ -38,7 +38,7 @@ export function createKb(db, tickets) {
   const out = (a, withBody = true) => ({
     id: a.id, title: a.title, ...(withBody ? { body: a.body } : { excerpt: plainText(a.body).slice(0, 180) }),
     visibility: a.visibility, category: a.category, views: a.views, updatedAt: a.updated_at, createdAt: a.created_at,
-    author: a.u_name || null, sourceTicket: a.t_key || null, version: a.version ?? undefined,
+    author: a.u_name || null, sourceTicket: a.t_key || null, version: a.version ?? undefined, parentId: a.parent_id ?? null,
   });
   const SELECT = `SELECT a.*, u.display_name u_name, (p.key || '-' || t.number) t_key,
     (SELECT MAX(version) FROM kb_versions v WHERE v.article_id=a.id) version FROM kb_articles a
@@ -65,7 +65,59 @@ export function createKb(db, tickets) {
     const a = db.prepare(`${SELECT} WHERE a.id=?`).get(int(id) || 0);
     if (!a || (a.visibility !== 'public' && !isAgent(user))) throw notFound();
     if (count) db.prepare('UPDATE kb_articles SET views=views+1 WHERE id=?').run(a.id);
-    return out(a);
+    const t = treeIndex(user);
+    // Pfad nur über sichtbare Vorfahren; Unterseiten nur sichtbare
+    const path = []; for (let p = t.parentOf(a.id); p; p = t.parentOf(p)) path.unshift({ id: p, title: t.byId.get(p).title });
+    const children = t.childrenOf(a.id).map((c) => ({ id: c.id, title: c.title, visibility: c.visibility }));
+    return { ...out(a), parentId: t.parentOf(a.id), path, children };
+  }
+
+  // ---------- Seitenbaum ----------
+  /** Sichtbare Artikel mit „wirksamem“ Elternteil: nächster sichtbarer Vorfahr (Benutzer sehen keine internen Seiten) */
+  function treeIndex(user) {
+    const agent = isAgent(user);
+    const all = db.prepare('SELECT id, title, parent_id, visibility, category, updated_at FROM kb_articles').all();
+    const raw = new Map(all.map((x) => [x.id, x]));
+    const visible = (x) => agent || x.visibility === 'public';
+    const byId = new Map(all.filter(visible).map((x) => [x.id, x]));
+    const parentOf = (id) => {
+      const seen = new Set();
+      for (let p = raw.get(id)?.parent_id; p && !seen.has(p); p = raw.get(p)?.parent_id) { seen.add(p); if (byId.has(p)) return p; }
+      return null;
+    };
+    const kids = new Map();
+    for (const x of byId.values()) { const p = parentOf(x.id); if (!kids.has(p)) kids.set(p, []); kids.get(p).push(x); }
+    for (const list of kids.values()) list.sort((a, b) => a.title.localeCompare(b.title, 'de'));
+    return { byId, parentOf, childrenOf: (id) => kids.get(id) || [] };
+  }
+  /** ganzer Baum für die Navigation: [{ id, title, visibility, children: […] }] */
+  function tree(user) {
+    const t = treeIndex(user);
+    const build = (id, depth) => t.childrenOf(id).map((x) => ({ id: x.id, title: x.title, visibility: x.visibility, children: depth < 20 ? build(x.id, depth + 1) : [] }));
+    return build(null, 0);
+  }
+  /** Artikel mit allen (sichtbaren) Unterseiten in Lesereihenfolge – zum Drucken */
+  function bundle(user, id) {
+    const root = get(user, id);
+    const t = treeIndex(user);
+    const out2 = [{ ...root, depth: 0 }];
+    const walk = (pid, depth) => { for (const c of t.childrenOf(pid)) { if (out2.length >= 200) return; out2.push({ ...get(user, c.id), depth }); walk(c.id, depth + 1); } };
+    walk(root.id, 1);
+    return out2;
+  }
+  /** neuer Elternteil prüfen: muss existieren, darf nicht der Artikel selbst oder einer seiner Nachfahren sein */
+  function checkParent(user, id, parentId) {
+    if (!parentId) return null;
+    const p = db.prepare('SELECT id FROM kb_articles WHERE id=?').get(int(parentId));
+    if (!p) throw new HttpError(400, 'err.kbParent');
+    if (id) {
+      const seen = new Set();
+      for (let x = p.id; x; x = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(x)?.parent_id) {
+        if (x === int(id) || seen.has(x)) throw new HttpError(400, 'err.kbParentLoop');
+        seen.add(x);
+      }
+    }
+    return p.id;
   }
 
   function clean(data) {
@@ -80,8 +132,9 @@ export function createKb(db, tickets) {
     const d = clean(data);
     let source = null;
     if (data.sourceTicket) source = tickets.load(user, data.sourceTicket).id;
-    const id = db.prepare('INSERT INTO kb_articles(title, body, visibility, category, source_ticket_id, created_by, updated_by) VALUES(?,?,?,?,?,?,?)')
-      .run(d.title, d.body, d.visibility, d.category, source, user.id, user.id).lastInsertRowid;
+    const parent = checkParent(user, null, data.parentId);
+    const id = db.prepare('INSERT INTO kb_articles(title, body, visibility, category, source_ticket_id, created_by, updated_by, parent_id) VALUES(?,?,?,?,?,?,?,?)')
+      .run(d.title, d.body, d.visibility, d.category, source, user.id, user.id, parent).lastInsertRowid;
     if (source) tickets.logActivity(source, user.id, 'kbCreated', null, null, `KB-${id}`);
     addVersion(id, d, user, str(data.note, 200).trim());
     claimImages(id, d.body);
@@ -92,8 +145,14 @@ export function createKb(db, tickets) {
     if (!isAgent(user)) throw forbidden();
     const cur = get(user, id);
     const d = clean(data);
+    // Verschieben im Baum ist keine inhaltliche Änderung → keine Version
+    if ('parentId' in data) {
+      const parent = checkParent(user, id, data.parentId);
+      const rawParent = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(int(id)).parent_id;
+      if (parent !== rawParent) db.prepare('UPDATE kb_articles SET parent_id=? WHERE id=?').run(parent, int(id));
+    }
     // unverändert gespeichert → keine neue Version, kein neues Datum
-    if (d.title === cur.title && d.body === cur.body && d.category === cur.category && d.visibility === cur.visibility) return cur;
+    if (d.title === cur.title && d.body === cur.body && d.category === cur.category && d.visibility === cur.visibility) return get(user, id);
     db.transaction(() => {
       db.prepare("UPDATE kb_articles SET title=?, body=?, visibility=?, category=?, updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?")
         .run(d.title, d.body, d.visibility, d.category, user.id, int(id));
@@ -168,7 +227,12 @@ export function createKb(db, tickets) {
     if (!isAgent(user)) throw forbidden();
     get(user, id);
     const imgs = db.prepare('SELECT token FROM kb_images WHERE article_id=?').all(int(id));
-    db.prepare('DELETE FROM kb_articles WHERE id=?').run(int(id));
+    db.transaction(() => {
+      // Unterseiten rücken eine Ebene hoch
+      const parent = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(int(id)).parent_id;
+      db.prepare('UPDATE kb_articles SET parent_id=? WHERE parent_id=?').run(parent ?? null, int(id));
+      db.prepare('DELETE FROM kb_articles WHERE id=?').run(int(id));
+    })();
     for (const i of imgs) dropImage(i.token);
   }
 
@@ -231,5 +295,5 @@ export function createKb(db, tickets) {
     return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}` };
   }
 
-  return { search, get, create, update, remove, categories, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
+  return { search, get, tree, bundle, create, update, remove, categories, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
 }

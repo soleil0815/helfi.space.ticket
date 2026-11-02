@@ -91,6 +91,8 @@ export function createItilRoutes(ctx) {
     res.setHeader('Cache-Control', 'private, max-age=86400');
     fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
+  r.get('/kb/tree', (req, res) => res.json({ tree: kb.tree(req.user) }));
+  r.get('/kb/:id/bundle', (req, res) => res.json({ articles: kb.bundle(req.user, req.params.id) }));
   // Vorlagen (vor /kb/:id, sonst wäre „templates“ eine Artikel-ID)
   r.get('/kb/templates', requireRole('agent'), (req, res) => res.json({ templates: kb.templates(req.user) }));
   r.get('/kb/templates/:id', requireRole('agent'), (req, res) => res.json({ template: kb.template(req.user, req.params.id) }));

@@ -468,6 +468,14 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 20,
+    name: 'Wissensartikel: Seitenbaum',
+    sql: `
+    ALTER TABLE kb_articles ADD COLUMN parent_id INTEGER REFERENCES kb_articles(id) ON DELETE SET NULL;
+    CREATE INDEX idx_kb_articles_parent ON kb_articles(parent_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
