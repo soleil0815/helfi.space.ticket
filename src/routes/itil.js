@@ -7,7 +7,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -51,6 +51,19 @@ export function createItilRoutes(ctx) {
   r.get('/approvals/mine', requireRole('agent'), (req, res) => {
     res.json({ tickets: approvals.pendingFor(req.user.id).map((id) => tickets.ticketOut(tickets.rawById(id))) });
   });
+
+  // ---------- Wissensdatenbank (Lesen: alle Angemeldeten, öffentliche Artikel; Schreiben: Bearbeiter) ----------
+  r.get('/kb', (req, res) => res.json({ articles: kb.search(req.user, str(req.query.q, 200), { category: str(req.query.category, 60) }), categories: kb.categories(req.user) }));
+  r.get('/kb/suggest', (req, res) => {
+    // Vorschläge beim Melden: nur öffentliche Artikel, höchstens 3
+    const q = str(req.query.q, 200);
+    res.json({ articles: kb.search({ role: 'user' }, q, { limit: 3 }) });
+  });
+  r.get('/kb/:id', (req, res) => res.json({ article: kb.get(req.user, req.params.id, { count: req.query.view === '1' }) }));
+  r.post('/kb', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ article: kb.create(req.user, req.body || {}) })));
+  r.put('/kb/:id', requireRole('agent'), wrap(async (req, res) => res.json({ article: kb.update(req.user, req.params.id, req.body || {}) })));
+  r.delete('/kb/:id', requireRole('agent'), (req, res) => { kb.remove(req.user, req.params.id); res.json({ ok: true }); });
+  r.get('/tickets/:key/kb-draft', requireRole('agent'), (req, res) => res.json({ draft: kb.draftFromTicket(req.user, req.params.key) }));
 
   // ---------- Major Incident ----------
   r.post('/tickets/:key/broadcast', requireRole('agent'), wrap(async (req, res) => {

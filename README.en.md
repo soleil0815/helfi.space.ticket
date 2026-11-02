@@ -248,6 +248,16 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 - **Closing:** outcome “Successful”, “With issues” or “Rolled back”. For the latter two a post-implementation review is required.
 - **Change calendar** in the sidebar: monthly view of all planned changes, overlapping time windows are marked red.
 
+## Knowledge base
+
+*Knowledge* in the sidebar; for users it is called *Help & knowledge*.
+
+- **Articles** with title, category and content (as in comments: `**bold**`, links). Visibility **internal** (agents only) or **public** (everyone signed in).
+- **Search** in title and content, title matches first; filter by category. Read count per article for agents.
+- **Suggestions when reporting:** as a user types the summary in the “Create ticket” dialog, matching public articles appear (“Maybe this already helps”). They open without losing the report.
+- **From a ticket:** *Knowledge article* in a ticket creates a draft with description, last reply and, for problems, root cause and workaround. Remove personal details before publishing. The ticket history links to the article.
+- **Known errors:** tab with all problems marked as known error, including the workaround.
+
 ## Emojis
 
 In comments, descriptions and reply templates:

@@ -337,6 +337,25 @@ export const MIGRATIONS = [
     CREATE INDEX idx_approvals_approver ON approvals(approver_id, decision);
     `,
   },
+  {
+    id: 14,
+    name: 'Wissensdatenbank',
+    sql: `
+    CREATE TABLE kb_articles (
+      id INTEGER PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      visibility TEXT NOT NULL DEFAULT 'internal', -- internal (nur Bearbeiter) | public (alle Angemeldeten)
+      category TEXT NOT NULL DEFAULT '',
+      source_ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
+      views INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

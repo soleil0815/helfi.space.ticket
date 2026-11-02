@@ -16,6 +16,7 @@ import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
 import { problemSection, problemHint, createProblemButton } from './problem.js';
 import { changeSection } from './change.js';
+import { kbSuggestions, kbFromTicketButton } from './kb.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -165,6 +166,7 @@ export async function renderTicket(content, key) {
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'kbCreated' ? h('span.change', h('a', { href: `/kb/${String(a.newValue).replace('KB-', '')}`, 'data-link': '' }, a.newValue)) : null,
         a.action === 'approval' ? h('span.change', t(`change.decision.${a.field}`), a.newValue ? ` – „${a.newValue}“` : '') : null,
         a.action === 'sla' ? h('span.change', t(`sla.kind.${a.field}`), ' ', t(`sla.state.${a.newValue}`)) : null,
         (a.action === 'linked' || a.action === 'unlinked') && a.field ? h('span.change', linkLabel(...a.field.split(':')), ' ', a.newValue || a.oldValue) : null,
@@ -334,7 +336,8 @@ export async function renderTicket(content, key) {
           type: 'button', class: tk.major ? 'major-on' : '', title: t('major.toggleHint'),
           onclick: async () => { await save({ major: !tk.major }); try { state.boot = await api.bootstrap(); } catch { /* egal */ } route(); },
         }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null,
-        agent ? createProblemButton(tk) : null),
+        agent ? createProblemButton(tk) : null,
+        agent ? kbFromTicketButton(tk) : null),
       h('div.details-box',
         h('div.details-head', t('ticket.details')),
         tk.sla ? detailRow(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
@@ -431,7 +434,7 @@ export function openCreateDialog(defaults = {}) {
   const current = state.project;
   const project = select(state.projects.map((p) => [p.id, `${p.name} (${p.key})`]), defaults.projectId || current?.id);
   const type = select(typesFor(agent).map((x) => [x, t(`type.${x}`)]), defaults.type || (agent ? 'task' : 'request'));
-  const summary = h('input', { required: true, maxLength: 255 });
+  const summary = h('input', { required: true, maxLength: 255, value: defaults.title || '' });
   const desc = h('textarea', { rows: 6, placeholder: t('create.descriptionHint') });
   const descPaste = enableImagePaste(desc); // noch kein Ticket: Bilder nach dem Anlegen hochladen
   const prio = select(PRIOS.map((x) => [x, t(`priority.${x}`)]), 'medium');
@@ -474,6 +477,7 @@ export function openCreateDialog(defaults = {}) {
   err,
   state.projects.length > 1 ? h('div.grid-2', field(t('create.project'), project), field(t('create.type'), type)) : field(t('create.type'), type),
   field(t('create.summary'), summary),
+  kbSuggestions(summary),
   field(t('create.description'), withEmoji(desc)),
   h('div.grid-2', field(t('create.priority'), prio), agent ? field(t('create.assignee'), assignee) : h('div')),
   agent ? h('div.grid-2', field(t('create.labels'), labels), field(t('create.dueDate'), due)) : null,

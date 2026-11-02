@@ -14,6 +14,7 @@ import { QUEUES, VIEWS, queueHref, matchQueue } from './queues.js';
 import { renderProfile } from './views/profile.js';
 import { brandLogo, brandTitle } from './brand.js';
 import { renderChangeCalendar } from './views/change.js';
+import { renderKb } from './views/kb.js';
 
 export const state = {
   boot: null,
@@ -123,6 +124,7 @@ export async function route() {
     if (path === '/my') return await renderMyWork(content);
     if (path === '/reports' && state.isAgent) return await renderReports(content, params);
     if (path === '/changes' && state.isAgent) return await renderChangeCalendar(content, params);
+    if (path === '/kb' || path.startsWith('/kb/')) return await renderKb(content, params, path);
     if (path === '/summary' && state.isAgent) return await renderSummary(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
@@ -212,6 +214,7 @@ function layout(content, path) {
       nav('/board', t('nav.board'), 'board', path === '/board'),
       ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/changes', t('change.calendar'), 'board', path === '/changes'),
+      nav('/kb', t('kb.title'), 'file', path.startsWith('/kb')),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
       state.isAdmin ? nav('/admin/mail', t('nav.channelsMail'), 'mail', path === '/admin/mail') : null,
@@ -222,6 +225,7 @@ function layout(content, path) {
   } else {
     sidebar = h('aside.sidebar',
       nav('/requests', t('nav.myRequests'), 'inbox', path === '/requests'),
+      nav('/kb', t('kb.titleUser'), 'file', path.startsWith('/kb')),
       h('div.sidebar-foot', `Helfi.Space ${state.boot.app.version}`),
     );
   }

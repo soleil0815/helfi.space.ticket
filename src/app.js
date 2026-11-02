@@ -11,6 +11,7 @@ import { createFields } from './itil/fields.js';
 import { createProblems } from './itil/problems.js';
 import { createApprovals } from './itil/approvals.js';
 import { createChanges } from './itil/changes.js';
+import { createKb } from './itil/kb.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -52,6 +53,7 @@ export function createApp(db) {
   const fields = createFields(db, tickets);
   const problems = createProblems(db, tickets, fields);
   const approvals = createApprovals(db, users);
+  const kb = createKb(db, tickets);
   const changes = createChanges(db, tickets, fields, approvals, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
 
@@ -66,7 +68,7 @@ export function createApp(db) {
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
   const reports = createReports(db);
-  const ctx = { links, major, sla, fields, problems, approvals, changes, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');
