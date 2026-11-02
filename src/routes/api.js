@@ -304,16 +304,15 @@ export function createApi(ctx) {
     const p = tickets.projects.get(int(req.params.id) || 0);
     if (!p) throw notFound();
     const body = req.body || {};
-    // Erst prüfen (wirft bei fehlender Entscheidung), dann sichern, dann löschen
-    if (!body.moveTo && !(body.deleteTickets && String(body.confirmKey || '').trim().toUpperCase() === p.key)
-      && db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) throw new HttpError(400, 'err.projectHasTickets');
+    // Tickets werden nie gelöscht: mit Tickets nur zusammen mit dem Verschieben (sonst archivieren)
+    if (!body.moveTo && db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) throw new HttpError(400, 'err.projectHasTickets');
     await backupDatabase(db, `vor-loeschen-${p.key}`);
-    const out = tickets.projects.remove(req.user, p.id, { moveTo: body.moveTo || null, deleteTickets: !!body.deleteTickets, confirmKey: body.confirmKey });
+    const out = tickets.projects.remove(req.user, p.id, { moveTo: body.moveTo || null });
     // Einstellungen, die auf das Projekt zeigen, umstellen (auf das Zielprojekt bzw. „Standard“)
     for (const k of ['general.defaultProject', 'imap.project']) {
       if (String(settings.get(k)).toUpperCase() === p.key) settings.set(k, out.target || '');
     }
-    log.info(`Projekt ${p.key} gelöscht von ${req.user.username}`, { moved: out.moved, deleted: out.deleted, target: out.target });
+    log.info(`Projekt ${p.key} gelöscht von ${req.user.username}`, { moved: out.moved, target: out.target });
     res.json(out);
   }));
 
@@ -345,14 +344,13 @@ export function createApi(ctx) {
     const c = req.body.changes || {};
     for (const k of ['status', 'assigneeId', 'priority', 'projectId']) if (c[k] !== undefined) changes[k] = c[k];
     const comment = str(req.body.comment, 100000).trim();
-    const del = !!req.body.delete;
-    if (del && req.user.role !== 'admin') throw forbidden();
-    if (!del && !comment && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
+    // Tickets werden nie gelöscht (Nachweis) – auch nicht per Sammelaktion
+    if (req.body.delete) throw new HttpError(400, 'err.ticketDeleteDisabled');
+    if (!comment && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
     const ok = [];
     const failed = [];
     for (const key of keys) {
       try {
-        if (del) { tickets.remove(req.user, key); ok.push(key); continue; }
         let current = key;
         if (comment) {
           const row = tickets.load(req.user, key);
@@ -366,7 +364,7 @@ export function createApi(ctx) {
         failed.push({ key, error: e instanceof HttpError ? (hasKey(e.code) ? t(normalizeLang(req.user?.language || langFromHeader(req.get('accept-language'))), e.code) : e.code) : 'error' });
       }
     }
-    log.info(`Sammelaktion von ${req.user.username}: ${ok.length} ok, ${failed.length} fehlgeschlagen`, { delete: del, changes: Object.keys(changes), comment: !!comment });
+    log.info(`Sammelaktion von ${req.user.username}: ${ok.length} ok, ${failed.length} fehlgeschlagen`, { changes: Object.keys(changes), comment: !!comment });
     res.json({ ok, failed });
   }));
 
@@ -376,10 +374,8 @@ export function createApi(ctx) {
     res.json({ ticket: tickets.update(req.user, req.params.key, req.body) });
   }));
 
-  r.delete('/tickets/:key', requireRole('admin'), (req, res) => {
-    tickets.remove(req.user, req.params.key);
-    res.json({ ok: true });
-  });
+  // Tickets werden nie gelöscht (Nachweis). Erledigen statt löschen; Spam per Absender-Regel „Ignorieren“.
+  r.delete('/tickets/:key', (_req, _res) => { throw new HttpError(405, 'err.ticketDeleteDisabled'); });
 
   // ---------- Berichte (alle Bearbeiter) ----------
   r.get('/reports', requireRole('agent'), (req, res) => res.json(reports.report(req.query)));

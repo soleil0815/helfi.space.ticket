@@ -247,10 +247,10 @@ test('Ungültige Datumsangaben brechen den Vorgang nicht ab (Audit)', async () =
   assert.equal(iso(null), null);
 });
 
-test('Gelöschtes Ticket: Import-Zuordnung wird mitgelöscht (Audit)', async () => {
+test('Importierte Tickets lassen sich nicht löschen; Import-Zuordnung bleibt', async () => {
   const t = db.prepare("SELECT t.id FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key='SUP' AND t.number=10").get();
   assert.ok(db.prepare("SELECT 1 FROM import_map WHERE kind='issue' AND local_id=?").get(t.id));
-  assert.equal((await call('DELETE', '/api/tickets/SUP-10')).status, 200);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM import_map WHERE kind='issue' AND local_id=?").get(t.id).n, 0);
+  assert.equal((await call('DELETE', '/api/tickets/SUP-10')).status, 405);
+  assert.ok(db.prepare("SELECT 1 FROM import_map WHERE kind='issue' AND local_id=?").get(t.id));
 });
 

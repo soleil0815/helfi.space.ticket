@@ -60,7 +60,6 @@ export const api = {
   ticket: (key) => request('GET', `/api/tickets/${encodeURIComponent(key)}`),
   createTicket: (d) => request('POST', '/api/tickets', d),
   updateTicket: (key, d) => request('PATCH', `/api/tickets/${encodeURIComponent(key)}`, d),
-  deleteTicket: (key) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}`),
   bulk: (d) => request('POST', '/api/tickets/bulk', d),
   comment: (key, body, internal) => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal }),
   upload: (key, files, { draft = false } = {}) => {
