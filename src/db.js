@@ -269,6 +269,55 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 12,
+    name: 'Zusatzfelder (Problem, Change)',
+    // Tabelle tickets neu aufbauen (die Liste erlaubter Typen steckte in einem CHECK). Dafür
+    // Fremdschlüssel kurz aus, sonst würden abhängige Zeilen beim DROP mitgelöscht.
+    foreignKeysOff: true,
+    sql: `
+    CREATE TABLE tickets_new (
+      id INTEGER PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT 'request',
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','waiting','done')),
+      priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('highest','high','medium','low')),
+      reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reporter_email TEXT,
+      reporter_name TEXT,
+      assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      labels TEXT NOT NULL DEFAULT '',
+      due_date TEXT,
+      source TEXT NOT NULL DEFAULT 'web',
+      rank REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      resolved_at TEXT,
+      impact TEXT,
+      urgency TEXT,
+      major INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (project_id, number)
+    );
+    INSERT INTO tickets_new (id, project_id, number, title, description, type, status, priority, reporter_id, reporter_email, reporter_name, assignee_id, labels, due_date, source, rank, created_at, updated_at, resolved_at, impact, urgency, major) SELECT id, project_id, number, title, description, type, status, priority, reporter_id, reporter_email, reporter_name, assignee_id, labels, due_date, source, rank, created_at, updated_at, resolved_at, impact, urgency, major FROM tickets;
+    DROP TABLE tickets;
+    ALTER TABLE tickets_new RENAME TO tickets;
+    CREATE INDEX tickets_status ON tickets(status);
+    CREATE INDEX tickets_assignee ON tickets(assignee_id);
+    CREATE INDEX tickets_reporter ON tickets(reporter_id);
+
+    -- Felder je Tickettyp, z. B. Ursache/Workaround (Problem) oder Rückfallplan (Change)
+    CREATE TABLE ticket_fields (
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      value TEXT,
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (ticket_id, name)
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
@@ -369,10 +418,17 @@ export async function openDatabase(file = paths.db, { appVersion = config.versio
   const pending = MIGRATIONS.filter((m) => m.id > dbSchema);
   for (const m of pending) {
     log.info(`Datenbank-Migration ${m.id}: ${m.name}`);
-    db.transaction(() => {
-      db.exec(m.sql);
-      setMeta(db, 'schema_version', m.id);
-    })();
+    if (m.foreignKeysOff) db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        db.exec(m.sql);
+        // Nach einem Umbau müssen alle Verweise noch stimmen, sonst alles zurück
+        if (m.foreignKeysOff && db.pragma('foreign_key_check').length) throw new Error(`Migration ${m.id}: Fremdschlüssel verletzt`);
+        setMeta(db, 'schema_version', m.id);
+      })();
+    } finally {
+      if (m.foreignKeysOff) db.pragma('foreign_keys = ON');
+    }
   }
   setMeta(db, 'app_version', appVersion);
   return db;

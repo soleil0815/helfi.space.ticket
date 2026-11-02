@@ -14,9 +14,10 @@ import { mailView } from '../mailview.js';
 import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
+import { problemSection, problemHint, createProblemButton } from './problem.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
-const TYPES = ['incident', 'request', 'task', 'question'];
+import { TYPES, typesFor } from '../types.js';
 const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderTicket(content, key) {
@@ -150,7 +151,7 @@ export async function renderTicket(content, key) {
       if (a.field === 'priority') return t(`priority.${v}`);
       if (a.field === 'type') return t(`type.${v}`);
       if (a.field === 'impact' || a.field === 'urgency') return t(`level.${v}`);
-      if (a.field === 'major') return t(String(v) === '1' ? 'app.yes' : 'app.no');
+      if (a.field === 'major' || a.field === 'knownError') return t(String(v) === '1' ? 'app.yes' : 'app.no');
       return v;
     };
     return h('div.history',
@@ -328,7 +329,8 @@ export async function renderTicket(content, key) {
         agent && (tk.type === 'incident' || tk.major) ? h('button.btn.btn-subtle.small', {
           type: 'button', class: tk.major ? 'major-on' : '', title: t('major.toggleHint'),
           onclick: async () => { await save({ major: !tk.major }); try { state.boot = await api.bootstrap(); } catch { /* egal */ } route(); },
-        }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null),
+        }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null,
+        agent ? createProblemButton(tk) : null),
       h('div.details-box',
         h('div.details-head', t('ticket.details')),
         tk.sla ? detailRow(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
@@ -365,7 +367,9 @@ export async function renderTicket(content, key) {
           h('span.crumb-key', typeIcon(tk.type), h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key))),
         titleEl(),
         agent ? majorBanner(tk, refresh) : null,
+        agent ? problemHint(tk) : null,
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
+        agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         attachmentsEl(),
         agent ? linksSection(tk, refresh) : null,
         activityEl()),
@@ -421,7 +425,7 @@ export function openCreateDialog(defaults = {}) {
   const agent = state.isAgent;
   const current = state.project;
   const project = select(state.projects.map((p) => [p.id, `${p.name} (${p.key})`]), defaults.projectId || current?.id);
-  const type = select(TYPES.map((x) => [x, t(`type.${x}`)]), defaults.type || (agent ? 'task' : 'request'));
+  const type = select(typesFor(agent).map((x) => [x, t(`type.${x}`)]), defaults.type || (agent ? 'task' : 'request'));
   const summary = h('input', { required: true, maxLength: 255 });
   const desc = h('textarea', { rows: 6, placeholder: t('create.descriptionHint') });
   const descPaste = enableImagePaste(desc); // noch kein Ticket: Bilder nach dem Anlegen hochladen

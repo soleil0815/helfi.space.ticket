@@ -226,6 +226,13 @@ In the ticket view (agents) under *Links*:
 - **Display:** the ticket view shows both clocks with time left, green, yellow from 80 % (configurable) and red when breached. The ticket list has an SLA column, the sidebar a **SLA at risk** view with a count.
 - **Warning:** when the warning threshold is reached and when the target is breached, the assignee gets an email (without assignee the project lead), once each. The history records it.
 
+## Problem management
+
+- **Create a problem** from an incident via *Create problem*. It is linked to the incident right away. Only agents create problems; the sidebar shows open **problems** with a count.
+- **Fields:** *root cause*, *workaround* and **known error** (root cause and workaround are known, the permanent fix is still pending).
+- **Affected incidents** are attached via *Link → causes*. There agents see “Root cause known” with the workaround at the top and can use it as a reply with one click.
+- **Inform incidents:** posts the same reply in all open affected incidents, e.g. once the fix is deployed.
+
 ## Emojis
 
 In comments, descriptions and reply templates:

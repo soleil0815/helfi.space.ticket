@@ -67,7 +67,7 @@ test('Vorbereitung: zwei Projekte, gemischte Tickets', async () => {
 test('Zahlen je Warteschlange, je Projekt und gesamt; nur Bearbeiter', async () => {
   assert.equal((await karl('GET', '/api/queues')).status, 403);
   const it = (await admin('GET', '/api/queues?project=IT')).body.counts;
-  assert.deepEqual(it, { open: 4, mine: 1, unassigned: 3, waiting: 1, recent: 1, total: 6, requests: 1, incidents: 2 });
+  assert.deepEqual(it, { open: 4, mine: 1, unassigned: 3, waiting: 1, recent: 1, total: 6, requests: 1, incidents: 2, problems: 0 });
   const all = (await admin('GET', '/api/queues')).body.counts;
   assert.equal(all.total, 7);
   assert.equal(all.requests, 2);
@@ -88,7 +88,7 @@ test('Zusammenfassung', async () => {
   assert.equal(s.project.key, 'IT');
   assert.deepEqual(s.counts, { open: 4, created7: 6, resolved7: 1, overdue: 1, unassigned: 3 });
   assert.deepEqual(s.byStatus, { open: 3, in_progress: 0, waiting: 1, done: 2 });
-  assert.deepEqual(s.byType, { incident: 2, request: 1, task: 1, question: 0 });
+  assert.deepEqual(s.byType, { incident: 2, request: 1, task: 1, question: 0, problem: 0, change: 0 });
   assert.equal(s.urgent[0].key, k.b, 'höchste Priorität zuerst');
   assert.ok(!s.urgent.some((x) => x.status === 'done'));
   assert.equal(s.urgent[1].key, k.f, 'dann überfällige');

@@ -14,7 +14,8 @@ export function createMajor(db, tickets) {
   function broadcast(user, key, { body, resolve = false } = {}) {
     if (!isAgent(user)) throw forbidden();
     const major = tickets.load(user, key);
-    if (!major.major) throw new HttpError(400, 'err.notMajor');
+    // Major Incident oder Problem: alle betroffenen Störungen informieren
+    if (!major.major && major.type !== 'problem') throw new HttpError(400, 'err.notMajor');
     const text = str(body, 20000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest', 'body');
     const ids = [major.id, ...affected(major.id)];

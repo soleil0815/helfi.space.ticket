@@ -8,7 +8,9 @@ import { isAgent } from './auth/session.js';
 import { userRef } from './users.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
-export const TYPES = ['incident', 'request', 'task', 'question'];
+export const TYPES = ['incident', 'request', 'task', 'question', 'problem', 'change'];
+// Nur Bearbeiter legen Probleme und Changes an
+export const AGENT_TYPES = ['problem', 'change'];
 export const PRIORITIES = ['highest', 'high', 'medium', 'low'];
 // Auswirkung × Dringlichkeit → Priorität (ITIL)
 export const LEVELS = ['high', 'medium', 'low'];
@@ -238,7 +240,7 @@ export function createTickets(db, users) {
       const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,assignee_id,labels,due_date,source,rank)
         VALUES(?,?,?,?,?,'open',?,?,?,?,?,?,?,?,?)`).run(
         project.id, number, title, str(data.description, 100000),
-        TYPES.includes(data.type) ? data.type : 'request',
+        TYPES.includes(data.type) && (isAgent(user) || !AGENT_TYPES.includes(data.type)) ? data.type : 'request',
         PRIORITIES.includes(data.priority) ? data.priority : 'medium',
         reporterId !== undefined ? reporterId : (user ? user.id : null),
         reporterEmail, reporterName,

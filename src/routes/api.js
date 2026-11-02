@@ -327,6 +327,7 @@ export function createApi(ctx) {
     const project = req.query.project ? str(req.query.project, 20) : null;
     const counts = tickets.queueCounts(req.user, project);
     if (ctx.sla.enabled()) counts.slaRisk = ctx.sla.atRisk(project).length;
+    counts.problems = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='problem' AND t.status<>'done' AND p.archived=0 ${project ? 'AND p.key=?' : ''}`).get(...(project ? [project.toUpperCase()] : [])).n;
     res.json({ counts });
   });
   r.get('/summary', requireRole('agent'), (req, res) => res.json(tickets.summary(req.user, req.query.project ? str(req.query.project, 20) : null)));

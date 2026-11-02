@@ -9,7 +9,7 @@ import { matchQueue } from '../queues.js';
 import { slaBadge } from './sla.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
-const TYPES = ['incident', 'request', 'task', 'question'];
+import { TYPES } from '../types.js';
 const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderList(content, params, { requests = false } = {}) {
