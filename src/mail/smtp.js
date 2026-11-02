@@ -132,8 +132,14 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
   tickets.events.on('commented', safe(async ({ ticket, comment, user, internal }) => {
     // Kommentare aus E-Mails nie weiterleiten: Absender von Mails lassen sich fälschen
     if (internal || comment.source === 'email' || !settings.get('notify.reporterOnComment') || !user) return;
+    const assignee = ticket.assignee?.displayName && ticket.assignee.id !== user.id ? ticket.assignee.displayName : null;
     await toCustomers(ticket, user.id, (lang, name) => {
-      const vars = { key: ticket.key, title: ticket.title, name, author: user.display_name, body: inlineImagesAsText(comment.body, lang), link: link(ticket), app: appName() };
+      const vars = {
+        key: ticket.key, title: ticket.title, name, author: user.display_name, body: inlineImagesAsText(comment.body, lang), link: link(ticket), app: appName(),
+        // Absender bleibt immer das Ticketsystem – der Name des Bearbeiters steht nur im Text
+        contact: assignee ? `${t(lang, 'mail.contact', { name: assignee })}\n` : '',
+        closing: t(lang, 'mail.closing', { author: user.display_name || user.username, app: appName() }),
+      };
       return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars) };
     });
   }));
@@ -144,14 +150,19 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     const raw = tickets.rawById(ticket.id);
     const isReporter = (r) => (raw.reporter_id ? r.id === raw.reporter_id : r.email === String(raw.reporter_email || '').toLowerCase());
     await toCustomers(ticket, user?.id, (lang, name, r) => {
-      const vars = { key: ticket.key, title: ticket.title, name, link: link(ticket), app: appName() };
-      let text = t(lang, 'mail.done.body', vars);
       const token = survey && isReporter(r) ? survey.issueToken(ticket.id) : null;
+      let surveyText = '';
       if (token) {
         const url = (n) => `${config.baseUrl}/rate/${token}?r=${n}`;
-        text = `${text}\n\n${t(lang, 'mail.survey', { days: settings.get('survey.days') })}\n${[5, 4, 3, 2, 1].map((n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}  ${t(lang, `survey.label.${n}`)}: ${url(n)}`).join('\n')}`;
+        surveyText = `\n\n${t(lang, 'mail.survey', { days: settings.get('survey.days') })}\n${[5, 4, 3, 2, 1].map((n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}  ${t(lang, `survey.label.${n}`)}: ${url(n)}`).join('\n')}`;
       }
-      return { subject: t(lang, 'mail.done.subject', vars), text };
+      const agentName = user && ['agent', 'admin'].includes(user.role) ? (user.display_name || user.username) : null;
+      const vars = {
+        key: ticket.key, title: ticket.title, name, link: link(ticket), app: appName(), survey: surveyText,
+        contact: ticket.assignee?.displayName ? `${t(lang, 'mail.contact', { name: ticket.assignee.displayName })}\n` : '',
+        closing: agentName ? t(lang, 'mail.closing', { author: agentName, app: appName() }) : appName(),
+      };
+      return { subject: t(lang, 'mail.done.subject', vars), text: t(lang, 'mail.done.body', vars) };
     });
   }));
 
