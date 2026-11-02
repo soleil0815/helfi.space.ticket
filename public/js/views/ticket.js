@@ -12,6 +12,7 @@ import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
 import { linksSection, linkLabel } from './links.js';
+import { majorBanner } from './major.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -147,6 +148,8 @@ export async function renderTicket(content, key) {
       if (a.field === 'status') return t(`status.${v}`);
       if (a.field === 'priority') return t(`priority.${v}`);
       if (a.field === 'type') return t(`type.${v}`);
+      if (a.field === 'impact' || a.field === 'urgency') return t(`level.${v}`);
+      if (a.field === 'major') return t(String(v) === '1' ? 'app.yes' : 'app.no');
       return v;
     };
     return h('div.history',
@@ -319,12 +322,20 @@ export async function renderTicket(content, key) {
         h('button.btn-icon', {
           type: 'button', title: t('ticket.copyLink'),
           onclick: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* egal */ } },
-        }, icon('link'))),
+        }, icon('link')),
+        agent && (tk.type === 'incident' || tk.major) ? h('button.btn.btn-subtle.small', {
+          type: 'button', class: tk.major ? 'major-on' : '', title: t('major.toggleHint'),
+          onclick: async () => { await save({ major: !tk.major }); try { state.boot = await api.bootstrap(); } catch { /* egal */ } route(); },
+        }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null),
       h('div.details-box',
         h('div.details-head', t('ticket.details')),
         detailRow(t('ticket.assignee'), assignee),
         detailRow(t('ticket.reporter'), h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—', tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.muted.block', tk.reporter.email) : null))),
         detailRow(t('ticket.participants'), participantsEl()),
+        agent ? detailRow(t('itil.impact'), pick(tk.impact, [[null, t('app.none')], ...['high', 'medium', 'low'].map((v) => [v, t(`level.${v}`)])], (v) => save({ impact: v }),
+          (v) => h('span', v ? t(`level.${v}`) : h('span.muted', t('app.none'))))) : null,
+        agent ? detailRow(t('itil.urgency'), pick(tk.urgency, [[null, t('app.none')], ...['high', 'medium', 'low'].map((v) => [v, t(`level.${v}`)])], (v) => save({ urgency: v }),
+          (v) => h('span', v ? t(`level.${v}`) : h('span.muted', t('app.none'))))) : null,
         detailRow(t('ticket.priority'), pick(tk.priority, PRIOS.map((p) => [p, t(`priority.${p}`), priorityIcon(p)]), (v) => save({ priority: v }),
           (v) => h('span.person', priorityIcon(v), h('span', t(`priority.${v}`))))),
         detailRow(t('ticket.type'), pick(tk.type, TYPES.map((p) => [p, t(`type.${p}`), typeIcon(p)]), (v) => save({ type: v }),
@@ -349,6 +360,7 @@ export async function renderTicket(content, key) {
           h('a', { href: agent ? `/issues?project=${tk.projectKey}` : '/requests', 'data-link': '' }, tk.projectName), ' / ',
           h('span.crumb-key', typeIcon(tk.type), h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key))),
         titleEl(),
+        agent ? majorBanner(tk, refresh) : null,
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
         attachmentsEl(),
         agent ? linksSection(tk, refresh) : null,

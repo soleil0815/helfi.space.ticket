@@ -210,6 +210,11 @@ In the ticket view (agents) under *Links*:
 - **Subtasks:** create them directly (a task in the same project) or put existing tickets underneath. A progress bar shows “x of y done”. A ticket has at most one parent, circles are rejected.
 - Links are only visible to agents; at most 50 per ticket.
 
+## Impact, urgency and major incidents
+
+- **ITIL priority:** in the details, agents set *impact* and *urgency* (high/medium/low). Once both are set, the priority follows the matrix (e.g. high × high = Highest, medium × medium = Medium). It can still be changed manually.
+- **Major incident:** mark an incident with many affected people using the *Major incident* button. All agents see it as a red notice at the top. Attach affected tickets via *Link → causes*. **Inform everyone affected** posts the same reply in the major incident and all open affected tickets, so every reporter and participant receives it by email. Optionally all of them are set to “Done” afterwards.
+
 ## Emojis
 
 In comments, descriptions and reply templates:

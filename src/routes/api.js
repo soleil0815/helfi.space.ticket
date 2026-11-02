@@ -50,6 +50,7 @@ export function createApi(ctx) {
         userLabel: { de: String(settings.get('login.userLabelDe')).slice(0, 80), en: String(settings.get('login.userLabelEn')).slice(0, 80) },
       },
       setupRequired: userCount === 0,
+      majorIncidents: req.user && isAgent(req.user) ? ctx.major.open() : [],
       user: req.user ? publicUser(req.user) : null,
       auth: {
         ldap: settings.get('ldap.enabled'),

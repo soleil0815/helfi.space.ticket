@@ -246,6 +246,15 @@ export const MIGRATIONS = [
     CREATE INDEX idx_links_to ON ticket_links(to_id);
     `,
   },
+  {
+    id: 10,
+    name: 'Auswirkung, Dringlichkeit, Major Incident',
+    sql: `
+    ALTER TABLE tickets ADD COLUMN impact TEXT;
+    ALTER TABLE tickets ADD COLUMN urgency TEXT;
+    ALTER TABLE tickets ADD COLUMN major INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
