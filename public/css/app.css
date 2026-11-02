@@ -455,6 +455,8 @@ dl.kv dd { margin: 0; }
 .hint-box { display: flex; gap: 10px; background: var(--blue-subtle); border-radius: 4px; padding: 12px 16px; margin: 8px 0 16px; font-size: 13px; }
 .hint-box > .icon { color: var(--blue); margin-top: 2px; }
 .hint-box p:last-child { margin: 0; }
+.hint-box.hint-warn { background: var(--yellow-subtle); }
+.hint-box.hint-warn > .icon { color: #7F5F01; }
 .error-list { margin: 8px 0; padding-left: 18px; max-height: 240px; overflow: auto; }
 .admin-body .panel h3 { margin: 16px 0 10px; }
 

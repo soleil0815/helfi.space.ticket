@@ -15,7 +15,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Import aus einem anderen Ticketsystem** (über dessen REST-API, Cloud und Server/Data Center): Projekte, Tickets, Kommentare und Anhänge. Die Ticketnummern bleiben erhalten.
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen.
-- **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht.
+- **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht – einstellbar je Rolle.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
 - Automatische Sicherungen täglich und vor jedem Update
 
@@ -98,10 +98,18 @@ Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Be
 
 *Administration → Sicherheit*
 
-Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Faktor Pflicht.** Das ist ein 6-stelliger Code aus einer Authenticator-App wie Microsoft Authenticator, Google Authenticator, Aegis oder 2FAS. Alternativ lässt sich 2FA „immer“ oder „nie (freiwillig)“ verlangen.
+Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Faktor Pflicht.** Das ist ein 6-stelliger Code aus einer Authenticator-App wie Microsoft Authenticator, Google Authenticator, Aegis oder 2FAS. Die Pflicht lässt sich getrennt nach Rolle einstellen:
+
+| Einstellung | Auswahl |
+|---|---|
+| Pflicht bei Anmeldung von außen | alle Benutzer (Standard) · Bearbeiter und Administratoren · nur Administratoren · niemand |
+| Im internen Netz | keine Zwei-Faktor-Abfrage (Standard) · nur Administratoren · Bearbeiter und Administratoren · alle Benutzer |
+
+Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren immer mit Code. Wer vorher „immer“ oder „nie“ eingestellt hatte, behält das Verhalten.
 
 - **Zugriffe vom Server selbst** (127.0.0.1) gelten nicht automatisch als intern. Ein Reverse-Proxy auf demselben Rechner muss X-Forwarded-For setzen, sonst sähe jeder Zugriff wie vom Server selbst aus. Zum Testen lässt sich `127.0.0.1` in die Liste eintragen.
-- **Interne Netze** stehen als Liste in den Einstellungen (Standard: `10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7`). Die Seite zeigt an, wie deine aktuelle Adresse erkannt wird.
+- **Interne Netze** stehen in den Einstellungen, eine Angabe pro Zeile (Standard: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). Die Vorgabe deckt alle privaten Bereiche ab, auch Docker-Netze und ein Gäste-WLAN. Am besten auf die echten Firmennetze eingrenzen, z. B. `10.0.10.0/24`. Die Seite zeigt an, wie deine aktuelle Adresse erkannt wird.
+- **Eigener Internetanschluss:** Ruft ein Rechner im Firmennetz Helfi.Space über die öffentliche Adresse auf, kommt er oft mit der öffentlichen IP des eigenen Anschlusses an (Hairpin-NAT). Diese IP oder einen DynDNS-Namen (z. B. `203.0.113.10` oder `helfi.dyndns.example`) dort eintragen, dann gelten solche Zugriffe als intern. Namen werden alle 5 Minuten neu aufgelöst; ist DNS kurz nicht erreichbar, gilt die zuletzt bekannte Adresse weiter. Achtung: Hängt ein Gäste-WLAN am selben Anschluss, gelten auch Gäste als intern.
 - **Hinter einem Reverse-Proxy** muss dessen Adresse in `HELFI_TRUST_PROXY` stehen. Sonst sieht Helfi.Space nur den Proxy und behandelt jeden Zugriff sicherheitshalber als extern. Admins bekommen dann einen Hinweis.
 - **Einrichten:** Jeder richtet 2FA unter *Profil → Zwei-Faktor-Anmeldung* ein: QR-Code scannen, Code eingeben, 10 Wiederherstellungscodes sichern. Aus Sicherheitsgründen geht die Ersteinrichtung nur im internen Netz, und zwar in jedem Modus. Ist 2FA schon eingerichtet, lässt sie sich nur mit gültigem Code abschalten und dann neu einrichten (z. B. neues Handy). So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. Wer nur von außen arbeitet, für den lässt sich unter *Sicherheit* die „Ersteinrichtung auch von außen“ erlauben.
 - **Sitzungen:** Wer sich im Büro ohne Code angemeldet hat und denselben Browser später von zu Hause nutzt, muss sich dort neu mit Code anmelden.

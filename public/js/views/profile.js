@@ -88,7 +88,7 @@ async function drawMfa(panel) {
   const codeField = () => h('input.code-input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxLength: 9, placeholder: '123456' });
   const where = h('p.muted.small', icon(st.network.internal ? 'check' : 'globe'), ' ',
     t(st.network.internal ? 'mfa.youAreInternal' : 'mfa.youAreExternal', { ip: st.network.ip }));
-  const modeText = { off: t('mfa.modeOffInfo'), external: t('mfa.modeExternalInfo'), always: t('mfa.modeAlwaysInfo') }[st.mode];
+  const modeText = { off: t('mfa.modeOffInfo'), external: t('mfa.modeExternalInfo'), always: t('mfa.modeAlwaysInfo'), internal: t('mfa.modeInternalInfo') }[st.mode];
 
   if (st.sso && !st.enabled) {
     return mount(panel, h('h2', t('mfa.title')), h('p', t('mfa.ssoInfo')), where);

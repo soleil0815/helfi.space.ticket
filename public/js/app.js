@@ -224,7 +224,7 @@ function layout(content, path) {
 
   const warnings = (state.boot.warnings || []).map((w) => h('div.banner.banner-warn', icon('warning'), t(`warn.${w.code}`, w)));
   const m = state.boot.mfa;
-  if (m && m.mode === 'external' && !m.enabled && u.source !== 'oidc' && path !== '/profile') {
+  if (m && m.mode !== 'off' && !m.enabled && u.source !== 'oidc' && path !== '/profile') {
     warnings.push(h('div.banner.banner-info', icon('shield'), h('span', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup'))));
   }
   if (state.isAgent) refreshQueueCounts(p?.key);

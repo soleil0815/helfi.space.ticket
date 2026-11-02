@@ -21,14 +21,11 @@ export const DEFAULTS = {
   'mfa.mode': 'external', // off | external (nur von außerhalb Pflicht) | always
   'mfa.internalNetworks': '10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7',
   'mfa.enrollExternal': false, // Ersteinrichtung von außen erlauben (sonst nur im internen Netz)
+  'mfa.external': '', // Pflicht von außen: all | agents | admins | none (leer = aus mfa.mode abgeleitet)
+  'mfa.internal': '', // Pflicht im internen Netz: none | admins | agents | all (leer = aus mfa.mode abgeleitet)
+  'mfa.ownAddresses': '', // eigener Internetanschluss: öffentliche IPs/DynDNS-Namen, gelten als intern
   'mfa.trustSso': true, // SSO-Anmeldungen gelten als zweiter Faktor (MFA beim Identitätsanbieter)
   'general.defaultLanguage': 'de', // de | en – für E-Mails an Absender ohne Konto
-
-  // Zwei-Faktor-Anmeldung (TOTP)
-  'mfa.mode': 'external', // off | external (nur von außerhalb Pflicht) | always
-  'mfa.internalNetworks': '10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7',
-  'mfa.enrollExternal': false, // Ersteinrichtung von außen erlauben (sonst nur im internen Netz)
-  'mfa.trustSso': true, // SSO-Anmeldungen gelten als zweiter Faktor (MFA beim Identitätsanbieter)
 
   // Active Directory / LDAP
   'ldap.enabled': false,

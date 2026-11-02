@@ -69,7 +69,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
      */
     afterPrimary(req, res, u, method, { trustedSecondFactor = false } = {}) {
       cleanup();
-      const required = policy.mfaRequired(req);
+      const required = policy.mfaRequired(req, u);
       if (!required || trustedSecondFactor) {
         sessions.create(res, u.id, req.ip, method, { mfa: required || trustedSecondFactor });
         return { done: true };
@@ -134,8 +134,9 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       try { left = JSON.parse(u.recovery_codes || '[]').length; } catch { /* leer */ }
       const net = policy.classify(req);
       return {
-        enabled: !!u.totp_enabled, recoveryCodesLeft: left, mode: settings.get('mfa.mode'),
+        enabled: !!u.totp_enabled, recoveryCodesLeft: left, mode: policy.userMode(u),
         network: { ip: net.ip, internal: net.internal, reason: net.reason },
+        required: policy.mfaRequired(req, u),
         canSetup: canEnrollHere(req) || !!u.session_mfa,
         sso: u.source === 'oidc' && settings.get('mfa.trustSso'),
       };
