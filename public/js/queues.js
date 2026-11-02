@@ -13,6 +13,7 @@ export const QUEUES = [
 export const VIEWS = [
   { id: 'requests', label: 'nav.serviceRequests', icon: 'type-request', params: { type: 'request', status: 'unresolved' }, count: 'requests' },
   { id: 'incidents', label: 'nav.incidents', icon: 'type-incident', params: { type: 'incident', status: 'unresolved' }, count: 'incidents' },
+  { id: 'problems', label: 'nav.problems', icon: 'type-problem', params: { type: 'problem', status: 'unresolved' }, count: 'problems' },
   { id: 'slaRisk', label: 'nav.slaRisk', icon: 'warning', params: { sla: 'risk' }, count: 'slaRisk', when: (boot) => boot.sla?.enabled },
 ];
 

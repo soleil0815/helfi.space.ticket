@@ -226,6 +226,13 @@ In der Ticketansicht (Bearbeiter) unter *Verknüpfungen*:
 - **Anzeige:** In der Ticketansicht stehen beide Uhren mit Restzeit, grün, gelb ab 80 % (einstellbar) und rot bei Überschreitung. In der Ticketliste gibt es eine SLA-Spalte, in der Seitenleiste die Ansicht **SLA gefährdet** mit Zähler.
 - **Warnung:** Bei Erreichen der Warnschwelle und bei Überschreitung bekommt der Bearbeiter eine Mail (ohne Bearbeiter die Projektleitung), jeweils einmal. Der Verlauf hält es fest.
 
+## Problem-Management
+
+- **Problem anlegen:** In einer Störung über *Problem anlegen*. Das Problem wird gleich mit der Störung verknüpft. Probleme legen nur Bearbeiter an; die Seitenleiste zeigt offene **Probleme** mit Zähler.
+- **Felder:** *Ursache*, *Workaround* und **Bekannter Fehler** (Ursache und Workaround sind bekannt, die endgültige Lösung steht noch aus).
+- **Betroffene Störungen** hängen über *Verknüpfen → verursacht* am Problem. Dort sehen Bearbeiter oben „Ursache bekannt“ mit dem Workaround und übernehmen ihn mit einem Klick in die Antwort.
+- **Störungen informieren:** schreibt dieselbe Antwort in alle offenen betroffenen Störungen, z. B. wenn die Lösung eingespielt ist.
+
 ## Emojis
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:

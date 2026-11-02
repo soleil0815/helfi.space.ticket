@@ -5,9 +5,9 @@ import { t } from '../i18n.js';
 import { withEmoji } from '../emoji.js';
 import { openTemplatePicker, fillPlaceholders } from './canned.js';
 
-export function majorBanner(tk, refresh) {
-  if (!tk.major) return null;
-  const open = () => {
+/** Nachricht an alle Betroffenen (Major Incident oder Problem) */
+export function openBroadcast(tk, refresh) {
+  {
     const text = h('textarea', { rows: 7, required: true, maxLength: 20000, placeholder: t('major.messageHint') });
     const resolve = h('input', { type: 'checkbox' });
     const err = h('div.form-error', { role: 'alert', hidden: true });
@@ -29,7 +29,12 @@ export function majorBanner(tk, refresh) {
     field(t('major.message'), withEmoji(text)), tpl,
     h('div.field.field-check', resolve, h('label', t('major.resolveAll')))),
     { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'major-form' }, t('major.send'))] });
-  };
+  }
+}
+
+export function majorBanner(tk, refresh) {
+  if (!tk.major) return null;
+  const open = () => openBroadcast(tk, refresh);
   return h('div.major-banner', icon('warning'),
     h('div', h('strong', t('major.title')), ' · ', t('major.affected', { n: tk.affectedCount || 0 }), h('span.muted.block.small', t('major.howto'))),
     h('span.spacer'),

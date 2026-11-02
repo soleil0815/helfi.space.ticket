@@ -584,6 +584,13 @@ table.issues tbody tr.kbd-focus { background: var(--blue-subtle); box-shadow: in
 .day-box input { width: auto; }
 .sla-targets input.num { width: 80px; }
 input.num { width: 100px; }
+.itil-box { border: 1px solid var(--border); border-radius: 4px; padding: 12px 16px; background: var(--bg-sunken); }
+.itil-box h3 { display: flex; align-items: center; gap: 4px; }
+.badge-known { background: #FFF3EB; color: #A54800; margin-left: 8px; }
+.problem-hint { background: #FFF3EB; border: 1px solid #FEC195; border-radius: 4px; padding: 10px 14px; margin: 0 0 16px; }
+.problem-hint > div + div { margin-top: 8px; padding-top: 8px; border-top: 1px solid #FEC195; }
+.problem-workaround { margin-top: 6px; }
+.problem-workaround .btn { margin-top: 4px; }
 .radio-block { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; cursor: pointer; }
 .radio-block input[type=radio] { width: auto; flex: none; margin: 3px 0 0; }
 .radio-detail { margin-left: 26px; }

@@ -7,6 +7,8 @@ import { brandRoutes } from './brand.js';
 import { createLinks } from './itil/links.js';
 import { createMajor } from './itil/major.js';
 import { createSla } from './itil/sla.js';
+import { createFields } from './itil/fields.js';
+import { createProblems } from './itil/problems.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -45,6 +47,8 @@ export function createApp(db) {
   const mfa = createMfa({ db, settings, sessions, users, policy, limiter });
   wireNotifications({ tickets, mailer, settings, users });
   const major = createMajor(db, tickets);
+  const fields = createFields(db, tickets);
+  const problems = createProblems(db, tickets, fields);
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
 
   // Ersteinrichtung: einmaliger Code, nur solange es keine Benutzer gibt
@@ -58,7 +62,7 @@ export function createApp(db) {
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
   const reports = createReports(db);
-  const ctx = { links, major, sla, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
+  const ctx = { links, major, sla, fields, problems, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');

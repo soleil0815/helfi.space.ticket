@@ -7,7 +7,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major } = ctx;
+  const { links, major, fields, problems } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -19,6 +19,17 @@ export function createItilRoutes(ctx) {
   r.post('/tickets/:key/subtasks', requireRole('agent'), wrap(async (req, res) => {
     res.status(201).json(links.createSubtask(req.user, req.params.key, { title: req.body.title, assigneeId: req.body.assigneeId || null }));
   }));
+
+  // ---------- Zusatzfelder (Problem, Change) ----------
+  r.patch('/tickets/:key/fields', requireRole('agent'), wrap(async (req, res) => {
+    res.json({ fields: fields.update(req.user, req.params.key, req.body || {}) });
+  }));
+
+  // ---------- Problem-Management ----------
+  r.post('/tickets/:key/problem', requireRole('agent'), wrap(async (req, res) => {
+    res.status(201).json({ ticket: problems.fromIncident(req.user, req.params.key, { title: req.body.title }) });
+  }));
+  r.get('/known-errors', requireRole('agent'), (req, res) => res.json({ knownErrors: problems.knownErrors() }));
 
   // ---------- Major Incident ----------
   r.post('/tickets/:key/broadcast', requireRole('agent'), wrap(async (req, res) => {

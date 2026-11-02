@@ -1,0 +1,63 @@
+// Zusatzfelder je Tickettyp (Problem, Change). Nur Bearbeiter lesen und ändern sie.
+import { HttpError, forbidden, str } from '../lib/http.js';
+import { isAgent } from '../auth/session.js';
+
+// name → { type: 'text' | 'bool' | 'enum' | 'datetime', max, values }
+export const FIELD_DEFS = {
+  problem: {
+    rootCause: { type: 'text', max: 20000 },
+    workaround: { type: 'text', max: 20000 },
+    knownError: { type: 'bool' },
+  },
+};
+
+export function createFields(db, tickets) {
+  const getAll = db.prepare('SELECT name, value FROM ticket_fields WHERE ticket_id=?');
+  const upsert = db.prepare(`INSERT INTO ticket_fields(ticket_id, name, value) VALUES(?,?,?)
+    ON CONFLICT(ticket_id, name) DO UPDATE SET value=excluded.value, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`);
+
+  function read(ticketId, type) {
+    const defs = FIELD_DEFS[type] || {};
+    const raw = Object.fromEntries(getAll.all(ticketId).map((r) => [r.name, r.value]));
+    const out = {};
+    for (const [name, d] of Object.entries(defs)) {
+      const v = raw[name];
+      out[name] = d.type === 'bool' ? v === '1' : (v ?? '');
+    }
+    return out;
+  }
+
+  function normalize(d, v) {
+    if (d.type === 'bool') return v ? '1' : '0';
+    if (d.type === 'enum') { if (v && !d.values.includes(v)) throw new HttpError(400, 'err.badRequest'); return v || ''; }
+    if (d.type === 'datetime') { if (v && Number.isNaN(Date.parse(v))) throw new HttpError(400, 'err.badRequest'); return v ? new Date(v).toISOString() : ''; }
+    return str(v, d.max || 20000);
+  }
+
+  /** Felder ändern; Verlauf je geändertem Feld (lange Texte ohne Inhalt) */
+  function update(user, key, data = {}, { allowed = null } = {}) {
+    if (!isAgent(user)) throw forbidden();
+    const row = tickets.load(user, key);
+    const defs = FIELD_DEFS[row.type];
+    if (!defs) throw new HttpError(400, 'err.badRequest', 'type');
+    const before = read(row.id, row.type);
+    db.transaction(() => {
+      for (const [name, value] of Object.entries(data)) {
+        const d = defs[name];
+        if (!d || (allowed && !allowed.includes(name))) continue;
+        const v = normalize(d, value);
+        const old = d.type === 'bool' ? (before[name] ? '1' : '0') : before[name];
+        if (String(old) === String(v)) continue;
+        upsert.run(row.id, name, v);
+        if (d.type === 'text') tickets.logActivity(row.id, user.id, 'changed', name);
+        else tickets.logActivity(row.id, user.id, 'changed', name, old || null, v || null);
+      }
+      db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
+    })();
+    return read(row.id, row.type);
+  }
+
+  tickets.addDetailExtra((user, row) => (isAgent(user) && FIELD_DEFS[row.type] ? { fields: read(row.id, row.type) } : {}));
+
+  return { read, update, defs: FIELD_DEFS };
+}
