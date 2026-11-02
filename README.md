@@ -104,6 +104,7 @@ Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Be
 
 - Ein Windows-DC bietet LDAPS nur an, wenn er ein Zertifikat hat (AD CS oder manuell installiert). Samba AD erzeugt beim Einrichten selbst eines.
 - Täglich prüft Helfi.Space, ob das hinterlegte Zertifikat noch passt und ob es bald abläuft. Probleme erscheinen als Hinweis für Admins. Nach einer Erneuerung am DC genügt erneut **Zertifikat abrufen**.
+- **Teilnehmer aus dem AD vorschlagen** (Standard: an, braucht das Dienstkonto): siehe [Anfrage-Teilnehmer](#anfrage-teilnehmer).
 - Lokale Konten haben Vorrang: Gibt es ein lokales Konto mit demselben Namen wie ein AD-Konto, gilt das lokale.
 - Ist das AD nicht erreichbar, können sich lokale Konten (der Notfall-Admin) weiterhin anmelden.
 
@@ -191,6 +192,7 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 
 - **Hinzufügen:** in der Ticketansicht unter *Anfrage-Teilnehmer → Hinzufügen*.
   - Bearbeiter suchen nach Name oder tragen eine beliebige E-Mail-Adresse ein.
+  - **Aus dem AD:** Bearbeiter sehen ab 3 Zeichen auch Personen aus dem AD (markiert mit „AD“), gesucht in Name, Anmeldename und Mailadressen samt Zweitadressen. Wer gewählt wird, wird als AD-Benutzer angelegt bzw. aktualisiert, mit Mailadresse und Rolle aus dem AD; ein vorhandener E-Mail-Kontakt wird übernommen. Auch eine eingetippte Mailadresse wird im AD nachgeschlagen. Personen, die laut Gruppen Helfi.Space nicht nutzen dürfen, kommen als E-Mail-Kontakt dazu. Ist das AD nicht erreichbar, erscheinen nur die vorhandenen Personen. Abschaltbar unter *Administration → Active Directory → Teilnehmer aus dem AD vorschlagen*, braucht das Dienstkonto.
   - Melder und Teilnehmer können Kollegen mit eigenem Konto hinzufügen, aber keine freien Adressen.
   - Höchstens 20 je Ticket.
 - **Per E-Mail:** Wer bei einer neuen Mail oder einer Antwort in *An* oder *CC* steht, wird automatisch Teilnehmer. Das gilt für höchstens 10 Adressen je Mail; die eigene Helpdesk-Adresse und Bearbeiter zählen nicht mit. Abschaltbar unter *Administration → E-Mail*.
@@ -475,11 +477,11 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 
 ## Sicherung
 
-- Automatisch: täglich (14 Tage aufbewahrt, `HELFI_BACKUP_KEEP_DAYS`) und vor jedem Versionswechsel, in `data/backups/`
-- Von Hand: *Administration → System → Jetzt sichern*
+- Automatisch: täglich und vor jedem Versionswechsel, in `data/backups/`
+- Von Hand: *Administration → System → Jetzt sichern*. Dort stehen auch alle Sicherungen mit Art, Datum, Größe und dem belegten Platz insgesamt; einzelne lassen sich löschen.
 - **Mitsichern:** den ganzen Ordner `data/`, einschließlich `secret.key`. Ohne diese Datei lassen sich gespeicherte Kennwörter (Dienstkonto, Postfach, SSO) und 2FA-Schlüssel nicht mehr entschlüsseln. Helfi.Space startet dann nicht und meldet das im Protokoll. Alternativ `HELFI_SECRET` (mindestens 16 Zeichen) in der `.env` setzen, aber gleich bei der Einrichtung: Ein späterer Wechsel zwischen `secret.key` und `HELFI_SECRET` macht gespeicherte Daten unlesbar.
 - Die Sicherungen in `data/backups/` enthalten nur die Datenbank. Anhänge (`data/attachments/`) und `secret.key` liegen daneben. Deshalb immer den ganzen Ordner `data/` auf ein anderes Laufwerk sichern.
-- Aufbewahrung: Tägliche Sicherungen 14 Tage (die neueste bleibt immer). Sicherungen vor Versionswechseln werden auf die letzten 10 begrenzt, manuelle nie gelöscht.
+- **Aufbewahrung:** *Administration → System → Sicherungen aufbewahren* (Standard 10, 1–100). Die Zahl gilt je Art: täglich, vor Versionswechseln und von Hand (dazu zählen auch die Sicherungen vor dem Löschen eines Projekts). Ältere werden gelöscht, die neueste jeder Art bleibt immer. Aufgeräumt wird beim Speichern, beim Start und nach jeder Sicherung. `HELFI_BACKUP_KEEP_DAYS` gilt nicht mehr.
 
 ## Sicherheit
 

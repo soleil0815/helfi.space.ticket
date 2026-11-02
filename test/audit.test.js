@@ -11,7 +11,7 @@ process.env.HELFI_DATA_DIR = dataDir;
 process.env.HELFI_SETUP_TOKEN = 'code';
 process.env.HELFI_LOG_LEVEL = 'error';
 
-const { openDatabase, verifyKey, WrongKeyError, pruneBackups, backupDatabase, KEEP_VERSION_BACKUPS } = await import('../src/db.js');
+const { openDatabase, verifyKey, WrongKeyError, pruneBackups, backupDatabase, DEFAULT_BACKUP_KEEP } = await import('../src/db.js');
 const cryptoLib = await import('../src/lib/crypto.js');
 const { createApp } = await import('../src/app.js');
 const { paths } = await import('../src/config.js');
@@ -240,17 +240,25 @@ test('Sicherung auch vor ausstehender Migration bei gleicher Version (Audit 4.1)
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('Aufräumen: Aufbewahrung 0 löscht nicht alles, Versions-Sicherungen begrenzt (Audit 4.4, 4.8)', () => {
+test('Aufräumen: je Art die neuesten behalten, mindestens eine (Audit 4.4, 4.8)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-prune-'));
   const old = Date.now() / 1000 - 30 * 86400;
-  for (let i = 0; i < 3; i++) { const f = path.join(dir, `helfi-taeglich-2026-01-0${i + 1}.sqlite`); fs.writeFileSync(f, 'x'); fs.utimesSync(f, old + i, old + i); }
-  for (let i = 0; i < KEEP_VERSION_BACKUPS + 3; i++) { const f = path.join(dir, `helfi-vor-1.${i}.0-x.sqlite`); fs.writeFileSync(f, 'x'); fs.utimesSync(f, old + i, old + i); }
-  fs.writeFileSync(path.join(dir, 'helfi-manuell-x.sqlite'), 'x');
-  pruneBackups(0, dir);
-  const left = fs.readdirSync(dir);
+  const mk = (name, i) => { const f = path.join(dir, name); fs.writeFileSync(f, 'x'); fs.utimesSync(f, old + i, old + i); };
+  for (let i = 0; i < 3; i++) mk(`helfi-taeglich-2026-01-0${i + 1}.sqlite`, i);
+  for (let i = 0; i < DEFAULT_BACKUP_KEEP + 3; i++) mk(`helfi-vor-1.${i}.0-x.sqlite`, i);
+  mk('helfi-manuell-x.sqlite', 0);
+  mk('fremd.sqlite', 0);
+  pruneBackups(undefined, dir); // nicht gesetzt → Standard
+  let left = fs.readdirSync(dir);
+  assert.equal(left.filter((f) => f.includes('taeglich')).length, 3);
+  assert.equal(left.filter((f) => f.includes('-vor-')).length, DEFAULT_BACKUP_KEEP);
+  assert.ok(!left.includes('helfi-vor-1.0.0-x.sqlite'), 'älteste Versions-Sicherung weg');
+  pruneBackups(1, dir);
+  left = fs.readdirSync(dir);
   assert.deepEqual(left.filter((f) => f.includes('taeglich')), ['helfi-taeglich-2026-01-03.sqlite'], 'die neueste Tagessicherung bleibt');
-  assert.equal(left.filter((f) => f.includes('-vor-')).length, KEEP_VERSION_BACKUPS);
+  assert.deepEqual(left.filter((f) => f.includes('-vor-')), [`helfi-vor-1.${DEFAULT_BACKUP_KEEP + 2}.0-x.sqlite`]);
   assert.ok(left.includes('helfi-manuell-x.sqlite'));
+  assert.ok(left.includes('fremd.sqlite'), 'fremde Dateien bleiben unberührt');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -1167,3 +1167,23 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
   .approval-actions input { flex-basis: 100%; }
   .kb-draft-banner { flex-wrap: wrap; }
 }
+
+/* Sicherungen */
+.inline-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.backup-table th.num, .backup-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.backup-table td.mono { word-break: break-all; }
+.backup-table tfoot td { font-weight: 600; border-top: 1px solid var(--border, #dfe1e6); }
+@media (min-width: 801px) { .admin-body table.backup-table { display: table; width: 100%; } }
+@media (max-width: 800px) {
+  .backup-table thead { display: none; }
+  .backup-table tbody tr, .backup-table tfoot tr { display: grid; grid-template-columns: 1fr auto auto; align-items: center; column-gap: 10px; border-bottom: 1px solid var(--border); padding: 6px 0; }
+  .backup-table td { border: 0; padding: 2px 0; }
+  .backup-table td.mono { grid-column: 1 / -1; word-break: normal; overflow-wrap: anywhere; font-size: 12px; }
+  .backup-table td:nth-child(2) { display: none; }
+  .backup-table tfoot tr { grid-template-columns: 1fr auto; border-bottom: 0; }
+  .backup-table tfoot td:last-child { display: none; }
+}
+
+/* Teilnehmer aus dem AD */
+.person-hit { display: inline-flex; align-items: center; gap: 6px; }
+.badge-ad { background: var(--blue-subtle); color: var(--blue-hover); }

@@ -69,6 +69,7 @@ export const DEFAULTS = {
   'ldap.agentGroup': '',
   'ldap.userGroup': '', // leer = alle Benutzer dürfen sich anmelden
   'ldap.timeoutMs': 8000,
+  'ldap.peopleSearch': true, // Teilnehmer beim Hinzufügen im AD suchen (nur Bearbeiter, braucht Dienstkonto)
 
   // SSO (OpenID Connect – z. B. Microsoft Entra ID, ADFS, Keycloak, Authentik)
   'oidc.enabled': false,
@@ -86,6 +87,9 @@ export const DEFAULTS = {
   'oidc.allowCreate': true,
 
   // E-Mail-Abruf (IMAP)
+  // Sicherung
+  'backup.keep': 10, // je Art so viele Sicherungen aufbewahren (1–100)
+
   'imap.enabled': false,
   'imap.host': '',
   'imap.port': 993,

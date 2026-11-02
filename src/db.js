@@ -566,22 +566,60 @@ export async function backupDatabase(db, label, dir = paths.backups) {
   return file;
 }
 
-/** Löscht automatische Tagessicherungen, die älter als keepDays sind (Versions-Sicherungen bleiben). */
+/** Wie viele Sicherungen je Art standardmäßig bleiben (Einstellung backup.keep). */
+export const DEFAULT_BACKUP_KEEP = 10;
+export const MAX_BACKUP_KEEP = 100;
+export function clampBackupKeep(n) {
+  const v = Math.round(Number(n));
+  if (n === null || n === undefined || n === '' || !Number.isFinite(v)) return DEFAULT_BACKUP_KEEP;
+  return Math.min(MAX_BACKUP_KEEP, Math.max(1, v));
+}
+
+const BACKUP_NAME = /^helfi-[A-Za-z0-9._-]+\.sqlite$/;
+
+/** Art einer Sicherung: daily (täglich), version (vor Versionswechsel), manual (von Hand, vor dem Löschen eines Projekts). */
+export function backupKind(name) {
+  if (!BACKUP_NAME.test(name)) return null;
+  if (name.startsWith('helfi-taeglich-')) return 'daily';
+  if (name.startsWith('helfi-manuell-') || name.startsWith('helfi-vor-loeschen-')) return 'manual';
+  if (name.startsWith('helfi-vor-')) return 'version';
+  return null;
+}
+
+/** Sicherungen im Ordner, neueste zuerst. */
+export function listBackups(dir = paths.backups) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((f) => backupKind(f))
+    .map((f) => { const st = fs.statSync(path.join(dir, f)); return { name: f, kind: backupKind(f), size: st.size, time: st.mtimeMs }; })
+    .sort((a, b) => b.time - a.time || (a.name < b.name ? 1 : -1));
+}
+
 /**
- * Räumt Sicherungen auf: tägliche nach keepDays (mind. 1 Tag, die neueste bleibt immer),
- * Sicherungen vor Versionswechseln: die letzten KEEP_VERSION_BACKUPS bleiben. Manuelle bleiben immer.
+ * Räumt Sicherungen auf: je Art (täglich, vor Versionswechsel, manuell) bleiben die neuesten `keep`.
+ * Mindestens eine je Art bleibt immer. Liefert die Anzahl gelöschter Dateien und den frei gewordenen Platz.
  */
-export const KEEP_VERSION_BACKUPS = 10;
-export function pruneBackups(keepDays, dir = paths.backups) {
-  if (!fs.existsSync(dir)) return;
-  const days = Math.max(1, Number(keepDays) || 14);
-  const limit = Date.now() - days * 86400000;
-  const list = (re) => fs.readdirSync(dir).filter((f) => re.test(f))
-    .map((f) => ({ f, full: path.join(dir, f), t: fs.statSync(path.join(dir, f)).mtimeMs }))
-    .sort((a, b) => b.t - a.t);
-  const daily = list(/^helfi-taeglich-.*\.sqlite$/);
-  for (const b of daily.slice(1)) if (b.t < limit) fs.unlinkSync(b.full);
-  for (const b of list(/^helfi-vor-.*\.sqlite$/).slice(KEEP_VERSION_BACKUPS)) fs.unlinkSync(b.full);
+export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
+  const n = clampBackupKeep(keep);
+  const seen = {};
+  let deleted = 0; let freed = 0;
+  for (const b of listBackups(dir)) {
+    seen[b.kind] = (seen[b.kind] || 0) + 1;
+    if (seen[b.kind] <= n) continue;
+    try { fs.unlinkSync(path.join(dir, b.name)); deleted++; freed += b.size; }
+    catch (e) { log.warn(`Sicherung ließ sich nicht löschen: ${b.name}`, { error: e.message }); }
+  }
+  if (deleted) log.info(`Alte Sicherungen gelöscht: ${deleted} (${Math.round(freed / 1048576)} MB frei)`);
+  return { deleted, freed };
+}
+
+/** Eine Sicherung gezielt löschen (nur Dateien aus dem Sicherungsordner). */
+export function deleteBackup(name, dir = paths.backups) {
+  if (typeof name !== 'string' || !backupKind(name)) return false;
+  const file = path.join(dir, name);
+  if (!fs.existsSync(file)) return false;
+  fs.unlinkSync(file);
+  log.info(`Sicherung gelöscht: ${name}`);
+  return true;
 }
 
 /**

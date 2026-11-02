@@ -18,7 +18,7 @@ import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
 import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
-import { backupDatabase } from '../db.js';
+import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep } from '../db.js';
 import { log } from '../lib/log.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
@@ -238,16 +238,75 @@ export function createApi(ctx) {
 
   // Personen suchen (z. B. Anfrage-Teilnehmer): nur Name/Anmeldename, ab 2 Zeichen, höchstens 10 Treffer.
   // Benutzer finden nur echte Konten (keine E-Mail-Kontakte); Adressen sehen nur Bearbeiter.
-  r.get('/people', (req, res) => {
+  // ---------- Personen suchen (Teilnehmer, Verantwortliche) ----------
+  const adPeopleOn = () => settings.get('ldap.enabled') && settings.get('ldap.peopleSearch') && !!settings.get('ldap.bindDn');
+  const AD_TIMEOUT_MS = 5000;
+  const withTimeout = (p) => new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('Zeitüberschreitung')), AD_TIMEOUT_MS);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+
+  r.get('/people', wrap(async (req, res) => {
     const q = str(req.query.q, 100).trim();
     if (q.length < 2) return res.json({ people: [] });
     const agent = isAgent(req.user);
     const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
-    const rows = db.prepare(`SELECT * FROM users WHERE active=1 ${agent ? '' : "AND source<>'email'"}
+    let rows = db.prepare(`SELECT * FROM users WHERE active=1 ${agent ? '' : "AND source<>'email'"}
       AND (display_name LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\' ${agent ? "OR email LIKE ? ESCAPE '\\'" : ''})
       ORDER BY display_name LIMIT 10`).all(...(agent ? [like, like, like] : [like, like]));
-    res.json({ people: rows.map((u) => ({ id: u.id, displayName: u.display_name, username: u.username, email: agent ? (u.email || '') : undefined })) });
-  });
+    const out = { people: [] };
+    const ad = [];
+    // Bearbeiter: zusätzlich im AD suchen (nur Lesen; angelegt wird erst beim Hinzufügen)
+    if (agent && q.length >= 3 && adPeopleOn()) {
+      try {
+        const hits = await withTimeout(ctx.directory.search(settings.group('ldap'), q, { limit: 10 }));
+        const byGuid = db.prepare("SELECT * FROM users WHERE source='ldap' AND external_id=?");
+        for (const hit of hits) {
+          const known = byGuid.get(hit.externalId);
+          if (known && !known.active) continue; // in Helfi.Space deaktiviert
+          ad.push({ adId: hit.externalId, id: known ? known.id : undefined, displayName: hit.displayName, username: hit.username, email: hit.email || known?.email || '', source: 'ad' });
+        }
+        // Dieselbe Person nicht doppelt zeigen: vorhandenes AD-Konto oder E-Mail-Kontakt mit derselben Adresse
+        const ids = new Set(ad.map((a) => a.id).filter(Boolean));
+        const mails = new Set(ad.map((a) => a.email.toLowerCase()).filter(Boolean));
+        rows = rows.filter((u) => !ids.has(u.id) && !(u.source === 'email' && mails.has(String(u.email || '').toLowerCase())));
+      } catch (e) {
+        log.warn('Personensuche im AD fehlgeschlagen', { error: e.message });
+        out.adError = true;
+      }
+    }
+    out.people = rows.map((u) => ({ id: u.id, displayName: u.display_name, username: u.username, email: agent ? (u.email || '') : undefined }));
+    out.people.push(...ad);
+    res.json(out);
+  }));
+
+  /** AD-Person (per objectGUID oder Mailadresse) als Benutzer anlegen bzw. aktualisieren. null = nicht im AD. */
+  async function personFromAd({ adId, email }) {
+    const cfg = settings.group('ldap');
+    let info;
+    try {
+      info = await withTimeout(adId ? ctx.directory.byGuid(cfg, adId) : ctx.directory.byEmail(cfg, email));
+    } catch (e) {
+      log.warn('AD-Abfrage beim Hinzufügen eines Teilnehmers fehlgeschlagen', { error: e.message });
+      if (adId) throw new HttpError(503, 'err.adUnavailable');
+      return null; // per Mailadresse: wie bisher als E-Mail-Kontakt
+    }
+    if (!info || info.ambiguous) {
+      if (adId) throw new HttpError(404, 'err.adPersonNotFound');
+      return null;
+    }
+    const role = roleFromGroups(info.groups, cfg);
+    let mail = '';
+    try { mail = normalizeEmail(info.email || email || ''); } catch { /* ungültige Adresse im AD: ohne Adresse übernehmen */ }
+    if (!info.groups.user && role !== 'admin' && role !== 'agent') {
+      // Laut Gruppen nicht zur Anmeldung zugelassen: nur als E-Mail-Kontakt (wie bei der Absender-Suche)
+      if (!mail) throw new HttpError(400, 'err.adNotAllowed');
+      return users.byEmail(mail) || users.contactForEmail(mail, info.displayName);
+    }
+    const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: mail, externalId: info.externalId, role });
+    log.info(`Teilnehmer aus dem AD übernommen: ${u.username}`);
+    return u;
+  }
 
   r.post('/users', requireRole('admin'), wrap(async (req, res) => {
     const username = str(req.body.username, 64).trim();
@@ -430,7 +489,24 @@ export function createApi(ctx) {
 
   // ---------- Anfrage-Teilnehmer ----------
   r.post('/tickets/:key/participants', wrap(async (req, res) => {
-    const out = tickets.addParticipant(req.user, req.params.key, { userId: req.body.userId, email: req.body.email });
+    let { userId, email } = req.body || {};
+    const adId = typeof req.body?.adId === 'string' ? req.body.adId : '';
+    if (adId || (email && typeof email === 'string')) {
+      tickets.load(req.user, req.params.key); // erst Zugriff prüfen, dann im AD nachschlagen
+      if (adId && (!isAgent(req.user) || !adPeopleOn())) throw forbidden();
+      if (adId && !/^[0-9a-f]{32}$/i.test(adId)) throw new HttpError(400, 'err.badRequest', 'adId');
+      if (adId) userId = (await personFromAd({ adId })).id;
+      else if (isAgent(req.user) && adPeopleOn()) {
+        const e = normalizeEmail(email);
+        const existing = users.byEmail(e);
+        // Nur nachschlagen, wenn es noch kein richtiges Konto mit dieser Adresse gibt
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && (!existing || existing.source === 'email')) {
+          const u = await personFromAd({ email: e });
+          if (u) { userId = u.id; email = undefined; }
+        }
+      }
+    }
+    const out = tickets.addParticipant(req.user, req.params.key, { userId, email });
     res.status(out.added ? 201 : 200).json({ participants: out.participants });
   }));
 
@@ -514,7 +590,9 @@ export function createApi(ctx) {
     delete incoming['brand.logo']; // nur über den eigenen Upload
     if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
     if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
+    if (incoming['backup.keep'] !== undefined) incoming['backup.keep'] = clampBackupKeep(incoming['backup.keep']);
     settings.setMany(incoming);
+    if (incoming['backup.keep'] !== undefined) pruneBackups(incoming['backup.keep']);
     if (Object.keys(incoming).some((k) => k.startsWith('oidc.'))) oidcAuth.resetOidcCache();
     if (Object.keys(incoming).some((k) => k.startsWith('imap.'))) poller.start();
     if (Object.keys(incoming).some((k) => k.startsWith('ldap.'))) ctx.ldapCertWarning = null;
@@ -589,10 +667,7 @@ export function createApi(ctx) {
   });
 
   admin.get('/system', (req, res) => {
-    const backups = fs.existsSync(paths.backups)
-      ? fs.readdirSync(paths.backups).filter((f) => f.endsWith('.sqlite')).sort().reverse().slice(0, 30)
-        .map((f) => ({ name: f, size: fs.statSync(`${paths.backups}/${f}`).size }))
-      : [];
+    const backups = listBackups().map(({ name, kind, size, time }) => ({ name, kind, size, time: new Date(time).toISOString() }));
     res.json({
       version: config.version,
       node: process.version,
@@ -607,14 +682,23 @@ export function createApi(ctx) {
       },
       imap: poller.status(),
       backups,
+      backupsSize: backups.reduce((n, b) => n + b.size, 0),
+      backupKeep: settings.get('backup.keep'),
       warnings: adminWarnings(),
     });
   });
 
   admin.post('/backup', wrap(async (req, res) => {
     const file = await backupDatabase(db, 'manuell');
+    pruneBackups(settings.get('backup.keep'));
     res.json({ ok: true, file: file.split('/').pop() });
   }));
+
+  admin.delete('/backups/:name', (req, res) => {
+    if (!deleteBackup(req.params.name)) throw new HttpError(404, 'err.notFound');
+    log.info(`Sicherung ${req.params.name} gelöscht von ${req.user.username}`);
+    res.json({ ok: true });
+  });
 
   // ---------- Import aus Jira ----------
   /** Verbindungsdaten prüfen; sie werden nie gespeichert, nur für den laufenden Import im Speicher gehalten */

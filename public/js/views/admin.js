@@ -578,7 +578,8 @@ function ldapPage(body, s) {
         field(t('ldap.adminGroup'), bindInput(s, 'ldap.adminGroup', { placeholder: 'Helfi-Admins' })),
         field(t('ldap.agentGroup'), bindInput(s, 'ldap.agentGroup', { placeholder: 'Helfi-Bearbeiter' })),
         field(t('ldap.userGroup'), bindInput(s, 'ldap.userGroup', { placeholder: '' }), t('ldap.userGroupHint'))),
-      field(t('ldap.nestedGroups'), bindCheck(s, 'ldap.nestedGroups'))),
+      field(t('ldap.nestedGroups'), bindCheck(s, 'ldap.nestedGroups')),
+      field(t('ldap.peopleSearch'), bindCheck(s, 'ldap.peopleSearch'), t('ldap.peopleSearchHint'))),
     h('section.panel',
       h('h3', t('ldap.test')),
       h('div.grid-3', field(t('ldap.testUser'), testUser), field(t('login.password'), testPw), h('div.field.field-btn', testBtn)),
@@ -704,10 +705,41 @@ async function systemPage(body) {
         h('dt', t('system.dbSize')), h('dd', fmtSize(sys.dbSize)),
         h('dt', 'Node.js'), h('dd', sys.node),
         h('dt', ''), h('dd', t('system.counts', sys.counts)))),
-    h('section.panel',
-      h('div.section-head', h('h2', t('system.backups')),
-        h('button.btn', { type: 'button', onclick: async () => { const r = await api.admin.backup(); toast(t('system.backupDone', r), 'success'); systemPage(body); } }, icon('download'), t('system.backupNow'))),
-      h('p.muted', t('system.backupHint')),
-      sys.backups.length ? h('table.data', h('tbody', sys.backups.map((b) => h('tr', h('td.mono', b.name), h('td', fmtSize(b.size)))))) : h('p.muted', '—')));
+    backupPanel(body, sys));
+}
+
+function backupPanel(body, sys) {
+  const keep = h('input.num', { type: 'number', min: 1, max: 100, step: 1, value: sys.backupKeep, 'aria-label': t('system.backupKeep') });
+  const saveKeep = h('button.btn', {
+    type: 'button',
+    onclick: async () => {
+      const n = Math.round(Number(keep.value));
+      if (!(n >= 1 && n <= 100)) { toast(t('system.backupKeepRange'), 'error'); keep.focus(); return; }
+      try { await api.admin.saveSettings({ 'backup.keep': n }); toast(t('app.saved'), 'success'); systemPage(body); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+  }, t('app.save'));
+  keep.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveKeep.click(); });
+  const remove = async (b) => {
+    if (!confirm(t('system.backupDeleteConfirm', { name: b.name }))) return;
+    try { await api.admin.deleteBackup(b.name); toast(t('system.backupDeleted'), 'success'); systemPage(body); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  return h('section.panel',
+    h('div.section-head', h('h2', t('system.backups')),
+      h('button.btn', { type: 'button', onclick: async () => { try { const r = await api.admin.backup(); toast(t('system.backupDone', r), 'success'); systemPage(body); } catch (e) { toast(e.message, 'error'); } } }, icon('download'), t('system.backupNow'))),
+    h('p.muted', t('system.backupHint')),
+    h('div.field',
+      h('label', { for: 'backup-keep' }, t('system.backupKeep')),
+      h('div.inline-row', Object.assign(keep, { id: 'backup-keep' }), saveKeep),
+      h('div.hint', t('system.backupKeepHint'))),
+    sys.backups.length
+      ? h('div.table-wrap', h('table.data.backup-table',
+        h('thead', h('tr', h('th', t('system.backupName')), h('th', t('system.backupKind')), h('th', t('system.backupDate')), h('th.num', t('system.backupSize')), h('th', ''))),
+        h('tbody', sys.backups.map((b) => h('tr',
+          h('td.mono', b.name), h('td', t(`system.kind.${b.kind}`)), h('td', fmtDate(b.time)), h('td.num', fmtSize(b.size)),
+          h('td', h('button.btn-icon.small', { type: 'button', title: t('system.backupDelete'), 'aria-label': t('system.backupDelete'), onclick: () => remove(b) }, icon('trash')))))),
+        h('tfoot', h('tr', h('td', { colspan: 3 }, t('system.backupTotal', { n: sys.backups.length })), h('td.num', fmtSize(sys.backupsSize)), h('td', '')))))
+      : h('p.muted', '—'));
 }
 

@@ -104,6 +104,7 @@ Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users
 
 - A Windows DC only offers LDAPS if it has a certificate (AD CS or installed manually). Samba AD creates one itself during provisioning.
 - Every day Helfi.Space checks whether the stored certificate still matches and whether it expires soon. Problems appear as a notice for admins. After a renewal on the DC, simply **fetch the certificate** again.
+- **Suggest participants from AD** (default: on, requires the service account): see [Request participants](#request-participants).
 - Local accounts take precedence: if a local account has the same name as an AD account, the local one wins.
 - If the AD is unreachable, local accounts (the emergency admin) can still sign in.
 
@@ -181,6 +182,7 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 
 - **Add:** in the ticket view under *Request participants → Add*.
   - Agents search by name or enter any email address.
+  - **From AD:** from 3 characters on, agents also see people from AD (marked “AD”), searched by name, logon name and email addresses including aliases. The chosen person is created or updated as an AD user, with email address and role from AD; an existing email contact is taken over. A typed email address is looked up in AD as well. People whose groups do not allow them to use Helfi.Space are added as an email contact. If AD is unreachable, only existing people are shown. Can be turned off under *Administration → Active Directory → Suggest participants from AD*; requires the service account.
   - Reporters and participants can add colleagues who have an account, but no arbitrary addresses.
   - At most 20 per ticket.
 - **By email:** anyone in *To* or *CC* of a new mail or a reply automatically becomes a participant. This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email*.
@@ -465,11 +467,11 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 
 ## Backup
 
-- Automatic: daily (kept 14 days, `HELFI_BACKUP_KEEP_DAYS`) and before every version change, in `data/backups/`
-- Manual: *Administration → System → Back up now*
+- Automatic: daily and before every version change, in `data/backups/`
+- Manual: *Administration → System → Back up now*. That page also lists all backups with kind, date, size and the total space used; single backups can be deleted.
 - **Back up as well:** the whole `data/` folder, including `secret.key`. Without this file, stored passwords (service account, mailbox, SSO) and 2FA keys can no longer be decrypted. Helfi.Space then does not start and says so in the log. Alternatively set `HELFI_SECRET` (at least 16 characters) in `.env`, but right at setup: switching between `secret.key` and `HELFI_SECRET` later makes stored data unreadable.
 - The backups in `data/backups/` only contain the database. Attachments (`data/attachments/`) and `secret.key` live next to it. So always back up the whole `data/` folder to another drive.
-- Retention: daily backups 14 days (the newest always stays). Backups before version changes are limited to the last 10, manual ones are never deleted.
+- **Retention:** *Administration → System → Backups to keep* (default 10, 1–100). The number applies per kind: daily, before version changes and manual (including the backups made before deleting a project). Older ones are deleted, the newest of each kind always stays. Cleanup runs when saving, at startup and after every backup. `HELFI_BACKUP_KEEP_DAYS` is no longer used.
 
 ## Security
 

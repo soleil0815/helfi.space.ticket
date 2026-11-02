@@ -285,16 +285,21 @@ export async function renderTicket(content, key) {
           const my = ++seq;
           if (q.length < 2) { document.querySelectorAll('.menu').forEach((m) => m.remove()); return; }
           let people = [];
-          try { people = (await api.people(q)).people; } catch { /* egal */ }
+          let adError = false;
+          try { ({ people, adError } = await api.people(q)); } catch { /* egal */ }
           if (my !== seq) return;
           const taken = new Set([tk.reporter?.id, ...list.map((p) => p.id)]);
-          const items = people.filter((p) => !taken.has(p.id)).map((p) => ({
-            label: p.email ? `${p.displayName} · ${p.email}` : p.displayName, icon: avatar(p, 'xs'), onClick: () => pick({ userId: p.id }),
-          }));
+          const items = people.filter((p) => !p.id || !taken.has(p.id)).map((p) => {
+            const text = p.email ? `${p.displayName} · ${p.email}` : (p.source === 'ad' ? `${p.displayName} · ${p.username}` : p.displayName);
+            return p.source === 'ad'
+              ? { label: h('span.person-hit', text, h('span.badge.badge-ad', { title: t('ticket.fromAd') }, 'AD')), icon: avatar(p, 'xs'), onClick: () => pick({ adId: p.adId }) }
+              : { label: text, icon: avatar(p, 'xs'), onClick: () => pick({ userId: p.id }) };
+          });
           if (agent && looksLikeEmail(q) && !people.some((p) => (p.email || '').toLowerCase() === q.toLowerCase())) {
             items.push({ label: t('ticket.addEmailParticipant', { email: q }), icon: icon('mail'), onClick: () => pick({ email: q }) });
           }
           if (!items.length) items.push({ label: t('ticket.noPeopleFound'), onClick: () => input.focus() });
+          if (adError) items.push({ label: h('span.muted', t('ticket.adUnavailable')), icon: icon('warning'), onClick: () => input.focus() });
           dropdown(input, items);
         }, 200);
       });
