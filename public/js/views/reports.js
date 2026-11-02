@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, mount, icon, select, avatar, toast } from '../dom.js';
 import { t, getLang as lang } from '../i18n.js';
 import { state, navigate } from '../app.js';
+import { satisfactionPanel } from './survey.js';
 
 // Farben: Kategorienpalette (validiert), Text bleibt in Textfarben
 const C_CREATED = '#2a78d6';
@@ -89,6 +90,8 @@ export async function renderReports(content, params) {
       h('section.panel.chart-panel', h('h2', t('reports.resolvedByAgent')), barChart(data.agents, tip)),
       h('section.panel.chart-panel', h('h2', t('reports.createdVsResolved')), lineChart(data.series, tip))),
     agentTable(data));
+  const sat = await satisfactionPanel({ from: range.from, to: range.to, project: f.project || '' });
+  if (sat) host.append(sat);
 }
 
 /** Waagerechte Balken: erledigt je Bearbeiter (eine Reihe, Wert direkt am Balken). */

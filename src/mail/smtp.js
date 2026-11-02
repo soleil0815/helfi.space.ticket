@@ -89,7 +89,7 @@ export function inlineImagesAsText(text, lang) {
 }
 
 /** Hängt die Benachrichtigungen an die Ticket-Ereignisse. */
-export function wireNotifications({ tickets, mailer, settings, users }) {
+export function wireNotifications({ tickets, mailer, settings, users, survey = null }) {
   const link = (tk) => `${config.baseUrl}/browse/${tk.key}`;
   const appName = () => settings.get('general.title') || 'Helfi.Space';
 
@@ -124,7 +124,7 @@ export function wireNotifications({ tickets, mailer, settings, users }) {
     for (const r of tickets.customerRecipients(ticket.id)) {
       if (actorId && r.id === actorId) continue;
       const lang = recipientLang(r.id);
-      const { subject, text } = build(lang, r.displayName || t(lang, 'mail.greetingFallback'));
+      const { subject, text } = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
       await mailer.send({ to: r.email, subject, text, ticketId: ticket.id });
     }
   }
@@ -140,9 +140,18 @@ export function wireNotifications({ tickets, mailer, settings, users }) {
 
   tickets.events.on('resolved', safe(async ({ ticket, user }) => {
     if (!settings.get('notify.reporterOnDone')) return;
-    await toCustomers(ticket, user?.id, (lang, name) => {
+    // Bewertungslinks nur für den Melder selbst (nicht für Anfrage-Teilnehmer)
+    const raw = tickets.rawById(ticket.id);
+    const isReporter = (r) => (raw.reporter_id ? r.id === raw.reporter_id : r.email === String(raw.reporter_email || '').toLowerCase());
+    await toCustomers(ticket, user?.id, (lang, name, r) => {
       const vars = { key: ticket.key, title: ticket.title, name, link: link(ticket), app: appName() };
-      return { subject: t(lang, 'mail.done.subject', vars), text: t(lang, 'mail.done.body', vars) };
+      let text = t(lang, 'mail.done.body', vars);
+      const token = survey && isReporter(r) ? survey.issueToken(ticket.id) : null;
+      if (token) {
+        const url = (n) => `${config.baseUrl}/rate/${token}?r=${n}`;
+        text = `${text}\n\n${t(lang, 'mail.survey', { days: settings.get('survey.days') })}\n${[5, 4, 3, 2, 1].map((n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}  ${t(lang, `survey.label.${n}`)}: ${url(n)}`).join('\n')}`;
+      }
+      return { subject: t(lang, 'mail.done.subject', vars), text };
     });
   }));
 

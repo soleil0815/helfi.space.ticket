@@ -8,7 +8,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog, cmdb } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog, cmdb, survey } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -74,6 +74,10 @@ export function createItilRoutes(ctx) {
   r.get('/tickets/:key/kb-draft', requireRole('agent'), (req, res) => res.json({ draft: kb.draftFromTicket(req.user, req.params.key) }));
 
   // ---------- Servicekatalog ----------
+  // ---------- Zufriedenheit ----------
+  r.post('/tickets/:key/rating', (req, res) => res.json({ ticket: survey.rateAsUser(req.user, req.params.key, req.body.rating, req.body.comment) }));
+  r.get('/reports/satisfaction', requireRole('agent'), (req, res) => res.json(survey.report(req.query)));
+
   // ---------- Geräte und Dienste ----------
   r.get('/cis', requireRole('agent'), (req, res) => res.json({ items: cmdb.list(req.user, { q: str(req.query.q, 200), kind: str(req.query.kind, 20), status: str(req.query.status, 20) }) }));
   r.get('/cis/:id', requireRole('agent'), (req, res) => res.json({ item: cmdb.get(req.user, req.params.id) }));

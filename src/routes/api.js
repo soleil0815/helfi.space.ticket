@@ -167,6 +167,10 @@ export function createApi(ctx) {
     res.json({ ok: true });
   });
 
+  // Zufriedenheitsumfrage: Link aus der „Erledigt“-Mail, ohne Anmeldung (Token = Berechtigung)
+  r.get('/public/rating/:token', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json(ctx.survey.publicInfo(req.params.token)); });
+  r.post('/public/rating/:token', (req, res) => res.json(ctx.survey.rateByToken(req.params.token, req.body.rating, req.body.comment)));
+
   // Ab hier nur angemeldet
   r.use(requireAuth);
   r.use(createItilRoutes(ctx));

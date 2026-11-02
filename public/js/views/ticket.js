@@ -19,6 +19,7 @@ import { changeSection } from './change.js';
 import { kbSuggestions, kbFromTicketButton } from './kb.js';
 import { catalogApprovalBox } from './catalog.js';
 import { ciSection } from './cmdb.js';
+import { ratingBox } from './survey.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -168,6 +169,7 @@ export async function renderTicket(content, key) {
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'rated' ? h('span.change', a.oldValue ? h('span.old', '★'.repeat(Number(a.oldValue))) : null, a.oldValue ? ' → ' : null, h('span.new', '★'.repeat(Number(a.newValue)))) : null,
         a.action === 'ciLinked' || a.action === 'ciUnlinked' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'approvalRequested' ? h('span.change', a.newValue) : null,
         a.action === 'kbCreated' ? h('span.change', h('a', { href: `/kb/${String(a.newValue).replace('KB-', '')}`, 'data-link': '' }, a.newValue)) : null,
@@ -380,6 +382,7 @@ export async function renderTicket(content, key) {
         agent ? majorBanner(tk, refresh) : null,
         agent ? problemHint(tk) : null,
         catalogApprovalBox(tk, refresh),
+        ratingBox(tk, refresh, agent),
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,

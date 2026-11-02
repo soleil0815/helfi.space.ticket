@@ -13,6 +13,9 @@ export const DEFAULTS = {
   // Anmeldeseite (Text ohne HTML; **fett**, Links und Mailadressen werden erkannt)
   'login.title': '',
   // Service Level (SLA): Ziele in Geschäftsminuten je Priorität
+  // Zufriedenheitsumfrage: Bewertungslinks in der „Erledigt“-Mail an den Melder
+  'survey.enabled': false,
+  'survey.days': 14, // so lange gilt der Link
   'sla.enabled': false,
   'sla.hours': '{"days":[1,2,3,4,5],"start":"08:00","end":"17:00"}',
   'sla.holidays': '', // eine Zeile je Feiertag: JJJJ-MM-TT Name
