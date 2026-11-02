@@ -527,8 +527,13 @@ export function createTickets(db, users) {
     return m;
   }
 
+  // Erweiterungen (Verknüpfungen, SLA, Change …) hängen eigene Felder an die Ticketansicht
+  const detailExtras = [];
+  function addDetailExtra(fn) { detailExtras.push(fn); }
+
   function detail(user, idOrKey) {
     const row = load(user, idOrKey);
+    const extra = Object.assign({}, ...detailExtras.map((fn) => fn(user, row) || {}));
     const htmlFor = new Set(db.prepare('SELECT comment_id FROM mail_html WHERE ticket_id=?').all(row.id).map((r) => r.comment_id ?? 0));
     return {
       ...ticketOut(row, isAgent(user)),
@@ -538,6 +543,7 @@ export function createTickets(db, users) {
       comments: comments(user, row.id).map((c) => ({ ...c, hasHtml: htmlFor.has(c.id) })),
       attachments: attachments(row.id).filter((a) => isAgent(user) || !a.commentId || !db.prepare('SELECT internal FROM comments WHERE id=?').get(a.commentId)?.internal),
       activity: isAgent(user) ? activity(row.id) : [],
+      ...extra,
     };
   }
 
@@ -595,7 +601,7 @@ export function createTickets(db, users) {
   }
 
   return {
-    events, projects, list, load, detail, create, update, addComment, saveMailHtml, mailHtml, comments,
+    events, projects, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
     participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };

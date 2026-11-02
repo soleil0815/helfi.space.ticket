@@ -229,6 +229,23 @@ export const MIGRATIONS = [
     ALTER TABLE attachments ADD COLUMN inline INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: 9,
+    name: 'Verknüpfungen',
+    sql: `
+    -- Gerichtete Verknüpfungen zwischen Tickets (relates, duplicates, blocks, causes, parent)
+    CREATE TABLE ticket_links (
+      id INTEGER PRIMARY KEY,
+      from_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      to_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      UNIQUE(from_id, to_id)
+    );
+    CREATE INDEX idx_links_to ON ticket_links(to_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

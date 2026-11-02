@@ -202,6 +202,14 @@ In *All tickets* (agents):
 
 **Tickets are never deleted**, not even by admins, so that their history remains traceable. Finished work is set to “Done”. Against spam, use a sender rule “Ignore”. A project can only be deleted if its tickets are moved to another project; to keep it together with its tickets, archive it instead.
 
+## Links and subtasks
+
+In the ticket view (agents) under *Links*:
+
+- **Link:** “relates to”, “duplicates”, “blocks” / “is blocked by”, “causes” / “is caused by”, “is subtask of” / “has subtask”. The other ticket shows the link automatically, both get a history entry. With “duplicates” the ticket can be set to “Done” right away.
+- **Subtasks:** create them directly (a task in the same project) or put existing tickets underneath. A progress bar shows “x of y done”. A ticket has at most one parent, circles are rejected.
+- Links are only visible to agents; at most 50 per ticket.
+
 ## Emojis
 
 In comments, descriptions and reply templates:

@@ -11,6 +11,7 @@ import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
+import { linksSection, linkLabel } from './links.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -140,7 +141,7 @@ export async function renderTicket(content, key) {
   }
 
   function historyEl(a) {
-    const fieldLabel = a.field ? t(`field.${a.field}`) : '';
+    const fieldLabel = a.field && !a.field.includes(':') ? t(`field.${a.field}`) : '';
     const show = (v) => {
       if (v === null || v === undefined || v === '') return t('app.none');
       if (a.field === 'status') return t(`status.${v}`);
@@ -156,6 +157,7 @@ export async function renderTicket(content, key) {
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        (a.action === 'linked' || a.action === 'unlinked') && a.field ? h('span.change', linkLabel(...a.field.split(':')), ' ', a.newValue || a.oldValue) : null,
         a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
         h('span.muted', { title: fmtDate(a.createdAt) }, ' · ', relTime(a.createdAt))));
   }
@@ -349,6 +351,7 @@ export async function renderTicket(content, key) {
         titleEl(),
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
         attachmentsEl(),
+        agent ? linksSection(tk, refresh) : null,
         activityEl()),
       sidePanel());
     // Dateien per Drag & Drop auf die Seite

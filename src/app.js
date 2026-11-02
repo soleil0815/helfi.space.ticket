@@ -4,6 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import helmet from 'helmet';
 import { brandRoutes } from './brand.js';
+import { createLinks } from './itil/links.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -32,6 +33,7 @@ export function createApp(db) {
   const sessions = createSessions(db, { policy });
   const users = createUsers(db);
   const tickets = createTickets(db, users);
+  const links = createLinks(db, tickets);
   const suppressions = createSuppressions(db);
   const mailer = createMailer(db, settings, { suppressions });
   const processor = createMailProcessor({ db, settings, tickets, users, adLookup: ldapFindByEmail, suppressions });
@@ -51,7 +53,7 @@ export function createApp(db) {
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
   const reports = createReports(db);
-  const ctx = { db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
+  const ctx = { links, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');

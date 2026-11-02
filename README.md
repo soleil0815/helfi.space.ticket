@@ -202,6 +202,14 @@ In *Alle Tickets* (Bearbeiter):
 
 **Tickets werden nie gelöscht**, auch nicht von Admins, damit der Verlauf nachweisbar bleibt. Was erledigt ist, wird auf „Erledigt“ gesetzt. Gegen Spam hilft eine Absender-Regel „Ignorieren“. Ein Projekt lässt sich nur löschen, wenn seine Tickets dabei in ein anderes Projekt verschoben werden. Soll es samt Tickets erhalten bleiben, archiviert man es stattdessen.
 
+## Verknüpfungen und Unteraufgaben
+
+In der Ticketansicht (Bearbeiter) unter *Verknüpfungen*:
+
+- **Verknüpfen:** „bezieht sich auf“, „ist Duplikat von“, „blockiert“ / „wird blockiert von“, „verursacht“ / „wird verursacht durch“, „ist Unteraufgabe von“ / „hat Unteraufgabe“. Die Gegenseite sieht die Verknüpfung automatisch, beide Tickets bekommen einen Verlaufseintrag. Bei „ist Duplikat von“ lässt sich das Ticket gleich auf „Erledigt“ setzen.
+- **Unteraufgaben:** direkt anlegen (Aufgabe im selben Projekt) oder bestehende Tickets unterordnen. Ein Fortschrittsbalken zeigt „x von y erledigt“. Ein Ticket hat höchstens ein übergeordnetes Ticket, Kreise werden abgelehnt.
+- Verknüpfungen sehen nur Bearbeiter; höchstens 50 je Ticket.
+
 ## Emojis
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:

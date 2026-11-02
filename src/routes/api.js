@@ -5,6 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import { isHexColor, saveLogo, removeLogo } from '../brand.js';
 import { viewerDocument } from '../mail/html.js';
+import { createItilRoutes } from './itil.js';
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
@@ -164,6 +165,7 @@ export function createApi(ctx) {
 
   // Ab hier nur angemeldet
   r.use(requireAuth);
+  r.use(createItilRoutes(ctx));
 
   // ---------- Eigenes Konto ----------
   r.get('/me', (req, res) => res.json({ user: publicUser(req.user) }));
