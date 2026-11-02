@@ -21,6 +21,8 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 
 ![Ticket view with comments, internal note and details](docs/images/ticket-en.png)
 
+**Manual (PDF):** [English](docs/Manual.en.pdf) · [Deutsch](docs/Handbuch.pdf) – for users, agents and administrators.
+
 ---
 
 ## Installation
@@ -377,6 +379,8 @@ npm run dev                  # http://localhost:8080, data in ./data
 npm test                     # unit, API and update.sh tests
 sudo scripts/test-samba-ad.sh && HELFI_TEST_LDAP_HOST=dc01.firma.local npm run test:integration
 ```
+
+Rebuild the manual (after changes in `docs/manual/`): `npm install --no-save playwright && npx playwright install chromium && node scripts/build-manual.mjs`.
 
 Structure: `src/` server (Express, better-sqlite3), `public/` UI (plain JavaScript without a build step), `src/i18n.js` and `public/js/i18n.js` for the texts (de/en).
 

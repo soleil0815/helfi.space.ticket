@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Helfi.Space – Manual</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<section class="cover">
+  <img src="../../public/logo.svg" alt="">
+  <div class="title">Helfi.Space</div>
+  <div class="subtitle">Manual for users, agents and administrators</div>
+  <p>Helfi.Space is a lean ticket system for IT departments and institutes. It runs as a single Docker container, signs users in via Active Directory or single sign-on and turns emails into tickets.</p>
+  <div class="audience">
+    <div><strong>Users</strong>Report problems, follow requests, reply – chapter 2</div>
+    <div><strong>Agents</strong>Work on tickets, templates, reports, keyboard shortcuts – chapter 3</div>
+    <div><strong>Administrators</strong>Installation, AD, SSO, 2FA, email, updates, backup – chapters 4 and 5</div>
+  </div>
+  <div class="meta">Version {{VERSION}} · {{DATE}}<br>All names, addresses and computers in this manual are examples.</div>
+</section>
+
+<nav class="toc">
+  <h1>Contents</h1>
+  <ol>
+    <li><a href="#overview">Overview</a>
+      <ol><li><a href="#roles">Roles</a></li><li><a href="#terms">Statuses, types and priorities</a></li><li><a href="#layout">The interface</a></li></ol></li>
+    <li><a href="#users">For everyone: signing in and making requests</a>
+      <ol><li><a href="#signin">Signing in</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li></ol></li>
+    <li><a href="#agents">For agents</a>
+      <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
+    <li><a href="#admin">For administrators: setup</a>
+      <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS and reverse proxy</a></li><li><a href="#initial">Initial setup</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single sign-on</a></li><li><a href="#2fa">Two-factor authentication and networks</a></li><li><a href="#email">Email</a></li><li><a href="#projects">Projects</a></li><li><a href="#usermgmt">Users</a></li><li><a href="#design">Appearance</a></li><li><a href="#signinpage">Sign-in page</a></li><li><a href="#import">Import from another ticket system</a></li></ol></li>
+    <li><a href="#operation">For administrators: operation</a>
+      <ol><li><a href="#updates">Updates</a></li><li><a href="#rollback">Pinning a version and going back</a></li><li><a href="#backup">Backup and restore</a></li><li><a href="#security">Security</a></li><li><a href="#faq">Questions and solutions</a></li></ol></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="overview">Overview</h1>
+
+<p>In Helfi.Space every concern becomes a <strong>ticket</strong> – whether someone reports it in the browser or sends an email to the help desk mailbox. Agents see all tickets of their projects, assign them, reply and finally set them to “Done”. Reporters receive every reply by email and can answer it directly.</p>
+
+<figure><img src="img/en/board.jpg" alt=""><figcaption>Board of a project with the four status columns</figcaption></figure>
+
+<h2 id="roles">Roles</h2>
+<table>
+  <tr><th style="width:24%">Role</th><th>What it may do</th></tr>
+  <tr><td><strong>User</strong></td><td>Report and follow their own tickets, see tickets they participate in, reply and attach files. Internal notes are never shown to users.</td></tr>
+  <tr><td><strong>Agent</strong></td><td>See and work on all tickets: status, assignee, priority, type, labels, internal notes, reply templates, bulk actions, reports.</td></tr>
+  <tr><td><strong>Administrator</strong></td><td>Everything agents may do, plus <em>Administration</em>: projects, users, AD, SSO, security, email, appearance, import, system.</td></tr>
+</table>
+<p>With Active Directory the role is derived from the AD groups at every sign-in (chapter <a href="#ad">4.4</a>). The initial setup also creates a <strong>local administrator</strong> that keeps working when AD is unreachable.</p>
+
+<h2 id="terms">Statuses, types and priorities</h2>
+<table>
+  <tr><th style="width:24%">Status</th><th>Meaning</th></tr>
+  <tr><td>Open</td><td>New or not started yet.</td></tr>
+  <tr><td>In progress</td><td>Someone is working on it.</td></tr>
+  <tr><td>Waiting</td><td>Waiting for the reporter. If they reply, the ticket reopens.</td></tr>
+  <tr><td>Done</td><td>Finished. The reporter gets an email. If they reply to it, the ticket reopens.</td></tr>
+</table>
+<p><strong>Types:</strong> Incident (something is broken), Request (something is needed), Task (internal work), Question. <strong>Priorities:</strong> Highest, High, Medium, Low.</p>
+<p>Every ticket has a <strong>key</strong> made of the project key and a running number, e.g. <code>IT-42</code>. It also appears in the subject of all emails, e.g. <code>[IT-42]</code>.</p>
+
+<h2 id="layout">The interface</h2>
+<ul>
+  <li><strong>Header:</strong> logo, <em>My work</em>, <em>All tickets</em>, the <strong>Create</strong> button, search (ticket key or keyword) and, on the right, the user menu with profile, language (Deutsch/English) and sign-out.</li>
+  <li><strong>Sidebar (agents):</strong> current project, summary, queues with live counts, board, service requests, incidents, reports, reply templates and, for admins, settings.</li>
+  <li><strong>Sidebar (users):</strong> only <em>My requests</em>.</li>
+</ul>
+<div class="tip"><p>The interface is available in German and English. Without a choice of your own it follows the browser language.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="users">For everyone: signing in and making requests <span class="role role-all">all</span></h1>
+
+<h2 id="signin">Signing in</h2>
+<p>Open the address your IT gave you, e.g. <code>https://helfi.firma.local</code>. With Active Directory you sign in with your Windows account – as <code>m.muster</code>, <code>FIRMA\m.muster</code> or <code>m.muster@firma.local</code>. If single sign-on is set up, there is an additional button such as “Sign in with company account”, or you are redirected right away.</p>
+<figure class="medium"><img src="img/en/login.jpg" alt=""><figcaption>Sign-in page with a custom welcome text</figcaption></figure>
+<p>When you sign in <strong>from outside the company network</strong>, Helfi.Space may additionally ask for a 6-digit code from your authenticator app, depending on the settings (see <a href="#2fa-setup">2.8</a>).</p>
+
+<h2 id="report">Reporting a problem</h2>
+<p>There are two ways:</p>
+<ul>
+  <li><strong>By email</strong> to the help desk mailbox, e.g. <code>helpdesk@firma.local</code>. The subject becomes the summary, the text the description, attachments are included. People in <em>To</em> or <em>CC</em> automatically become participants. You receive a confirmation with the ticket key.</li>
+  <li><strong>In the browser</strong> via <strong>Create</strong> (if your IT allows it): enter summary, description, type and priority, optionally attach files.</li>
+</ul>
+<figure><img src="img/en/create.jpg" alt=""><figcaption>The “Create ticket” dialog</figcaption></figure>
+<div class="tip"><p><strong>Paste screenshots:</strong> an image on the clipboard (e.g. taken with <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) can be pasted with <kbd>Ctrl</kbd>+<kbd>V</kbd> directly into the description or a comment.</p></div>
+
+<h2 id="myrequests">My requests</h2>
+<p><em>My requests</em> lists all tickets you reported or participate in. Use the filters at the top to narrow them down by status or “I am a participant”.</p>
+<figure><img src="img/en/requests.jpg" alt=""><figcaption>My requests as seen by a user</figcaption></figure>
+
+<h2 id="reply">Replies and files</h2>
+<p>Open a ticket and type into the comment field at the bottom; <strong>Save</strong> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> sends your reply to IT. Alternatively, simply reply to an email from Helfi.Space – the reply lands in the right ticket automatically and quoted history is cut off.</p>
+<figure><img src="img/en/ticket-user.jpg" alt=""><figcaption>A ticket as seen by the reporter</figcaption></figure>
+<p>Attach files under <em>Attachments → Attach file</em>. Images are shown directly, all other files are downloaded.</p>
+
+<h2 id="participants">Request participants</h2>
+<p>Besides the reporter, further people can take part in a ticket, e.g. colleagues with the same problem. Under <em>Request participants → Add</em> you add colleagues who have an account (up to 20 per ticket).</p>
+<ul>
+  <li>Participants see the ticket, can comment and attach files and receive the same emails as the reporter.</li>
+  <li>They do not see internal notes and cannot change status, assignee or title.</li>
+  <li>Participants can remove themselves; the reporter and agents can remove them too.</li>
+</ul>
+
+<h2 id="emojis">Emojis</h2>
+<ul>
+  <li><strong>🙂 button</strong> at the bottom right of the text field: picker with search (e.g. “thumbs” or “printer”), groups and “Recently used”.</li>
+  <li><strong>Short names:</strong> <code>:thu</code> suggests 👍 (arrow keys and Enter or Tab to accept, Esc to close). <code>:tada:</code> turns into 🎉 right away.</li>
+  <li><strong>Classic smileys</strong> are converted as soon as a space follows: <code>:)</code> → 🙂, <code>;)</code> → 😉, <code>:D</code> → 😄, <code>:(</code> → 🙁, <code>:P</code> → 😛, <code>:O</code> → 😮, <code>&lt;3</code> → ❤️, <code>(y)</code> → 👍. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes the conversion right away.</li>
+</ul>
+<figure><img src="img/en/emoji.jpg" alt=""><figcaption>Emoji picker in the comment field</figcaption></figure>
+
+<h2 id="profile">Profile, language and password</h2>
+<p>Click your picture at the top right → <em>Profile</em> to reach:</p>
+<ul>
+  <li><strong>Name and email address</strong> – editable for local accounts (a new email address requires your current password). For AD and SSO accounts both come from the company account.</li>
+  <li><strong>Language</strong> of the interface and of emails sent to you.</li>
+  <li><strong>Two-factor authentication</strong> setup and management.</li>
+  <li><strong>Change password</strong> (local accounts only; change AD passwords in Windows as usual).</li>
+</ul>
+<figure><img src="img/en/profile.jpg" alt=""><figcaption>A user’s profile</figcaption></figure>
+
+<h2 id="2fa-setup">Setting up two-factor authentication</h2>
+<p>When your IT requires it (or voluntarily): <em>Profile → Two-factor authentication → Set up now</em>.</p>
+<ol>
+  <li>Open an authenticator app on your phone (e.g. Microsoft Authenticator, Google Authenticator, Aegis, 2FAS).</li>
+  <li>Scan the QR code.</li>
+  <li>Enter the 6-digit code shown and click <strong>Activate</strong>.</li>
+  <li>Keep the <strong>10 recovery codes</strong> safe (print them or store them in a password manager). Each works exactly once if your phone is not at hand.</li>
+</ol>
+<div class="note"><p>For security reasons, first-time setup normally only works <strong>inside the company network</strong>. This way nobody with a stolen password can register their own second factor from outside. <strong>Lost your phone?</strong> Sign in with a recovery code or ask IT to reset your 2FA.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="agents">For agents <span class="role role-agent">agents</span></h1>
+
+<h2 id="queues">Queues and summary</h2>
+<p>For the selected project, the sidebar shows fixed <strong>queues</strong> with live counts: <em>All open tickets</em>, <em>Assigned to me</em>, <em>Unassigned</em>, <em>Waiting for reporter</em>, <em>Recently resolved</em> (7 days) and <em>All tickets</em>. Below them <em>Service requests</em> and <em>Incidents</em> (open requests and incidents). Switch the project at the top of the sidebar.</p>
+<p>The <strong>summary</strong> shows key figures, distributions by status, type and priority and the most urgent open tickets.</p>
+<figure><img src="img/en/summary.jpg" alt=""><figcaption>Project summary</figcaption></figure>
+<p><em>My work</em> in the header collects everything assigned to you, everything unassigned and everything you reported yourself.</p>
+
+<h2 id="board">Board</h2>
+<p>The board shows the tickets in four columns by status. Drag a card into another column to change its status, or within a column to set the order. At the top you can filter by text, assignee (avatars), type or “Only mine”.</p>
+
+<h2 id="list">Ticket list and filters</h2>
+<p><em>All tickets</em> shows a sortable list. Filters for project, status, type, priority and assignee can be combined; clicking a column header sorts. The page address contains the filters – bookmark or share it.</p>
+<figure><img src="img/en/list.jpg" alt=""><figcaption>Ticket list with filters</figcaption></figure>
+
+<h2 id="ticket">Working on a ticket</h2>
+<figure><img src="img/en/ticket.jpg" alt=""><figcaption>Ticket view: description and activity on the left, status and details on the right</figcaption></figure>
+<ul>
+  <li><strong>Status</strong> via the button at the top right (e.g. “Open” → “In progress”).</li>
+  <li>Change <strong>assignee</strong>, <strong>priority</strong>, <strong>type</strong>, <strong>labels</strong>, <strong>due date</strong> and <strong>project</strong> directly in the details. “Assign to me” takes one click or the <kbd>i</kbd> key.</li>
+  <li>Click <strong>title</strong> and <strong>description</strong> to edit them.</li>
+  <li><strong>Changing the project:</strong> the ticket gets a new key in the new project; the old one stays in the history. Replies to old emails are still assigned correctly.</li>
+  <li><strong>Activity:</strong> tabs <em>Comments</em>, <em>History</em> (every change with person and time) and <em>All</em>.</li>
+  <li><strong>Copy link</strong> via the chain icon at the top right.</li>
+</ul>
+
+<h2 id="notes">Replies and internal notes</h2>
+<p>Above the comment field choose between <strong>Reply</strong> and <strong>Internal note</strong>:</p>
+<ul>
+  <li><strong>Replies</strong> are emailed to the reporter and all participants, each in their own language.</li>
+  <li><strong>Internal notes</strong> (yellow background) are only visible to agents. They are never sent by email, and pasted images stay internal as well.</li>
+</ul>
+<div class="warn"><p>Emails coming from an agent’s address never count as agent replies (sender addresses can be forged). Agents therefore always reply via the web interface.</p></div>
+
+<h2 id="html-mails">HTML emails</h2>
+<p>When a ticket or a reply arrives as an HTML email, Helfi.Space shows it <strong>formatted</strong> – with tables, bold text, colours, signature and embedded images. The <strong>Formatted | Text</strong> switch changes to the text version; the browser remembers the choice.</p>
+<figure><img src="img/en/html-mail.jpg" alt=""><figcaption>Formatted view of an HTML email</figcaption></figure>
+<ul>
+  <li>Images from the internet (often tracking pixels) are never loaded for privacy reasons; a notice states how many there were.</li>
+  <li>In replies the quoted history is collapsed (“Show quoted text”).</li>
+  <li>Editing always uses the text version. After a description has been edited, only the text applies.</li>
+</ul>
+
+<h2 id="templates">Reply templates</h2>
+<p>For replies that are always the same: click <strong>Template</strong> in the comment field, type to search, insert with Enter or a click. The text lands at the cursor position and can still be adjusted before saving.</p>
+<figure><img src="img/en/templates.jpg" alt=""><figcaption>Choosing a template: “For everyone” at the top, your own below</figcaption></figure>
+<ul>
+  <li><strong>Placeholders</strong> are replaced on insertion: <code>{reporter}</code>, <code>{ticket}</code>, <code>{title}</code>, <code>{agent}</code>.</li>
+  <li><strong>New template:</strong> write the text in the comment field and choose <em>Save as template</em>. Personal templates are managed in your <em>Profile</em>; templates for everyone are maintained by admins under <em>Administration → Reply templates</em>.</li>
+</ul>
+
+<h2 id="bulk">Several tickets at once</h2>
+<p>In <em>All tickets</em> select tickets with the check boxes (Shift+click for a range, <kbd>x</kbd> for the highlighted ticket). The action bar offers:</p>
+<ul>
+  <li><strong>Resolve</strong> – optionally with a reply to reporter and participants, also with a template and placeholders per ticket.</li>
+  <li><strong>Status</strong>, <strong>Assign</strong>, <strong>Priority</strong> and <strong>Move</strong> to another project.</li>
+</ul>
+<figure><img src="img/en/bulk.jpg" alt=""><figcaption>Three tickets selected – action bar at the top</figcaption></figure>
+
+<h2 id="reports">Reports</h2>
+<p><em>Reports</em> shows, for a period (7, 30, 90 days, this year or custom) and optionally one project: created, resolved and open tickets, “Resolved per agent”, the “Created and resolved” trend and a table per agent (resolved, open assigned, worked on, replies, internal notes, average resolution time). The table can be sorted and downloaded as CSV.</p>
+<figure><img src="img/en/reports.jpg" alt=""><figcaption>Reports</figcaption></figure>
+
+<h2 id="shortcuts">Keyboard shortcuts</h2>
+<p><kbd>?</kbd> shows all shortcuts. They never fire while you are typing in a field.</p>
+<table>
+  <tr><th style="width:18%">Where</th><th style="width:24%">Key</th><th>Action</th></tr>
+  <tr><td>everywhere</td><td><kbd>c</kbd></td><td>create ticket</td></tr>
+  <tr><td></td><td><kbd>/</kbd></td><td>search</td></tr>
+  <tr><td></td><td><kbd>g</kbd> then <kbd>b</kbd> / <kbd>i</kbd> / <kbd>m</kbd></td><td>board / all tickets / my work</td></tr>
+  <tr><td>ticket</td><td><kbd>i</kbd></td><td>assign to me</td></tr>
+  <tr><td></td><td><kbd>a</kbd></td><td>choose assignee</td></tr>
+  <tr><td></td><td><kbd>m</kbd></td><td>comment</td></tr>
+  <tr><td></td><td><kbd>e</kbd> / <kbd>l</kbd></td><td>edit title / labels</td></tr>
+  <tr><td></td><td><kbd>.</kbd></td><td>actions with search (status, priority, type, template …)</td></tr>
+  <tr><td></td><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>save comment</td></tr>
+  <tr><td>lists</td><td><kbd>j</kbd> / <kbd>k</kbd></td><td>next / previous ticket</td></tr>
+  <tr><td></td><td><kbd>o</kbd> / <kbd>Enter</kbd></td><td>open highlighted ticket</td></tr>
+  <tr><td></td><td><kbd>x</kbd></td><td>select highlighted ticket</td></tr>
+</table>
+
+<h2 id="never-delete">Tickets are never deleted</h2>
+<p>Tickets are records: who reported what and when, and what was done? That is why they <strong>cannot be deleted</strong>, not even by administrators. Finished work is set to “Done”. Against spam, use a sender rule “Ignore” (<a href="#email">4.7</a>) – then no ticket is created in the first place.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="admin">For administrators: setup <span class="role role-admin">admin</span></h1>
+
+<h2 id="installation">Installation</h2>
+<p>You need Docker with Compose (Linux server, Synology …). Download <code>docker-compose.yml</code>, <code>env.example</code> and <code>update.sh</code> from the latest release, then:</p>
+<pre><code>mkdir helfi &amp;&amp; cd helfi
+cp env.example .env
+nano .env                 # adjust at least HELFI_BASE_URL
+docker compose up -d
+docker compose logs helfi # shows the setup code</code></pre>
+<p>Afterwards only four things live on the server:</p>
+<table>
+  <tr><td style="width:30%"><code>docker-compose.yml</code></td><td>usually stays the same across updates</td></tr>
+  <tr><td><code>.env</code></td><td>your settings (address, port, version, PUID/PGID)</td></tr>
+  <tr><td><code>update.sh</code></td><td>manual update (optional)</td></tr>
+  <tr><td><code>data/</code></td><td>database, attachments, logo, backups, key file</td></tr>
+</table>
+<p>Important entries in <code>.env</code>:</p>
+<table>
+  <tr><td style="width:34%"><code>HELFI_BASE_URL</code></td><td>address under which Helfi.Space is reachable (for links in emails and SSO)</td></tr>
+  <tr><td><code>HELFI_HTTP_PORT</code></td><td>port on the server (default 8080)</td></tr>
+  <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> or a fixed version, e.g. <code>1.5.0</code></td></tr>
+  <tr><td><code>PUID</code> / <code>PGID</code></td><td>owner of the files in <code>data/</code> (Synology e.g. <code>1026</code> / <code>100</code>; not 0)</td></tr>
+  <tr><td><code>HELFI_TRUST_PROXY</code></td><td>address of the reverse proxy (see next section)</td></tr>
+  <tr><td><code>HELFI_SECRET</code></td><td>optional: own key for stored passwords – set it only during setup</td></tr>
+  <tr><td><code>TZ</code></td><td>time zone, e.g. <code>Europe/Berlin</code></td></tr>
+</table>
+
+<h2 id="https">HTTPS and reverse proxy</h2>
+<p>Helfi.Space itself speaks HTTP on port 8080. In production put a reverse proxy with HTTPS in front of it (Synology reverse proxy, Nginx Proxy Manager, Caddy, Traefik …). Then set <code>HELFI_BASE_URL=https://helfi.firma.local</code> – cookies are marked <code>Secure</code> automatically.</p>
+<pre><code>helfi.firma.local {
+    reverse_proxy 10.0.10.20:8080
+}</code></pre>
+<div class="warn"><p>Enter the proxy’s address in <code>HELFI_TRUST_PROXY</code>, e.g. <code>10.0.10.5</code>. Without it Helfi.Space only sees the proxy: the brake against password guessing then hits everyone together, and every request counts as “from outside” to be safe.</p></div>
+
+<h2 id="initial">Initial setup</h2>
+<p>On the first visit to <code>HELFI_BASE_URL</code> the setup wizard starts. It asks for the <strong>setup code</strong> from the container log (<code>docker compose logs helfi</code>) and creates the <strong>local administrator</strong> and the first project. It then continues straight to the AD setup.</p>
+
+<h2 id="ad">Active Directory</h2>
+<p><em>Administration → Active Directory</em></p>
+<figure><img src="img/en/admin-ldap.jpg" alt=""><figcaption>Active Directory settings</figcaption></figure>
+<ol>
+  <li>Enter the <strong>domain controller</strong> with the name in its certificate (e.g. <code>dc01.firma.local</code>). Encryption: LDAPS (636) or StartTLS (389).</li>
+  <li><strong>Fetch certificate</strong>, compare the SHA-256 fingerprint with the one on the server, then <strong>Accept certificate</strong>.
+    <br>Windows: <code>certlm.msc</code> → Personal → certificate of the DC. Samba: <code>openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256</code></li>
+  <li>Enter a <strong>service account</strong>, e.g. <code>svc-helfi@firma.local</code> – a normal domain account without special rights.</li>
+  <li><strong>Groups</strong> for administrators and agents, e.g. <code>Helfi-Admins</code> and <code>Helfi-Agents</code> (name or DN, nested groups count). Optionally a group of “Allowed users”.</li>
+  <li><strong>Test connection</strong>, ideally with a test sign-in. An empty base DN is filled in; a Microsoft certificate authority (AD CS) that is found can be accepted too, so renewed DC certificates stay valid.</li>
+  <li><strong>Enable AD sign-in</strong> and save.</li>
+</ol>
+<p>Users are created at their first sign-in. Their role follows the groups at every sign-in unless an admin locked it under <em>Users</em> with “Role locked”. Helfi.Space checks daily whether the certificate still matches and whether it expires soon, and shows problems as a notice.</p>
+
+<h2 id="sso">Single sign-on</h2>
+<p><em>Administration → Single sign-on</em> (OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …)</p>
+<ol>
+  <li>Create an app at the provider and enter the redirect URI shown, e.g. <code>https://helfi.firma.local/auth/oidc/callback</code>.</li>
+  <li>Enter issuer URL, client ID and client secret and click <strong>Test</strong>. Entra ID: <code>https://login.microsoftonline.com/&lt;tenant ID&gt;/v2.0</code> and add the groups claim under <em>Token configuration</em>.</li>
+  <li>Enter the admin and agent groups (group IDs for Entra ID).</li>
+  <li>Optionally “redirect straight to SSO”. The normal sign-in remains available at <code>/login?local=1</code>.</li>
+</ol>
+<p><strong>SSO and AD together:</strong> with “Merge with AD accounts for domain” (e.g. <code>firma.local</code>), <code>m.muster@firma.local</code> from SSO is the same account as the AD user <code>m.muster</code>. Only enter it if the provider does not allow guest accounts from other organisations.</p>
+
+<h2 id="2fa">Two-factor authentication and networks</h2>
+<p><em>Administration → Security</em></p>
+<figure class="medium"><img src="img/en/admin-security-full.jpg" alt=""><figcaption>Two-factor requirement, internal networks and own internet connection</figcaption></figure>
+<table>
+  <tr><th style="width:36%">Setting</th><th>Options</th></tr>
+  <tr><td>Required when signing in from outside</td><td>all users (default) · agents and administrators · administrators only · nobody</td></tr>
+  <tr><td>Inside the internal network</td><td>no prompt (default) · administrators only · agents and administrators · all users</td></tr>
+</table>
+<ul>
+  <li><strong>Internal networks:</strong> one address or range per line. The default covers all private ranges, including Docker networks and a guest Wi-Fi – best narrow it down to the real company networks, e.g. <code>10.0.10.0/24</code>.</li>
+  <li><strong>Own internet connection:</strong> public IP or DynDNS name (e.g. <code>203.0.113.10</code> or <code>helfi.dyndns.example</code>). Requests from there count as internal; names are resolved again every 5 minutes. Careful with a guest Wi-Fi on the same connection.</li>
+  <li><strong>Reverse proxy:</strong> without a matching <code>HELFI_TRUST_PROXY</code> every request counts as external; the page shows the current value.</li>
+  <li><strong>Allow first-time setup from outside:</strong> off by default.</li>
+  <li><strong>SSO sign-ins count as second factor:</strong> on by default (MFA at the identity provider).</li>
+  <li><strong>Reset 2FA</strong> for a person: <em>Users → Reset 2FA</em>.</li>
+</ul>
+
+<h2 id="email">Email</h2>
+<p><em>Administration → Email</em></p>
+<figure><img src="img/en/admin-mail-1.jpg" alt=""><figcaption>Fetching a mailbox (IMAP)</figcaption></figure>
+<ul>
+  <li><strong>Fetch mailbox (IMAP):</strong> server, user and password of the help desk mailbox. New emails become tickets, replies become comments. Processed emails are marked as read or moved to a folder – a separate folder is recommended. Better not read the mailbox in Outlook in parallel.</li>
+  <li><strong>Sending (SMTP):</strong> ideally use the mailbox address as sender, so replies come back into the ticket.</li>
+  <li><strong>Look up senders in Active Directory:</strong> unknown senders are searched in AD and created as AD users right away. Otherwise they become <em>email contacts</em>; when they sign in later, their tickets are theirs.</li>
+  <li><strong>Recipients in To/CC become participants</strong> (can be turned off).</li>
+  <li><strong>Retention:</strong> “Delete processed emails after … days” (default: never). Only the folder for processed emails is cleaned, never the inbox.</li>
+</ul>
+<h3>Mail loop protection and sender rules</h3>
+<figure><img src="img/en/admin-mail-3.jpg" alt=""><figcaption>Sender rules and blocked recipients</figcaption></figure>
+<ul>
+  <li>Delivery failure reports and read receipts never become tickets and are never answered. The affected address gets no emails for 7 days (<em>Blocked recipients</em>, can be released early there).</li>
+  <li><strong>Sender rules</strong> (address or pattern like <code>*@pve.firma.local</code>): “Create ticket, never reply” – optionally into a separate project – or “Ignore”.</li>
+  <li><strong>Automatically generated emails</strong> (Proxmox, NAS, monitoring; recognised by <code>Auto-Submitted</code>, <code>Precedence: bulk</code> or <code>noreply@</code>) are <strong>only accepted with the rule “Create ticket, never reply”</strong>. <em>Recently skipped emails</em> lists sender and reason.</li>
+  <li>More than 20 new tickets per hour from the same sender are ignored.</li>
+</ul>
+
+<h2 id="projects">Projects</h2>
+<p><em>Administration → Projects</em>: create projects (key such as <code>IT</code> or <code>NET</code> and a name), set the lead, <strong>archive</strong> (kept with all tickets, disappears from the selection) or delete. A project with tickets can only be deleted if its tickets are moved to another project; a backup is made automatically beforehand.</p>
+<figure><img src="img/en/admin-projects.jpg" alt=""><figcaption>Projects</figcaption></figure>
+
+<h2 id="usermgmt">Users</h2>
+<p><em>Administration → Users</em> lists all accounts with origin (local, AD, SSO, email contact), role, 2FA status and last sign-in. Here you create local users, change roles (“Role locked” prevents AD groups from overriding them), deactivate accounts and reset 2FA.</p>
+<figure><img src="img/en/admin-users.jpg" alt=""><figcaption>User management</figcaption></figure>
+
+<h2 id="design">Appearance</h2>
+<p><em>Administration → General → Appearance</em></p>
+<figure class="medium"><img src="img/en/admin-brand.jpg" alt=""><figcaption>Logo, main colour and header with preview</figcaption></figure>
+<ul>
+  <li><strong>Logo</strong> as PNG or SVG (512 KB at most) for header, sign-in page and browser tab. SVGs with scripts or external references are rejected.</li>
+  <li><strong>Main colour</strong> with contrast check (warning below 4.5:1) and <strong>header</strong> light or in the main colour.</li>
+  <li><em>Reset to default</em> restores everything.</li>
+</ul>
+
+<h2 id="signinpage">Sign-in page</h2>
+<p><em>Administration → General → Sign-in page</em>: your own heading, a welcome text in German and English (e.g. how to get help in an emergency) and your own label for the user name field (“Windows user name”). Text only: <code>**bold**</code>, links and email addresses become clickable, HTML is never executed.</p>
+<figure><img src="img/en/admin-login.jpg" alt=""><figcaption>Customising the sign-in page with preview</figcaption></figure>
+
+<h2 id="import">Import from another ticket system</h2>
+<p><em>Administration → Import</em> takes over projects, tickets, comments and attachments via the REST API of the previous system (Cloud and Server/Data Center). Credentials are not stored.</p>
+<ol>
+  <li><strong>Connect</strong> (address, email and API token, or personal access token).</li>
+  <li><strong>Choose projects</strong> and the target project.</li>
+  <li><strong>Map statuses and types</strong> (suggestions are pre-filled).</li>
+  <li><strong>Import</strong> – with progress, can be cancelled.</li>
+</ol>
+<p>Ticket keys are kept (<code>SUP-123</code> stays <code>SUP-123</code>), people are matched by email address, and no emails are sent. A second run only updates what changed and never creates duplicates – so you can import once as a trial and again on the cut-over day.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="operation">For administrators: operation <span class="role role-admin">admin</span></h1>
+
+<h2 id="updates">Updates</h2>
+<h3>With container management (recommended)</h3>
+<p>Dockhand, Watchtower or Tugtainer detect new images of <code>ghcr.io/soleil0815/helfi.space.ticket:latest</code> and update the container – ideally at night. Helfi.Space backs up the database itself when a new version starts (<code>data/backups/helfi-vor-&lt;version&gt;-….sqlite</code>) and then migrates it.</p>
+<h3>Manually</h3>
+<pre><code>./update.sh             # latest version
+./update.sh 1.5.0       # specific version (recorded in .env)
+./update.sh -y          # without questions
+./update.sh --cleanup   # show leftovers of earlier updates and delete them after confirmation
+./update.sh --offline helfi-1.5.0-amd64.tar.gz 1.5.0   # without internet</code></pre>
+<p><code>update.sh</code> fetches the new version, takes over a newer <code>docker-compose.yml</code> (the old one is kept as <code>docker-compose.yml.alt-…</code>), starts the container and waits for the health check. If the new version does not start, it restores the previous version together with its database backup. It runs with <code>/bin/sh</code>, also on a Synology. <code>--cleanup</code> never touches <code>data/</code>, backups, <code>.env</code> or the current <code>docker-compose.yml</code>.</p>
+<div class="note"><p>After an update the browser loads the new interface immediately (from version 1.5.0). If an older version still shows the old interface, press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> once.</p></div>
+
+<h2 id="rollback">Pinning a version and going back</h2>
+<ol>
+  <li>Enter a fixed version in <code>.env</code>, e.g. <code>HELFI_VERSION=1.4.0</code>.</li>
+  <li>If the newer version has already migrated the database, the older one does not start and names the matching backup in the log. Then:
+<pre><code>docker compose down
+cp data/helfi.sqlite data/helfi.sqlite.new
+cp data/backups/helfi-vor-1.5.0-&lt;date&gt;.sqlite data/helfi.sqlite
+rm -f data/helfi.sqlite-wal data/helfi.sqlite-shm
+docker compose up -d</code></pre></li>
+</ol>
+
+<h2 id="backup">Backup and restore</h2>
+<ul>
+  <li><strong>Automatic:</strong> daily (kept 14 days, <code>HELFI_BACKUP_KEEP_DAYS</code>) and before every version change, in <code>data/backups/</code>. <strong>Manual:</strong> <em>Administration → System → Back up now</em>.</li>
+  <li>The backups contain only the database. <strong>Always back up the whole <code>data/</code> folder</strong> to another drive – including attachments, logo and <code>secret.key</code>.</li>
+  <li>Without <code>secret.key</code> (or the <code>HELFI_SECRET</code> you set) stored passwords and 2FA keys can no longer be decrypted.</li>
+</ul>
+<figure><img src="img/en/admin-system.jpg" alt=""><figcaption>System: version, database, backups</figcaption></figure>
+
+<h2 id="security">Security</h2>
+<ul>
+  <li>Passwords of local accounts are stored with scrypt, stored credentials (service account, mailbox, SSO) are encrypted with AES-256-GCM and never sent to the browser.</li>
+  <li>Two-factor authentication per RFC 6238, each code works once, recovery codes are stored only as hashes.</li>
+  <li>Brake on wrong passwords, cookies <code>HttpOnly</code>/<code>SameSite</code>, CSRF protection, strict Content Security Policy. The interface loads nothing from the internet.</li>
+  <li>HTML emails are cleaned and shown in an isolated frame without scripts.</li>
+  <li>The container runs without root rights, with a read-only program part, without additional Linux capabilities and with <code>no-new-privileges</code>.</li>
+  <li>Tickets are never deleted; every change is recorded in the history.</li>
+</ul>
+
+<h2 id="faq">Questions and solutions</h2>
+<table>
+  <tr><th style="width:38%">Problem</th><th>Solution</th></tr>
+  <tr><td>Emails from Proxmox, NAS or monitoring are skipped</td><td>Add a sender rule “Create ticket, never reply”. The exact sender address is listed under <em>Email → Recently skipped emails</em>.</td></tr>
+  <tr><td>Every request counts as “from outside”</td><td>Set <code>HELFI_TRUST_PROXY</code> to the address of the reverse proxy; check the internal networks. The <em>Security</em> page shows how your address is classified.</td></tr>
+  <tr><td>Lost the phone with the authenticator</td><td>Sign in with a recovery code or use <em>Users → Reset 2FA</em>; then set it up again inside the company network.</td></tr>
+  <tr><td>AD sign-in stopped working, certificate notice</td><td>The DC certificate was renewed: <em>Active Directory → Fetch certificate</em> and accept it (or store the certificate authority).</td></tr>
+  <tr><td>An AD user’s role is wrong</td><td>Check the group membership in AD; if the group name is ambiguous, enter the full DN. With “Role locked” the role from Helfi.Space applies.</td></tr>
+  <tr><td>Notice “docker-compose.yml is outdated”</td><td><code>./update.sh</code> takes over the new file, or download it from the release.</td></tr>
+  <tr><td>Helfi.Space does not start after a restore</td><td>Does <code>secret.key</code> or <code>HELFI_SECRET</code> match the database? The log (<code>docker compose logs helfi</code>) states the cause.</td></tr>
+  <tr><td>Setup code lost</td><td>It is in the log: <code>docker compose logs helfi</code>.</td></tr>
+</table>
+
+</body>
+</html>

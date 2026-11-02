@@ -1,0 +1,62 @@
+/* Helfi.Space – Handbuch (Druck/PDF) */
+@page { size: A4; margin: 20mm 18mm 22mm 18mm; }
+@page :first { margin: 0; }
+* { box-sizing: border-box; }
+html { font-family: Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif, "Noto Color Emoji"; font-size: 10.2pt; line-height: 1.5; color: #172B4D; }
+body { margin: 0; }
+a { color: #0C66E4; text-decoration: none; }
+h1, h2, h3 { color: #172B4D; line-height: 1.25; break-after: avoid; }
+h1 { font-size: 22pt; font-weight: 600; margin: 0 0 6mm; padding-bottom: 3mm; border-bottom: 2px solid #0C66E4; break-before: page; }
+h2 { font-size: 14pt; font-weight: 600; margin: 8mm 0 2mm; }
+h3 { font-size: 11pt; font-weight: 600; margin: 5mm 0 1.5mm; }
+p { margin: 0 0 2.5mm; }
+ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin: 0 0 1mm; }
+code, kbd { font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; }
+code { background: #F1F2F4; border-radius: 2px; padding: 0 1mm; }
+kbd { border: 1px solid #B3B9C4; border-bottom-width: 2px; border-radius: 3px; padding: 0 1.2mm; background: #fff; }
+pre { background: #F7F8F9; border: 1px solid #DCDFE4; border-radius: 3px; padding: 3mm; font-size: 8.6pt; white-space: pre-wrap; break-inside: avoid; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 0 0 4mm; font-size: 9.4pt; break-inside: avoid; }
+th, td { text-align: left; vertical-align: top; padding: 1.5mm 2mm; border-bottom: 1px solid #DCDFE4; }
+th { background: #F7F8F9; font-weight: 600; }
+figure { margin: 3mm 0 5mm; break-inside: avoid; }
+figure img { width: 90%; margin: 0 auto; border: 1px solid #DCDFE4; border-radius: 3px; display: block; }
+figure.small img { width: 62%; margin: 0 auto; }
+figure.medium img { width: 80%; margin: 0 auto; }
+figcaption { font-size: 8.6pt; color: #626F86; margin-top: 1.5mm; text-align: center; }
+.note, .warn, .tip { border-radius: 3px; padding: 2.5mm 3.5mm; margin: 0 0 4mm; break-inside: avoid; }
+.note { background: #E9F2FF; border-left: 3px solid #0C66E4; }
+.tip { background: #DCFFF1; border-left: 3px solid #1F845A; }
+.warn { background: #FFF7D6; border-left: 3px solid #B38600; }
+.note > :last-child, .warn > :last-child, .tip > :last-child { margin-bottom: 0; }
+.role { display: inline-block; font-size: 7.8pt; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; border-radius: 3px; padding: .3mm 1.6mm; margin-left: 2mm; vertical-align: middle; }
+.role-all { background: #DCFFF1; color: #216E4E; }
+.role-agent { background: #E9F2FF; color: #0055CC; }
+.role-admin { background: #F3F0FF; color: #5E4DB2; }
+
+/* Titelseite */
+.cover { height: 297mm; padding: 55mm 22mm 20mm; display: flex; flex-direction: column; background: linear-gradient(180deg, #F7F8F9 0%, #E9F2FF 100%); break-after: page; }
+.cover img { width: 30mm; height: 30mm; }
+.cover .title { font-size: 34pt; font-weight: 700; margin: 8mm 0 2mm; color: #0747A6; }
+.cover .subtitle { font-size: 15pt; color: #44546F; margin-bottom: 14mm; }
+.cover .meta { margin-top: auto; font-size: 9.5pt; color: #626F86; }
+.cover .audience { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 6mm; }
+.cover .audience div { background: #fff; border-radius: 4px; padding: 4mm; box-shadow: 0 1px 2px #091E4226; font-size: 9.4pt; }
+.cover .audience strong { display: block; margin-bottom: 1mm; }
+
+/* Inhaltsverzeichnis */
+.toc { break-after: page; }
+.toc h1 { break-before: auto; }
+.toc ol { list-style: none; padding: 0; counter-reset: c; }
+.toc > ol > li { counter-increment: c; margin: 3mm 0 1mm; font-weight: 600; }
+.toc > ol > li::before { content: counter(c) ". "; color: #626F86; }
+.toc ol ol { font-weight: 400; padding-left: 6mm; margin: 1mm 0 0; columns: 2; column-gap: 8mm; }
+.toc ol ol li { margin: 0 0 .6mm; break-inside: avoid; }
+
+/* Kapitelnummern */
+body { counter-reset: chapter; }
+h1.chapter { counter-increment: chapter; counter-reset: section; }
+h1.chapter::before { content: counter(chapter) " "; color: #0C66E4; }
+h2 { counter-increment: section; }
+h1.chapter ~ h2::before { content: counter(chapter) "." counter(section) " "; color: #626F86; font-weight: 500; }
