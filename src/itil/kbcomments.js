@@ -1,0 +1,72 @@
+// Kommentare an Wissensartikeln: wer den Artikel sehen darf, darf kommentieren.
+// Autor und letzter Bearbeiter des Artikels bekommen eine Mail; Bearbeiter markieren erledigt.
+import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
+import { isAgent } from '../auth/session.js';
+import { log } from '../lib/log.js';
+
+const MAX_PER_ARTICLE = 500;
+
+export function createKbComments(db, kb, { mailer = null, users = null, settings = null, t = null, baseUrl = '' } = {}) {
+  const SELECT = `SELECT c.*, u.display_name a_name, u.username a_user, r.display_name r_name FROM kb_comments c
+    LEFT JOIN users u ON u.id=c.author_id LEFT JOIN users r ON r.id=c.resolved_by`;
+  const out = (c, user) => ({
+    id: c.id, body: c.body, createdAt: c.created_at,
+    author: c.author_id ? { id: c.author_id, displayName: c.a_name || c.a_user } : null,
+    resolved: !!c.resolved, resolvedBy: c.r_name || null, resolvedAt: c.resolved_at,
+    canDelete: c.author_id === user.id || user.role === 'admin',
+  });
+
+  function list(user, articleId) {
+    const a = kb.get(user, articleId); // Rechte
+    return db.prepare(`${SELECT} WHERE c.article_id=? ORDER BY c.created_at, c.id`).all(a.id).map((c) => out(c, user));
+  }
+
+  function add(user, articleId, body) {
+    const a = kb.get(user, articleId);
+    const text = str(body, 5000).trim();
+    if (!text) throw new HttpError(400, 'err.commentEmpty');
+    if (db.prepare('SELECT COUNT(*) n FROM kb_comments WHERE article_id=?').get(a.id).n >= MAX_PER_ARTICLE) throw new HttpError(400, 'err.badRequest', 'limit');
+    const id = db.prepare('INSERT INTO kb_comments(article_id, author_id, body) VALUES(?,?,?)').run(a.id, user.id, text).lastInsertRowid;
+    notify(user, a, text);
+    return out(db.prepare(`${SELECT} WHERE c.id=?`).get(id), user);
+  }
+
+  const load = (user, cid) => {
+    const c = db.prepare(`${SELECT} WHERE c.id=?`).get(int(cid) || 0);
+    if (!c) throw notFound();
+    kb.get(user, c.article_id); // Rechte am Artikel
+    return c;
+  };
+  function setResolved(user, cid, resolved) {
+    if (!isAgent(user)) throw forbidden();
+    const c = load(user, cid);
+    db.prepare("UPDATE kb_comments SET resolved=?, resolved_by=?, resolved_at=CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END WHERE id=?")
+      .run(resolved ? 1 : 0, resolved ? user.id : null, resolved ? 1 : 0, c.id);
+    return out(db.prepare(`${SELECT} WHERE c.id=?`).get(c.id), user);
+  }
+  function remove(user, cid) {
+    const c = load(user, cid);
+    if (c.author_id !== user.id && user.role !== 'admin') throw forbidden();
+    db.prepare('DELETE FROM kb_comments WHERE id=?').run(c.id);
+  }
+
+  // Mail an Autor und letzten Bearbeiter (nicht an den Kommentierenden selbst)
+  function notify(user, article, text) {
+    if (!mailer?.enabled?.() || !t || !users) return;
+    const row = db.prepare('SELECT created_by, updated_by FROM kb_articles WHERE id=?').get(article.id);
+    const ids = [...new Set([row.created_by, row.updated_by].filter((x) => x && x !== user.id))];
+    for (const uid of ids) {
+      const to = users.byId(uid);
+      if (!to?.active || !to.email || !['agent', 'admin'].includes(to.role)) continue;
+      const lang = to.language || settings?.get('general.defaultLanguage') || 'de';
+      const vars = { title: article.title, author: user.display_name || user.username, body: text.slice(0, 2000), link: `${baseUrl}/kb/${article.id}#comments`, app: settings?.get('general.title') || 'Helfi.Space' };
+      mailer.send({ to: to.email, subject: t(lang, 'mail.kbComment.subject', vars), text: t(lang, 'mail.kbComment.body', vars) })
+        .catch((e) => log.warn('Kommentar-Mail fehlgeschlagen', { error: e.message }));
+    }
+  }
+
+  /** offene Kommentare je Artikel (für die Liste der Bearbeiter) */
+  const openCounts = () => new Map(db.prepare('SELECT article_id, COUNT(*) n FROM kb_comments WHERE resolved=0 GROUP BY article_id').all().map((r) => [r.article_id, r.n]));
+
+  return { list, add, setResolved, remove, openCounts };
+}

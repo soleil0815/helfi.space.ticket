@@ -12,7 +12,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog, cmdb, survey, itilReports } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb, kbComments, catalog, cmdb, survey, itilReports } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -65,7 +65,16 @@ export function createItilRoutes(ctx) {
   });
 
   // ---------- Wissensdatenbank (Lesen: alle Angemeldeten, öffentliche Artikel; Schreiben: Bearbeiter) ----------
-  r.get('/kb', (req, res) => res.json({ articles: kb.search(req.user, str(req.query.q, 200), { category: str(req.query.category, 60) }), categories: kb.categories(req.user) }));
+  r.get('/kb', (req, res) => {
+    let articles = kb.search(req.user, str(req.query.q, 200), { category: str(req.query.category, 60) });
+    if (req.user.role !== 'user') { const open = kbComments.openCounts(); articles = articles.map((a) => ({ ...a, openComments: open.get(a.id) || 0 })); }
+    res.json({ articles, categories: kb.categories(req.user) });
+  });
+  // Kommentare
+  r.get('/kb/:id/comments', (req, res) => res.json({ comments: kbComments.list(req.user, req.params.id) }));
+  r.post('/kb/:id/comments', (req, res) => res.status(201).json({ comment: kbComments.add(req.user, req.params.id, req.body?.body) }));
+  r.patch('/kb/comments/:cid', (req, res) => res.json({ comment: kbComments.setResolved(req.user, req.params.cid, !!req.body?.resolved) }));
+  r.delete('/kb/comments/:cid', (req, res) => { kbComments.remove(req.user, req.params.cid); res.json({ ok: true }); });
   r.get('/kb/suggest', (req, res) => {
     // Vorschläge beim Melden: nur öffentliche Artikel, höchstens 3
     const q = str(req.query.q, 200);

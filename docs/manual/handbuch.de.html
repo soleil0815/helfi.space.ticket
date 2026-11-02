@@ -148,6 +148,7 @@
 
 <h2 id="hilfe-wissen">Hilfe &amp; Wissen</h2>
 <p>Unter <em>Hilfe &amp; Wissen</em> findest du Anleitungen der IT, z. B. „VPN im Homeoffice einrichten“. Schon beim Melden schlägt Helfi.Space passende Artikel vor („Vielleicht hilft das schon“), sobald du die Zusammenfassung tippst. Ein Klick öffnet den Artikel, ohne dass deine Meldung verloren geht.</p>
+<p>Unter jedem Artikel kannst du einen <strong>Kommentar</strong> schreiben, wenn etwas fehlt oder nicht mehr stimmt – die IT wird benachrichtigt. <strong>Drucken / PDF</strong> druckt den Artikel oder speichert ihn als PDF.</p>
 <figure><img src="img/de/itil-kb-suggest.jpg" alt=""><figcaption>Vorschlag aus der Wissensdatenbank beim Melden</figcaption></figure>
 
 <h2 id="bewerten">Bewerten</h2>
@@ -313,6 +314,25 @@
   <tr><td><kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>3</kbd>, <kbd>0</kbd></td><td>Überschrift 1–3, normaler Text</td></tr>
   <tr><td><kbd>Strg</kbd>+<kbd>S</kbd></td><td>Speichern</td></tr>
 </table>
+
+<h3>Seitenbaum</h3>
+<p>Artikel können unter anderen Artikeln stehen, zum Beispiel „Onboarding → Konten anlegen → Windows-Konto“. Im Editor wählst du den <strong>übergeordneten Artikel</strong>; am Artikel legt <strong>Unterseite</strong> gleich einen Artikel darunter an. Die Startseite zeigt den Seitenbaum und die zuletzt geänderten Artikel, jeder Artikel seinen Pfad, den Baum links und seine Unterseiten am Ende.</p>
+<figure><img src="img/de/kb-tree.jpg" alt=""><figcaption>Artikel mit Seitenbaum, Unterseiten und Kommentar</figcaption></figure>
+<ul>
+  <li>Benutzer sehen nur öffentliche Seiten. Steht eine öffentliche Seite unter einer internen, rückt sie für Benutzer eine Ebene hoch.</li>
+  <li>Löschst du einen Artikel mit Unterseiten, rücken diese eine Ebene hoch. Verschieben legt keine neue Version an.</li>
+</ul>
+<h3>Versionen</h3>
+<p>Jedes Speichern mit Änderung ist eine Version. Im Editor-Kopf kannst du eine kurze <strong>Änderungsnotiz</strong> eintragen. <em>Version n · Verlauf</em> am Artikel listet alle Versionen. Wähle zwei aus und <strong>vergleiche</strong> sie: Entferntes ist rot durchgestrichen, Neues grün. Ältere Versionen kannst du ansehen und <strong>wiederherstellen</strong>; dabei entsteht eine neue Version, der Verlauf bleibt vollständig.</p>
+<figure><img src="img/de/kb-history.jpg" alt=""><figcaption>Versionen eines Artikels</figcaption></figure>
+<figure><img src="img/de/kb-compare.jpg" alt=""><figcaption>Vergleich zweier Versionen</figcaption></figure>
+<h3>Vorlagen</h3>
+<p><strong>Neuer Artikel</strong> fragt zuerst, womit du anfangen möchtest: leere Seite, <em>Anleitung</em>, <em>Störung beheben (FAQ)</em>, <em>Checkliste</em>, <em>Bekannter Fehler</em> oder eine eigene Vorlage. Eigene Vorlagen speicherst du im Editor mit dem Kopier-Symbol (<em>Als Vorlage speichern</em>) und pflegst sie unter <em>Wissen → Vorlagen</em>.</p>
+<figure><img src="img/de/kb-picker.jpg" alt=""><figcaption>Vorlagenwahl beim neuen Artikel</figcaption></figure>
+<h3>Kommentare</h3>
+<p>Unter jedem Artikel kann kommentieren, wer ihn sehen darf – auch Benutzer bei öffentlichen Artikeln. Autor und letzter Bearbeiter bekommen eine Mail. Bearbeiter markieren Kommentare als <strong>erledigt</strong>; erledigte klappen zu. Eigene Kommentare lassen sich löschen. In der Artikelliste zeigt 💬 die Zahl offener Kommentare.</p>
+<h3>Drucken und PDF</h3>
+<p><strong>Drucken / PDF</strong> am Artikel öffnet den Druckdialog; dort „Als PDF speichern“ wählen. Gedruckt werden nur Titel, Pfad, Stand und Inhalt, ohne Seitenumbrüche mitten in Bildern, Tabellen oder Infoboxen. Hat der Artikel Unterseiten, kannst du <strong>mit allen Unterseiten</strong> drucken: Es entsteht ein Dokument mit Inhaltsverzeichnis, jede Seite beginnt auf einem neuen Blatt – zum Beispiel ein komplettes Onboarding-Handbuch.</p>
 
 <h2 id="servicekatalog">Servicekatalog einrichten <span class="role role-admin">Admin</span></h2>
 <p>Unter <em>Administration → Servicekatalog</em> legst du Angebote an: Bezeichnung, Emoji, Beschreibung, Projekt und Formularfelder (Text, mehrzeilig, Auswahl, Häkchen, Datum; jeweils optional Pflicht). Optional wählst du Genehmiger, auch ohne Bearbeiter-Rolle, und ob eine oder alle Zustimmungen nötig sind. Anfragen werden Tickets vom Typ <em>Anfrage</em>; die Antworten stehen in der Beschreibung. Wie Benutzer den Katalog sehen, steht in <a href="#katalog">2.9</a>.</p>

@@ -476,6 +476,23 @@ export const MIGRATIONS = [
     CREATE INDEX idx_kb_articles_parent ON kb_articles(parent_id);
     `,
   },
+  {
+    id: 21,
+    name: 'Wissensartikel: Kommentare',
+    sql: `
+    CREATE TABLE kb_comments (
+      id INTEGER PRIMARY KEY,
+      article_id INTEGER NOT NULL REFERENCES kb_articles(id) ON DELETE CASCADE,
+      author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      body TEXT NOT NULL,
+      resolved INTEGER NOT NULL DEFAULT 0,
+      resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      resolved_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_kb_comments_article ON kb_comments(article_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

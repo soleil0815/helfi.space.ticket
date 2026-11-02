@@ -1,6 +1,7 @@
 // Wissensdatenbank: Suche, Artikel, Editor, bekannte Fehler, Vorschläge beim Melden
 import { api } from '../api.js';
-import { h, mount, icon, toast, fmtDate, modal, field, select, dropdown } from '../dom.js';
+import { h, mount, icon, toast, fmtDate, relTime, modal, field, select, dropdown, avatar, richText } from '../dom.js';
+import { withEmoji } from '../emoji.js';
 import { t } from '../i18n.js';
 import { state, navigate, setLeaveGuard } from '../app.js';
 import { renderDoc, headings } from '../kbdoc.js';
@@ -90,11 +91,11 @@ async function list(content, params) {
     overview ? h('div.kb-overview',
       h('section.kb-overview-tree', h('h3', icon('ed-toc'), t('kb.tree.title')), treeNav(tree)),
       h('section.kb-overview-recent', h('h3', t('kb.recent')), articles.slice(0, 8).map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
-        h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null),
+        h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
         a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
         h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · ')))))) : null,
     overview ? null : articles.length ? articles.map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
-      h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null),
+      h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
       a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
       h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · ')))) : h('p.muted', q ? t('kb.noResults') : t('kb.empty')));
 }
@@ -163,7 +164,49 @@ async function article(content, id) {
         articleBody(a.body),
         a.children.length ? h('section.kb-children', h('h3', t('kb.tree.children')),
           h('ul', a.children.map((c) => h('li', h('a', { href: `/kb/${c.id}`, 'data-link': '' }, c.title), agent && c.visibility === 'internal' ? h('span.badge.kb-internal', t('kb.vis.internal')) : null)))) : null,
+        commentsSection(a),
         !agent ? h('div.kb-help', t('kb.stillNeedHelp'), ' ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); import('./ticket.js').then((m) => m.openCreateDialog({ title: a.title })); } }, t('kb.reportProblem'))) : null)));
+}
+
+/** Kommentare unter einem Artikel */
+function commentsSection(a) {
+  const box = h('section.kb-comments.no-print', { id: 'comments' }, h('h3', icon('comment'), t('kb.cm.title')), h('div.loading', t('app.loading')));
+  let showDone = false;
+  const ta = h('textarea', { rows: 3, maxLength: 5000, placeholder: t('kb.cm.placeholder') });
+  const send = h('button.btn.btn-primary', {
+    type: 'button',
+    onclick: async () => {
+      if (!ta.value.trim()) return;
+      send.disabled = true;
+      try { await api.kbCommentAdd(a.id, ta.value); ta.value = ''; await load(); } catch (e) { toast(e.message, 'error'); }
+      send.disabled = false;
+    },
+  }, t('kb.cm.send'));
+  ta.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); send.click(); } });
+  const composer = h('div.kb-cm-composer', avatar(state.user, 'sm'), h('div.kb-cm-input', withEmoji(ta), h('div.form-actions', send, h('span.muted.small', t(state.isAgent ? 'kb.cm.hint' : 'kb.cm.hintUser')))));
+  const item = (c) => h(`div.kb-cm${c.resolved ? '.resolved' : ''}`,
+    avatar(c.author, 'sm'),
+    h('div.kb-cm-main',
+      h('div.kb-cm-head', h('strong', c.author?.displayName || '—'), h('span.muted', { title: fmtDate(c.createdAt) }, relTime(c.createdAt)),
+        c.resolved ? h('span.badge.kb-public', t('kb.cm.doneBy', { who: c.resolvedBy || '—' })) : null,
+        h('span.spacer'),
+        state.isAgent ? h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { try { await api.kbCommentResolve(c.id, !c.resolved); await load(); } catch (e) { toast(e.message, 'error'); } } }, c.resolved ? t('kb.cm.reopen') : [icon('check'), t('kb.cm.done')]) : null,
+        c.canDelete ? h('button.btn-icon.small', { type: 'button', title: t('app.delete'), 'aria-label': t('app.delete'), onclick: async () => { if (!confirm(t('kb.cm.deleteConfirm'))) return; try { await api.kbCommentDelete(c.id); await load(); } catch (e) { toast(e.message, 'error'); } } }, icon('trash')) : null),
+      richText(c.body)));
+  async function load() {
+    const { comments } = await api.kbComments(a.id);
+    const open = comments.filter((c) => !c.resolved);
+    const done = comments.filter((c) => c.resolved);
+    mount(box,
+      h('h3', icon('comment'), t('kb.cm.title'), comments.length ? h('span.count', String(open.length)) : null),
+      open.length ? open.map(item) : h('p.muted', done.length ? t('kb.cm.allDone') : t('kb.cm.none')),
+      done.length ? h('button.btn.btn-subtle.small.kb-cm-toggle', { type: 'button', onclick: () => { showDone = !showDone; load(); } }, showDone ? t('kb.cm.hideDone') : t('kb.cm.showDone', { n: done.length })) : null,
+      showDone ? done.map(item) : null,
+      composer);
+    if (location.hash === '#comments') { box.scrollIntoView({ block: 'start' }); history.replaceState({}, '', location.pathname); }
+  }
+  load().catch((e) => mount(box, h('p.error-text', e.message)));
+  return box;
 }
 
 /** Druckansicht eines Artikels mit allen Unterseiten (danach „Als PDF speichern“) */

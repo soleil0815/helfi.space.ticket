@@ -849,6 +849,21 @@ a.stat-link:hover { border-color: var(--blue); }
 .kb-parent { max-width: 280px; }
 @media (max-width: 1100px) { .kb-overview { grid-template-columns: minmax(0, 1fr); } }
 
+/* Kommentare an Artikeln */
+.kb-comments { margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--border); max-width: 860px; }
+.kb-comments h3 { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.kb-comments h3 .count { background: var(--bg-neutral); border-radius: 10px; padding: 0 7px; font-size: 12px; }
+.kb-cm { display: flex; gap: 10px; margin-bottom: 14px; }
+.kb-cm-main { flex: 1; min-width: 0; }
+.kb-cm-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; margin-bottom: 2px; }
+.kb-cm.resolved { opacity: .7; }
+.kb-cm-toggle { margin: 0 0 12px; }
+.kb-cm-composer { display: flex; gap: 10px; margin-top: 8px; }
+.kb-cm-input { flex: 1; min-width: 0; }
+.kb-cm-input textarea { width: 100%; }
+.kb-cm-input .form-actions { margin-top: 6px; align-items: center; gap: 10px; }
+.kb-cm-count { font-size: 12px; font-weight: 500; color: var(--text-subtle); margin-left: auto; }
+
 /* Druckansicht mit Unterseiten */
 .kb-print-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--blue-subtle); border-radius: 6px; margin-bottom: 20px; flex-wrap: wrap; max-width: 860px; }
 .kb-print { max-width: 860px; }
@@ -1101,6 +1116,7 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
   .kb-tree-side { display: none; position: static; max-height: none; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 15px; }
   .kb-tree-side.open { display: block; }
   .kb-tree-btn { display: inline-flex; }
+  .kb-cm-composer > .avatar, .kb-cm > .avatar { display: none; }
   .kb-page-main .page-head .btn-label { display: none; }
   .kb-tree-row { min-height: 40px; }
   .kb-parent { max-width: none; width: 100%; }
