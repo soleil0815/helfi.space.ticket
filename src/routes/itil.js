@@ -1,7 +1,11 @@
 // ITIL-Erweiterungen: Verknüpfungen, (später) SLA, Problem, Change, Wissen, Katalog …
 import express from 'express';
 import { requireRole } from '../auth/session.js';
-import { int, str } from '../lib/http.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import multer from 'multer';
+import { int, str, HttpError } from '../lib/http.js';
+import { config, paths } from '../config.js';
 import { t, hasKey, normalizeLang } from '../i18n.js';
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -66,6 +70,26 @@ export function createItilRoutes(ctx) {
     // Vorschläge beim Melden: nur öffentliche Artikel, höchstens 3
     const q = str(req.query.q, 200);
     res.json({ articles: kb.search({ role: 'user' }, q, { limit: 3 }) });
+  });
+  // Bilder für Wissensartikel
+  const kbUpload = multer({ dest: path.join(paths.attachments, '.tmp'), limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 1 } });
+  r.post('/kb/images', requireRole('agent'), (req, res, next) => {
+    kbUpload.single('file')(req, res, (err) => {
+      const cleanup = () => { if (req.file) fs.rmSync(req.file.path, { force: true }); };
+      if (err) { cleanup(); return next(err.code === 'LIMIT_FILE_SIZE' ? new HttpError(413, 'err.fileTooLarge') : new HttpError(400, 'err.badRequest', err.code)); }
+      if (!req.file) return next(new HttpError(400, 'err.badRequest', 'file'));
+      try { res.status(201).json(kb.addImage(req.user, { tmpPath: req.file.path, filename: Buffer.from(req.file.originalname, 'latin1').toString('utf8') })); } catch (e) { cleanup(); next(e); }
+    });
+  });
+  r.get('/kb/images/:token', (req, res) => {
+    const f = kb.imageFile(req.user, req.params.token);
+    if (!fs.existsSync(f.path)) throw new HttpError(404, 'err.notFound');
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(f.filename)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
   r.get('/kb/:id', (req, res) => res.json({ article: kb.get(req.user, req.params.id, { count: req.query.view === '1' }) }));
   r.post('/kb', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ article: kb.create(req.user, req.body || {}) })));

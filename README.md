@@ -253,8 +253,10 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 
 *Wissen* in der Seitenleiste; für Benutzer heißt sie *Hilfe & Wissen*.
 
-- **Artikel** mit Titel, Kategorie und Inhalt (wie Kommentare: `**fett**`, Links). Sichtbarkeit **intern** (nur Bearbeiter) oder **öffentlich** (alle Angemeldeten).
+- **Artikel** mit Titel, Kategorie und formatiertem Inhalt. Sichtbarkeit **intern** (nur Bearbeiter) oder **öffentlich** (alle Angemeldeten).
 - **Suche** über Titel und Inhalt, Titeltreffer zuerst; Filter nach Kategorie. Lesehäufigkeit je Artikel für Bearbeiter.
+- **Editor:** Bearbeiten im fertigen Aussehen mit Werkzeugleiste: Überschriften, Fett/Kursiv/Unterstrichen/Durchgestrichen, Aufzählung, nummerierte Liste, Checkliste, Zitat, Codeblock, Infobox (Hinweis, Tipp, Warnung), Tabelle, Trennlinie, Link (auch auf Tickets wie `IT-42` oder Artikel `KB-3`), Emoji und Bilder. Bilder kommen per Strg+V, Drag & Drop oder Knopf hinein, mit Größe und Bildunterschrift. Markdown-Kürzel beim Tippen (`# `, `- `, `1. `, `[] `, `> `, ```` ``` ````, `---`), Tastenkürzel (Strg+B/I/U/K/E/S). Einfügen aus Word oder Webseiten übernimmt Überschriften, Listen, Tabellen und Links; Bilder von fremden Adressen werden nicht übernommen. Ungespeicherte Änderungen sichert der Browser als Entwurf. Gespeichert wird schlichter Text im Markdown-Stil, kein HTML.
+- **Inhaltsverzeichnis** in der Artikelansicht ab drei Überschriften.
 - **Vorschläge beim Melden:** Tippt ein Benutzer im Dialog „Ticket erstellen“ die Zusammenfassung, erscheinen passende öffentliche Artikel („Vielleicht hilft das schon“). Sie öffnen sich, ohne dass die Meldung verloren geht.
 - **Aus einem Ticket:** *Wissensartikel* im Ticket legt einen Entwurf an, mit Beschreibung, letzter Antwort und bei Problemen mit Ursache und Workaround. Vor dem Veröffentlichen persönliche Angaben entfernen. Der Verlauf des Tickets verweist auf den Artikel.
 - **Bekannte Fehler:** Reiter mit allen Problemen, die als bekannter Fehler markiert sind, samt Workaround.

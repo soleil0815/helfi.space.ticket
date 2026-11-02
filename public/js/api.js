@@ -68,6 +68,7 @@ export const api = {
   decideApproval: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/approval`, d),
   changeCalendar: (f) => request('GET', `/api/changes/calendar${qs(f)}`),
   changeTemplates: () => request('GET', '/api/changes/templates'),
+  kbImage: (file) => { const fd = new FormData(); fd.append('file', file, file.name || 'bild.png'); return request('POST', '/api/kb/images', fd); },
   kb: (f) => request('GET', `/api/kb${qs(f)}`),
   kbSuggest: (q) => request('GET', `/api/kb/suggest${qs({ q })}`),
   kbArticle: (id, view = false) => request('GET', `/api/kb/${id}${view ? '?view=1' : ''}`),

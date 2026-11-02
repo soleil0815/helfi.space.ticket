@@ -419,6 +419,23 @@ export const MIGRATIONS = [
     CREATE INDEX idx_ticket_ratings_sent ON ticket_ratings(sent_at);
     `,
   },
+  {
+    id: 18,
+    name: 'Bilder in Wissensartikeln',
+    sql: `
+    CREATE TABLE kb_images (
+      id INTEGER PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      article_id INTEGER REFERENCES kb_articles(id) ON DELETE SET NULL,
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_kb_images_article ON kb_images(article_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

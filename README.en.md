@@ -253,7 +253,9 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 
 *Knowledge* in the sidebar; for users it is called *Help & knowledge*.
 
-- **Articles** with title, category and content (as in comments: `**bold**`, links). Visibility **internal** (agents only) or **public** (everyone signed in).
+- **Articles** with title, category and formatted content. Visibility **internal** (agents only) or **public** (everyone signed in).
+- **Editor:** edit in the final look with a toolbar: headings, bold/italic/underline/strikethrough, bulleted list, numbered list, checklist, quote, code block, info panel (note, tip, warning), table, divider, link (also to tickets like `IT-42` or articles `KB-3`), emoji and images. Images go in via Ctrl+V, drag & drop or button, with size and caption. Markdown shortcuts while typing (`# `, `- `, `1. `, `[] `, `> `, ```` ``` ````, `---`), keyboard shortcuts (Ctrl+B/I/U/K/E/S). Pasting from Word or web pages keeps headings, lists, tables and links; images from external addresses are not taken over. The browser keeps unsaved changes as a draft. Stored as plain Markdown-style text, never HTML.
+- **Table of contents** in the article view from three headings on.
 - **Search** in title and content, title matches first; filter by category. Read count per article for agents.
 - **Suggestions when reporting:** as a user types the summary in the “Create ticket” dialog, matching public articles appear (“Maybe this already helps”). They open without losing the report.
 - **From a ticket:** *Knowledge article* in a ticket creates a draft with description, last reply and, for problems, root cause and workaround. Remove personal details before publishing. The ticket history links to the article.
