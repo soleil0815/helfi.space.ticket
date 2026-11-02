@@ -436,6 +436,38 @@ export const MIGRATIONS = [
     CREATE INDEX idx_kb_images_article ON kb_images(article_id);
     `,
   },
+  {
+    id: 19,
+    name: 'Wissensartikel: Versionen und Vorlagen',
+    sql: `
+    CREATE TABLE kb_versions (
+      id INTEGER PRIMARY KEY,
+      article_id INTEGER NOT NULL REFERENCES kb_articles(id) ON DELETE CASCADE,
+      version INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT '',
+      visibility TEXT NOT NULL DEFAULT 'internal',
+      note TEXT NOT NULL DEFAULT '',
+      author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      UNIQUE (article_id, version)
+    );
+    -- vorhandene Artikel: heutiger Stand als Version 1
+    INSERT INTO kb_versions(article_id, version, title, body, category, visibility, author_id, created_at)
+      SELECT id, 1, title, body, category, visibility, COALESCE(updated_by, created_by), updated_at FROM kb_articles;
+    CREATE TABLE kb_templates (
+      id INTEGER PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

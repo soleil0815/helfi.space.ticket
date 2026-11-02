@@ -91,6 +91,16 @@ export function createItilRoutes(ctx) {
     res.setHeader('Cache-Control', 'private, max-age=86400');
     fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
+  // Vorlagen (vor /kb/:id, sonst wäre „templates“ eine Artikel-ID)
+  r.get('/kb/templates', requireRole('agent'), (req, res) => res.json({ templates: kb.templates(req.user) }));
+  r.get('/kb/templates/:id', requireRole('agent'), (req, res) => res.json({ template: kb.template(req.user, req.params.id) }));
+  r.post('/kb/templates', requireRole('agent'), (req, res) => res.status(201).json({ template: kb.saveTemplate(req.user, null, req.body || {}) }));
+  r.put('/kb/templates/:id', requireRole('agent'), (req, res) => res.json({ template: kb.saveTemplate(req.user, req.params.id, req.body || {}) }));
+  r.delete('/kb/templates/:id', requireRole('agent'), (req, res) => { kb.removeTemplate(req.user, req.params.id); res.json({ ok: true }); });
+  // Versionen
+  r.get('/kb/:id/versions', requireRole('agent'), (req, res) => res.json({ versions: kb.versions(req.user, req.params.id) }));
+  r.get('/kb/:id/versions/:v', requireRole('agent'), (req, res) => res.json({ version: kb.version(req.user, req.params.id, req.params.v) }));
+  r.post('/kb/:id/versions/:v/restore', requireRole('agent'), (req, res) => res.json({ article: kb.restore(req.user, req.params.id, req.params.v) }));
   r.get('/kb/:id', (req, res) => res.json({ article: kb.get(req.user, req.params.id, { count: req.query.view === '1' }) }));
   r.post('/kb', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ article: kb.create(req.user, req.body || {}) })));
   r.put('/kb/:id', requireRole('agent'), wrap(async (req, res) => res.json({ article: kb.update(req.user, req.params.id, req.body || {}) })));
