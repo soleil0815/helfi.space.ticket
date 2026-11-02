@@ -148,6 +148,7 @@
 
 <h2 id="help-knowledge">Help &amp; knowledge</h2>
 <p>Under <em>Help &amp; knowledge</em> you find guides from IT, e.g. “Set up VPN when working from home”. While you report a problem, Helfi.Space already suggests matching articles (“Maybe this helps already”) as soon as you type the summary. A click opens the article without losing your report.</p>
+<p>Below each article you can write a <strong>comment</strong> if something is missing or out of date – IT gets notified. <strong>Print / PDF</strong> prints the article or saves it as a PDF.</p>
 <figure><img src="img/en/itil-kb-suggest.jpg" alt=""><figcaption>Knowledge suggestion while reporting</figcaption></figure>
 
 <h2 id="rating">Rating</h2>
@@ -313,6 +314,25 @@
   <tr><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>3</kbd>, <kbd>0</kbd></td><td>Heading 1–3, normal text</td></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save</td></tr>
 </table>
+
+<h3>Page tree</h3>
+<p>Articles can sit below other articles, for example “Onboarding → Create accounts → Windows account”. In the editor you choose the <strong>parent article</strong>; on an article, <strong>Subpage</strong> creates an article right below it. The start page shows the page tree and recently changed articles; each article shows its path, the tree on the left and its subpages at the end.</p>
+<figure><img src="img/en/kb-tree.jpg" alt=""><figcaption>Article with page tree, subpages and a comment</figcaption></figure>
+<ul>
+  <li>Users only see public pages. If a public page sits below an internal one, it moves up a level for users.</li>
+  <li>If you delete an article with subpages, they move up one level. Moving creates no new version.</li>
+</ul>
+<h3>Versions</h3>
+<p>Every save with a change is a version. In the editor header you can add a short <strong>change note</strong>. <em>Version n · History</em> on the article lists all versions. Select two and <strong>compare</strong> them: removed text is red and struck through, new text green. You can view older versions and <strong>restore</strong> them; this creates a new version, the history stays complete.</p>
+<figure><img src="img/en/kb-history.jpg" alt=""><figcaption>Versions of an article</figcaption></figure>
+<figure><img src="img/en/kb-compare.jpg" alt=""><figcaption>Comparing two versions</figcaption></figure>
+<h3>Templates</h3>
+<p><strong>New article</strong> first asks how you want to start: blank page, <em>How-to</em>, <em>Troubleshooting (FAQ)</em>, <em>Checklist</em>, <em>Known error</em> or a template of your own. Save your own templates in the editor with the copy icon (<em>Save as template</em>) and manage them under <em>Knowledge → Templates</em>.</p>
+<figure><img src="img/en/kb-picker.jpg" alt=""><figcaption>Choosing a template for a new article</figcaption></figure>
+<h3>Comments</h3>
+<p>Anyone who can see an article can comment below it – including users on public articles. The author and last editor get an email. Agents mark comments as <strong>done</strong>; done comments collapse. You can delete your own comments. In the article list, 💬 shows the number of open comments.</p>
+<h3>Print and PDF</h3>
+<p><strong>Print / PDF</strong> on the article opens the print dialog; choose “Save as PDF” there. Only title, path, date and content are printed, without page breaks inside images, tables or info panels. If the article has subpages you can print <strong>with all subpages</strong>: you get one document with a table of contents, each page starting on a new sheet – for example a complete onboarding handbook.</p>
 
 <h2 id="servicecatalog">Setting up the service catalog <span class="role role-admin">admin</span></h2>
 <p>Under <em>Administration → Service catalog</em> you create offers: name, emoji, description, project and form fields (text, multi-line, choice, check box, date; each optionally required). Optionally choose approvers, also without the agent role, and whether one or all approvals are needed. Requests become tickets of type <em>Request</em>; the answers appear in the description. How users see the catalog is described in <a href="#catalog">2.9</a>.</p>
