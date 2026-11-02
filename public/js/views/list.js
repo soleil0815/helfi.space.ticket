@@ -60,15 +60,39 @@ export async function renderList(content, params, { requests = false } = {}) {
     tableHost,
   );
 
-  const { tickets } = await api.tickets({ ...f, sort: f.sort || 'updated' });
-  mount(tableHost, ticketTable(tickets, {
-    requests, sort: f.sort || 'updated', onSort: (s) => set('sort', s),
+  // Suche: Standard „beste Treffer zuerst“
+  const sort = f.sort || (f.q ? 'relevance' : 'updated');
+  const { tickets, searchTerms } = await api.tickets({ ...f, sort });
+  mount(tableHost,
+    f.q && searchTerms ? h('div.search-info',
+      sort !== 'relevance' ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => set('sort', '') }, t('search.byRelevance')) : h('span.muted.small', t('search.sortedByRelevance')),
+      h('span.muted.small.search-help', { title: t('search.help') }, ' ⓘ')) : null,
+    ticketTable(tickets, {
+    terms: searchTerms || [],
+    requests, sort, onSort: (s) => set('sort', s),
     selectable: state.isAgent && !requests,
     onChanged: () => navigate(`${location.pathname}${location.search}`, { replace: true }),
   }));
 }
 
-export function ticketTable(tickets, { requests = false, sort, onSort, compact = false, selectable = false, onChanged } = {}) {
+/** Suchbegriffe im Text hervorheben (als Textknoten, nie als HTML) */
+export function highlight(text, terms = []) {
+  const s = String(text ?? '');
+  const low = terms.map((x) => x.toLowerCase()).filter(Boolean);
+  if (!low.length) return s;
+  const out = []; let i = 0; const l = s.toLowerCase();
+  while (i < s.length) {
+    let best = -1; let len = 0;
+    for (const x of low) { const k = l.indexOf(x, i); if (k >= 0 && (best < 0 || k < best || (k === best && x.length > len))) { best = k; len = x.length; } }
+    if (best < 0) { out.push(s.slice(i)); break; }
+    if (best > i) out.push(s.slice(i, best));
+    out.push(h('mark', s.slice(best, best + len)));
+    i = best + len;
+  }
+  return out;
+}
+
+export function ticketTable(tickets, { requests = false, sort, onSort, compact = false, selectable = false, onChanged, terms = [] } = {}) {
   if (!tickets.length) return h('div.empty-state.small', t('list.empty'));
   const th = (label, key) => h('th', onSort && key ? h('button.th-sort', { type: 'button', class: sort === key ? 'active' : '', onclick: () => onSort(key) }, label, sort === key ? icon('arrow-down') : null) : label);
 
@@ -192,7 +216,10 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         })()) : null,
         h('td.col-type', typeIcon(tk.type)),
         h('td.col-key', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key)),
-        h('td.col-summary', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.title), tk.source === 'email' ? h('span.src-mail', { title: t('source.email') }, icon('mail')) : null),
+        h('td.col-summary', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, highlight(tk.title, terms)), tk.source === 'email' ? h('span.src-mail', { title: t('source.email') }, icon('mail')) : null,
+          tk.match ? h(`div.match-snippet${tk.match.source === 'internal' ? '.internal' : ''}`,
+            h('span.match-src', tk.match.source === 'comment' || tk.match.source === 'internal' ? t(`search.src.${tk.match.source}`, { who: tk.match.author || '—' }) : t(`search.src.${tk.match.source}`)),
+            ' ', highlight(tk.match.text, terms)) : null),
         h('td.col-status', lozenge(tk.status)),
         showSla ? h('td.col-sla', slaBadge(tk.sla)) : null,
         requests ? null : h('td.col-person.col-assignee', h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),

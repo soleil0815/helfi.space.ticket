@@ -6,6 +6,8 @@ import { paths } from './config.js';
 import { HttpError, notFound, forbidden, str, isoDate, int } from './lib/http.js';
 import { isAgent } from './auth/session.js';
 import { userRef } from './users.js';
+import { createSearch } from './search.js';
+import { log } from './lib/log.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 export const TYPES = ['incident', 'request', 'task', 'question', 'problem', 'change'];
@@ -29,6 +31,12 @@ export function normalizeLabels(v) {
 }
 
 export function createTickets(db, users) {
+  // Volltextsuche: Index beim Start nachziehen (nach dem Update einmal alle Tickets)
+  const search = createSearch(db);
+  try {
+    const t0 = Date.now(); const n = search.flush();
+    if (n > 100) log.info(`Suchindex aufgebaut: ${n} Tickets in ${Date.now() - t0} ms`);
+  } catch (e) { log.warn('Suchindex konnte nicht aufgebaut werden', { error: e.message }); }
   const events = new EventEmitter();
   // Ereignisse erst nach Abschluss der laufenden Transaktion auslösen
   const emitLater = (name, payload) => setImmediate(() => events.emit(name, payload));
@@ -203,25 +211,37 @@ export function createTickets(db, users) {
     if (f.overdue === '1' || f.overdue === 1 || f.overdue === true) where.push("t.status<>'done' AND t.due_date IS NOT NULL AND t.due_date < date('now')");
     const rd = int(f.resolvedDays);
     if (rd && rd > 0 && rd <= 3660) { where.push("t.resolved_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now',?)"); args.push(`-${rd} days`); }
+    let hits = null;
     if (f.q) {
-      const q = String(f.q).trim();
+      const q = String(f.q).trim().slice(0, 300);
       const km = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/.exec(q);
       if (km) { where.push('(p.key=? AND t.number=?)'); args.push(km[1].toUpperCase(), Number(km[2])); }
       else {
-        const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
-        where.push("(t.title LIKE ? ESCAPE '\\' OR t.description LIKE ? ESCAPE '\\' OR t.reporter_email LIKE ? ESCAPE '\\')");
-        args.push(like, like, like);
+        hits = search.find(q, { internal: isAgent(user) });
+        if (hits) { where.push('t.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(hits.ids)); }
       }
     }
     const sorts = {
       updated: 't.updated_at DESC', created: 't.created_at DESC', priority: "CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, t.updated_at DESC",
       key: 'p.key, t.number DESC', rank: 't.rank, t.id', status: "CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END, t.updated_at DESC",
     };
-    const order = sorts[f.sort] || sorts.updated;
     const lim = int(f.limit);
     const limit = lim && lim > 0 ? Math.min(lim, 2000) : 500;
-    const rows = db.prepare(`${SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ${order} LIMIT ${limit}`).all(...args);
-    return rows.map((r) => ticketOut(r, isAgent(user)));
+    // Suche: Standard „beste Treffer zuerst“ (Reihenfolge aus dem Index), sonst wie gewählt
+    const relevance = hits && (!f.sort || f.sort === 'relevance');
+    const order = sorts[f.sort] || sorts.updated;
+    let rows = db.prepare(`${SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ${relevance ? '' : `ORDER BY ${order} LIMIT ${limit}`}`).all(...args);
+    if (relevance) {
+      const pos = new Map(hits.ids.map((id, i) => [id, i]));
+      rows = rows.sort((a, b) => pos.get(a.id) - pos.get(b.id)).slice(0, limit);
+    }
+    const out = rows.map((r) => ticketOut(r, isAgent(user)));
+    if (hits) {
+      // Fundstelle für die ersten Treffer (Beschreibung, Antwort, Anhang)
+      out.slice(0, 100).forEach((tk) => { const m = search.snippet(tk.id, hits.terms, { internal: isAgent(user) }); if (m) tk.match = m; });
+      out.searchTerms = hits.terms;
+    }
+    return out;
   }
 
   function logActivity(ticketId, userId, action, field = null, oldV = null, newV = null) {
@@ -628,6 +648,7 @@ export function createTickets(db, users) {
   }
 
   return {
+    search,
     events, projects, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
     participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,

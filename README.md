@@ -175,6 +175,16 @@ Mails im HTML-Format zeigt Helfi.Space bei Beschreibung und Antworten **formatie
 - **Antworten:** Der zitierte Verlauf (Outlook, Gmail, Apple Mail, Thunderbird) ist eingeklappt: „Zitierten Text anzeigen“.
 - Gilt für Mails, die nach dem Update eingehen.
 
+## Suche
+
+Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter, Namen der Anhänge und die beteiligten Personen (Melder, Bearbeiter, Antwortende). Bearbeiter finden zusätzlich interne Notizen, Benutzer nie.
+
+- **Wortteile** werden gefunden: `drucker` findet auch „Netzwerkdrucker“. Groß- und Kleinschreibung spielt keine Rolle.
+- **Mehrere Wörter** in beliebiger Reihenfolge müssen alle vorkommen, `"genaue Folge"` in Anführungszeichen, `-wort` schließt aus.
+- **Beste Treffer zuerst:** Titeltreffer zählen am meisten. Ein Klick auf eine Spalte sortiert wie gewohnt, „Beste Treffer zuerst“ stellt zurück.
+- **Fundstelle:** unter jedem Treffer steht ein Ausschnitt mit markierten Wörtern und woher er stammt (Beschreibung, Antwort von …, Anhang).
+- Eine Ticketnummer wie `HELP-123` springt direkt zum Ticket. Der Suchindex wird beim ersten Start nach dem Update einmal aufgebaut (bei 7000 Tickets unter einer Sekunde) und danach laufend nachgeführt.
+
 ## Anfrage-Teilnehmer
 
 Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem oder die Vorgesetzte.
