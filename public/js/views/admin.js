@@ -299,26 +299,19 @@ async function projectsPage(body) {
     const count = p.ticketCount || 0;
     const err = h('div.form-error', { role: 'alert', hidden: true });
     const target = select(others.map((x) => [x.key, `${x.name} (${x.key})`]), others[0]?.key || '');
-    const modeMove = h('input', { type: 'radio', name: 'del-mode', value: 'move', checked: true });
-    const modeDelete = h('input', { type: 'radio', name: 'del-mode', value: 'delete' });
-    const confirmKey = h('input', { autocomplete: 'off', placeholder: p.key, disabled: true });
-    const sync = () => { target.disabled = !modeMove.checked; confirmKey.disabled = !modeDelete.checked; };
-    modeMove.addEventListener('change', sync); modeDelete.addEventListener('change', sync);
     const content = count === 0
       ? h('p', t('projects.deleteEmpty', { key: p.key, name: p.name }))
       : h('div',
         h('p', t('projects.deleteHasTickets', { key: p.key, count })),
-        h('label.radio-block', modeMove, h('span', h('strong', t('projects.deleteMove')), h('span.muted.block.small', t('projects.deleteMoveHint')))),
-        h('div.radio-detail', target),
-        h('label.radio-block', modeDelete, h('span', h('strong', t('projects.deleteAll')), h('span.muted.block.small', t('projects.deleteAllHint', { key: p.key })))),
-        h('div.radio-detail', confirmKey));
+        field(t('projects.deleteMove'), target, t('projects.deleteMoveHint')),
+        h('p.muted.small', t('projects.deleteKeepHint')));
     const submit = h('button.btn.btn-danger', { type: 'submit', form: 'del-proj-form' }, t('projects.delete'));
     const dlg = modal(`${t('projects.delete')}: ${p.name} (${p.key})`, h('form#del-proj-form', {
       onsubmit: async (e) => {
         e.preventDefault();
         err.hidden = true;
-        const d = count === 0 ? {} : (modeMove.checked ? { moveTo: target.value } : { deleteTickets: true, confirmKey: confirmKey.value });
-        if (count && modeMove.checked && !target.value) { err.textContent = t('projects.deleteNoTarget'); err.hidden = false; return; }
+        const d = count === 0 ? {} : { moveTo: target.value };
+        if (count && !target.value) { err.textContent = t('projects.deleteNoTarget'); err.hidden = false; return; }
         submit.disabled = true;
         try {
           const r = await api.deleteProject(p.id, d);
@@ -330,7 +323,6 @@ async function projectsPage(body) {
       },
     }, err, content, h('p.muted.small', t('projects.deleteBackup'))),
     { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), submit] });
-    sync();
   };
   mount(body, h('section.panel',
     h('div.section-head', h('h2', t('admin.projects')), h('button.btn.btn-primary', { type: 'button', onclick: newForm }, icon('plus'), t('projects.new'))),

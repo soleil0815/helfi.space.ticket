@@ -310,11 +310,7 @@ export async function renderTicket(content, key) {
         h('button.btn-icon', {
           type: 'button', title: t('ticket.copyLink'),
           onclick: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* egal */ } },
-        }, icon('link')),
-        state.isAdmin ? h('button.btn-icon', {
-          type: 'button', title: t('ticket.delete'),
-          onclick: async () => { if (confirm(`${tk.key}: ${t('app.confirmDelete')}`)) { await api.deleteTicket(tk.key); navigate('/issues'); } },
-        }, icon('trash')) : null),
+        }, icon('link'))),
       h('div.details-box',
         h('div.details-head', t('ticket.details')),
         detailRow(t('ticket.assignee'), assignee),

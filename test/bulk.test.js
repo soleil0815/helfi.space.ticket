@@ -64,7 +64,7 @@ test('Nur Bearbeiter; leere oder zu große Anfragen werden abgelehnt', async () 
   assert.equal((await anna('POST', '/api/tickets/bulk', { keys: [], changes: { status: 'done' } })).status, 400);
   assert.equal((await anna('POST', '/api/tickets/bulk', { keys })).status, 400, 'ohne Aktion');
   assert.equal((await anna('POST', '/api/tickets/bulk', { keys: Array.from({ length: 501 }, (_, i) => `IT-${i}`), changes: { status: 'done' } })).status, 400);
-  assert.equal((await anna('POST', '/api/tickets/bulk', { keys, delete: true })).status, 403, 'Löschen nur Admins');
+  assert.equal((await anna('POST', '/api/tickets/bulk', { keys, delete: true })).status, 400, 'Löschen gibt es nicht');
 });
 
 test('Zuweisen, Priorität, Status – mit Verlauf und Benachrichtigung je Ticket', async () => {
@@ -117,9 +117,9 @@ test('Fehler einzelner Tickets brechen den Rest nicht ab', async () => {
   assert.equal(bad.body.failed.length, 1, 'Zuweisen nur an Bearbeiter');
 });
 
-test('Löschen (Admin)', async () => {
-  const r = await admin('POST', '/api/tickets/bulk', { keys: keys.slice(0, 2), delete: true });
-  assert.deepEqual(r.body.ok, keys.slice(0, 2));
-  assert.equal((await admin('GET', `/api/tickets/${keys[0]}`)).status, 404);
-  assert.equal((await admin('GET', `/api/tickets/${keys[2]}`)).status, 200);
+test('Löschen gibt es nicht – auch nicht für Admins', async () => {
+  const r = await admin('POST', '/api/tickets/bulk', { keys: keys.slice(0, 2), delete: true, changes: { status: 'done' } });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.code, 'err.ticketDeleteDisabled');
+  for (const k of keys.slice(0, 2)) assert.equal((await admin('GET', `/api/tickets/${k}`)).status, 200);
 });

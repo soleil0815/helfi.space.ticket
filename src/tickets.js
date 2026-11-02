@@ -64,36 +64,27 @@ export function createTickets(db, users) {
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(id));
     },
     /**
-     * Projekt löschen. Mit Tickets nur, wenn sie verschoben (moveTo) oder ausdrücklich mitgelöscht werden
-     * (deleteTickets + confirmKey = Projektschlüssel). Das letzte Projekt bleibt immer.
-     * Liefert { moved, deleted, ticketIds (gelöschte, für Anhänge) }.
+     * Projekt löschen. Tickets werden nie gelöscht (Nachweis): ein Projekt mit Tickets lässt sich nur
+     * löschen, wenn sie in ein anderes Projekt verschoben werden (moveTo) – sonst archivieren.
+     * Das letzte Projekt bleibt immer. Liefert { key, moved, target }.
      */
-    remove(user, id, { moveTo = null, deleteTickets = false, confirmKey = '' } = {}) {
+    remove(user, id, { moveTo = null } = {}) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(int(id) || 0);
       if (!p) throw notFound();
       if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
       const ticketRows = db.prepare('SELECT id FROM tickets WHERE project_id=? ORDER BY number').all(p.id);
       let target = null;
       if (ticketRows.length) {
-        if (moveTo) {
-          target = projects.get(moveTo);
-          if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
-          if (target.archived) throw new HttpError(400, 'err.projectArchived');
-        } else if (!(deleteTickets && String(confirmKey).trim().toUpperCase() === p.key)) {
-          throw new HttpError(400, 'err.projectHasTickets');
-        }
-      } else if (moveTo) {
+        if (!moveTo) throw new HttpError(400, 'err.projectHasTickets');
         target = projects.get(moveTo);
+        if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
+        if (target.archived) throw new HttpError(400, 'err.projectArchived');
       }
       db.transaction(() => {
-        for (const { id: tid } of ticketRows) {
-          if (target) moveToProject(rawById(tid), target, user ? user.id : null);
-          else purgeTicketRows(tid);
-        }
+        for (const { id: tid } of ticketRows) moveToProject(rawById(tid), target, user ? user.id : null);
         db.prepare('DELETE FROM projects WHERE id=?').run(p.id);
       })();
-      if (!target) for (const { id: tid } of ticketRows) fs.rmSync(path.join(paths.attachments, String(tid)), { recursive: true, force: true });
-      return { key: p.key, moved: target ? ticketRows.length : 0, deleted: target ? 0 : ticketRows.length, target: target ? target.key : null };
+      return { key: p.key, moved: ticketRows.length, target: target ? target.key : null };
     },
   };
 
@@ -329,23 +320,6 @@ export function createTickets(db, users) {
     const number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(target.id).n;
     db.prepare("UPDATE tickets SET project_id=?, number=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(target.id, number, row.id);
     logActivity(row.id, userId, 'changed', 'project', `${row.project_key}-${row.number}`, `${target.key}-${number}`);
-  }
-
-  /** Datenbankteil des Löschens (Anhänge-Ordner löscht der Aufrufer nach der Transaktion). */
-  function purgeTicketRows(id) {
-    // Import-Zuordnungen mitlöschen – IDs können wiederverwendet werden, sonst würde ein
-    // erneuter Import ein fremdes Ticket überschreiben
-    db.prepare("DELETE FROM import_map WHERE kind='comment' AND local_id IN (SELECT id FROM comments WHERE ticket_id=?)").run(id);
-    db.prepare("DELETE FROM import_map WHERE kind='attachment' AND local_id IN (SELECT id FROM attachments WHERE ticket_id=?)").run(id);
-    db.prepare("DELETE FROM import_map WHERE kind='issue' AND local_id=?").run(id);
-    db.prepare('DELETE FROM tickets WHERE id=?').run(id);
-  }
-
-  function remove(user, idOrKey) {
-    const row = load(user, idOrKey);
-    if (user.role !== 'admin') throw forbidden();
-    db.transaction(() => purgeTicketRows(row.id))();
-    fs.rmSync(path.join(paths.attachments, String(row.id)), { recursive: true, force: true });
   }
 
   // ---------- Kommentare ----------
@@ -598,7 +572,7 @@ export function createTickets(db, users) {
   }
 
   return {
-    events, projects, list, load, detail, create, update, remove, addComment, comments,
+    events, projects, list, load, detail, create, update, addComment, comments,
     addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
     participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };

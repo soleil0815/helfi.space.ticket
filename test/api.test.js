@@ -136,10 +136,14 @@ test('Benutzer dürfen Status/Zuweisung nicht ändern, Bearbeiter schon', async 
   assert.ok(hist.includes('status') && hist.includes('assignee'));
 });
 
-test('Nur Admins: Einstellungen, Benutzer, Löschen', async () => {
+test('Nur Admins: Einstellungen, Benutzer; Tickets löscht niemand', async () => {
   assert.equal((await agent('GET', '/api/admin/settings')).status, 403);
   assert.equal((await user1('GET', '/api/users')).status, 403);
-  assert.equal((await agent('DELETE', '/api/tickets/IT-2')).status, 403);
+  assert.equal((await agent('DELETE', '/api/tickets/IT-2')).status, 405);
+  const r = await admin('DELETE', '/api/tickets/IT-2');
+  assert.equal(r.status, 405, 'auch Admins nicht');
+  assert.equal(r.body.error.code, 'err.ticketDeleteDisabled');
+  assert.equal((await admin('GET', '/api/tickets/IT-2')).status, 200);
   assert.equal((await agent('POST', '/api/projects', { key: 'HR', name: 'HR' })).status, 403);
 });
 

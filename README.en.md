@@ -187,8 +187,9 @@ In *All tickets* (agents):
   - **Resolve:** optionally with a reply to reporters and participants, with templates and per-ticket placeholders. With a reply there is no extra "resolved" mail.
   - **Status**, **Assign**, **Priority**
   - **Move to another project**
-  - **Delete** (admins only)
 - Every change goes into the ticket history. If one ticket fails, the others still go through and the message names it.
+
+**Tickets are never deleted**, not even by admins, so that their history remains traceable. Finished work is set to “Done”. Against spam, use a sender rule “Ignore”. A project can only be deleted if its tickets are moved to another project; to keep it together with its tickets, archive it instead.
 
 ## Emojis
 

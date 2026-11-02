@@ -57,14 +57,14 @@ test('Leeres Projekt löschen; nur Admins', async () => {
   assert.equal((await anna('DELETE', `/api/projects/${pid.LEER}`, {})).status, 403);
   const r = await admin('DELETE', `/api/projects/${pid.LEER}`, {});
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { key: 'LEER', moved: 0, deleted: 0, target: null });
+  assert.deepEqual(r.body, { key: 'LEER', moved: 0, target: null });
   assert.equal(ctx.tickets.projects.get('LEER'), null);
   assert.equal((await admin('DELETE', `/api/projects/${pid.LEER}`, {})).status, 404);
 });
 
-test('Projekt mit Tickets: ohne Entscheidung abgelehnt, falscher Schlüssel abgelehnt', async () => {
+test('Projekt mit Tickets: ohne Ziel abgelehnt, Mitlöschen gibt es nicht', async () => {
   assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, {})).status, 400);
-  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { deleteTickets: true, confirmKey: 'IT' })).status, 400);
+  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { deleteTickets: true, confirmKey: 'ALT' })).status, 400);
   assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'ALT' })).status, 400, 'nicht in sich selbst');
   assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'GIBTSNICHT' })).status, 400);
   assert.ok(ctx.tickets.projects.get('ALT'), 'nichts gelöscht');
@@ -76,7 +76,7 @@ test('Verschieben: neue Nummern im Ziel, alte im Verlauf, Einstellungen umgestel
   const itBefore = (await admin('GET', '/api/tickets?project=IT')).body.tickets.length;
   const r = await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'it' });
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  assert.deepEqual(r.body, { key: 'ALT', moved: 2, deleted: 0, target: 'IT' });
+  assert.deepEqual(r.body, { key: 'ALT', moved: 2, target: 'IT' });
   const it = (await admin('GET', '/api/tickets?project=IT')).body.tickets;
   assert.equal(it.length, itBefore + 2);
   const eins = it.find((x) => x.title === 'Eins');
@@ -89,23 +89,13 @@ test('Verschieben: neue Nummern im Ziel, alte im Verlauf, Einstellungen umgestel
   assert.ok(fs.readdirSync(paths.backups).some((f) => f.includes('vor-loeschen-ALT')), 'Sicherung vorher');
 });
 
-test('Mitlöschen mit Schlüssel: Tickets und Anhänge weg', async () => {
+test('Tickets mit Anhängen werden nie mitgelöscht', async () => {
   const hr = (await admin('GET', '/api/tickets?project=HR')).body.tickets[0];
-  const fd = new FormData();
-  fd.append('files', new Blob(['hallo']), 'notiz.txt');
-  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Helfi-Request': '1' }, body: JSON.stringify({ username: 'admin', password: 'Sehrgeheim123' }) });
-  const cookie = login.headers.get('set-cookie').split(';')[0];
-  const up = await fetch(`${base}/api/tickets/${hr.key}/attachments`, { method: 'POST', headers: { 'X-Helfi-Request': '1', cookie }, body: fd });
-  assert.equal(up.status, 201);
-  assert.ok(fs.existsSync(path.join(paths.attachments, String(hr.id))));
-  ctx.settings.set('imap.project', 'HR');
-  const r = await admin('DELETE', `/api/projects/${pid.HR}`, { deleteTickets: true, confirmKey: ' hr ' });
-  assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { key: 'HR', moved: 0, deleted: 1, target: null });
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM tickets WHERE id=?').get(hr.id).n, 0);
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM attachments WHERE ticket_id=?').get(hr.id).n, 0);
-  assert.equal(fs.existsSync(path.join(paths.attachments, String(hr.id))), false, 'Anhänge-Ordner gelöscht');
-  assert.equal(ctx.settings.get('imap.project'), '', 'zurück auf Standard');
+  const r = await admin('DELETE', `/api/projects/${pid.HR}`, { deleteTickets: true, confirmKey: 'HR' });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.code, 'err.projectHasTickets');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM tickets WHERE id=?').get(hr.id).n, 1);
+  assert.ok(ctx.tickets.projects.get('HR'));
 });
 
 test('Das letzte Projekt bleibt; nicht in archivierte Projekte verschieben', async () => {

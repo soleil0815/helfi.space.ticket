@@ -122,7 +122,6 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
       ]),
       menu(t('list.priority'), PRIOS.map((x) => ({ label: t(`priority.${x}`), icon: priorityIcon(x), onClick: () => run({ changes: { priority: x } }) }))),
       state.projects.length > 1 ? menu(t('bulk.move'), state.projects.map((p) => ({ label: `${p.name} (${p.key})`, onClick: () => run({ changes: { projectId: p.id } }, t('bulk.moveConfirm', { n: sel.size, key: p.key })) }))) : null,
-      state.isAdmin ? h('button.btn.btn-subtle.danger-text', { type: 'button', onclick: () => run({ delete: true }, t('bulk.deleteConfirm', { n: sel.size })) }, icon('trash'), t('app.delete')) : null,
       h('span.spacer'),
       h('button.btn.btn-subtle', { type: 'button', onclick: () => { sel.clear(); sync(); } }, t('bulk.clear')));
   }
