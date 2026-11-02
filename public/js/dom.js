@@ -184,8 +184,10 @@ export function dropdown(anchor, items, { align = 'left' } = {}) {
 
 /** Formularfeld mit Beschriftung */
 export function field(label, input, hint) {
-  const id = input.id || `f-${Math.random().toString(36).slice(2, 9)}`;
-  input.id = id;
+  // Bei einem Textfeld mit Zusatzknöpfen (z. B. Emoji) gehört das Label zum Textfeld selbst
+  const target = input.classList?.contains('emoji-wrap') ? input.querySelector('textarea') : input;
+  const id = target.id || `f-${Math.random().toString(36).slice(2, 9)}`;
+  target.id = id;
   if (input.type === 'checkbox') {
     return h('div.field.field-check', input, h('label', { for: id }, label), hint ? h('div.hint', hint) : null);
   }

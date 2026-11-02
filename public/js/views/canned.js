@@ -4,6 +4,7 @@ import { h, mount, icon, modal, toast, field } from '../dom.js';
 import { t } from '../i18n.js';
 import { state } from '../app.js';
 import { fillPlaceholders as fill } from '../placeholders.js';
+import { withEmoji } from '../emoji.js';
 
 /** Platzhalter beim Einfügen ersetzen; Bearbeiter = angemeldete Person. */
 export function fillPlaceholders(text, tk, user = state.user) {
@@ -84,7 +85,7 @@ export function templateDialog({ existing = null, body = '', shared = false, onS
     },
   },
   field(t('canned.name'), title, t('canned.nameHint')),
-  field(t('canned.text'), text, t('canned.placeholders')),
+  field(t('canned.text'), withEmoji(text), t('canned.placeholders')),
   canShare ? h('label.check-inline', forAll, t('canned.forAll')) : null);
   const dlg = modal(existing ? t('canned.edit') : t('canned.new'), form, {
     wide: true,

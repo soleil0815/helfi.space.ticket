@@ -180,6 +180,14 @@ In *Alle Tickets* (Bearbeiter):
   - **Löschen** (nur Admins)
 - Jede Änderung landet im Verlauf des Tickets. Klappt ein Ticket nicht, laufen die anderen trotzdem durch, und die Meldung nennt es.
 
+## Emojis
+
+In Kommentaren, Beschreibungen und Antwortvorlagen:
+
+- **🙂-Knopf** unten rechts im Textfeld: Auswahl mit Suche (deutsch und englisch, z. B. „daumen“ oder „drucker“), Gruppen und „Zuletzt verwendet“.
+- **Beim Tippen:** `:dau` schlägt 👍 vor (Pfeiltasten, Enter oder Tab übernimmt, Esc schließt). Ein fertiger Kurzname wie `:tada:` wird sofort zu 🎉. Uhrzeiten wie `12:30` und Adressen bleiben unberührt.
+- Angezeigt wird mit der Emoji-Schrift des Betriebssystems; es wird nichts aus dem Internet geladen. In E-Mails kommen die Emojis ganz normal an.
+
 ## Antwortvorlagen
 
 Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rechner neu“):
