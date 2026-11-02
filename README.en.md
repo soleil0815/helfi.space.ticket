@@ -172,6 +172,14 @@ In *All tickets* (agents):
   - **Delete** (admins only)
 - Every change goes into the ticket history. If one ticket fails, the others still go through and the message names it.
 
+## Emojis
+
+In comments, descriptions and reply templates:
+
+- **🙂 button** at the bottom right of the text field: picker with search (English and German, e.g. "thumbs" or "printer"), groups and "Recently used".
+- **While typing:** `:thu` suggests 👍 (arrow keys, Enter or Tab to accept, Esc to close). A complete short name such as `:tada:` turns into 🎉 right away. Times like `12:30` and addresses are left alone.
+- Emojis are shown with the operating system's emoji font; nothing is loaded from the internet. They arrive in emails as usual.
+
 ## Reply templates
 
 For replies that are always the same (e.g. "Please restart your computer"):

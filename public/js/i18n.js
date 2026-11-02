@@ -670,6 +670,15 @@ const de = {
   'mfa.trustSsoHint': 'An: Den zweiten Faktor prüft der Identitätsanbieter (z. B. MFA in Entra ID). Aus: Nach SSO wird zusätzlich der Code aus Helfi.Space abgefragt.',
   'mfa.reset': '2FA zurücksetzen',
   'mfa.resetConfirm': 'Zwei-Faktor-Anmeldung von {name} zurücksetzen? Die Person muss sie danach im Firmennetz neu einrichten.',
+  'emoji.button': 'Emoji einfügen',
+  'emoji.search': 'Emoji suchen …',
+  'emoji.recent': 'Zuletzt verwendet',
+  'emoji.group.smileys': 'Smileys',
+  'emoji.group.gestures': 'Gesten und Personen',
+  'emoji.group.symbols': 'Symbole',
+  'emoji.group.work': 'Arbeit und IT',
+  'emoji.none': 'Kein Emoji gefunden',
+  'emoji.hint': 'Tipp: Im Text :daumen oder :thumbsup tippen',
 };
 
 const en = {
@@ -1343,6 +1352,15 @@ const en = {
   'mfa.trustSsoHint': 'On: the identity provider checks the second factor (e.g. MFA in Entra ID). Off: after SSO, Helfi.Space also asks for its own code.',
   'mfa.reset': 'Reset 2FA',
   'mfa.resetConfirm': 'Reset two-factor authentication for {name}? They will have to set it up again inside the company network.',
+  'emoji.button': 'Insert emoji',
+  'emoji.search': 'Search emoji …',
+  'emoji.recent': 'Recently used',
+  'emoji.group.smileys': 'Smileys',
+  'emoji.group.gestures': 'Gestures and people',
+  'emoji.group.symbols': 'Symbols',
+  'emoji.group.work': 'Work and IT',
+  'emoji.none': 'No emoji found',
+  'emoji.hint': 'Tip: type :thumbsup in the text',
 };
 
 const dicts = { de, en };

@@ -25,7 +25,7 @@
   --radius: 3px;
   --topbar-h: 56px;
   --sidebar-w: 240px;
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", Ubuntu, "Helvetica Neue", sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", Ubuntu, "Helvetica Neue", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -585,3 +585,17 @@ a.stat-link:hover { border-color: var(--blue); }
 @media (max-width: 1200px) { .login-settings { grid-template-columns: 1fr; } }
 .login-preview { box-shadow: 0 0 0 1px var(--border); max-width: 440px; }
 .preview-label { margin-bottom: 6px; }
+
+/* Emojis */
+.emoji-wrap { position: relative; }
+.emoji-wrap > textarea { padding-right: 52px; }
+.emoji-wrap > .emoji-btn { position: absolute; right: 16px; bottom: 6px; padding: 2px 6px; font-size: 16px; line-height: 1.2; opacity: .7; }
+.emoji-wrap > .emoji-btn:hover, .emoji-wrap > .emoji-btn:focus { opacity: 1; }
+.menu-emoji { width: 340px; max-height: none; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.emoji-list { max-height: 280px; overflow-y: auto; padding-bottom: 6px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); padding: 2px 8px; }
+.emoji-cell { border: 0; background: none; font-size: 22px; line-height: 1; padding: 5px 0; border-radius: 4px; cursor: pointer; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font); }
+.emoji-cell:hover, .emoji-cell:focus { background: var(--bg-neutral); outline: none; }
+.emoji-foot { border-top: 1px solid var(--border); padding: 6px 12px; font-size: 12px; color: var(--text-subtle); min-height: 30px; }
+.emoji-suggest { min-width: 220px; }
+.emoji-big { font-size: 18px; width: 22px; text-align: center; }

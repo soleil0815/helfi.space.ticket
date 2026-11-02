@@ -9,6 +9,7 @@ import { state, navigate, route } from '../app.js';
 import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.js';
 import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
+import { withEmoji } from '../emoji.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -64,7 +65,7 @@ export async function renderTicket(content, key) {
       const ta = h('textarea.desc-input', { rows: Math.min(20, Math.max(6, tk.description.split('\n').length + 2)) }, tk.description);
       ta.value = tk.description;
       enableImagePaste(ta, { upload: (files) => api.upload(tk.key, files, { draft: true }) });
-      const wrap = h('div.desc-edit', ta, h('div.actions',
+      const wrap = h('div.desc-edit', withEmoji(ta), h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: () => save({ description: ta.value }) }, t('app.save')),
         h('button.btn.btn-subtle', { type: 'button', onclick: () => draw() }, t('app.cancel'))));
       box.replaceWith(wrap);
@@ -175,7 +176,7 @@ export async function renderTicket(content, key) {
       type: 'button',
       onclick: () => { if (!ta.value.trim()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: ta.value }); },
     }, t('canned.saveAs')) : null;
-    const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, ta, hint,
+    const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, withEmoji(ta), hint,
       h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: submit }, t('app.save')),
         templateBtn,
@@ -442,7 +443,7 @@ export function openCreateDialog(defaults = {}) {
   err,
   state.projects.length > 1 ? h('div.grid-2', field(t('create.project'), project), field(t('create.type'), type)) : field(t('create.type'), type),
   field(t('create.summary'), summary),
-  field(t('create.description'), desc),
+  field(t('create.description'), withEmoji(desc)),
   h('div.grid-2', field(t('create.priority'), prio), agent ? field(t('create.assignee'), assignee) : h('div')),
   agent ? h('div.grid-2', field(t('create.labels'), labels), field(t('create.dueDate'), due)) : null,
   field(t('create.attachments'), files),
