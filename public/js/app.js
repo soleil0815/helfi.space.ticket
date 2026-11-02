@@ -12,6 +12,7 @@ import { renderReports } from './views/reports.js';
 import { renderSummary } from './views/summary.js';
 import { QUEUES, VIEWS, queueHref, matchQueue } from './queues.js';
 import { renderProfile } from './views/profile.js';
+import { brandLogo, brandTitle } from './brand.js';
 
 export const state = {
   boot: null,
@@ -179,7 +180,7 @@ function layout(content, path) {
   }, avatar(u, 'sm'));
 
   const topbar = h('header.topbar',
-    h('a.brand', { href: '/', 'data-link': '' }, h('img', { src: '/logo.svg', alt: '', width: 24, height: 24 }), h('span', state.boot.app.title || 'Helfi.Space')),
+    h('a.brand', { href: '/', 'data-link': '', 'aria-label': state.boot.app.title || 'Helfi.Space' }, brandLogo(24), brandTitle()),
     state.isAgent ? h('nav.topnav',
       h('a', { href: '/my', 'data-link': '', class: path === '/my' ? 'active' : '' }, t('nav.myWork')),
       h('a', { href: '/issues', 'data-link': '', class: path === '/issues' ? 'active' : '' }, t('nav.list')),

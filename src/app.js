@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import helmet from 'helmet';
+import { brandRoutes } from './brand.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -95,6 +96,9 @@ export function createApp(db) {
   app.use('/api', createApi(ctx));
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'err.notFound')));
   app.use('/auth/oidc', createOidcRoutes(ctx));
+
+  // Erscheinungsbild (Logo, Farben) – öffentlich, auch für die Anmeldeseite
+  brandRoutes(app, ctx.settings);
 
   // Statische Dateien + SPA
   app.use(express.static(config.publicDir, { index: false, maxAge: '1h' }));

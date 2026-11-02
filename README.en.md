@@ -68,6 +68,16 @@ helfi.firma.local {
 
 ---
 
+## Appearance (corporate design)
+
+*Administration → General → Appearance*:
+
+- **Logo** as PNG or SVG (512 KB at most). It replaces the logo in the header, on the sign-in page and in the browser tab. SVGs with scripts or references to external content are rejected. The logo is stored in the data folder under `brand/` and is included in backups.
+- **Title next to the logo** can be hidden if the logo already contains the name.
+- **Main colour** for buttons, links and highlights. The page shows the contrast to white and warns below 4.5:1, because text on buttons is then hard to read.
+- **Header** light or in the main colour. With very light colours the text there automatically turns dark.
+- A preview shows the effect before saving; *Reset to default* restores everything.
+
 ## Customizing the sign-in page
 
 *Administration → General → Sign-in page*: your own heading (e.g. "Help center"), welcome text in German and optionally English, e.g. how to get help, and your own label for the user name field ("Windows user name"). Text only: `**bold**`, links and email addresses become clickable, HTML is never executed. A preview shows the result right away.

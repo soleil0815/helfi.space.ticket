@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, mount, field, icon, select, toast, richText } from '../dom.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { state, navigate, reloadBase, route } from '../app.js';
+import { brandLogo, brandTitle } from '../brand.js';
 
 function langSwitch() {
   return h('div.lang-switch',
@@ -15,7 +16,7 @@ function langSwitch() {
 function authFrame(...children) {
   return h('div.auth-page',
     h('div.auth-card',
-      h('div.auth-brand', h('img', { src: '/logo.svg', alt: '', width: 40, height: 40 }), h('span', state.boot.app.title || 'Helfi.Space')),
+      h('div.auth-brand', brandLogo(40), brandTitle()),
       ...children),
     langSwitch());
 }

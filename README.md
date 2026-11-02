@@ -68,6 +68,16 @@ helfi.firma.local {
 
 ---
 
+## Erscheinungsbild (Corporate Design)
+
+*Administration → Allgemein → Erscheinungsbild*:
+
+- **Logo** als PNG oder SVG (höchstens 512 KB). Es ersetzt das Logo in der Kopfzeile, auf der Anmeldeseite und im Browser-Tab. SVGs mit Skripten oder Verweisen auf fremde Inhalte werden abgelehnt. Das Logo liegt im Datenordner unter `brand/` und wird mitgesichert.
+- **Titel neben dem Logo** lässt sich ausblenden, wenn das Logo den Namen schon enthält.
+- **Hauptfarbe** für Knöpfe, Links und Markierungen. Die Seite zeigt den Kontrast zu Weiß an und warnt unter 4,5:1, weil Schrift auf Knöpfen dann schlecht lesbar ist.
+- **Kopfzeile** hell oder in der Hauptfarbe. Bei sehr hellen Farben wird die Schrift dort automatisch dunkel.
+- Eine Vorschau zeigt die Wirkung vor dem Speichern; *Auf Standard zurücksetzen* stellt alles wieder her.
+
 ## Anmeldeseite anpassen
 
 *Administration → Allgemein → Anmeldeseite*: eigene Überschrift (z. B. „Hilfecenter“), Begrüßungstext auf Deutsch und optional Englisch, z. B. wie man Hilfe bekommt, und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: `**fett**`, Links und Mailadressen werden automatisch anklickbar, HTML wird nie ausgeführt. Eine Vorschau zeigt das Ergebnis sofort.
