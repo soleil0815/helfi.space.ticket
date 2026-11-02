@@ -1183,3 +1183,7 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
   .backup-table tfoot tr { grid-template-columns: 1fr auto; border-bottom: 0; }
   .backup-table tfoot td:last-child { display: none; }
 }
+
+/* Teilnehmer aus dem AD */
+.person-hit { display: inline-flex; align-items: center; gap: 6px; }
+.badge-ad { background: var(--blue-subtle); color: var(--blue-hover); }

@@ -106,6 +106,7 @@
   <li>Participants see the ticket, can comment and attach files and receive the same emails as the reporter.</li>
   <li>They do not see internal notes and cannot change status, assignee or title.</li>
   <li>Participants can remove themselves; the reporter and agents can remove them too.</li>
+  <li><strong>Agents</strong> can also enter any email address and find people directly in <strong>Active Directory</strong> (marked “AD”), by email address too. The person is taken over with name and email address from AD – they do not need to have signed in before.</li>
 </ul>
 
 <h2 id="emojis">Emojis</h2>
@@ -418,7 +419,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Test connection</strong>, ideally with a test sign-in. An empty base DN is filled in; a Microsoft certificate authority (AD CS) that is found can be accepted too, so renewed DC certificates stay valid.</li>
   <li><strong>Enable AD sign-in</strong> and save.</li>
 </ol>
-<p>Users are created at their first sign-in. Their role follows the groups at every sign-in unless an admin locked it under <em>Users</em> with “Role locked”. Helfi.Space checks daily whether the certificate still matches and whether it expires soon, and shows problems as a notice.</p>
+<p>Users are created at their first sign-in or when an agent adds them as a participant from AD (<strong>Suggest participants from AD</strong>, on by default, requires the service account). Their role follows the groups at every sign-in unless an admin locked it under <em>Users</em> with “Role locked”. Helfi.Space checks daily whether the certificate still matches and whether it expires soon, and shows problems as a notice.</p>
 
 <h2 id="sso">Single sign-on</h2>
 <p><em>Administration → Single sign-on</em> (OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …)</p>

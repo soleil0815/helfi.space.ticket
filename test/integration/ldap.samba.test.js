@@ -119,3 +119,30 @@ test('Absender per E-Mail finden: Hauptadresse, UPN, Zweitadresse, nicht deaktiv
   assert.equal(await ldap.findByEmail(cfg, '*@firma.local'), null, 'Platzhalter wird maskiert');
   await assert.rejects(ldap.findByEmail({ ...cfg, bindDn: '' }, 'm.muster@firma.local'), /Dienstkonto/);
 });
+
+test('Personen suchen (Teilnehmer aus dem AD) und per objectGUID holen', { skip }, async () => {
+  const cfg = { ...base };
+  if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+
+  const byName = await ldap.searchPeople(cfg, 'Muster');
+  assert.deepEqual(byName.map((p) => p.username), ['m.muster']);
+  assert.equal(byName[0].email, 'm.muster@firma.local');
+  assert.match(byName[0].externalId, /^[0-9a-f]{32}$/);
+
+  assert.deepEqual((await ldap.searchPeople(cfg, 'max mus')).map((p) => p.username), ['m.muster'], 'mehrere Wortteile');
+  assert.deepEqual((await ldap.searchPeople(cfg, 'k.kunde@firma')).map((p) => p.username), ['k.kunde'], 'Teil der Mailadresse');
+  assert.deepEqual((await ldap.searchPeople(cfg, 'erika.alt@firma.de')).map((p) => p.username), ['e.beispiel'], 'Zweitadresse');
+  assert.deepEqual(await ldap.searchPeople(cfg, 'Dora'), [], 'deaktiviertes Konto nicht');
+  assert.deepEqual(await ldap.searchPeople(cfg, '*'), [], 'Platzhalter wird maskiert');
+  assert.ok((await ldap.searchPeople(cfg, 'firma.local', { limit: 2 })).length <= 2, 'Begrenzung');
+
+  // GUID aus der Suche muss dieselbe Person liefern wie die Anmeldung (externalId)
+  const got = await ldap.findByGuid(cfg, byName[0].externalId);
+  assert.equal(got.username, 'm.muster');
+  assert.equal(got.groups.agent, true);
+  const login = await ldap.authenticate(cfg, 'm.muster', 'Muster!Pass2026');
+  assert.equal(login.externalId, byName[0].externalId, 'gleiche Kennung wie bei der Anmeldung');
+  assert.equal(await ldap.findByGuid(cfg, '00'.repeat(16)), null);
+  assert.equal(await ldap.findByGuid(cfg, 'kein-guid'), null);
+  await assert.rejects(ldap.searchPeople({ ...cfg, bindDn: '' }, 'Muster'), /Dienstkonto/);
+});

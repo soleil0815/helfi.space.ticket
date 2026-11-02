@@ -5,7 +5,7 @@
 import net from 'node:net';
 import tls from 'node:tls';
 import crypto from 'node:crypto';
-import { Client } from 'ldapts';
+import { Client, FilterParser, EqualityFilter } from 'ldapts';
 import { log } from '../lib/log.js';
 
 const IN_CHAIN = '1.2.840.113556.1.4.1941'; // LDAP_MATCHING_RULE_IN_CHAIN (AD + Samba AD)
@@ -298,6 +298,92 @@ export async function findByEmail(cfg, email) {
     if (searchEntries.length === 0) return null;
     if (searchEntries.length > 1) return { ambiguous: true };
     return await entryToUser(client, cfg, searchEntries[0], String(email).split('@')[0]);
+  } finally {
+    await client.unbind().catch(() => {});
+  }
+}
+
+// ---------- Personen suchen (Teilnehmer aus dem AD) ----------
+const ACTIVE_PERSON = '(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2))';
+const SEARCH_ATTRS = ['displayName', 'givenName', 'sn', 'cn', 'mail', 'sAMAccountName', 'userPrincipalName'];
+const safeAttr = (a) => (/^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(String(a || '')) ? a : null);
+
+/** LDAP-Filter für die Personensuche: jedes Wort muss in Name, Anmeldename oder einer Adresse vorkommen. */
+export function buildPeopleFilter(cfg, q) {
+  const words = String(q || '').trim().split(/\s+/).filter(Boolean).slice(0, 4);
+  if (!words.length) throw new Error('Suchbegriff fehlt');
+  const attrs = [...new Set([...SEARCH_ATTRS, safeAttr(cfg.usernameAttr), safeAttr(cfg.displayNameAttr), safeAttr(cfg.emailAttr)].filter(Boolean))];
+  const part = (w) => {
+    const e = escapeFilter(w);
+    return `(|${attrs.map((a) => `(${a}=*${e}*)`).join('')}(proxyAddresses=smtp:*${e}*))`;
+  };
+  return `(&${ACTIVE_PERSON}${words.map(part).join('')})`;
+}
+
+/**
+ * Filter „aktiver Benutzer mit dieser objectGUID“ (Hex aus externalId).
+ * Als Filter-Objekt mit Bytes: in einer Filter-Zeichenkette würde ldapts \\aa… als UTF-8 verschicken.
+ */
+export function guidFilter(hex) {
+  if (!/^[0-9a-f]{32}$/i.test(String(hex || ''))) return null;
+  const f = FilterParser.parseString(`(&${ACTIVE_PERSON})`);
+  f.filters.push(new EqualityFilter({ attribute: 'objectGUID', value: Buffer.from(String(hex), 'hex') }));
+  return f;
+}
+
+const guidHex = (v) => { const g = first(v); return Buffer.isBuffer(g) ? g.toString('hex') : ''; };
+
+/**
+ * Aktive AD-Benutzer suchen (nur mit Dienstkonto). Liefert höchstens `limit` Treffer,
+ * nach Anzeigename sortiert: { username, displayName, email, externalId }.
+ */
+export async function searchPeople(cfg, q, { limit = 10 } = {}) {
+  if (!cfg.bindDn) throw new Error('Kein Dienstkonto (Bind-DN) eingetragen.');
+  const filter = buildPeopleFilter(cfg, q);
+  const client = await connect(cfg);
+  try {
+    await serviceBind(client, cfg);
+    cfg = await ensureBaseDn(client, cfg);
+    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'objectGUID'];
+    const entries = [];
+    // Nur die erste Seite: bei sehr allgemeinen Suchen nicht das ganze Verzeichnis lesen
+    for await (const page of client.searchPaginated(cfg.baseDn, {
+      scope: 'sub', filter, attributes: attrs, explicitBufferAttributes: ['objectGUID'], paged: { pageSize: Math.max(limit * 3, 20) },
+    })) { entries.push(...page.searchEntries); break; }
+    return entries
+      .map((e) => {
+        const username = String(first(e[cfg.usernameAttr]) || '');
+        return {
+          username,
+          displayName: String(first(e[cfg.displayNameAttr]) || username),
+          email: String(first(e[cfg.emailAttr]) || ''),
+          externalId: guidHex(e.objectGUID),
+        };
+      })
+      .filter((p) => p.username && p.externalId)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de'))
+      .slice(0, limit);
+  } finally {
+    await client.unbind().catch(() => {});
+  }
+}
+
+/** Einen AD-Benutzer über seine objectGUID holen, mit Gruppen (wie bei der Anmeldung). null = nicht (mehr) da oder deaktiviert. */
+export async function findByGuid(cfg, hex) {
+  if (!cfg.bindDn) throw new Error('Kein Dienstkonto (Bind-DN) eingetragen.');
+  const filter = guidFilter(hex);
+  if (!filter) return null;
+  const client = await connect(cfg);
+  try {
+    await serviceBind(client, cfg);
+    cfg = await ensureBaseDn(client, cfg);
+    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID'];
+    const { searchEntries } = await client.search(cfg.baseDn, {
+      scope: 'sub', filter, attributes: attrs, explicitBufferAttributes: ['objectGUID'], sizeLimit: 2,
+    });
+    if (searchEntries.length !== 1) return null;
+    const entry = searchEntries[0];
+    return await entryToUser(client, cfg, entry, String(first(entry[cfg.usernameAttr]) || ''));
   } finally {
     await client.unbind().catch(() => {});
   }
