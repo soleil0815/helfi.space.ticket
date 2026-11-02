@@ -465,11 +465,11 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 
 ## Backup
 
-- Automatic: daily (kept 14 days, `HELFI_BACKUP_KEEP_DAYS`) and before every version change, in `data/backups/`
-- Manual: *Administration → System → Back up now*
+- Automatic: daily and before every version change, in `data/backups/`
+- Manual: *Administration → System → Back up now*. That page also lists all backups with kind, date, size and the total space used; single backups can be deleted.
 - **Back up as well:** the whole `data/` folder, including `secret.key`. Without this file, stored passwords (service account, mailbox, SSO) and 2FA keys can no longer be decrypted. Helfi.Space then does not start and says so in the log. Alternatively set `HELFI_SECRET` (at least 16 characters) in `.env`, but right at setup: switching between `secret.key` and `HELFI_SECRET` later makes stored data unreadable.
 - The backups in `data/backups/` only contain the database. Attachments (`data/attachments/`) and `secret.key` live next to it. So always back up the whole `data/` folder to another drive.
-- Retention: daily backups 14 days (the newest always stays). Backups before version changes are limited to the last 10, manual ones are never deleted.
+- **Retention:** *Administration → System → Backups to keep* (default 10, 1–100). The number applies per kind: daily, before version changes and manual (including the backups made before deleting a project). Older ones are deleted, the newest of each kind always stays. Cleanup runs when saving, at startup and after every backup. `HELFI_BACKUP_KEEP_DAYS` is no longer used.
 
 ## Security
 

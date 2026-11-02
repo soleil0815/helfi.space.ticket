@@ -149,6 +149,7 @@ export const api = {
     testSmtp: (settings, to) => request('POST', '/api/admin/smtp/test', { settings, to }),
     system: () => request('GET', '/api/admin/system'),
     backup: () => request('POST', '/api/admin/backup'),
+    deleteBackup: (name) => request('DELETE', `/api/admin/backups/${encodeURIComponent(name)}`),
     brandLogo: (data) => request('PUT', '/api/admin/brand/logo', { data }),
     brandLogoRemove: () => request('DELETE', '/api/admin/brand/logo'),
     jiraConnect: (connection) => request('POST', '/api/admin/import/jira/connect', { connection }),
