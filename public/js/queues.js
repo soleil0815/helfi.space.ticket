@@ -14,10 +14,12 @@ export const VIEWS = [
   { id: 'requests', label: 'nav.serviceRequests', icon: 'type-request', params: { type: 'request', status: 'unresolved' }, count: 'requests' },
   { id: 'incidents', label: 'nav.incidents', icon: 'type-incident', params: { type: 'incident', status: 'unresolved' }, count: 'incidents' },
   { id: 'problems', label: 'nav.problems', icon: 'type-problem', params: { type: 'problem', status: 'unresolved' }, count: 'problems' },
+  { id: 'changes', label: 'nav.changes', icon: 'type-change', params: { type: 'change', status: 'unresolved' }, count: 'changes' },
+  { id: 'approvals', label: 'nav.approvals', icon: 'check', params: { approval: 'mine' }, count: 'approvals', when: (boot, counts) => !counts || counts.approvals > 0 },
   { id: 'slaRisk', label: 'nav.slaRisk', icon: 'warning', params: { sla: 'risk' }, count: 'slaRisk', when: (boot) => boot.sla?.enabled },
 ];
 
-const FILTER_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla'];
+const FILTER_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla', 'approval'];
 
 export function queueHref(q, projectKey) {
   const p = new URLSearchParams({ ...(projectKey ? { project: projectKey } : {}), ...q.params });

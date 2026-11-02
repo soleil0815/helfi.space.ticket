@@ -233,6 +233,21 @@ In der Ticketansicht (Bearbeiter) unter *Verknüpfungen*:
 - **Betroffene Störungen** hängen über *Verknüpfen → verursacht* am Problem. Dort sehen Bearbeiter oben „Ursache bekannt“ mit dem Workaround und übernehmen ihn mit einem Klick in die Antwort.
 - **Störungen informieren:** schreibt dieselbe Antwort in alle offenen betroffenen Störungen, z. B. wenn die Lösung eingespielt ist.
 
+## Change-Management
+
+Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
+
+- **Arten:**
+  - **Normal:** braucht eine Genehmigung.
+  - **Standard:** vorab genehmigte Routine nach einer Vorlage, ohne Genehmigung.
+  - **Notfall:** sofort umsetzen, Genehmigung nachträglich.
+- **Felder:** Grund, Risiko, betroffene Dienste und Geräte, geplanter Beginn und geplantes Ende, Umsetzungs-, Rückfall- und Testplan.
+- **Ablauf:** Entwurf → Zur Genehmigung → Genehmigt/Abgelehnt → Geplant → In Umsetzung → Überprüfung → Abgeschlossen. Der Ticketstatus folgt automatisch. Fehlende Pflichtangaben nennt Helfi.Space beim jeweiligen Schritt.
+- **Genehmigung (CAB):** Genehmiger und Regel („eine Zustimmung genügt“ oder „alle müssen zustimmen“) unter *Administration → Change*. Genehmiger bekommen eine Mail und entscheiden im Ticket (mit Kommentar) oder über die Ansicht **Meine Genehmigungen**. Jede Entscheidung steht im Verlauf. Nach einer Ablehnung lässt sich der Change überarbeiten und neu vorlegen.
+- **Vorlagen für Standard-Changes** (z. B. Firmware-Update) unter *Administration → Change*, im Change mit einem Klick übernommen.
+- **Abschluss:** Ergebnis „Erfolgreich“, „Mit Problemen“ oder „Zurückgerollt“. Bei den beiden letzten ist eine Nachbetrachtung Pflicht.
+- **Change-Kalender** in der Seitenleiste: Monatsansicht aller geplanten Changes, zeitliche Überschneidungen sind rot markiert.
+
 ## Emojis
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:

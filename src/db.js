@@ -318,6 +318,25 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 13,
+    name: 'Genehmigungen',
+    sql: `
+    -- Genehmigungen (Change, Servicekatalog): je angefragter Person eine Zeile, Entscheidung später
+    CREATE TABLE approvals (
+      id INTEGER PRIMARY KEY,
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      approver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      round INTEGER NOT NULL DEFAULT 1,
+      decision TEXT,
+      comment TEXT,
+      requested_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      decided_at TEXT,
+      UNIQUE (ticket_id, approver_id, round)
+    );
+    CREATE INDEX idx_approvals_approver ON approvals(approver_id, decision);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

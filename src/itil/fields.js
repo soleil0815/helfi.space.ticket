@@ -9,6 +9,20 @@ export const FIELD_DEFS = {
     workaround: { type: 'text', max: 20000 },
     knownError: { type: 'bool' },
   },
+  change: {
+    changeType: { type: 'enum', values: ['standard', 'normal', 'emergency'] },
+    phase: { type: 'enum', values: ['draft', 'approval', 'approved', 'rejected', 'scheduled', 'implementing', 'review', 'closed'], internal: true },
+    reason: { type: 'text', max: 20000 },
+    risk: { type: 'enum', values: ['low', 'medium', 'high'] },
+    services: { type: 'text', max: 2000 },
+    plannedStart: { type: 'datetime' },
+    plannedEnd: { type: 'datetime' },
+    implementationPlan: { type: 'text', max: 50000 },
+    backoutPlan: { type: 'text', max: 50000 },
+    testPlan: { type: 'text', max: 20000 },
+    outcome: { type: 'enum', values: ['successful', 'issues', 'rolledBack'], internal: true },
+    review: { type: 'text', max: 20000 },
+  },
 };
 
 export function createFields(db, tickets) {
@@ -44,7 +58,7 @@ export function createFields(db, tickets) {
     db.transaction(() => {
       for (const [name, value] of Object.entries(data)) {
         const d = defs[name];
-        if (!d || (allowed && !allowed.includes(name))) continue;
+        if (!d || (allowed && !allowed.includes(name)) || (d.internal && !allowed)) continue;
         const v = normalize(d, value);
         const old = d.type === 'bool' ? (before[name] ? '1' : '0') : before[name];
         if (String(old) === String(v)) continue;

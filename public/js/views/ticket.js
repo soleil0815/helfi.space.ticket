@@ -15,6 +15,7 @@ import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
 import { problemSection, problemHint, createProblemButton } from './problem.js';
+import { changeSection } from './change.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -152,6 +153,8 @@ export async function renderTicket(content, key) {
       if (a.field === 'type') return t(`type.${v}`);
       if (a.field === 'impact' || a.field === 'urgency') return t(`level.${v}`);
       if (a.field === 'major' || a.field === 'knownError') return t(String(v) === '1' ? 'app.yes' : 'app.no');
+      if (['phase', 'changeType', 'risk', 'outcome'].includes(a.field)) return t(`change.${a.field}.${v}`);
+      if (a.field === 'plannedStart' || a.field === 'plannedEnd') return fmtDate(v);
       return v;
     };
     return h('div.history',
@@ -162,6 +165,7 @@ export async function renderTicket(content, key) {
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'approval' ? h('span.change', t(`change.decision.${a.field}`), a.newValue ? ` – „${a.newValue}“` : '') : null,
         a.action === 'sla' ? h('span.change', t(`sla.kind.${a.field}`), ' ', t(`sla.state.${a.newValue}`)) : null,
         (a.action === 'linked' || a.action === 'unlinked') && a.field ? h('span.change', linkLabel(...a.field.split(':')), ' ', a.newValue || a.oldValue) : null,
         a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
@@ -370,6 +374,7 @@ export async function renderTicket(content, key) {
         agent ? problemHint(tk) : null,
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
+        agent && tk.type === 'change' ? changeSection(tk, refresh) : null,
         attachmentsEl(),
         agent ? linksSection(tk, refresh) : null,
         activityEl()),

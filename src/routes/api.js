@@ -327,6 +327,8 @@ export function createApi(ctx) {
     const project = req.query.project ? str(req.query.project, 20) : null;
     const counts = tickets.queueCounts(req.user, project);
     if (ctx.sla.enabled()) counts.slaRisk = ctx.sla.atRisk(project).length;
+    counts.changes = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='change' AND t.status<>'done' AND p.archived=0 ${project ? 'AND p.key=?' : ''}`).get(...(project ? [project.toUpperCase()] : [])).n;
+    counts.approvals = ctx.approvals.pendingFor(req.user.id).length;
     counts.problems = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='problem' AND t.status<>'done' AND p.archived=0 ${project ? 'AND p.key=?' : ''}`).get(...(project ? [project.toUpperCase()] : [])).n;
     res.json({ counts });
   });
@@ -338,6 +340,11 @@ export function createApi(ctx) {
     if (isAgent(req.user) && ctx.sla.enabled()) {
       list = list.map((tk) => ({ ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) }));
       if (req.query.sla === 'risk') list = list.filter((tk) => ['warning', 'breached'].includes(tk.sla?.state));
+    }
+    // Meine offenen Genehmigungen
+    if (req.query.approval === 'mine' && isAgent(req.user)) {
+      const ids = new Set(ctx.approvals.pendingFor(req.user.id));
+      list = list.filter((tk) => ids.has(tk.id));
     }
     res.json({ tickets: list });
   });
