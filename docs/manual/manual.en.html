@@ -277,8 +277,30 @@
 <figure><img src="img/en/admin-change.jpg" alt=""><figcaption>Administration → Change</figcaption></figure>
 
 <h2 id="knowledge">Knowledge base</h2>
-<p><em>Knowledge</em> collects guides and solutions. Articles are <strong>internal</strong> (agents only) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing.</p>
+<p><em>Knowledge</em> collects guides and solutions. Articles are <strong>internal</strong> (agents only) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing. From three headings on, the article view shows a table of contents on the right.</p>
 <figure><img src="img/en/itil-kb.jpg" alt=""><figcaption>Knowledge base with categories</figcaption></figure>
+<h3>The editor</h3>
+<p>You write articles directly in their final look. The toolbar stays at the top while scrolling and offers text style (normal, heading 1–3, quote, code block), bold, italic, underline, under <strong>…</strong> also strikethrough and inline code, bulleted list, numbered list, checklist, link, image, emoji, info panel (note, tip, warning), table and divider.</p>
+<figure><img src="img/en/kb-editor.jpg" alt=""><figcaption>Editor with info panel, nested list and image</figcaption></figure>
+<ul>
+  <li><strong>Images:</strong> with <kbd>Ctrl</kbd>+<kbd>V</kbd> from the clipboard, by drag &amp; drop or with the image button. Clicking an image sets its size (small, medium, full width) and a caption.</li>
+  <li><strong>Pasting from Word, web pages or emails:</strong> headings, lists, tables, bold text and links are kept. Images from external web addresses are not taken over; copy them individually as an image.</li>
+  <li><strong>Links</strong> (<kbd>Ctrl</kbd>+<kbd>K</kbd>) point to web addresses, email addresses, tickets (<code>IT-42</code>) or other articles (<code>KB-3</code>).</li>
+  <li><strong>Tables:</strong> <kbd>Tab</kbd> jumps to the next cell; in the last cell it adds a new row. Add or delete rows and columns with the table button.</li>
+  <li><strong>Draft:</strong> the browser keeps saving unsaved changes. Next time you open the article you can restore them. Leaving the page with unsaved changes asks first.</li>
+</ul>
+<table>
+  <tr><th style="width:34%">Type</th><th>Result</th></tr>
+  <tr><td><code>#</code>, <code>##</code>, <code>###</code> + space</td><td>Heading 1–3</td></tr>
+  <tr><td><code>-</code> or <code>1.</code> + space</td><td>Bulleted / numbered list (<kbd>Tab</kbd> indents)</td></tr>
+  <tr><td><code>[]</code> + space</td><td>Checklist (click the box to tick it)</td></tr>
+  <tr><td><code>&gt;</code> + space</td><td>Quote</td></tr>
+  <tr><td><code>```</code> + Enter</td><td>Code block (Enter on an empty last line leaves it)</td></tr>
+  <tr><td><code>---</code> + Enter</td><td>Divider</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd> / <kbd>E</kbd></td><td>Bold / italic / underline / inline code</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>3</kbd>, <kbd>0</kbd></td><td>Heading 1–3, normal text</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save</td></tr>
+</table>
 
 <h2 id="servicecatalog">Setting up the service catalog <span class="role role-admin">admin</span></h2>
 <p>Under <em>Administration → Service catalog</em> you create offers: name, emoji, description, project and form fields (text, multi-line, choice, check box, date; each optionally required). Optionally choose approvers, also without the agent role, and whether one or all approvals are needed. Requests become tickets of type <em>Request</em>; the answers appear in the description. How users see the catalog is described in <a href="#catalog">2.9</a>.</p>

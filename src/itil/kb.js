@@ -1,12 +1,42 @@
 // Wissensdatenbank: Artikel intern (nur Bearbeiter) oder öffentlich (alle Angemeldeten).
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { paths } from '../config.js';
+
+/** Markdown-Text eines Artikels als schlichter Text (für Kurztext und Suche) */
+export function plainText(md) {
+  return String(md || '')
+    .replace(/```[^\n]*\n?/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^:::\s*\w*\s*$/gm, ' ')
+    .replace(/^\s{0,6}(#{1,6}|>|[-*+]\s+\[[ xX]\]|[-*+]|\d+[.)])\s+/gm, '')
+    .replace(/^\s*\|?\s*:?-{3,}.*$/gm, ' ')
+    .replace(/\|/g, ' ')
+    .replace(/^-{3,}\s*$/gm, ' ')
+    .replace(/(\*\*|__|\+\+|~~|`|\*)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Bilder: Dateityp an den ersten Bytes erkennen, nie an der Angabe des Browsers
+export function imageType(buf) {
+  if (buf.length >= 8 && buf.readUInt32BE(0) === 0x89504e47) return { mime: 'image/png', ext: 'png' };
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
+  if (buf.length >= 6 && buf.toString('ascii', 0, 4) === 'GIF8') return { mime: 'image/gif', ext: 'gif' };
+  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return { mime: 'image/webp', ext: 'webp' };
+  return null;
+}
+const IMG_TOKEN = /\/api\/kb\/images\/([A-Za-z0-9_-]{16,64})/g;
 
 const STOP = new Set(['der', 'die', 'das', 'und', 'oder', 'ein', 'eine', 'nicht', 'mit', 'im', 'in', 'am', 'an', 'auf', 'ist', 'the', 'and', 'or', 'a', 'an', 'not', 'is', 'to', 'of', 'mein', 'meine', 'my', 'geht', 'kein', 'keine']);
 
 export function createKb(db, tickets) {
   const out = (a, withBody = true) => ({
-    id: a.id, title: a.title, ...(withBody ? { body: a.body } : { excerpt: a.body.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 180) }),
+    id: a.id, title: a.title, ...(withBody ? { body: a.body } : { excerpt: plainText(a.body).slice(0, 180) }),
     visibility: a.visibility, category: a.category, views: a.views, updatedAt: a.updated_at, createdAt: a.created_at,
     author: a.u_name || null, sourceTicket: a.t_key || null,
   });
@@ -52,6 +82,7 @@ export function createKb(db, tickets) {
     const id = db.prepare('INSERT INTO kb_articles(title, body, visibility, category, source_ticket_id, created_by, updated_by) VALUES(?,?,?,?,?,?,?)')
       .run(d.title, d.body, d.visibility, d.category, source, user.id, user.id).lastInsertRowid;
     if (source) tickets.logActivity(source, user.id, 'kbCreated', null, null, `KB-${id}`);
+    claimImages(id, d.body);
     return get(user, id);
   }
 
@@ -61,13 +92,57 @@ export function createKb(db, tickets) {
     const d = clean(data);
     db.prepare("UPDATE kb_articles SET title=?, body=?, visibility=?, category=?, updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?")
       .run(d.title, d.body, d.visibility, d.category, user.id, int(id));
+    claimImages(int(id), d.body);
     return get(user, id);
   }
 
   function remove(user, id) {
     if (!isAgent(user)) throw forbidden();
     get(user, id);
+    const imgs = db.prepare('SELECT token FROM kb_images WHERE article_id=?').all(int(id));
     db.prepare('DELETE FROM kb_articles WHERE id=?').run(int(id));
+    for (const i of imgs) dropImage(i.token);
+  }
+
+  // ---------- Bilder ----------
+  const imgDir = path.join(paths.attachments, 'kb');
+  const imgPath = (token) => path.join(imgDir, token);
+  function dropImage(token) {
+    db.prepare('DELETE FROM kb_images WHERE token=?').run(token);
+    fs.rmSync(imgPath(token), { force: true });
+  }
+  /** Bilder, die im Text vorkommen, gehören ab jetzt zu diesem Artikel */
+  function claimImages(articleId, body) {
+    const tokens = [...new Set([...String(body).matchAll(IMG_TOKEN)].map((m) => m[1]))];
+    const st = db.prepare('UPDATE kb_images SET article_id=? WHERE token=? AND article_id IS NULL');
+    for (const tk of tokens) st.run(articleId, tk);
+  }
+  /** Hochladen (Bearbeiter); nicht gespeicherte Entwürfe verfallen nach zwei Tagen */
+  function addImage(user, { tmpPath, filename }) {
+    if (!isAgent(user)) throw forbidden();
+    const head = Buffer.alloc(16);
+    const fd = fs.openSync(tmpPath, 'r');
+    try { fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }
+    const type = imageType(head);
+    if (!type) throw new HttpError(400, 'err.kbImageType');
+    fs.mkdirSync(imgDir, { recursive: true });
+    const token = crypto.randomBytes(18).toString('base64url');
+    try { fs.renameSync(tmpPath, imgPath(token)); } catch (e) {
+      if (e.code !== 'EXDEV') throw e;
+      fs.copyFileSync(tmpPath, imgPath(token)); fs.rmSync(tmpPath, { force: true });
+    }
+    const size = fs.statSync(imgPath(token)).size;
+    db.prepare('INSERT INTO kb_images(token, filename, mime, size, created_by) VALUES(?,?,?,?,?)')
+      .run(token, str(filename, 200).replace(/[\\/\0\r\n]/g, '_') || `bild.${type.ext}`, type.mime, size, user.id);
+    for (const old of db.prepare("SELECT token FROM kb_images WHERE article_id IS NULL AND created_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 days')").all()) dropImage(old.token);
+    return { url: `/api/kb/images/${token}`, token };
+  }
+  /** Bild ausliefern: interne Artikel und Entwürfe nur für Bearbeiter */
+  function imageFile(user, token) {
+    const i = db.prepare('SELECT i.*, a.visibility FROM kb_images i LEFT JOIN kb_articles a ON a.id=i.article_id WHERE i.token=?').get(str(token, 80));
+    if (!i) throw notFound();
+    if (!isAgent(user) && (!i.article_id || i.visibility !== 'public')) throw notFound();
+    return { path: imgPath(i.token), mime: i.mime, filename: i.filename };
   }
 
   const categories = (user) => db.prepare(`SELECT category, COUNT(*) n FROM kb_articles WHERE category<>'' AND (? OR visibility='public') GROUP BY category ORDER BY category`)
@@ -88,5 +163,5 @@ export function createKb(db, tickets) {
     return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}` };
   }
 
-  return { search, get, create, update, remove, categories, draftFromTicket };
+  return { search, get, create, update, remove, categories, draftFromTicket, addImage, imageFile };
 }

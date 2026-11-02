@@ -36,7 +36,16 @@ export const state = {
 
 const root = document.getElementById('app');
 
-export function navigate(path, { replace = false } = {}) {
+// Ungespeicherte Änderungen (z. B. im Artikel-Editor): vor dem Verlassen nachfragen
+let leaveGuard = null;
+let guardUrl = null;
+export function setLeaveGuard(isDirty) { leaveGuard = isDirty; guardUrl = isDirty ? location.pathname + location.search : null; }
+const mayLeave = () => !leaveGuard || !leaveGuard() || window.confirm(t('app.leaveConfirm'));
+window.addEventListener('beforeunload', (e) => { if (leaveGuard && leaveGuard()) { e.preventDefault(); e.returnValue = ''; } });
+
+export function navigate(path, { replace = false, force = false } = {}) {
+  if (!force && !mayLeave()) return;
+  leaveGuard = null;
   if (replace) history.replaceState({}, '', path); else history.pushState({}, '', path);
   route();
 }
@@ -76,7 +85,11 @@ async function start() {
   state.user = state.boot.user;
   applyLanguage();
   if (state.user) await reloadBase();
-  window.addEventListener('popstate', route);
+  window.addEventListener('popstate', () => {
+    if (!mayLeave()) { history.pushState({}, '', guardUrl); return; }
+    leaveGuard = null;
+    route();
+  });
   window.addEventListener('helfi:unauthorized', () => { state.user = null; navigate('/login', { replace: true }); });
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');

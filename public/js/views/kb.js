@@ -1,9 +1,10 @@
 // Wissensdatenbank: Suche, Artikel, Editor, bekannte Fehler, Vorschläge beim Melden
 import { api } from '../api.js';
-import { h, mount, icon, toast, field, richText, fmtDate, modal } from '../dom.js';
+import { h, mount, icon, toast, fmtDate, modal } from '../dom.js';
 import { t } from '../i18n.js';
-import { state, navigate } from '../app.js';
-import { withEmoji } from '../emoji.js';
+import { state, navigate, setLeaveGuard } from '../app.js';
+import { renderDoc, headings } from '../kbdoc.js';
+import { createKbEditor } from '../kbeditor.js';
 
 const visBadge = (v) => h(`span.badge.kb-${v}`, t(`kb.vis.${v}`));
 
@@ -72,46 +73,95 @@ async function article(content, id) {
       h('span.muted', t('kb.updated', { when: fmtDate(a.updatedAt), who: a.author || '—' })),
       agent && a.sourceTicket ? h('span.muted', ' · ', t('kb.source'), ' ', h('a', { href: `/browse/${a.sourceTicket}`, 'data-link': '' }, a.sourceTicket)) : null,
       agent ? h('span.muted', ` · ${t('kb.views', { n: a.views })}`) : null),
-    h('article.kb-body', richText(a.body)),
+    articleBody(a.body),
     !agent ? h('div.kb-help', t('kb.stillNeedHelp'), ' ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); import('./ticket.js').then((m) => m.openCreateDialog({ title: a.title })); } }, t('kb.reportProblem'))) : null);
 }
+
+/** Artikeltext mit Inhaltsverzeichnis (ab drei Überschriften) */
+function articleBody(md) {
+  const doc = renderDoc(md);
+  doc.classList.add('kb-body');
+  const hs = headings(doc);
+  if (hs.length < 3) return h('div.kb-article', h('article', doc));
+  const toc = h('nav.kb-toc', { 'aria-label': t('kb.toc') }, h('div.kb-toc-title', icon('ed-toc'), t('kb.toc')),
+    hs.map((x) => h(`a.kb-toc-l${x.level}`, { href: `#${x.id}`, onclick: (e) => { e.preventDefault(); document.getElementById(x.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, x.text)));
+  return h('div.kb-article.with-toc', h('article', doc), toc);
+}
+
+const draftKey = (id, fromKey) => `helfi.kbdraft.${id || 'new'}${fromKey && !id ? `.${fromKey}` : ''}`;
+const readDraft = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+const writeDraft = (k, v) => { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch { /* egal */ } };
 
 async function editor(content, id, fromKey = null) {
   let a = { title: '', body: '', visibility: 'internal', category: '' };
   if (id) a = (await api.kbArticle(id)).article;
   else if (fromKey) { const { draft } = await api.kbDraft(fromKey); a = { ...a, ...draft }; }
   const { categories } = await api.kb({});
-  const title = h('input', { value: a.title, maxLength: 200, required: true });
-  const cat = h('input', { value: a.category, maxLength: 60, list: 'kb-cats' });
+  const key = draftKey(id, fromKey);
+  const original = { title: a.title, body: a.body, category: a.category, visibility: a.visibility };
+
+  const title = h('input.kb-title-input', { value: a.title, maxLength: 200, required: true, placeholder: t('kb.f.titleHint'), 'aria-label': t('kb.f.title') });
+  const cat = h('input', { value: a.category, maxLength: 60, list: 'kb-cats', placeholder: t('kb.f.category') });
   const dl = h('datalist', { id: 'kb-cats' }, categories.map((c) => h('option', { value: c.name })));
-  const body = h('textarea', { rows: 18, maxLength: 100000 });
-  body.value = a.body;
-  const vis = (v) => h('label.radio', h('input', { type: 'radio', name: 'kb-vis', value: v, checked: a.visibility === v }), ' ', t(`kb.vis.${v}`), h('span.muted.small', ` – ${t(`kb.visHint.${v}`)}`));
-  const preview = h('div.kb-body.kb-preview', { hidden: true });
-  const togglePreview = () => { preview.hidden = !preview.hidden; if (!preview.hidden) mount(preview, richText(body.value)); };
+  let visibility = a.visibility;
+  const visBtn = (v) => h(`button.seg${visibility === v ? '.active' : ''}`, { type: 'button', title: t(`kb.visHint.${v}`), onclick: () => { visibility = v; visRow.querySelectorAll('.seg').forEach((b) => b.classList.toggle('active', b.dataset.v === v)); onEdit(); }, 'data-v': v }, t(`kb.vis.${v}`));
+  const visRow = h('div.segmented', { role: 'group', 'aria-label': t('kb.f.visibility') }, visBtn('internal'), visBtn('public'));
+  const status = h('span.kb-save-state.muted.small');
+
+  const current = () => ({ title: title.value, body: ed.getValue(), category: cat.value, visibility });
+  const dirty = () => { const c = current(); return c.title !== original.title || c.body.trim() !== String(original.body || '').trim() || c.category !== original.category || c.visibility !== original.visibility; };
+  let draftTimer;
+  const onEdit = () => {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => {
+      if (dirty()) { writeDraft(key, { ...current(), at: new Date().toISOString() }); status.textContent = t('kb.draftSaved'); } else { writeDraft(key, null); status.textContent = ''; }
+    }, 600);
+  };
+  const ed = createKbEditor({ value: a.body, placeholder: t('kb.ed.placeholder'), onChange: onEdit });
+  title.addEventListener('input', onEdit);
+  cat.addEventListener('input', onEdit);
+  title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ed.focus(); } });
+
+  let saving = false;
+  const save = async () => {
+    if (saving) return;
+    if (!title.value.trim()) { title.focus(); toast(t('kb.titleMissing'), 'error'); return; }
+    saving = true;
+    const data = { ...current(), sourceTicket: a.sourceTicket || null };
+    try {
+      const r = id ? await api.kbUpdate(id, data) : await api.kbCreate(data);
+      writeDraft(key, null);
+      ed.destroy();
+      toast(t('app.saved'), 'success');
+      navigate(`/kb/${r.article.id}`, { force: true });
+    } catch (ex) { toast(ex.message, 'error'); saving = false; }
+  };
+  const cancel = () => navigate(id ? `/kb/${id}` : '/kb');
+
+  // ungespeicherter Entwurf aus einer früheren Sitzung?
+  const draft = readDraft(key);
+  const banner = draft && (draft.body !== a.body || draft.title !== a.title) ? h('div.hint-box.kb-draft-banner', icon('info'),
+    h('div', t('kb.draftFound', { when: fmtDate(draft.at) })),
+    h('span.spacer'),
+    h('button.btn.btn-primary.small', { type: 'button', onclick: () => { title.value = draft.title; cat.value = draft.category || ''; visibility = draft.visibility || visibility; visRow.querySelectorAll('.seg').forEach((b) => b.classList.toggle('active', b.dataset.v === visibility)); ed.setValue(draft.body || ''); banner.remove(); onEdit(); } }, t('kb.draftRestore')),
+    h('button.btn.btn-subtle.small', { type: 'button', onclick: () => { writeDraft(key, null); banner.remove(); } }, t('kb.draftDiscard'))) : null;
+
   mount(content,
-    h('div.page-head', h('h1', id ? t('kb.edit') : t('kb.new'))),
-    h('form.panel.kb-editor', {
-      onsubmit: async (e) => {
-        e.preventDefault();
-        const data = { title: title.value, body: body.value, category: cat.value, visibility: content.querySelector('input[name=kb-vis]:checked')?.value || 'internal', sourceTicket: a.sourceTicket || null };
-        try {
-          const r = id ? await api.kbUpdate(id, data) : await api.kbCreate(data);
-          toast(t('app.saved'), 'success');
-          navigate(`/kb/${r.article.id}`);
-        } catch (ex) { toast(ex.message, 'error'); }
-      },
-    },
-    a.sourceTicket && !id ? h('p.muted.small', t('kb.fromTicket', { key: a.sourceTicket })) : null,
-    field(t('kb.f.title'), title),
-    h('div.grid-2', field(t('kb.f.category'), cat), h('div.field', h('label', t('kb.f.visibility')), h('div.radio-col', vis('internal'), vis('public')))), dl,
-    field(t('kb.f.body'), withEmoji(body), t('kb.bodyHint')),
-    preview,
-    h('div.form-actions',
-      h('button.btn.btn-primary', { type: 'submit' }, t('app.save')),
-      h('button.btn.btn-subtle', { type: 'button', onclick: togglePreview }, t('kb.preview')),
-      h('a.btn.btn-subtle', { href: id ? `/kb/${id}` : '/kb', 'data-link': '' }, t('app.cancel')))));
-  title.focus();
+    h('div.kb-edit-head',
+      h('div.breadcrumbs', h('a', { href: '/kb', 'data-link': '' }, t('kb.title')), ' / ', id ? t('kb.edit') : t('kb.new')),
+      h('span.spacer'), status,
+      h('button.btn.btn-subtle', { type: 'button', onclick: cancel }, t('app.cancel')),
+      h('button.btn.btn-primary', { type: 'button', onclick: save, title: `${t('app.save')} (Strg+S)` }, id ? t('kb.update') : t('kb.publish'))),
+    banner,
+    h('div.kb-edit',
+      a.sourceTicket && !id ? h('p.muted.small', t('kb.fromTicket', { key: a.sourceTicket })) : null,
+      title,
+      h('div.kb-edit-meta', cat, dl, visRow, h('span.muted.small', t(`kb.visHint.${visibility}`))),
+      ed.el));
+  visRow.addEventListener('click', () => { content.querySelector('.kb-edit-meta > .muted').textContent = t(`kb.visHint.${visibility}`); });
+  content.querySelector('.kb-edit').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); } });
+  setLeaveGuard(dirty);
+  if (!a.title) title.focus(); else ed.focus();
 }
 
 /** Vorschläge beim Melden eines Problems (Dialog „Ticket erstellen“) */
@@ -133,7 +183,7 @@ export function kbSuggestions(input) {
             onclick: async (e) => {
               e.preventDefault();
               const { article } = await api.kbArticle(a.id, true);
-              const dlg = modal(article.title, h('div.kb-body', richText(article.body)), { footer: [h('span.spacer'), h('button.btn.btn-primary', { type: 'button', onclick: () => dlg.close() }, t('kb.back'))] });
+              const dlg = modal(article.title, (() => { const d = renderDoc(article.body); d.classList.add('kb-body'); return d; })(), { footer: [h('span.spacer'), h('button.btn.btn-primary', { type: 'button', onclick: () => dlg.close() }, t('kb.back'))] });
             },
           }, a.title)));
       } catch { box.hidden = true; }

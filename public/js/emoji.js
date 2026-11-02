@@ -39,6 +39,8 @@ export function searchEmojis(query, limit = Infinity) {
 }
 
 function insert(ta, e, start, end) {
+  // eigener Editor (z. B. Wissensartikel): fügt selbst an der gemerkten Stelle ein
+  if (typeof ta.insertEmoji === 'function') { ta.insertEmoji(e.char); remember(e); return; }
   ta.focus();
   ta.setRangeText(e.char, start, end, 'end');
   ta.dispatchEvent(new Event('input'));
