@@ -17,6 +17,7 @@ import { slaChip } from './sla.js';
 import { problemSection, problemHint, createProblemButton } from './problem.js';
 import { changeSection } from './change.js';
 import { kbSuggestions, kbFromTicketButton } from './kb.js';
+import { catalogApprovalBox } from './catalog.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -375,6 +376,7 @@ export async function renderTicket(content, key) {
         titleEl(),
         agent ? majorBanner(tk, refresh) : null,
         agent ? problemHint(tk) : null,
+        catalogApprovalBox(tk, refresh),
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,

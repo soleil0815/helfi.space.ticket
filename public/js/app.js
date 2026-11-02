@@ -15,6 +15,7 @@ import { renderProfile } from './views/profile.js';
 import { brandLogo, brandTitle } from './brand.js';
 import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
+import { renderCatalog } from './views/catalog.js';
 
 export const state = {
   boot: null,
@@ -120,11 +121,12 @@ export async function route() {
     if (path === '/board') return await renderBoard(content, params);
     if (path === '/issues') return await renderList(content, params);
     // Benutzer sehen hier ohnehin nur eigene und geteilte Anfragen (Teilnehmer); Bearbeiter standardmäßig die selbst gemeldeten
-    if (path === '/requests') return await renderList(content, state.isAgent && !params.has('participant') ? new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }) : params, { requests: true });
+    if (path === '/requests') return await renderList(content, state.isAgent && !params.has('participant') && !params.has('approval') ? new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }) : params, { requests: true });
     if (path === '/my') return await renderMyWork(content);
     if (path === '/reports' && state.isAgent) return await renderReports(content, params);
     if (path === '/changes' && state.isAgent) return await renderChangeCalendar(content, params);
     if (path === '/kb' || path.startsWith('/kb/')) return await renderKb(content, params, path);
+    if (path === '/catalog' || path.startsWith('/catalog/')) return await renderCatalog(content, path);
     if (path === '/summary' && state.isAgent) return await renderSummary(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
@@ -214,6 +216,7 @@ function layout(content, path) {
       nav('/board', t('nav.board'), 'board', path === '/board'),
       ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/changes', t('change.calendar'), 'board', path === '/changes'),
+      state.boot.hasCatalog ? nav('/catalog', t('catalog.title'), 'inbox', path.startsWith('/catalog')) : null,
       nav('/kb', t('kb.title'), 'file', path.startsWith('/kb')),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
@@ -225,6 +228,8 @@ function layout(content, path) {
   } else {
     sidebar = h('aside.sidebar',
       nav('/requests', t('nav.myRequests'), 'inbox', path === '/requests'),
+      state.boot.hasCatalog ? nav('/catalog', t('catalog.request'), 'plus', path.startsWith('/catalog')) : null,
+      state.boot.pendingApprovals ? nav('/requests?approval=mine', t('nav.approvals'), 'check', false) : null,
       nav('/kb', t('kb.titleUser'), 'file', path.startsWith('/kb')),
       h('div.sidebar-foot', `Helfi.Space ${state.boot.app.version}`),
     );

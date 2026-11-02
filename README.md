@@ -258,6 +258,15 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 - **Aus einem Ticket:** *Wissensartikel* im Ticket legt einen Entwurf an, mit Beschreibung, letzter Antwort und bei Problemen mit Ursache und Workaround. Vor dem Veröffentlichen persönliche Angaben entfernen. Der Verlauf des Tickets verweist auf den Artikel.
 - **Bekannte Fehler:** Reiter mit allen Problemen, die als bekannter Fehler markiert sind, samt Workaround.
 
+## Servicekatalog
+
+Standardanfragen mit eigenem Formular, z. B. „Neuer Mitarbeiter“, „Software-Wunsch“ oder „Zugang zu einem Laufwerk“. Angelegt werden sie unter *Administration → Servicekatalog*.
+
+- **Formular:** Felder vom Typ Text, mehrzeilig, Auswahl, Häkchen oder Datum, jeweils optional als Pflichtfeld. Die Antworten stehen übersichtlich in der Beschreibung des Tickets (Typ *Anfrage*).
+- **Service anfordern** in der Seitenleiste zeigt Benutzern und Bearbeitern alle Angebote als Kacheln.
+- **Genehmigung (optional):** Pro Angebot legst du fest, wer zustimmen muss und ob eine Zustimmung genügt oder alle zustimmen müssen. Genehmiger dürfen auch Personen ohne Bearbeiter-Rolle sein, etwa Vorgesetzte; sie sehen dann nur die Anfragen, über die sie entscheiden. Sie bekommen eine Mail und finden offene Entscheidungen unter **Meine Genehmigungen**.
+- **Ergebnis:** Die Entscheidung kommt als Antwort ins Ticket, der Melder bekommt sie also auch per Mail. Eine Ablehnung schließt die Anfrage.
+
 ## Emojis
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:

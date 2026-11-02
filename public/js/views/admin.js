@@ -9,6 +9,7 @@ import { loginIntro, loginUserLabel } from './auth.js';
 import { logoUrl, refreshBrandAssets } from '../brand.js';
 import { slaPage } from './sla.js';
 import { changeAdminPage } from './change.js';
+import { catalogAdminPage } from './catalog.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
@@ -20,6 +21,7 @@ const SECTIONS = [
   ['mail', 'admin.mail', 'mail'],
   ['sla', 'admin.sla', 'chart'],
   ['change', 'admin.change', 'refresh'],
+  ['catalog', 'admin.catalog', 'inbox'],
   ['templates', 'admin.templates', 'comment'],
   ['import', 'admin.import', 'download'],
   ['system', 'admin.system', 'info'],
@@ -39,6 +41,7 @@ export async function renderAdmin(content, section) {
   if (section === 'system') return systemPage(body);
   if (section === 'import') return importPage(body);
   if (section === 'templates') return mount(body, templatesPanel({ shared: true }));
+  if (section === 'catalog') return catalogAdminPage(body);
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };
