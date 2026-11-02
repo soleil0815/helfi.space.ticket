@@ -86,6 +86,9 @@ export const DEFAULTS = {
   'oidc.allowCreate': true,
 
   // E-Mail-Abruf (IMAP)
+  // Sicherung
+  'backup.keep': 10, // je Art so viele Sicherungen aufbewahren (1–100)
+
   'imap.enabled': false,
   'imap.host': '',
   'imap.port': 993,

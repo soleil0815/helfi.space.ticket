@@ -526,7 +526,8 @@ docker compose up -d</code></pre></li>
 
 <h2 id="sicherung">Sicherung und Wiederherstellung</h2>
 <ul>
-  <li><strong>Automatisch:</strong> täglich (14 Tage aufbewahrt, <code>HELFI_BACKUP_KEEP_DAYS</code>) und vor jedem Versionswechsel in <code>data/backups/</code>. <strong>Von Hand:</strong> <em>Administration → System → Jetzt sichern</em>.</li>
+  <li><strong>Automatisch:</strong> täglich und vor jedem Versionswechsel in <code>data/backups/</code>. <strong>Von Hand:</strong> <em>Administration → System → Jetzt sichern</em>.</li>
+  <li><strong>Sicherungen aufbewahren</strong> (Standard 10): So viele der neuesten Sicherungen bleiben je Art – täglich, vor Updates und von Hand. Ältere werden beim Speichern und danach laufend gelöscht, die neueste jeder Art bleibt immer. Die Liste darunter zeigt Art, Datum, Größe und den belegten Platz insgesamt; mit 🗑 löschst du eine einzelne Sicherung.</li>
   <li>Die Sicherungen enthalten nur die Datenbank. <strong>Immer den ganzen Ordner <code>data/</code></strong> auf ein anderes Laufwerk sichern – mit Anhängen, Logo und <code>secret.key</code>.</li>
   <li>Ohne <code>secret.key</code> (oder das gesetzte <code>HELFI_SECRET</code>) lassen sich gespeicherte Kennwörter und 2FA-Schlüssel nicht mehr entschlüsseln.</li>
 </ul>

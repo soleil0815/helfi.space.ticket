@@ -18,7 +18,7 @@ import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
 import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
-import { backupDatabase } from '../db.js';
+import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep } from '../db.js';
 import { log } from '../lib/log.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
@@ -514,7 +514,9 @@ export function createApi(ctx) {
     delete incoming['brand.logo']; // nur über den eigenen Upload
     if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
     if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
+    if (incoming['backup.keep'] !== undefined) incoming['backup.keep'] = clampBackupKeep(incoming['backup.keep']);
     settings.setMany(incoming);
+    if (incoming['backup.keep'] !== undefined) pruneBackups(incoming['backup.keep']);
     if (Object.keys(incoming).some((k) => k.startsWith('oidc.'))) oidcAuth.resetOidcCache();
     if (Object.keys(incoming).some((k) => k.startsWith('imap.'))) poller.start();
     if (Object.keys(incoming).some((k) => k.startsWith('ldap.'))) ctx.ldapCertWarning = null;
@@ -589,10 +591,7 @@ export function createApi(ctx) {
   });
 
   admin.get('/system', (req, res) => {
-    const backups = fs.existsSync(paths.backups)
-      ? fs.readdirSync(paths.backups).filter((f) => f.endsWith('.sqlite')).sort().reverse().slice(0, 30)
-        .map((f) => ({ name: f, size: fs.statSync(`${paths.backups}/${f}`).size }))
-      : [];
+    const backups = listBackups().map(({ name, kind, size, time }) => ({ name, kind, size, time: new Date(time).toISOString() }));
     res.json({
       version: config.version,
       node: process.version,
@@ -607,14 +606,23 @@ export function createApi(ctx) {
       },
       imap: poller.status(),
       backups,
+      backupsSize: backups.reduce((n, b) => n + b.size, 0),
+      backupKeep: settings.get('backup.keep'),
       warnings: adminWarnings(),
     });
   });
 
   admin.post('/backup', wrap(async (req, res) => {
     const file = await backupDatabase(db, 'manuell');
+    pruneBackups(settings.get('backup.keep'));
     res.json({ ok: true, file: file.split('/').pop() });
   }));
+
+  admin.delete('/backups/:name', (req, res) => {
+    if (!deleteBackup(req.params.name)) throw new HttpError(404, 'err.notFound');
+    log.info(`Sicherung ${req.params.name} gelöscht von ${req.user.username}`);
+    res.json({ ok: true });
+  });
 
   // ---------- Import aus Jira ----------
   /** Verbindungsdaten prüfen; sie werden nie gespeichert, nur für den laufenden Import im Speicher gehalten */

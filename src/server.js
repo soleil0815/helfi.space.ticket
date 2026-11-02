@@ -35,13 +35,17 @@ async function main() {
   ctx.poller.start();
   ctx.sla.start();
 
+  // Alte Sicherungen gleich beim Start aufräumen (z. B. nach einem Update)
+  try { pruneBackups(ctx.settings.get('backup.keep')); } catch (e) { log.warn('Sicherungen aufräumen fehlgeschlagen', { error: e.message }); }
+  if (process.env.HELFI_BACKUP_KEEP_DAYS) log.warn('HELFI_BACKUP_KEEP_DAYS wird nicht mehr verwendet – die Anzahl der Sicherungen steht unter Administration → System.');
+
   // Täglich: Sicherung, alte Sitzungen, LDAPS-Zertifikat prüfen
   const daily = async () => {
     try {
       ctx.sessions.purgeExpired();
       ctx.suppressions.purgeExpired();
       await backupDatabase(db, 'taeglich');
-      pruneBackups(config.backupKeepDays);
+      pruneBackups(ctx.settings.get('backup.keep'));
     } catch (e) { log.error('Tägliche Sicherung fehlgeschlagen', { error: e.message }); }
     await checkLdapCertificate(ctx).catch(() => {});
   };

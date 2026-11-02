@@ -30,7 +30,6 @@ export const config = {
   composeVersion: Number(process.env.HELFI_COMPOSE_VERSION || 0),
   logLevel: process.env.HELFI_LOG_LEVEL || 'info',
   maxUploadMb: Number(process.env.HELFI_MAX_UPLOAD_MB || 25),
-  backupKeepDays: Number(process.env.HELFI_BACKUP_KEEP_DAYS || 14),
   sessionHours: Number(process.env.HELFI_SESSION_HOURS || 12),
   publicDir: path.join(here, '..', 'public'),
 };
