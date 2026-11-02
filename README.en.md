@@ -104,6 +104,7 @@ Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users
 
 - A Windows DC only offers LDAPS if it has a certificate (AD CS or installed manually). Samba AD creates one itself during provisioning.
 - Every day Helfi.Space checks whether the stored certificate still matches and whether it expires soon. Problems appear as a notice for admins. After a renewal on the DC, simply **fetch the certificate** again.
+- **Suggest participants from AD** (default: on, requires the service account): see [Request participants](#request-participants).
 - Local accounts take precedence: if a local account has the same name as an AD account, the local one wins.
 - If the AD is unreachable, local accounts (the emergency admin) can still sign in.
 
@@ -181,6 +182,7 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 
 - **Add:** in the ticket view under *Request participants → Add*.
   - Agents search by name or enter any email address.
+  - **From AD:** from 3 characters on, agents also see people from AD (marked “AD”), searched by name, logon name and email addresses including aliases. The chosen person is created or updated as an AD user, with email address and role from AD; an existing email contact is taken over. A typed email address is looked up in AD as well. People whose groups do not allow them to use Helfi.Space are added as an email contact. If AD is unreachable, only existing people are shown. Can be turned off under *Administration → Active Directory → Suggest participants from AD*; requires the service account.
   - Reporters and participants can add colleagues who have an account, but no arbitrary addresses.
   - At most 20 per ticket.
 - **By email:** anyone in *To* or *CC* of a new mail or a reply automatically becomes a participant. This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email*.

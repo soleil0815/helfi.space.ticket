@@ -106,6 +106,7 @@
   <li>Teilnehmer sehen das Ticket, können kommentieren und Dateien anhängen und bekommen dieselben Mails wie der Melder.</li>
   <li>Sie sehen keine internen Notizen und können Status, Zuweisung oder Titel nicht ändern.</li>
   <li>Entfernen können sich Teilnehmer selbst; außerdem der Melder und die Bearbeiter.</li>
+  <li><strong>Bearbeiter</strong> können auch eine beliebige Mailadresse eintragen und finden Personen direkt aus dem <strong>Active Directory</strong> (markiert mit „AD“), auch über die Mailadresse. Die Person wird dabei mit Name und Mailadresse aus dem AD übernommen – sie muss sich vorher nicht angemeldet haben.</li>
 </ul>
 
 <h2 id="emojis">Emojis</h2>
@@ -418,7 +419,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Verbindung testen</strong>, am besten mit einer Testanmeldung. Ein leerer Base-DN wird dabei übernommen; eine gefundene Microsoft-Zertifizierungsstelle (AD CS) lässt sich mit übernehmen, dann bleiben erneuerte DC-Zertifikate gültig.</li>
   <li><strong>AD-Anmeldung aktivieren</strong> und speichern.</li>
 </ol>
-<p>Benutzer entstehen bei der ersten Anmeldung. Ihre Rolle folgt bei jeder Anmeldung den Gruppen, außer ein Admin hat sie unter <em>Benutzer</em> mit „Rolle fest“ gesperrt. Helfi.Space prüft täglich, ob das Zertifikat noch passt und bald abläuft, und zeigt Probleme als Hinweis an.</p>
+<p>Benutzer entstehen bei der ersten Anmeldung oder wenn ein Bearbeiter sie als Teilnehmer aus dem AD hinzufügt (<strong>Teilnehmer aus dem AD vorschlagen</strong>, Standard an, braucht das Dienstkonto). Ihre Rolle folgt bei jeder Anmeldung den Gruppen, außer ein Admin hat sie unter <em>Benutzer</em> mit „Rolle fest“ gesperrt. Helfi.Space prüft täglich, ob das Zertifikat noch passt und bald abläuft, und zeigt Probleme als Hinweis an.</p>
 
 <h2 id="sso">Single Sign-on</h2>
 <p><em>Administration → Single Sign-on</em> (OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …)</p>
