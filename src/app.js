@@ -126,6 +126,22 @@ export function createApp(db) {
   // Erscheinungsbild (Logo, Farben) – öffentlich, auch für die Anmeldeseite
   brandRoutes(app, ctx.settings);
 
+  // Web-App-Manifest: „Zum Startbildschirm hinzufügen“ (Name aus den Einstellungen)
+  app.get('/manifest.webmanifest', (_req, res) => {
+    const name = String(ctx.settings.get('general.title') || 'Helfi.Space').slice(0, 60);
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(JSON.stringify({
+      name, short_name: name.length <= 15 ? name : 'Helfi.Space', start_url: '/', scope: '/', display: 'standalone',
+      background_color: '#ffffff', theme_color: '#ffffff',
+      icons: [
+        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    }));
+  });
+
   // Statische Dateien + SPA
   // Immer kurz nachfragen (ETag): nach einem Update kommt sofort die neue Oberfläche, Unverändertes wird nicht neu übertragen
   app.use(express.static(config.publicDir, { index: false, maxAge: 0, setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));

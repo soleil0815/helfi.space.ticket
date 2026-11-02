@@ -1,6 +1,6 @@
 // Kanban-Board mit Drag & Drop
 import { api } from '../api.js';
-import { h, mount, icon, avatar, typeIcon, priorityIcon, toast, select } from '../dom.js';
+import { h, mount, icon, avatar, typeIcon, priorityIcon, toast, select, dropdown } from '../dom.js';
 import { t } from '../i18n.js';
 import { state } from '../app.js';
 
@@ -91,6 +91,20 @@ export async function renderBoard(content, params) {
       h('span.spacer'),
       priorityIcon(tk.priority),
       avatar(tk.assignee, 'sm'),
+      // Smartphone: Ziehen klappt mit dem Finger nicht zuverlässig → Status über ein Menü
+      h('button.btn-icon.card-move', {
+        type: 'button', 'aria-label': t('board.moveTo'), title: t('board.moveTo'),
+        onclick: (e) => {
+          e.preventDefault(); e.stopPropagation();
+          dropdown(e.currentTarget, COLUMNS.map((st) => ({
+            label: t(`status.${st}`), active: st === tk.status,
+            onClick: async () => {
+              if (st === tk.status) return;
+              try { const r = await api.updateTicket(tk.key, { status: st }); Object.assign(tk, r.ticket || { status: st }); draw(); } catch (ex) { toast(ex.message, 'error'); }
+            },
+          })), { align: 'right' });
+        },
+      }, icon('ed-more')),
     ));
   }
 
