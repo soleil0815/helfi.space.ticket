@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import multer from 'multer';
+import { isHexColor, saveLogo, removeLogo } from '../brand.js';
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
@@ -39,6 +40,7 @@ export function createApi(ctx) {
     const userCount = db.prepare('SELECT COUNT(*) n FROM users').get().n;
     res.json({
       app: { title: settings.get('general.title'), version: config.version },
+      brand: { logo: settings.get('brand.logo'), showTitle: settings.get('brand.showTitle'), header: settings.get('brand.header') },
       // Eigene Texte der Anmeldeseite (Länge begrenzt; Darstellung ohne HTML)
       login: {
         title: String(settings.get('login.title')).slice(0, 80),
@@ -447,11 +449,27 @@ export function createApi(ctx) {
   const admin = express.Router();
   admin.use(requireRole('admin'));
 
+  // Logo hochladen (data-URL, PNG oder geprüftes SVG) bzw. entfernen
+  admin.put('/brand/logo', wrap(async (req, res) => {
+    settings.set('brand.logo', saveLogo(req.body.data));
+    log.info(`Logo geändert von ${req.user.username}`);
+    res.json({ logo: settings.get('brand.logo') });
+  }));
+  admin.delete('/brand/logo', (req, res) => {
+    removeLogo();
+    settings.set('brand.logo', '');
+    log.info(`Logo entfernt von ${req.user.username}`);
+    res.json({ logo: '' });
+  });
+
   admin.get('/settings', (req, res) => res.json({ settings: settings.publicView(), redirectUri: oidcAuth.redirectUri(), languages: LANGUAGES }));
 
   admin.put('/settings', wrap(async (req, res) => {
     const incoming = req.body?.settings || {};
     for (const k of Object.keys(incoming)) if (!(k in DEFAULTS)) delete incoming[k];
+    delete incoming['brand.logo']; // nur über den eigenen Upload
+    if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
+    if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     if (incoming['ldap.caPem'] !== undefined && incoming['ldap.caPem']) {
       incoming['ldap.caPem'] = ldap.mergePem('', incoming['ldap.caPem']);
       incoming['ldap.caInfo'] = JSON.stringify(ldap.splitPem(incoming['ldap.caPem']).map((p) => { const { pem, ...rest } = ldap.describeCert(p); return rest; }));

@@ -6,6 +6,7 @@ import { state, reloadBase, route } from '../app.js';
 import { importPage } from './import.js';
 import { templatesPanel } from './canned.js';
 import { loginIntro, loginUserLabel } from './auth.js';
+import { logoUrl, refreshBrandAssets } from '../brand.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
@@ -89,7 +90,111 @@ function generalPage(body, s) {
       field(t('general.defaultLanguage'), bindSelect(s, 'general.defaultLanguage', [['de', 'Deutsch'], ['en', 'English']]), t('general.defaultLanguageHint')),
       field(t('general.allowSelfService'), bindCheck(s, 'general.allowSelfService')),
       saveBar(() => saveKeys(s, ['general.']))),
+    designPanel(s),
     loginPagePanel(s));
+}
+
+// ---------- Erscheinungsbild: Logo, Hauptfarbe, Kopfzeile ----------
+const DEFAULT_COLOR = '#0C66E4';
+function contrastToWhite(hex) {
+  const lum = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const l = 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];
+  return 1.05 / (l + 0.05);
+}
+const validHex = (v) => /^#[0-9a-f]{6}$/i.test(v);
+
+function designPanel(s) {
+  const color = () => (validHex(s['brand.color']) ? s['brand.color'] : DEFAULT_COLOR);
+  const picker = h('input.color-input', { type: 'color', value: color(), 'aria-label': t('brand.color') });
+  const hex = h('input.mono.color-hex', { value: s['brand.color'] || '', placeholder: DEFAULT_COLOR, maxLength: 7, spellcheck: false });
+  const contrastInfo = h('div.small');
+  const preview = h('div.brand-preview');
+  const logoBox = h('div.brand-logo-box');
+  const file = h('input', { type: 'file', accept: 'image/png,image/svg+xml,.png,.svg', hidden: true });
+  const removeBtn = h('button.btn.btn-subtle', { type: 'button' }, icon('trash'), t('brand.logoRemove'));
+
+  const drawLogo = () => {
+    const custom = !!state.boot.brand?.logo;
+    mount(logoBox, h('img.brand-logo', { src: logoUrl(), alt: t('brand.logo'), style: { height: '48px' } }),
+      h('div.muted.small', custom ? t('brand.logoCustom') : t('brand.logoDefault')));
+    removeBtn.hidden = !custom;
+  };
+  const draw = () => {
+    const c = color();
+    const ratio = contrastToWhite(c);
+    mount(contrastInfo, ratio >= 4.5
+      ? h('span.muted', icon('check'), ' ', t('brand.contrastOk', { ratio: ratio.toFixed(1) }))
+      : h('div.hint-box.hint-warn', icon('warning'), h('div', t('brand.contrastLow', { ratio: ratio.toFixed(1) }))));
+    const dark = ratio < 3;
+    const fg = s['brand.header'] === 'color' ? (dark ? '#172B4D' : '#FFFFFF') : 'var(--text)';
+    mount(preview,
+      h('div.brand-preview-bar', { style: s['brand.header'] === 'color' ? { background: c, color: fg } : {} },
+        h('img.brand-logo', { src: logoUrl(), alt: '', style: { height: '22px' } }),
+        s['brand.showTitle'] || !state.boot.brand?.logo ? h('strong', s['general.title'] || 'Helfi.Space') : null,
+        h('span.brand-preview-btn', { style: s['brand.header'] === 'color' ? { background: fg, color: dark ? '#fff' : c } : { background: c, color: dark ? '#172B4D' : '#fff' } }, t('app.create'))),
+      h('div.brand-preview-body',
+        h('span.brand-preview-btn', { style: { background: c, color: dark ? '#172B4D' : '#fff' } }, t('app.save')),
+        h('span', { style: { color: c } }, t('brand.previewLink'))));
+  };
+  const setColor = (v) => { s['brand.color'] = v; draw(); };
+  picker.addEventListener('input', () => { hex.value = picker.value.toUpperCase(); setColor(hex.value); });
+  hex.addEventListener('input', () => {
+    const v = hex.value.trim();
+    if (!v) { picker.value = DEFAULT_COLOR; setColor(''); return; }
+    if (validHex(v)) { picker.value = v; setColor(v.toUpperCase()); }
+  });
+
+  const afterChange = async () => {
+    state.boot = await api.bootstrap();
+    refreshBrandAssets();
+    route();
+  };
+  file.addEventListener('change', () => {
+    const f = file.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try { await api.admin.brandLogo(reader.result); toast(t('app.saved'), 'success'); await afterChange(); }
+      catch (e) { toast(e.message, 'error'); }
+      file.value = '';
+    };
+    reader.readAsDataURL(f);
+  });
+  removeBtn.addEventListener('click', async () => {
+    try { await api.admin.brandLogoRemove(); await afterChange(); } catch (e) { toast(e.message, 'error'); }
+  });
+  const reset = async () => {
+    if (!confirm(t('brand.resetConfirm'))) return;
+    Object.assign(s, { 'brand.color': '', 'brand.header': 'light', 'brand.showTitle': true });
+    try {
+      if (state.boot.brand?.logo) await api.admin.brandLogoRemove();
+      if (await saveKeys(s, ['brand.'])) await afterChange();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  drawLogo();
+  draw();
+  return h('section.panel',
+    h('h2', t('brand.title')),
+    h('p.muted', t('brand.intro')),
+    h('div.field', h('label', t('brand.logo')),
+      h('div.brand-logo-row', logoBox,
+        h('button.btn', { type: 'button', onclick: () => file.click() }, t('brand.logoUpload')), removeBtn, file),
+      h('div.hint', t('brand.logoHint'))),
+    field(t('brand.showTitle'), bindCheck(s, 'brand.showTitle', draw), t('brand.showTitleHint')),
+    h('div.field', h('label', t('brand.color')), h('div.color-row', picker, hex), contrastInfo),
+    h('div.field', h('label', t('brand.header')),
+      h('div.radio-row', ...[['light', t('brand.headerLight')], ['color', t('brand.headerColor')]].map(([v, label]) => {
+        const r = h('input', { type: 'radio', name: 'brand-header', value: v, checked: (s['brand.header'] || 'light') === v });
+        r.addEventListener('change', () => { s['brand.header'] = v; draw(); });
+        return h('label.radio', r, ' ', label);
+      }))),
+    h('div.field', h('label', t('brand.preview')), preview),
+    saveBar(async () => {
+      if (s['brand.color'] && !validHex(s['brand.color'])) { toast(t('brand.colorInvalid'), 'error'); return; }
+      if (await saveKeys(s, ['brand.'])) { refreshBrandAssets(); route(); }
+    }, h('button.btn.btn-subtle', { type: 'button', onclick: reset }, t('brand.reset'))));
 }
 
 // Anmeldeseite: Überschrift, Begrüßungstext (de/en), Bezeichnung des Anmeldefelds – mit Vorschau

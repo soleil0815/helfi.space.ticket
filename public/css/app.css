@@ -113,6 +113,19 @@ select { height: 36px; padding: 0 8px; }
 }
 .brand { display: flex; align-items: center; gap: 8px; color: var(--text); font-weight: 600; font-size: 16px; padding: 4px 8px; border-radius: var(--radius); margin-right: 8px; }
 .brand:hover { background: var(--bg-neutral); text-decoration: none; }
+.brand-logo { width: auto; max-width: 200px; object-fit: contain; display: block; }
+.brand-logo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand-logo-box { display: flex; align-items: center; gap: 12px; min-width: 200px; padding: 8px 12px; border: 1px dashed var(--border); border-radius: 4px; }
+.color-row { display: flex; gap: 8px; align-items: center; }
+.color-input { width: 44px; height: 32px; padding: 2px; cursor: pointer; }
+.color-hex { width: 110px; }
+.brand-preview { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.brand-preview-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: #fff; }
+.brand-preview-body { display: flex; align-items: center; gap: 16px; padding: 12px; }
+.brand-preview-btn { display: inline-block; padding: 4px 12px; border-radius: 3px; font-weight: 500; }
+.radio-row { display: flex; gap: 24px; }
+.radio-row .radio { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; }
+.radio-row input[type=radio] { width: auto; margin: 0; }
 .topnav { display: flex; height: 100%; }
 .topnav a { display: flex; align-items: center; padding: 0 10px; color: var(--text-subtle); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .topnav a:hover { color: var(--text); text-decoration: none; background: var(--bg-hover); }

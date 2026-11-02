@@ -12,6 +12,11 @@ export const DEFAULTS = {
 
   // Anmeldeseite (Text ohne HTML; **fett**, Links und Mailadressen werden erkannt)
   'login.title': '',
+  // Erscheinungsbild
+  'brand.color': '', // Hauptfarbe #RRGGBB (leer = Standardblau)
+  'brand.header': 'light', // light | color (Kopfzeile in der Hauptfarbe)
+  'brand.showTitle': true, // Titel neben dem Logo anzeigen
+  'brand.logo': '', // "png:<hash>" | "svg:<hash>" – nur über /api/admin/brand/logo änderbar
   'login.textDe': '',
   'login.textEn': '',
   'login.userLabelDe': '',

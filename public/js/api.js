@@ -84,6 +84,8 @@ export const api = {
   admin: {
     settings: () => request('GET', '/api/admin/settings'),
     saveSettings: (settings) => request('PUT', '/api/admin/settings', { settings }),
+    brandLogo: (data) => request('PUT', '/api/admin/brand/logo', { data }),
+    brandLogoRemove: () => request('DELETE', '/api/admin/brand/logo'),
     suppressions: () => request('GET', '/api/admin/mail/suppressions'),
     releaseSuppression: (address) => request('DELETE', `/api/admin/mail/suppressions/${encodeURIComponent(address)}`),
     fetchCert: (settings) => request('POST', '/api/admin/ldap/fetch-cert', { settings }),
