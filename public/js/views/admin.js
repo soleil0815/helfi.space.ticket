@@ -675,12 +675,16 @@ async function mailPage(body, s) {
       field(t('mail.verifyTls'), bindCheck(s, 'smtp.verifyTls')),
       h('h3', t('mail.notifications')),
       ['reporterOnCreate', 'reporterOnComment', 'reporterOnDone', 'assignee', 'participantAdded'].map((k) => field(t(`mail.notify.${k}`), bindCheck(s, `notify.${k}`))),
+      h('h3', t('survey.adminTitle')),
+      h('p.muted.small', t('survey.adminHint')),
+      field(t('survey.enabled'), bindCheck(s, 'survey.enabled')),
+      field(t('survey.days'), bindInput(s, 'survey.days', { type: 'number', min: 1, max: 90 })),
       h('div.grid-2', field(t('mail.testTo'), testTo), h('div.field.field-btn', h('button.btn', {
         type: 'button',
         onclick: async () => { const r = await api.admin.testSmtp(pick(s, 'smtp.'), testTo.value); showResult(smtpRes, r.ok, r.ok ? t('mail.testSent') : r.error); },
       }, icon('mail'), t('mail.sendTest')))),
       smtpRes,
-      saveBar(() => saveKeys(s, ['smtp.', 'notify.']))));
+      saveBar(() => saveKeys(s, ['smtp.', 'notify.', 'survey.']))));
   body.append(loopPanel(s));
 }
 

@@ -14,6 +14,7 @@ import { createChanges } from './itil/changes.js';
 import { createKb } from './itil/kb.js';
 import { createCatalog } from './itil/catalog.js';
 import { createCmdb } from './itil/cmdb.js';
+import { createSurvey } from './itil/survey.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -50,7 +51,9 @@ export function createApp(db) {
   const poller = createImapPoller({ settings, processor });
   const limiter = createLoginLimiter();
   const mfa = createMfa({ db, settings, sessions, users, policy, limiter });
-  wireNotifications({ tickets, mailer, settings, users });
+  // vor den Mails registriert: die „Erledigt“-Mail braucht die frisch angelegte Umfrage
+  const survey = createSurvey(db, tickets, settings);
+  wireNotifications({ tickets, mailer, settings, users, survey });
   const major = createMajor(db, tickets);
   const fields = createFields(db, tickets);
   const problems = createProblems(db, tickets, fields);
@@ -72,7 +75,7 @@ export function createApp(db) {
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
   const reports = createReports(db);
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, catalog, cmdb, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, catalog, cmdb, survey, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');

@@ -277,6 +277,15 @@ A lean register of IT equipment and services (CI register), for agents only: *De
 - **CSV import** (administrators) from your inventory tool: first line = column names (including name/hostname, type, location, IP address, serial number, vendor, model, user, status). Separator `;`, `,` or tab. Existing entries with the same name are updated.
 - **Deleting** is only possible while no tickets are linked. After that, set the entry to “retired”; the history is kept.
 
+## Satisfaction survey
+
+Switch it on under *Administration → Email → Satisfaction survey* (default: off).
+
+- **In the “Resolved” email** the reporter gets five links from “very satisfied” to “very dissatisfied”. One click is enough, no sign-in needed. On the page they can still change the stars and optionally write a comment. Request participants get no links.
+- **In the ticket** signed-in reporters can rate as well. Agents see the rating and comment at the top of the ticket; changes of the stars appear in the history.
+- **Security:** each link contains a random token; only its hash is stored. The link is valid for a configurable number of days (default 14) and only shows the ticket key and title. If the ticket is reopened and resolved again, there is a new survey and the old link expires.
+- **Results** under *Reports → Satisfaction*: average, response rate, distribution of stars, values per agent and the latest comments. Problems and changes are not surveyed.
+
 ## Emojis
 
 In comments, descriptions and reply templates:

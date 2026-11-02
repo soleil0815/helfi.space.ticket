@@ -17,6 +17,7 @@ import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
 import { renderCatalog } from './views/catalog.js';
 import { renderCmdb } from './views/cmdb.js';
+import { renderRate } from './views/survey.js';
 
 export const state = {
   boot: null,
@@ -106,6 +107,8 @@ export async function route() {
   document.querySelectorAll('.menu').forEach((m) => m.remove());
   clearPageShortcuts();
 
+  // Bewertungslink aus der Mail: ohne Anmeldung
+  if (path.startsWith('/rate/')) return renderRate(root, path, url.searchParams);
   if (state.boot.setupRequired && !state.user) return renderSetup(root);
   if (!state.user) {
     if (path !== '/login') history.replaceState({}, '', `/login${location.search}`);

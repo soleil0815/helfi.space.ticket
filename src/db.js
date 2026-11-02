@@ -403,6 +403,22 @@ export const MIGRATIONS = [
     CREATE INDEX idx_ticket_cis_ci ON ticket_cis(ci_id);
     `,
   },
+  {
+    id: 17,
+    name: 'Zufriedenheitsumfrage',
+    sql: `
+    CREATE TABLE ticket_ratings (
+      ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
+      token_hash TEXT UNIQUE,
+      assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      rating INTEGER CHECK (rating BETWEEN 1 AND 5),
+      comment TEXT NOT NULL DEFAULT '',
+      sent_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      rated_at TEXT
+    );
+    CREATE INDEX idx_ticket_ratings_sent ON ticket_ratings(sent_at);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

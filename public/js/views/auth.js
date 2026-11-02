@@ -13,7 +13,7 @@ function langSwitch() {
     }, l.toUpperCase())));
 }
 
-function authFrame(...children) {
+export function authFrame(...children) {
   return h('div.auth-page',
     h('div.auth-card',
       h('div.auth-brand', brandLogo(40), brandTitle()),
