@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
-import { state, reloadBase, route } from '../app.js';
+import { state, reloadBase, route, navigate } from '../app.js';
 import { importPage } from './import.js';
 import { templatesPanel } from './canned.js';
 import { loginIntro, loginUserLabel } from './auth.js';
@@ -34,6 +34,8 @@ export async function renderAdmin(content, section) {
     h('div.page-head', h('h1', t('admin.title'))),
     h('div.admin',
       h('nav.admin-nav', SECTIONS.map(([id, label, ic]) => h('a', { href: `/admin/${id}`, 'data-link': '', class: id === section ? 'active' : '' }, icon(ic), t(label)))),
+      // Smartphone: Auswahlliste statt Spalte
+      select(SECTIONS.map(([id, label]) => [id, t(label)]), section, { class: 'admin-nav-select', 'aria-label': t('admin.section'), onchange: (e) => navigate(`/admin/${e.target.value}`) }),
       body));
 
   if (section === 'projects') return projectsPage(body);

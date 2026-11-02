@@ -181,8 +181,9 @@ function layout(content, path) {
   }
 
   const search = h('input', {
-    type: 'search', placeholder: t('app.searchPlaceholder'), 'aria-label': t('app.search'),
+    type: 'search', placeholder: t('app.searchPlaceholder'), 'aria-label': t('app.search'), enterkeyhint: 'search',
     onkeydown: (e) => {
+      if (e.key === 'Escape') { topbar.classList.remove('search-open'); return; }
       if (e.key !== 'Enter') return;
       const q = e.target.value.trim();
       if (/^[A-Za-z][A-Za-z0-9]{1,9}-\d+$/.test(q)) navigate(`/browse/${q.toUpperCase()}`);
@@ -203,15 +204,32 @@ function layout(content, path) {
     ], { align: 'right' }),
   }, avatar(u, 'sm'));
 
+  // Smartphone: Seitenleiste als Schublade, Suche hinter der Lupe
+  const toggleNav = (open) => {
+    const sh = document.querySelector('.shell');
+    const on = open ?? !sh.classList.contains('nav-open');
+    sh.classList.toggle('nav-open', on);
+    menuBtn.setAttribute('aria-expanded', String(on));
+    if (on) sh.querySelector('.sidebar .nav-item')?.focus({ preventScroll: true });
+  };
+  const menuBtn = h('button.btn-icon.nav-toggle', { type: 'button', 'aria-label': t('nav.menu'), 'aria-expanded': 'false', onclick: () => toggleNav() }, icon('list'));
+  const searchBtn = h('button.btn-icon.search-toggle', {
+    type: 'button', 'aria-label': t('app.search'),
+    onclick: () => { topbar.classList.add('search-open'); search.focus(); },
+  }, icon('search'));
+  search.addEventListener('blur', () => setTimeout(() => topbar.classList.remove('search-open'), 150));
+
   const topbar = h('header.topbar',
+    menuBtn,
     h('a.brand', { href: '/', 'data-link': '', 'aria-label': state.boot.app.title || 'Helfi.Space' }, brandLogo(24), brandTitle()),
     state.isAgent ? h('nav.topnav',
       h('a', { href: '/my', 'data-link': '', class: path === '/my' ? 'active' : '' }, t('nav.myWork')),
       h('a', { href: '/issues', 'data-link': '', class: path === '/issues' ? 'active' : '' }, t('nav.list')),
     ) : null,
-    (state.isAgent || state.boot.allowSelfService) ? h('button.btn.btn-primary', { type: 'button', onclick: () => openCreateDialog() }, icon('plus'), t('app.create')) : null,
+    (state.isAgent || state.boot.allowSelfService) ? h('button.btn.btn-primary.topbar-create', { type: 'button', 'aria-label': t('app.create'), onclick: () => openCreateDialog() }, icon('plus'), h('span.btn-label', t('app.create'))) : null,
     h('div.spacer'),
     h('div.topbar-search', icon('search'), search),
+    searchBtn,
     userBtn,
   );
 
@@ -259,11 +277,20 @@ function layout(content, path) {
     warnings.unshift(h('div.banner.banner-major', icon('warning'), h('strong', t('major.title')), h('a', { href: `/browse/${mi.key}`, 'data-link': '' }, `${mi.key} ${mi.title}`)));
   }
   const m = state.boot.mfa;
-  if (m && m.mode !== 'off' && !m.enabled && u.source !== 'oidc' && path !== '/profile') {
-    warnings.push(h('div.banner.banner-info', icon('shield'), h('span', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup'))));
+  let mfaHidden = false;
+  try { mfaHidden = sessionStorage.getItem('helfi.mfaBanner') === 'hidden'; } catch { /* egal */ }
+  if (m && m.mode !== 'off' && !m.enabled && u.source !== 'oidc' && path !== '/profile' && !mfaHidden) {
+    const b = h('div.banner.banner-info.banner-mfa', icon('shield'), h('span.banner-text', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup')),
+      h('button.btn-icon.banner-close', { type: 'button', 'aria-label': t('app.close'), onclick: () => { try { sessionStorage.setItem('helfi.mfaBanner', 'hidden'); } catch { /* egal */ } b.remove(); } }, icon('close')));
+    warnings.push(b);
   }
   if (state.isAgent) refreshQueueCounts(p?.key);
-  return h('div.shell', topbar, h('div.body', sidebar, h('div.main', warnings, content)));
+  // Antippen eines Eintrags schließt die Schublade (die Seite wird ohnehin neu aufgebaut)
+  sidebar.addEventListener('click', (e) => { if (e.target.closest('a[data-link]')) toggleNav(false); });
+  const backdrop = h('div.nav-backdrop', { onclick: () => toggleNav(false) });
+  const shell = h('div.shell', topbar, h('div.body', sidebar, backdrop, h('div.main', warnings, content)));
+  shell.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shell.classList.contains('nav-open')) { toggleNav(false); menuBtn.focus(); } });
+  return shell;
 }
 
 /** Zahlen der Warteschlangen neu laden und in die Seitenleiste schreiben (still bei Fehlern). */

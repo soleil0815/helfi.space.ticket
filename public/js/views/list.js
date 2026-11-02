@@ -21,12 +21,18 @@ export async function renderList(content, params, { requests = false } = {}) {
     navigate(`${location.pathname}?${p}`, { replace: true });
   };
 
-  const filters = h('div.toolbar',
+  // Smartphone: Filter hinter einem Knopf (mit Anzahl der gesetzten Filter)
+  const active = ['project', 'status', 'type', 'priority', 'assignee', 'participant'].filter((k) => f[k]).length + (requests && f.reporter === 'me' ? 0 : 0);
+  const filterBtn = h('button.btn.btn-subtle.filter-btn', { type: 'button', 'aria-expanded': 'false', onclick: (e) => { const open = filters.classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', String(open)); } },
+    icon('list'), t('list.filter'), active ? h('span.count', String(active)) : null);
+  const filters = h('div.toolbar.list-toolbar',
     h('div.toolbar-search', icon('search'), h('input.input-search', {
       type: 'search', placeholder: t('filter.search'), value: f.q || '',
       onkeydown: (e) => { if (e.key === 'Enter') set('q', e.target.value.trim()); },
       onsearch: (e) => set('q', e.target.value.trim()),
     })),
+    filterBtn,
+    h('div.filter-fields',
     requests ? select([['', t('filter.allRequests')], ['reporter', t('filter.reportedByMe')], ['participant', t('filter.participating')]],
       f.reporter === 'me' ? 'reporter' : (f.participant === 'me' ? 'participant' : ''), {
         class: 'select-sm',
@@ -43,7 +49,7 @@ export async function renderList(content, params, { requests = false } = {}) {
     !requests ? select([['', t('filter.allPriorities')], ...PRIOS.map((s) => [s, t(`priority.${s}`)])], f.priority || '', { class: 'select-sm', onchange: (e) => set('priority', e.target.value) }) : null,
     !requests ? select([['', t('filter.allAssignees')], ['me', t('app.me')], ['none', t('app.unassigned')], ...state.agents.map((a) => [a.id, a.displayName])], f.assignee || '', { class: 'select-sm', onchange: (e) => set('assignee', e.target.value) }) : null,
     Object.keys(f).some((k) => f[k] && k !== 'reporter') ? h('button.btn.btn-subtle', { type: 'button', onclick: () => navigate(location.pathname, { replace: true }) }, t('filter.reset')) : null,
-  );
+  ));
 
   const queue = requests ? null : matchQueue(params);
   const title = requests ? t('nav.myRequests') : (queue ? t(queue.label) : (f.overdue ? t('summary.overdue') : t('nav.list')));
@@ -72,12 +78,37 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
   const bar = selectable ? h('div.bulk-bar', { hidden: true, role: 'toolbar', 'aria-label': t('bulk.toolbar') }) : null;
   const allBox = selectable ? h('input.row-check', { type: 'checkbox', 'aria-label': t('bulk.selectAll'), onclick: (e) => e.stopPropagation(), onchange: (e) => { tickets.forEach((tk) => (e.target.checked ? sel.add(tk.key) : sel.delete(tk.key))); sync(); } }) : null;
   const boxes = new Map();
+  const touchMode = () => window.matchMedia('(max-width: 800px)').matches;
+  /** langes Drücken (Finger) → auswählen; danach unterdrückt ein Klick das Öffnen */
+  function longPress(fn) {
+    let timer = null; let x = 0; let y = 0;
+    return {
+      onpointerdown: (e) => {
+        if (e.pointerType !== 'touch') return;
+        x = e.clientX; y = e.clientY;
+        timer = setTimeout(() => {
+          timer = null;
+          // den Klick nach dem Loslassen schlucken (die Auswahlleiste verschiebt sonst, was darunter liegt)
+          const stop = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+          document.addEventListener('click', stop, { capture: true, once: true });
+          setTimeout(() => document.removeEventListener('click', stop, { capture: true }), 800);
+          navigator.vibrate?.(15);
+          fn();
+        }, 500);
+      },
+      onpointermove: (e) => { if (timer && (Math.abs(e.clientX - x) > 10 || Math.abs(e.clientY - y) > 10)) { clearTimeout(timer); timer = null; } },
+      onpointerup: () => { clearTimeout(timer); timer = null; },
+      onpointercancel: () => { clearTimeout(timer); timer = null; },
+      oncontextmenu: (e) => { if (touchMode()) e.preventDefault(); },
+    };
+  }
   function sync() {
     for (const [key, box] of boxes) { box.checked = sel.has(key); box.closest('tr').classList.toggle('selected', sel.has(key)); }
     if (!selectable) return;
     allBox.checked = sel.size === tickets.length;
     allBox.indeterminate = sel.size > 0 && sel.size < tickets.length;
     bar.hidden = sel.size === 0;
+    bar.closest('.table-wrap')?.classList.toggle('selecting', sel.size > 0);
     if (sel.size) drawBar();
   }
   function toggle(i, on, range) {
@@ -145,7 +176,15 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         th(t('list.priority'), 'priority'),
         th(t('list.updated'), 'updated'),
       )),
-      h('tbody', tickets.map((tk, i) => h('tr', { 'data-key': tk.key, onclick: (e) => { if (!e.target.closest('a,.col-check')) navigate(`/browse/${tk.key}`); } },
+      h('tbody', tickets.map((tk, i) => h('tr', {
+        'data-key': tk.key,
+        onclick: (e) => {
+          // Auswahlmodus (Smartphone, nach langem Drücken): Antippen wählt aus statt zu öffnen
+          if (selectable && sel.size && touchMode()) { e.preventDefault(); e.stopPropagation(); toggle(i, !sel.has(tk.key), false); return; }
+          if (!e.target.closest('a,.col-check')) navigate(`/browse/${tk.key}`);
+        },
+        ...(selectable ? longPress(() => toggle(i, !sel.has(tk.key), false)) : {}),
+      },
         selectable ? h('td.col-check', { onclick: (e) => { if (e.target === e.currentTarget) e.currentTarget.querySelector('input').click(); } }, (() => {
           const box = h('input.row-check', { type: 'checkbox', 'aria-label': tk.key, onclick: (e) => { e.stopPropagation(); toggle(i, e.target.checked, e.shiftKey); } });
           boxes.set(tk.key, box);
@@ -154,11 +193,11 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         h('td.col-type', typeIcon(tk.type)),
         h('td.col-key', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key)),
         h('td.col-summary', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.title), tk.source === 'email' ? h('span.src-mail', { title: t('source.email') }, icon('mail')) : null),
-        h('td', lozenge(tk.status)),
+        h('td.col-status', lozenge(tk.status)),
         showSla ? h('td.col-sla', slaBadge(tk.sla)) : null,
-        requests ? null : h('td.col-person', h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),
-        requests || compact ? null : h('td.col-person', h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—'))),
-        h('td', priorityIcon(tk.priority), h('span.prio-label', t(`priority.${tk.priority}`))),
+        requests ? null : h('td.col-person.col-assignee', h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),
+        requests || compact ? null : h('td.col-person.col-reporter', h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—'))),
+        h('td.col-prio', priorityIcon(tk.priority), h('span.prio-label', t(`priority.${tk.priority}`))),
         h('td.col-date', { title: fmtDate(tk.updatedAt) }, relTime(tk.updatedAt)),
       ))),
     ));

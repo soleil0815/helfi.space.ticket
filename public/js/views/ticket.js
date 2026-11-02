@@ -304,6 +304,7 @@ export async function renderTicket(content, key) {
     return box;
   }
 
+  let detailsOpen = false;
   function sidePanel() {
     const assignee = h('div', { 'data-shortcut': 'assignee' },
       pick(tk.assignee?.id ?? null, [[null, t('app.unassigned'), avatar(null, 'sm')], ...state.agents.map((a) => [a.id, a.displayName, avatar(a, 'sm')])],
@@ -344,8 +345,19 @@ export async function renderTicket(content, key) {
         }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null,
         agent ? createProblemButton(tk) : null,
         agent ? kbFromTicketButton(tk) : null),
-      h('div.details-box',
-        h('div.details-head', t('ticket.details')),
+      h('div.details-box', { class: detailsOpen ? 'open' : '' },
+        h('button.details-head', {
+          type: 'button', 'aria-expanded': String(detailsOpen),
+          onclick: (e) => {
+            // nur auf dem Smartphone aufklappbar; am großen Bildschirm immer offen
+            detailsOpen = !detailsOpen;
+            const box = e.currentTarget.closest('.details-box');
+            box.classList.toggle('open', detailsOpen);
+            e.currentTarget.setAttribute('aria-expanded', String(detailsOpen));
+          },
+        }, h('span', t('ticket.details')),
+        h('span.details-summary', [tk.assignee?.displayName || t('app.unassigned'), t(`priority.${tk.priority}`), t(`type.${tk.type}`)].join(' · ')),
+        icon('chevron-down', 'details-chevron')),
         tk.sla ? detailRow(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
         tk.sla ? detailRow(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
         detailRow(t('ticket.assignee'), assignee),

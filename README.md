@@ -289,6 +289,18 @@ Einschalten unter *Administration → E-Mail → Zufriedenheitsumfrage* (Standar
 - **Sicherheit:** Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen (Standard 14) und zeigt nur Ticketnummer und Titel. Wird das Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage; der alte Link verfällt.
 - **Auswertung** unter *Berichte → Zufriedenheit*: Durchschnitt, Rücklaufquote, Verteilung der Sterne, Werte je Bearbeiter und die neuesten Kommentare. Probleme und Changes werden nicht abgefragt.
 
+## Auf dem Smartphone
+
+Die Oberfläche passt sich an schmale Bildschirme an:
+
+- **Menü** ☰ als Schublade mit allen Bereichen, Suche hinter der Lupe, runder ＋-Knopf zum Erstellen.
+- **Listen als Karten**, Filter hinter einem Knopf, Mehrfachauswahl durch langes Drücken.
+- **Ticket:** Titel und Status zuerst, Details als aufklappbare Zeile, dann Beschreibung und Aktivität.
+- **Board** mit Spalten zum Wischen, Status über ⋯ auf der Karte.
+- **Dialoge im Vollbild**, Eingabefelder ohne automatisches Hineinzoomen (iPhone), große Tippflächen, Notch und Home-Leiste berücksichtigt.
+- Change-Kalender als Liste, Administration mit Auswahlliste, breite Tabellen scrollen innerhalb ihres Kastens.
+- **Zum Startbildschirm hinzufügen:** Web-App-Manifest mit Symbol, Helfi.Space startet dann im Vollbild wie eine App.
+
 ## Emojis
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:

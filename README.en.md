@@ -289,6 +289,18 @@ Switch it on under *Administration → Email → Satisfaction survey* (default: 
 - **Security:** each link contains a random token; only its hash is stored. The link is valid for a configurable number of days (default 14) and only shows the ticket key and title. If the ticket is reopened and resolved again, there is a new survey and the old link expires.
 - **Results** under *Reports → Satisfaction*: average, response rate, distribution of stars, values per agent and the latest comments. Problems and changes are not surveyed.
 
+## On a smartphone
+
+The interface adapts to narrow screens:
+
+- **Menu** ☰ as a drawer with all areas, search behind the magnifier, round ＋ button to create.
+- **Lists as cards**, filters behind a button, multiple selection by pressing and holding.
+- **Ticket:** title and status first, details as an expandable line, then description and activity.
+- **Board** with columns to swipe through, status via ⋯ on the card.
+- **Full-screen dialogs**, inputs without automatic zoom (iPhone), large tap targets, notch and home bar respected.
+- Change calendar as a list, administration with a drop-down, wide tables scroll inside their box.
+- **Add to Home Screen:** web app manifest with icon, Helfi.Space then starts full screen like an app.
+
 ## Emojis
 
 In comments, descriptions and reply templates:
