@@ -13,6 +13,7 @@ import { renderSummary } from './views/summary.js';
 import { QUEUES, VIEWS, queueHref, matchQueue } from './queues.js';
 import { renderProfile } from './views/profile.js';
 import { brandLogo, brandTitle } from './brand.js';
+import { renderChangeCalendar } from './views/change.js';
 
 export const state = {
   boot: null,
@@ -121,6 +122,7 @@ export async function route() {
     if (path === '/requests') return await renderList(content, state.isAgent && !params.has('participant') ? new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }) : params, { requests: true });
     if (path === '/my') return await renderMyWork(content);
     if (path === '/reports' && state.isAgent) return await renderReports(content, params);
+    if (path === '/changes' && state.isAgent) return await renderChangeCalendar(content, params);
     if (path === '/summary' && state.isAgent) return await renderSummary(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
@@ -209,6 +211,7 @@ function layout(content, path) {
       queuesNav(path, p),
       nav('/board', t('nav.board'), 'board', path === '/board'),
       ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
+      nav('/changes', t('change.calendar'), 'board', path === '/changes'),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
       state.isAdmin ? nav('/admin/mail', t('nav.channelsMail'), 'mail', path === '/admin/mail') : null,

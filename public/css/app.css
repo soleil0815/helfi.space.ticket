@@ -591,6 +591,44 @@ input.num { width: 100px; }
 .problem-hint > div + div { margin-top: 8px; padding-top: 8px; border-top: 1px solid #FEC195; }
 .problem-workaround { margin-top: 6px; }
 .problem-workaround .btn { margin-top: 4px; }
+.change-steps { list-style: none; display: flex; padding: 0; margin: 4px 0 12px; font-size: 11px; counter-reset: s; flex-wrap: wrap; gap: 2px; }
+.change-steps li { flex: 1; min-width: 80px; text-align: center; padding: 4px 2px; background: var(--bg-neutral); color: var(--text-subtle); }
+.change-steps li:first-child { border-radius: 3px 0 0 3px; }
+.change-steps li:last-child { border-radius: 0 3px 3px 0; }
+.change-steps li.done { background: #DCFFF1; color: #216E4E; }
+.change-steps li.current { background: var(--blue); color: #fff; font-weight: 600; }
+.phase-draft { background: var(--bg-neutral); color: var(--text-subtle); }
+.phase-approval { background: #F3F0FF; color: #5E4DB2; }
+.phase-approved, .phase-scheduled { background: var(--blue-subtle); color: #0055CC; }
+.phase-implementing, .phase-review { background: #FFF7D6; color: #7F5F01; }
+.phase-closed { background: #DCFFF1; color: #216E4E; }
+.phase-rejected { background: #FFECEB; color: #AE2E24; }
+.approvals { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; margin: 0 0 12px; }
+.approval-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+.decision-pending { background: var(--bg-neutral); color: var(--text-subtle); }
+.decision-approve { background: #DCFFF1; color: #216E4E; }
+.decision-reject { background: #FFECEB; color: #AE2E24; }
+.approval-actions { display: flex; gap: 6px; margin-top: 8px; }
+.approval-actions input { flex: 1; }
+.change-outcome { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; margin-bottom: 12px; }
+.change-box .section-head { gap: 6px; }
+.cal-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.page-head:has(.cal-nav) { display: flex; align-items: center; }
+.cal-head, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-head div { font-size: 12px; font-weight: 600; color: var(--text-subtle); padding: 4px 6px; }
+.cal-grid { border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+.cal-day { min-height: 96px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 4px; font-size: 12px; overflow: hidden; }
+.cal-day.other { background: var(--bg-sunken); color: var(--text-subtlest); }
+.cal-day.today .cal-num { background: var(--blue); color: #fff; border-radius: 10px; padding: 0 6px; display: inline-block; }
+.cal-num { font-weight: 600; margin-bottom: 2px; }
+.cal-item { display: block; border-radius: 3px; padding: 1px 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: inherit; }
+.cal-item.conflict { outline: 2px solid #C9372C; }
+.cal-item .icon { width: 12px; height: 12px; color: #C9372C; }
+.cal-list-title { margin: 20px 0 8px; }
+.approver-list { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 12px; }
+.approver-box { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+.approver-box input { width: auto; }
+.std-template { border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; margin-bottom: 10px; }
 .radio-block { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; cursor: pointer; }
 .radio-block input[type=radio] { width: auto; flex: none; margin: 3px 0 0; }
 .radio-detail { margin-left: 26px; }

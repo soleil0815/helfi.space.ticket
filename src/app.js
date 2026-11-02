@@ -9,6 +9,8 @@ import { createMajor } from './itil/major.js';
 import { createSla } from './itil/sla.js';
 import { createFields } from './itil/fields.js';
 import { createProblems } from './itil/problems.js';
+import { createApprovals } from './itil/approvals.js';
+import { createChanges } from './itil/changes.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -49,6 +51,8 @@ export function createApp(db) {
   const major = createMajor(db, tickets);
   const fields = createFields(db, tickets);
   const problems = createProblems(db, tickets, fields);
+  const approvals = createApprovals(db, users);
+  const changes = createChanges(db, tickets, fields, approvals, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
 
   // Ersteinrichtung: einmaliger Code, nur solange es keine Benutzer gibt
@@ -62,7 +66,7 @@ export function createApp(db) {
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
   const reports = createReports(db);
-  const ctx = { links, major, sla, fields, problems, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
+  const ctx = { links, major, sla, fields, problems, approvals, changes, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null };
 
   const app = express();
   app.disable('x-powered-by');
@@ -128,7 +132,7 @@ export function createApp(db) {
     let code = err instanceof HttpError ? err.code : (status === 400 ? 'err.badRequest' : 'err.internal');
     if (err.type === 'entity.parse.failed') { status = 400; code = 'err.badRequest'; }
     if (status >= 500) log.error(`${req.method} ${req.originalUrl}: ${err.stack || err.message}`);
-    res.status(status).json({ error: { code, message: hasKey(code) ? t(lang, code) : code, detail: err.detail } });
+    res.status(status).json({ error: { code, message: hasKey(code) ? t(lang, code, { detail: err.detail ?? '' }) : code, detail: err.detail } });
   });
 
   return { app, ctx };

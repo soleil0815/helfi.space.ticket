@@ -4,6 +4,7 @@ export class ApiError extends Error {
     super(body?.error?.message || `HTTP ${status}`);
     this.status = status;
     this.code = body?.error?.code;
+    this.detail = body?.error?.detail;
   }
 }
 
@@ -62,6 +63,11 @@ export const api = {
   saveFields: (key, d) => request('PATCH', `/api/tickets/${encodeURIComponent(key)}/fields`, d),
   createProblem: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/problem`, d),
   knownErrors: () => request('GET', '/api/known-errors'),
+  changeTransition: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/change/transition`, d),
+  changeLateApproval: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/change/request-approval`),
+  decideApproval: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/approval`, d),
+  changeCalendar: (f) => request('GET', `/api/changes/calendar${qs(f)}`),
+  changeTemplates: () => request('GET', '/api/changes/templates'),
   broadcast: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/broadcast`, d),
   createSubtask: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/subtasks`, d),
   ticket: (key) => request('GET', `/api/tickets/${encodeURIComponent(key)}`),

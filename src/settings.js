@@ -20,6 +20,11 @@ export const DEFAULTS = {
   'sla.pauseWaiting': true, // „Wartet“ hält die Lösungsuhr an
   'sla.warnPercent': 80,
 
+  // Change-Management
+  'change.approvers': '', // Benutzer-IDs der Genehmiger (CAB), durch Komma getrennt
+  'change.approvalMode': 'any', // any = eine Zustimmung genügt, all = alle müssen zustimmen
+  'change.standardTemplates': '[]', // JSON: [{ title, risk, services, implementationPlan, backoutPlan, testPlan }]
+
   // Erscheinungsbild
   'brand.color': '', // Hauptfarbe #RRGGBB (leer = Standardblau)
   'brand.header': 'light', // light | color (Kopfzeile in der Hauptfarbe)

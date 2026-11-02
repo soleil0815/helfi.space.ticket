@@ -233,6 +233,21 @@ In the ticket view (agents) under *Links*:
 - **Affected incidents** are attached via *Link → causes*. There agents see “Root cause known” with the workaround at the top and can use it as a reply with one click.
 - **Inform incidents:** posts the same reply in all open affected incidents, e.g. once the fix is deployed.
 
+## Change management
+
+Ticket type **Change** (agents only), with its own section in the ticket:
+
+- **Kinds:**
+  - **Normal:** needs approval.
+  - **Standard:** pre-approved routine from a template, no approval.
+  - **Emergency:** implement immediately, approval afterwards.
+- **Fields:** reason, risk, affected services and devices, planned start and end, implementation, backout and test plan.
+- **Flow:** Draft → Awaiting approval → Approved/Rejected → Scheduled → Implementing → Review → Closed. The ticket status follows automatically. Missing required information is named at each step.
+- **Approval (CAB):** approvers and rule (“one approval is enough” or “everyone must approve”) under *Administration → Change*. Approvers get an email and decide in the ticket (with a comment) or via the **My approvals** view. Every decision is in the history. After a rejection the change can be reworked and submitted again.
+- **Standard change templates** (e.g. firmware update) under *Administration → Change*, applied in the change with one click.
+- **Closing:** outcome “Successful”, “With issues” or “Rolled back”. For the latter two a post-implementation review is required.
+- **Change calendar** in the sidebar: monthly view of all planned changes, overlapping time windows are marked red.
+
 ## Emojis
 
 In comments, descriptions and reply templates:
