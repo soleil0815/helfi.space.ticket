@@ -78,6 +78,7 @@ export const api = {
   ratingInfo: (token) => request('GET', `/api/public/rating/${encodeURIComponent(token)}`),
   rate: (token, d) => request('POST', `/api/public/rating/${encodeURIComponent(token)}`, d),
   rateTicket: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/rating`, d),
+  itilReport: (f) => request('GET', `/api/reports/itil${qs(f)}`),
   satisfaction: (f) => request('GET', `/api/reports/satisfaction${qs(f)}`),
   cis: (f) => request('GET', `/api/cis${qs(f)}`),
   ci: (id) => request('GET', `/api/cis/${id}`),

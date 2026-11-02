@@ -68,7 +68,7 @@ test('Links nur für den Melder, Bewertung ohne Anmeldung', async () => {
 
   // Wiedereröffnet und neu erledigt → neue Umfrage, alter Link ungültig
   await karl('POST', `/api/tickets/${tk.key}/comments`, { body: 'geht doch nicht' });
-  await anna('PATCH', `/api/tickets/${tk.key}`, { status: 'inprogress' });
+  await anna('PATCH', `/api/tickets/${tk.key}`, { status: 'in_progress' });
   sent.length = 0;
   await anna('PATCH', `/api/tickets/${tk.key}`, { status: 'done' });
   await wait();

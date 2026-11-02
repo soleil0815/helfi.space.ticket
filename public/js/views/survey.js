@@ -79,7 +79,7 @@ export async function satisfactionPanel(range) {
       h('div.stat-tile', h('div.stat-value', d.responseRate === null ? '–' : `${d.responseRate} %`), h('div.stat-label', t('survey.rate')))),
     h('div.survey-grid',
       h('div', h('h3', t('survey.distribution')), [5, 4, 3, 2, 1].map((n) => h('div.dist-row',
-        h('span.dist-label', stars(n)), h('span.dist-bar', h('span', { style: { width: `${(d.distribution[n - 1] / max) * 100}%` } })), h('span.dist-n', String(d.distribution[n - 1]))))),
+        h('span.dist-label', stars(n)), h('span.dist-track', h('span.dist-bar', { style: { width: `${(d.distribution[n - 1] / max) * 100}%` } })), h('span.dist-n', String(d.distribution[n - 1]))))),
       d.byAssignee.length ? h('div', h('h3', t('survey.byAgent')), h('table.data', h('tbody', d.byAssignee.map((a) => h('tr',
         h('td', a.name || t('app.unassigned')), h('td', stars(Math.round(a.average))), h('td', `${a.average}`), h('td.muted', t('survey.count', { n: a.count }))))))) : null),
     d.comments.length ? h('div', h('h3', t('survey.comments')), d.comments.map((c) => h('div.survey-comment', stars(c.rating), ' ',

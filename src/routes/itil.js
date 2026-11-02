@@ -8,7 +8,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog, cmdb, survey } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb, catalog, cmdb, survey, itilReports } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -76,6 +76,7 @@ export function createItilRoutes(ctx) {
   // ---------- Servicekatalog ----------
   // ---------- Zufriedenheit ----------
   r.post('/tickets/:key/rating', (req, res) => res.json({ ticket: survey.rateAsUser(req.user, req.params.key, req.body.rating, req.body.comment) }));
+  r.get('/reports/itil', requireRole('agent'), (req, res) => res.json(itilReports.report(req.query)));
   r.get('/reports/satisfaction', requireRole('agent'), (req, res) => res.json(survey.report(req.query)));
 
   // ---------- Geräte und Dienste ----------

@@ -14,6 +14,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Clear and simple:** sidebar with queues (open, assigned to me, unassigned, waiting, recently resolved, all) with live counts, per-project summary, board with drag & drop, ticket list with filters, ticket view with details, comments, internal notes, attachments and history
 - **Import from another ticket system** (via its REST API, cloud and Server/Data Center): projects, tickets, comments and attachments. Ticket numbers are kept.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
+- **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
 - **Roles:** administrator, agent, user. Users only see their own requests.
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
@@ -321,6 +322,12 @@ For replies that are always the same (e.g. "Please restart your computer"):
   - **Worked on:** tickets with an own change or comment
   - **Replies and internal notes**
   - **Avg. resolution time:** from "created" to "resolved"
+- **ITIL key figures** for the same period:
+  - **Service quality:** resolved requests and incidents, resolved at first contact (at most one reply from IT, no follow-up question, never reopened), reopen rate, major incidents. IT's own tickets are not counted.
+  - **SLA compliance** for response and resolution, overall and per priority (when SLAs are switched on)
+  - **Changes per month:** kinds, rejected, outcomes, success rate and share of emergency changes
+  - **Problems:** new, resolved, open, known errors
+  - **Satisfaction** (when the survey is switched on)
 
 ## Keyboard shortcuts
 
