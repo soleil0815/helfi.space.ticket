@@ -303,7 +303,11 @@ export function createTickets(db, users) {
         db.prepare('UPDATE tickets SET resolved_at=? WHERE id=?').run(changes.status.new === 'done' ? new Date().toISOString() : null, row.id);
       }
       if (rankChanged) db.prepare('UPDATE tickets SET rank=? WHERE id=?').run(Number(data.rank), row.id);
-      if (changes.description) claimInlineImages(row.id, changes.description.new, user.id);
+      if (changes.description) {
+        claimInlineImages(row.id, changes.description.new, user.id);
+        // Nach dem Bearbeiten gilt der Text – die formatierte Mail-Fassung passt nicht mehr dazu
+        db.prepare('DELETE FROM mail_html WHERE ticket_id=? AND comment_id IS NULL').run(row.id);
+      }
       if (Object.keys(changes).length) db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
     })();
 
@@ -376,11 +380,11 @@ export function createTickets(db, users) {
 
   // ---------- Anhänge ----------
   function attachments(ticketId) {
-    return db.prepare('SELECT id, filename, mime, size, comment_id, created_at FROM attachments WHERE ticket_id=? AND draft=0 ORDER BY id').all(ticketId)
+    return db.prepare('SELECT id, filename, mime, size, comment_id, created_at FROM attachments WHERE ticket_id=? AND draft=0 AND inline=0 ORDER BY id').all(ticketId)
       .map((a) => ({ id: a.id, filename: a.filename, mime: a.mime, size: a.size, commentId: a.comment_id, createdAt: a.created_at }));
   }
 
-  function addAttachment(ticketId, { filename, mime, buffer, tmpPath, size, createdAt }, userId = null, commentId = null, { silent = false, draft = false } = {}) {
+  function addAttachment(ticketId, { filename, mime, buffer, tmpPath, size, createdAt }, userId = null, commentId = null, { silent = false, draft = false, inline = false } = {}) {
     const dir = path.join(paths.attachments, String(ticketId));
     fs.mkdirSync(dir, { recursive: true });
     const storage = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -396,9 +400,9 @@ export function createTickets(db, users) {
       }
     }
     const safeName = String(filename || 'datei').replace(/[\\/\0\r\n]/g, '_').slice(0, 200);
-    const info = db.prepare("INSERT INTO attachments(ticket_id,comment_id,filename,mime,size,storage_name,uploaded_by,created_at,draft) VALUES(?,?,?,?,?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%fZ','now')),?)")
-      .run(ticketId, commentId, safeName, String(mime || 'application/octet-stream').slice(0, 100), size ?? buffer.length, storage, userId, createdAt || null, draft ? 1 : 0);
-    if (commentId === null && !silent && !draft) logActivity(ticketId, userId, 'attached', null, null, safeName);
+    const info = db.prepare("INSERT INTO attachments(ticket_id,comment_id,filename,mime,size,storage_name,uploaded_by,created_at,draft,inline) VALUES(?,?,?,?,?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%fZ','now')),?,?)")
+      .run(ticketId, commentId, safeName, String(mime || 'application/octet-stream').slice(0, 100), size ?? buffer.length, storage, userId, createdAt || null, draft ? 1 : 0, inline ? 1 : 0);
+    if (commentId === null && !silent && !draft && !inline) logActivity(ticketId, userId, 'attached', null, null, safeName);
     return info.lastInsertRowid;
   }
 
@@ -506,13 +510,32 @@ export function createTickets(db, users) {
       .all(ticketId).map((a) => ({ id: a.id, action: a.action, field: a.field, oldValue: a.old_value, newValue: a.new_value, createdAt: a.created_at, user: a.user_id ? { id: a.user_id, displayName: a.u_name } : null }));
   }
 
+  // ---------- HTML-Mails ----------
+  function saveMailHtml(ticketId, commentId, html, blocked = 0) {
+    db.prepare('INSERT INTO mail_html(ticket_id, comment_id, html, blocked) VALUES(?,?,?,?)').run(ticketId, commentId, html, blocked);
+  }
+  /** HTML zur Beschreibung (commentId null) oder zu einem Kommentar – mit denselben Rechten wie der Text */
+  function mailHtml(user, idOrKey, commentId = null) {
+    const row = load(user, idOrKey);
+    if (commentId) {
+      const c = db.prepare('SELECT internal FROM comments WHERE id=? AND ticket_id=?').get(commentId, row.id);
+      if (!c || (c.internal && !isAgent(user))) throw notFound();
+    }
+    const m = db.prepare(`SELECT html, blocked FROM mail_html WHERE ticket_id=? AND ${commentId ? 'comment_id=?' : 'comment_id IS NULL'}`)
+      .get(...(commentId ? [row.id, commentId] : [row.id]));
+    if (!m) throw notFound();
+    return m;
+  }
+
   function detail(user, idOrKey) {
     const row = load(user, idOrKey);
+    const htmlFor = new Set(db.prepare('SELECT comment_id FROM mail_html WHERE ticket_id=?').all(row.id).map((r) => r.comment_id ?? 0));
     return {
       ...ticketOut(row, isAgent(user)),
+      descriptionHtml: htmlFor.has(0),
       participants: participants(row.id, user),
       canManageParticipants: isAgent(user) || row.reporter_id === user.id || isParticipant(row.id, user.id),
-      comments: comments(user, row.id),
+      comments: comments(user, row.id).map((c) => ({ ...c, hasHtml: htmlFor.has(c.id) })),
       attachments: attachments(row.id).filter((a) => isAgent(user) || !a.commentId || !db.prepare('SELECT internal FROM comments WHERE id=?').get(a.commentId)?.internal),
       activity: isAgent(user) ? activity(row.id) : [],
     };
@@ -572,7 +595,7 @@ export function createTickets(db, users) {
   }
 
   return {
-    events, projects, list, load, detail, create, update, addComment, comments,
+    events, projects, list, load, detail, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
     participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };

@@ -7,6 +7,7 @@ import { log } from '../lib/log.js';
 import { roleFromGroups } from '../users.js';
 import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail, deliveryReport } from './parse.js';
 import { parseRules, matchRule } from './rules.js';
+import { sanitizeMailHtml, resolveCids } from './html.js';
 
 export const MAX_NEW_TICKETS_PER_HOUR = 20;
 // Gründe für übersprungene Mails (für das Protokoll)
@@ -220,7 +221,9 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const text = String(parsed.text || '').trim()
       || (parsed.html ? htmlToText(parsed.html, { wordwrap: false, selectors: [{ selector: 'img', format: 'skip' }, { selector: 'a', options: { hideLinkHrefIfSameAsText: true } }] }).trim() : '');
     const maxBytes = (cfg.maxAttachmentMb || 20) * 1024 * 1024;
-    const all = (parsed.attachments || []).filter((a) => a.content && !(a.related && a.size < 30 * 1024)); // kleine Inline-Bilder (Signaturen) weglassen
+    // Kleine eingebettete Bilder (Logos, Signaturen) nicht als Anhang – nur für die formatierte Ansicht (unten)
+    const smallInline = (a) => a.related && a.size < 30 * 1024;
+    const all = (parsed.attachments || []).filter((a) => a.content && !smallInline(a));
     const files = all.filter((a) => a.size <= maxBytes).slice(0, MAX_ATTACHMENTS);
     const dropped = all.filter((a) => !files.includes(a));
     // Nicht übernommene Anhänge im Text vermerken, damit niemand etwas übersieht
@@ -256,12 +259,30 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       }
     };
 
+    // Formatierte Fassung (HTML) – bereinigt; bei Antworten den zitierten Verlauf einklappen
+    const mailHtml = parsed.html ? sanitizeMailHtml(parsed.html, { collapseQuote: !!existingId }) : null;
+    const cidOf = (a) => String(a.cid || a.contentId || '').replace(/^<|>$/g, '').toLowerCase();
+    const usedCids = new Set(mailHtml?.cids || []);
+    const inlineOnly = mailHtml ? (parsed.attachments || []).filter((a) => a.content && smallInline(a) && usedCids.has(cidOf(a))).slice(0, 30) : [];
+    const storeFiles = (ticketId, userId, commentId) => {
+      const cidMap = new Map();
+      for (const a of files) {
+        const id = tickets.addAttachment(ticketId, { filename: a.filename, mime: a.contentType, buffer: a.content }, userId, commentId);
+        if (usedCids.has(cidOf(a))) cidMap.set(cidOf(a), id);
+      }
+      for (const a of inlineOnly) {
+        if (!/^image\//i.test(a.contentType || '')) continue;
+        cidMap.set(cidOf(a), tickets.addAttachment(ticketId, { filename: a.filename || 'bild', mime: a.contentType, buffer: a.content }, userId, commentId, { inline: true }));
+      }
+      if (mailHtml) tickets.saveMailHtml(ticketId, commentId, resolveCids(mailHtml.html, cidMap), mailHtml.blocked);
+    };
+
     return db.transaction(() => {
       if (existingId) {
         const comment = tickets.addComment(privileged ? null : sender, existingId, { body: (stripQuotedReply(text) || '(leer)') + droppedNote }, {
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
         });
-        for (const a of files) tickets.addAttachment(existingId, { filename: a.filename, mime: a.contentType, buffer: a.content }, privileged ? null : sender.id, comment.id);
+        storeFiles(existingId, privileged ? null : sender.id, comment.id);
         if (!privileged) addCcParticipants(existingId);
         remember.run(messageId, existingId);
         return { action: 'comment', ticketId: existingId, messageId };
@@ -274,7 +295,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
         projectId: project?.id,
         type: 'request',
       }, { source: 'email', reporterEmail: fromAddr, reporterName: from?.name || null, reporterId: sender.id, messageId });
-      for (const a of files) tickets.addAttachment(ticket.id, { filename: a.filename, mime: a.contentType, buffer: a.content }, sender.id, null);
+      storeFiles(ticket.id, sender.id, null);
       addCcParticipants(ticket.id);
       remember.run(messageId, ticket.id);
       return { action: 'ticket', ticketId: ticket.id, key: ticket.key, messageId };
@@ -283,7 +304,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
 
   /** Mail zerlegen; den Anfang der Rohmail behalten (Kopfzeilen/Zustellbericht, die mailparser verwirft). */
   async function parse(source) {
-    const p = await simpleParser(source);
+    // cid:-Verweise behalten (sonst bettet mailparser jedes Bild als data:-URL ins HTML ein)
+    const p = await simpleParser(source, { keepCidLinks: true });
     const buf = Buffer.isBuffer(source) ? source : Buffer.from(String(source));
     Object.defineProperty(p, 'raw', { value: buf.subarray(0, 256 * 1024).toString('latin1'), enumerable: false });
     return p;

@@ -4,6 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import multer from 'multer';
 import { isHexColor, saveLogo, removeLogo } from '../brand.js';
+import { viewerDocument } from '../mail/html.js';
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
@@ -369,6 +370,17 @@ export function createApi(ctx) {
   }));
 
   r.get('/tickets/:key', (req, res) => res.json({ ticket: tickets.detail(req.user, req.params.key) }));
+
+  // Formatierte Fassung einer HTML-Mail – nur im abgeschotteten Rahmen: kein Skript, keine fremden Inhalte
+  r.get('/tickets/:key/mail-html', (req, res) => {
+    const m = tickets.mailHtml(req.user, req.params.key, req.query.comment ? int(req.query.comment) || -1 : null);
+    const lang = normalizeLang(req.user?.language || langFromHeader(req.get('accept-language')));
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.type('html').send(viewerDocument(m.html, { blocked: m.blocked, blockedText: t(lang, 'mail.blockedImages', { n: m.blocked }), quoteText: t(lang, 'mail.showQuoted'), lang }));
+  });
 
   r.patch('/tickets/:key', wrap(async (req, res) => {
     res.json({ ticket: tickets.update(req.user, req.params.key, req.body) });

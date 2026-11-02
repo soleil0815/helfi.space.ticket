@@ -211,6 +211,24 @@ export const MIGRATIONS = [
     ALTER TABLE attachments ADD COLUMN draft INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: 8,
+    name: 'HTML-Mails',
+    sql: `
+    -- Bereinigtes HTML eingehender Mails (Beschreibung: comment_id NULL). Eigene Tabelle, damit Listen schlank bleiben.
+    CREATE TABLE mail_html (
+      id INTEGER PRIMARY KEY,
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      comment_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
+      html TEXT NOT NULL,
+      blocked INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_mail_html_ticket ON mail_html(ticket_id);
+    -- Eingebettete Bilder (Logos, Signaturen) nur für die formatierte Ansicht, nicht in der Anhangsliste
+    ALTER TABLE attachments ADD COLUMN inline INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

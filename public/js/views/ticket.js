@@ -10,6 +10,7 @@ import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.j
 import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
+import { mailView } from '../mailview.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const TYPES = ['incident', 'request', 'task', 'question'];
@@ -58,6 +59,12 @@ export async function renderTicket(content, key) {
   }
 
   function descriptionEl() {
+    // HTML-Mail: Umschalter „Formatiert | Text“; bearbeitet wird in der Textfassung
+    if (tk.descriptionHtml) return mailView(plainDescriptionEl, `/api/tickets/${encodeURIComponent(tk.key)}/mail-html`);
+    return plainDescriptionEl();
+  }
+
+  function plainDescriptionEl() {
     const box = h('div.desc', { class: canEditText ? 'editable' : '', tabindex: canEditText ? 0 : -1 },
       tk.description ? richText(tk.description) : h('p.placeholder', canEditText ? t('ticket.noDescription') : t('app.emptyValue')));
     if (!canEditText) return box;
@@ -129,7 +136,7 @@ export async function renderTicket(content, key) {
           c.internal ? h('span.badge.badge-internal', icon('lock'), t('ticket.internal')) : null,
           c.source === 'email' ? h('span.badge', icon('mail'), t('source.email')) : null,
           h('span.muted', { title: fmtDate(c.createdAt) }, relTime(c.createdAt))),
-        richText(c.body)));
+        c.hasHtml ? mailView(() => richText(c.body), `/api/tickets/${encodeURIComponent(tk.key)}/mail-html?comment=${c.id}`) : richText(c.body)));
   }
 
   function historyEl(a) {
