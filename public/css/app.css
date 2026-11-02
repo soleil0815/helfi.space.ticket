@@ -847,7 +847,7 @@ a.stat-link:hover { border-color: var(--blue); }
 .kb-meta .chip { font-size: 12px; }
 .kb-parent-label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-subtle); }
 .kb-parent { max-width: 280px; }
-@media (max-width: 1100px) { .kb-overview { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .kb-overview { grid-template-columns: minmax(0, 1fr); } }
 
 /* Druckansicht mit Unterseiten */
 .kb-print-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--blue-subtle); border-radius: 6px; margin-bottom: 20px; flex-wrap: wrap; max-width: 860px; }
