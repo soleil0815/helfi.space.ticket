@@ -13,9 +13,10 @@ export const QUEUES = [
 export const VIEWS = [
   { id: 'requests', label: 'nav.serviceRequests', icon: 'type-request', params: { type: 'request', status: 'unresolved' }, count: 'requests' },
   { id: 'incidents', label: 'nav.incidents', icon: 'type-incident', params: { type: 'incident', status: 'unresolved' }, count: 'incidents' },
+  { id: 'slaRisk', label: 'nav.slaRisk', icon: 'warning', params: { sla: 'risk' }, count: 'slaRisk', when: (boot) => boot.sla?.enabled },
 ];
 
-const FILTER_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue'];
+const FILTER_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla'];
 
 export function queueHref(q, projectKey) {
   const p = new URLSearchParams({ ...(projectKey ? { project: projectKey } : {}), ...q.params });

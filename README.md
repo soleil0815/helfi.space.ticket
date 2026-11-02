@@ -210,6 +210,22 @@ In der Ticketansicht (Bearbeiter) unter *Verknüpfungen*:
 - **Unteraufgaben:** direkt anlegen (Aufgabe im selben Projekt) oder bestehende Tickets unterordnen. Ein Fortschrittsbalken zeigt „x von y erledigt“. Ein Ticket hat höchstens ein übergeordnetes Ticket, Kreise werden abgelehnt.
 - Verknüpfungen sehen nur Bearbeiter; höchstens 50 je Ticket.
 
+## Auswirkung, Dringlichkeit und Major Incident
+
+- **Priorität nach ITIL:** In den Details setzen Bearbeiter *Auswirkung* und *Dringlichkeit* (hoch/mittel/niedrig). Sind beide gesetzt, ergibt sich die Priorität aus der Matrix (z. B. hoch × hoch = Sehr hoch, mittel × mittel = Mittel). Von Hand lässt sie sich weiterhin ändern.
+- **Major Incident:** Eine Störung mit vielen Betroffenen über den Knopf *Major Incident* kennzeichnen. Alle Bearbeiter sehen sie oben als roten Hinweis. Betroffene Tickets hängst du über *Verknüpfen → verursacht* an. **Info an alle Betroffenen** schreibt dieselbe Antwort in den Major Incident und alle offenen betroffenen Tickets, sodass jeder Melder und Teilnehmer sie per Mail bekommt. Optional werden danach alle auf „Erledigt“ gesetzt.
+
+## Service Level (SLA)
+
+*Administration → Service Level* (standardmäßig aus):
+
+- **Ziele je Priorität** für die **erste Reaktion** (erste öffentliche Antwort eines Bearbeiters) und die **Lösung**, in Geschäftsstunden. Vorgabe: Sehr hoch 0,5 / 4 Std, Hoch 2 / 16, Mittel 8 / 40, Niedrig 16 / 80.
+- **Geschäftszeiten** (Wochentage, Beginn, Ende) und **Feiertage** (eine Zeile je Tag, `2026-12-24 Heiligabend`). Außerhalb läuft keine SLA-Zeit; maßgeblich ist die Zeitzone `TZ` des Containers.
+- **„Wartet“ hält die Lösungszeit an** (abschaltbar).
+- Gilt für Störungen, Anfragen und Fragen von Benutzern, nicht für Aufgaben und eigene Tickets der Bearbeiter und nicht für importierte Tickets.
+- **Anzeige:** In der Ticketansicht stehen beide Uhren mit Restzeit, grün, gelb ab 80 % (einstellbar) und rot bei Überschreitung. In der Ticketliste gibt es eine SLA-Spalte, in der Seitenleiste die Ansicht **SLA gefährdet** mit Zähler.
+- **Warnung:** Bei Erreichen der Warnschwelle und bei Überschreitung bekommt der Bearbeiter eine Mail (ohne Bearbeiter die Projektleitung), jeweils einmal. Der Verlauf hält es fest.
+
 ## Emojis
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:

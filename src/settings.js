@@ -12,6 +12,14 @@ export const DEFAULTS = {
 
   // Anmeldeseite (Text ohne HTML; **fett**, Links und Mailadressen werden erkannt)
   'login.title': '',
+  // Service Level (SLA): Ziele in Geschäftsminuten je Priorität
+  'sla.enabled': false,
+  'sla.hours': '{"days":[1,2,3,4,5],"start":"08:00","end":"17:00"}',
+  'sla.holidays': '', // eine Zeile je Feiertag: JJJJ-MM-TT Name
+  'sla.targets': '{"highest":{"response":30,"resolve":240},"high":{"response":120,"resolve":960},"medium":{"response":480,"resolve":2400},"low":{"response":960,"resolve":4800}}',
+  'sla.pauseWaiting': true, // „Wartet“ hält die Lösungsuhr an
+  'sla.warnPercent': 80,
+
   // Erscheinungsbild
   'brand.color': '', // Hauptfarbe #RRGGBB (leer = Standardblau)
   'brand.header': 'light', // light | color (Kopfzeile in der Hauptfarbe)

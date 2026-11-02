@@ -208,7 +208,7 @@ function layout(content, path) {
       nav('/summary', t('nav.summary'), 'globe', path === '/summary'),
       queuesNav(path, p),
       nav('/board', t('nav.board'), 'board', path === '/board'),
-      ...VIEWS.map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
+      ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
       state.isAdmin ? nav('/admin/mail', t('nav.channelsMail'), 'mail', path === '/admin/mail') : null,
@@ -224,6 +224,9 @@ function layout(content, path) {
   }
 
   const warnings = (state.boot.warnings || []).map((w) => h('div.banner.banner-warn', icon('warning'), t(`warn.${w.code}`, w)));
+  for (const mi of state.boot.majorIncidents || []) {
+    warnings.unshift(h('div.banner.banner-major', icon('warning'), h('strong', t('major.title')), h('a', { href: `/browse/${mi.key}`, 'data-link': '' }, `${mi.key} ${mi.title}`)));
+  }
   const m = state.boot.mfa;
   if (m && m.mode !== 'off' && !m.enabled && u.source !== 'oidc' && path !== '/profile') {
     warnings.push(h('div.banner.banner-info', icon('shield'), h('span', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup'))));

@@ -246,6 +246,29 @@ export const MIGRATIONS = [
     CREATE INDEX idx_links_to ON ticket_links(to_id);
     `,
   },
+  {
+    id: 10,
+    name: 'Auswirkung, Dringlichkeit, Major Incident',
+    sql: `
+    ALTER TABLE tickets ADD COLUMN impact TEXT;
+    ALTER TABLE tickets ADD COLUMN urgency TEXT;
+    ALTER TABLE tickets ADD COLUMN major INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    id: 11,
+    name: 'SLA-Warnungen',
+    sql: `
+    -- Je Ticket, Uhr (response/resolve) und Stufe (warning/breached) nur einmal warnen
+    CREATE TABLE sla_events (
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      level TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (ticket_id, kind, level)
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

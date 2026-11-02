@@ -7,7 +7,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links } = ctx;
+  const { links, major } = ctx;
 
   // ---------- Verknüpfungen ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -18,6 +18,11 @@ export function createItilRoutes(ctx) {
   });
   r.post('/tickets/:key/subtasks', requireRole('agent'), wrap(async (req, res) => {
     res.status(201).json(links.createSubtask(req.user, req.params.key, { title: req.body.title, assigneeId: req.body.assigneeId || null }));
+  }));
+
+  // ---------- Major Incident ----------
+  r.post('/tickets/:key/broadcast', requireRole('agent'), wrap(async (req, res) => {
+    res.json(major.broadcast(req.user, req.params.key, { body: req.body.body, resolve: !!req.body.resolve }));
   }));
 
   return r;

@@ -33,6 +33,7 @@ async function main() {
 
   // E-Mail-Abruf
   ctx.poller.start();
+  ctx.sla.start();
 
   // Täglich: Sicherung, alte Sitzungen, LDAPS-Zertifikat prüfen
   const daily = async () => {

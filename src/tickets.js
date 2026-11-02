@@ -10,6 +10,13 @@ import { userRef } from './users.js';
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 export const TYPES = ['incident', 'request', 'task', 'question'];
 export const PRIORITIES = ['highest', 'high', 'medium', 'low'];
+// Auswirkung × Dringlichkeit → Priorität (ITIL)
+export const LEVELS = ['high', 'medium', 'low'];
+export const PRIORITY_MATRIX = {
+  high: { high: 'highest', medium: 'high', low: 'medium' },
+  medium: { high: 'high', medium: 'medium', low: 'low' },
+  low: { high: 'medium', medium: 'low', low: 'low' },
+};
 
 const KEY_RE = /^[A-Z][A-Z0-9]{1,9}$/;
 export const MAX_PARTICIPANTS = 20;
@@ -116,6 +123,9 @@ export function createTickets(db, users) {
       status: t.status,
       priority: t.priority,
       labels: t.labels ? t.labels.split(',') : [],
+      impact: t.impact || null,
+      urgency: t.urgency || null,
+      major: !!t.major,
       dueDate: t.due_date,
       source: t.source,
       rank: t.rank,
@@ -275,6 +285,18 @@ export function createTickets(db, users) {
       set('assignee', 'assignee_id', aid);
     }
     if (data.labels !== undefined) set('labels', 'labels', normalizeLabels(data.labels));
+    for (const f of ['impact', 'urgency']) {
+      if (data[f] === undefined) continue;
+      if (data[f] && !LEVELS.includes(data[f])) throw new HttpError(400, 'err.badRequest', f);
+      set(f, f, data[f] || null);
+    }
+    // Priorität aus der Matrix, sobald beides bekannt ist und Auswirkung/Dringlichkeit sich ändert
+    if ((changes.impact || changes.urgency) && data.priority === undefined) {
+      const imp = changes.impact ? changes.impact.new : row.impact;
+      const urg = changes.urgency ? changes.urgency.new : row.urgency;
+      if (imp && urg) set('priority', 'priority', PRIORITY_MATRIX[imp][urg]);
+    }
+    if (data.major !== undefined) set('major', 'major', data.major ? 1 : 0);
     if (data.dueDate !== undefined) {
       const d = data.dueDate ? isoDate(data.dueDate) : null;
       if (data.dueDate && !d) throw new HttpError(400, 'err.badRequest', 'dueDate');
@@ -315,6 +337,7 @@ export function createTickets(db, users) {
     const result = agent ? t : ticketOut(rawById(row.id), false);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
     if (changes.status && changes.status.new === 'done' && !opts.quietResolved) emitLater('resolved', { ticket: t, user });
+    if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
     return result;
   }
 

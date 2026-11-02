@@ -59,6 +59,7 @@ export const api = {
   tickets: (f) => request('GET', `/api/tickets${qs(f)}`),
   link: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/links`, d),
   unlink: (key, id) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/links/${id}`),
+  broadcast: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/broadcast`, d),
   createSubtask: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/subtasks`, d),
   ticket: (key) => request('GET', `/api/tickets/${encodeURIComponent(key)}`),
   createTicket: (d) => request('POST', '/api/tickets', d),
