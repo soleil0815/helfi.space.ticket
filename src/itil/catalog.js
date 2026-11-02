@@ -79,7 +79,7 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
     if (ids.length) {
       approvals.request(tk.id, ids);
       db.prepare("INSERT INTO ticket_fields(ticket_id, name, value) VALUES(?, 'approvalState', 'pending'), (?, 'approvalMode', ?)").run(tk.id, tk.id, r.approval_mode);
-      tickets.logActivity(tk.id, null, 'approvalRequested', null, null, String(ids.length));
+      tickets.logActivity(tk.id, user.id, 'approvalRequested', null, null, ids.map((x) => users?.byId(x)?.display_name).filter(Boolean).join(', '));
       for (const aid of ids) notify(users?.byId(aid), 'mail.catalogApproval.subject', 'mail.catalogApproval.body', tk, { requester: user.display_name || user.username });
     }
     return tickets.detail(user, tk.id);
