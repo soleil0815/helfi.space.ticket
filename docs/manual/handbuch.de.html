@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Helfi.Space – Handbuch</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<section class="cover">
+  <img src="../../public/logo.svg" alt="">
+  <div class="title">Helfi.Space</div>
+  <div class="subtitle">Handbuch für Benutzer, Bearbeiter und Administratoren</div>
+  <p>Helfi.Space ist ein schlankes Ticketsystem für IT-Abteilungen und Institute. Es läuft als ein einzelner Docker-Container, meldet Benutzer über Active Directory oder Single Sign-on an und macht aus E-Mails Tickets.</p>
+  <div class="audience">
+    <div><strong>Benutzer</strong>Probleme melden, Anfragen verfolgen, antworten – Kapitel 2</div>
+    <div><strong>Bearbeiter</strong>Tickets bearbeiten, Vorlagen, Berichte, Tastenkürzel – Kapitel 3</div>
+    <div><strong>Administratoren</strong>Installation, AD, SSO, 2FA, E-Mail, Updates, Sicherung – Kapitel 4 und 5</div>
+  </div>
+  <div class="meta">Version {{VERSION}} · Stand {{DATE}}<br>Alle Namen, Adressen und Rechner in diesem Handbuch sind Beispiele.</div>
+</section>
+
+<nav class="toc">
+  <h1>Inhalt</h1>
+  <ol>
+    <li><a href="#ueberblick">Überblick</a>
+      <ol><li><a href="#rollen">Rollen</a></li><li><a href="#begriffe">Status, Typen und Prioritäten</a></li><li><a href="#oberflaeche">Aufbau der Oberfläche</a></li></ol></li>
+    <li><a href="#benutzer">Für alle: Anmelden und Anfragen stellen</a>
+      <ol><li><a href="#anmelden">Anmelden</a></li><li><a href="#melden">Ein Problem melden</a></li><li><a href="#anfragen">Meine Anfragen</a></li><li><a href="#antworten">Antworten und Dateien</a></li><li><a href="#teilnehmer">Anfrage-Teilnehmer</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profil">Profil, Sprache und Kennwort</a></li><li><a href="#2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</a></li></ol></li>
+    <li><a href="#bearbeiter">Für Bearbeiter</a>
+      <ol><li><a href="#warteschlangen">Warteschlangen und Zusammenfassung</a></li><li><a href="#board">Board</a></li><li><a href="#liste">Ticketliste und Filter</a></li><li><a href="#ticket">Ein Ticket bearbeiten</a></li><li><a href="#notizen">Antworten und interne Notizen</a></li><li><a href="#html-mails">HTML-Mails</a></li><li><a href="#vorlagen">Antwortvorlagen</a></li><li><a href="#mehrfach">Mehrere Tickets auf einmal</a></li><li><a href="#berichte">Berichte</a></li><li><a href="#kuerzel">Tastenkürzel</a></li><li><a href="#nie-loeschen">Tickets werden nie gelöscht</a></li></ol></li>
+    <li><a href="#admin">Für Administratoren: Einrichtung</a>
+      <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS und Reverse-Proxy</a></li><li><a href="#ersteinrichtung">Ersteinrichtung</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single Sign-on</a></li><li><a href="#2fa">Zwei-Faktor-Anmeldung und Netze</a></li><li><a href="#email">E-Mail</a></li><li><a href="#projekte">Projekte</a></li><li><a href="#benutzerverwaltung">Benutzer</a></li><li><a href="#design">Erscheinungsbild</a></li><li><a href="#anmeldeseite">Anmeldeseite</a></li><li><a href="#import">Import aus einem anderen Ticketsystem</a></li></ol></li>
+    <li><a href="#betrieb">Für Administratoren: Betrieb</a>
+      <ol><li><a href="#updates">Updates</a></li><li><a href="#zurueck">Version festhalten und zurückgehen</a></li><li><a href="#sicherung">Sicherung und Wiederherstellung</a></li><li><a href="#sicherheit">Sicherheit</a></li><li><a href="#hilfe">Fragen und Lösungen</a></li></ol></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="ueberblick">Überblick</h1>
+
+<p>In Helfi.Space wird jedes Anliegen ein <strong>Ticket</strong> – egal ob jemand es im Browser meldet oder eine E-Mail an das Helpdesk-Postfach schickt. Bearbeiter sehen alle Tickets ihrer Projekte, ordnen sie zu, antworten und setzen sie am Ende auf „Erledigt“. Melder bekommen jede Antwort per E-Mail und können direkt darauf antworten.</p>
+
+<figure><img src="img/de/board.jpg" alt=""><figcaption>Board eines Projekts mit den vier Status-Spalten</figcaption></figure>
+
+<h2 id="rollen">Rollen</h2>
+<table>
+  <tr><th style="width:24%">Rolle</th><th>Was sie darf</th></tr>
+  <tr><td><strong>Benutzer</strong></td><td>Eigene Tickets melden und verfolgen, Tickets sehen, an denen er als Teilnehmer beteiligt ist, antworten und Dateien anhängen. Interne Notizen sieht er nie.</td></tr>
+  <tr><td><strong>Bearbeiter</strong></td><td>Alle Tickets sehen und bearbeiten: Status, Zuweisung, Priorität, Typ, Stichwörter, interne Notizen, Antwortvorlagen, Mehrfachauswahl, Berichte.</td></tr>
+  <tr><td><strong>Administrator</strong></td><td>Alles, was Bearbeiter dürfen, und zusätzlich die <em>Administration</em>: Projekte, Benutzer, AD, SSO, Sicherheit, E-Mail, Erscheinungsbild, Import, System.</td></tr>
+</table>
+<p>Mit Active Directory ergibt sich die Rolle bei jeder Anmeldung aus den AD-Gruppen (Kapitel <a href="#ad">4.4</a>). Bei der Ersteinrichtung entsteht außerdem ein <strong>lokaler Administrator</strong>, der auch funktioniert, wenn das AD nicht erreichbar ist.</p>
+
+<h2 id="begriffe">Status, Typen und Prioritäten</h2>
+<table>
+  <tr><th style="width:24%">Status</th><th>Bedeutung</th></tr>
+  <tr><td>Offen</td><td>Neu oder noch nicht begonnen.</td></tr>
+  <tr><td>In Arbeit</td><td>Jemand kümmert sich darum.</td></tr>
+  <tr><td>Wartet</td><td>Es wird auf eine Antwort des Melders gewartet. Antwortet er, öffnet sich das Ticket wieder.</td></tr>
+  <tr><td>Erledigt</td><td>Abgeschlossen. Der Melder bekommt eine Mail. Antwortet er darauf, öffnet sich das Ticket wieder.</td></tr>
+</table>
+<p><strong>Typen:</strong> Störung (etwas funktioniert nicht), Anfrage (etwas wird gebraucht), Aufgabe (interne Arbeit), Frage. <strong>Prioritäten:</strong> Sehr hoch, Hoch, Mittel, Niedrig.</p>
+<p>Jedes Ticket hat eine <strong>Nummer</strong> aus Projektschlüssel und laufender Zahl, z. B. <code>IT-42</code>. Sie steht auch im Betreff aller Mails, z. B. <code>[IT-42]</code>.</p>
+
+<h2 id="oberflaeche">Aufbau der Oberfläche</h2>
+<ul>
+  <li><strong>Kopfzeile:</strong> Logo, <em>Meine Arbeit</em>, <em>Alle Tickets</em>, der Knopf <strong>Erstellen</strong>, die Suche (Ticketnummer oder Stichwort) und rechts das Benutzermenü mit Profil, Sprache (Deutsch/English) und Abmelden.</li>
+  <li><strong>Seitenleiste (Bearbeiter):</strong> das aktuelle Projekt, Zusammenfassung, Warteschlangen mit Live-Zahlen, Board, Serviceanfragen, Vorfälle, Berichte, Antwortvorlagen und für Admins die Einstellungen.</li>
+  <li><strong>Seitenleiste (Benutzer):</strong> nur <em>Meine Anfragen</em>.</li>
+</ul>
+<div class="tip"><p>Die Oberfläche gibt es auf Deutsch und Englisch. Ohne eigene Wahl richtet sie sich nach der Sprache des Browsers.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="benutzer">Für alle: Anmelden und Anfragen stellen <span class="role role-all">alle</span></h1>
+
+<h2 id="anmelden">Anmelden</h2>
+<p>Öffne die Adresse, die deine IT dir genannt hat, z. B. <code>https://helfi.firma.local</code>. Mit Active Directory meldest du dich mit deinem Windows-Konto an – als <code>m.muster</code>, <code>FIRMA\m.muster</code> oder <code>m.muster@firma.local</code>. Ist Single Sign-on eingerichtet, gibt es zusätzlich einen Knopf „Mit Firmenkonto anmelden“, oder du wirst direkt weitergeleitet.</p>
+<figure class="medium"><img src="img/de/login.jpg" alt=""><figcaption>Anmeldeseite mit eigenem Begrüßungstext</figcaption></figure>
+<p>Meldest du dich <strong>von außerhalb des Firmennetzes</strong> an, fragt Helfi.Space je nach Einstellung nach dem Kennwort zusätzlich einen 6-stelligen Code aus deiner Authenticator-App ab (siehe <a href="#2fa-einrichten">2.8</a>).</p>
+
+<h2 id="melden">Ein Problem melden</h2>
+<p>Es gibt zwei Wege:</p>
+<ul>
+  <li><strong>Per E-Mail</strong> an das Helpdesk-Postfach, z. B. <code>helpdesk@firma.local</code>. Der Betreff wird zur Zusammenfassung, der Text zur Beschreibung, Anhänge kommen mit. Wen du in <em>An</em> oder <em>CC</em> setzt, wird automatisch Teilnehmer. Du bekommst eine Eingangsbestätigung mit der Ticketnummer.</li>
+  <li><strong>Im Browser</strong> über <strong>Erstellen</strong> (sofern die IT das erlaubt): Zusammenfassung, Beschreibung, Typ und Priorität angeben, optional Dateien anhängen.</li>
+</ul>
+<figure><img src="img/de/create.jpg" alt=""><figcaption>Dialog „Ticket erstellen“</figcaption></figure>
+<div class="tip"><p><strong>Screenshots einfügen:</strong> Ein Bild aus der Zwischenablage (z. B. mit <kbd>Win</kbd>+<kbd>Umschalt</kbd>+<kbd>S</kbd> aufgenommen) fügst du mit <kbd>Strg</kbd>+<kbd>V</kbd> direkt in die Beschreibung oder einen Kommentar ein.</p></div>
+
+<h2 id="anfragen">Meine Anfragen</h2>
+<p>Unter <em>Meine Anfragen</em> stehen alle Tickets, die du gemeldet hast oder an denen du beteiligt bist. Mit den Filtern oben grenzt du nach Status oder „Ich bin Teilnehmer“ ein.</p>
+<figure><img src="img/de/requests.jpg" alt=""><figcaption>Meine Anfragen aus Sicht eines Benutzers</figcaption></figure>
+
+<h2 id="antworten">Antworten und Dateien</h2>
+<p>Öffne ein Ticket und schreibe unten in das Kommentarfeld; mit <strong>Speichern</strong> oder <kbd>Strg</kbd>+<kbd>Enter</kbd> geht die Antwort an die IT. Alternativ antwortest du einfach auf eine Mail von Helfi.Space – die Antwort landet automatisch im richtigen Ticket, zitierter Verlauf wird abgeschnitten.</p>
+<figure><img src="img/de/ticket-user.jpg" alt=""><figcaption>Ein Ticket aus Sicht des Melders</figcaption></figure>
+<p>Dateien hängst du unter <em>Anhänge → Datei anhängen</em> an. Bilder werden direkt angezeigt, alle anderen Dateien werden heruntergeladen.</p>
+
+<h2 id="teilnehmer">Anfrage-Teilnehmer</h2>
+<p>Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem. Unter <em>Anfrage-Teilnehmer → Hinzufügen</em> fügst du Kollegen mit eigenem Konto hinzu (höchstens 20 je Ticket).</p>
+<ul>
+  <li>Teilnehmer sehen das Ticket, können kommentieren und Dateien anhängen und bekommen dieselben Mails wie der Melder.</li>
+  <li>Sie sehen keine internen Notizen und können Status, Zuweisung oder Titel nicht ändern.</li>
+  <li>Entfernen können sich Teilnehmer selbst; außerdem der Melder und die Bearbeiter.</li>
+</ul>
+
+<h2 id="emojis">Emojis</h2>
+<ul>
+  <li><strong>🙂-Knopf</strong> unten rechts im Textfeld: Auswahl mit Suche (z. B. „daumen“ oder „drucker“), Gruppen und „Zuletzt verwendet“.</li>
+  <li><strong>Kurznamen:</strong> <code>:dau</code> schlägt 👍 vor (Pfeiltasten und Enter oder Tab übernehmen, Esc schließt). <code>:tada:</code> wird sofort zu 🎉.</li>
+  <li><strong>Klassische Smileys</strong> werden umgewandelt, sobald danach ein Leerzeichen folgt: <code>:)</code> → 🙂, <code>;)</code> → 😉, <code>:D</code> → 😄, <code>:(</code> → 🙁, <code>:P</code> → 😛, <code>:O</code> → 😮, <code>&lt;3</code> → ❤️, <code>(y)</code> → 👍. <kbd>Strg</kbd>+<kbd>Z</kbd> macht die Umwandlung sofort rückgängig.</li>
+</ul>
+<figure><img src="img/de/emoji.jpg" alt=""><figcaption>Emoji-Auswahl im Kommentarfeld</figcaption></figure>
+
+<h2 id="profil">Profil, Sprache und Kennwort</h2>
+<p>Über dein Bild oben rechts → <em>Profil</em> erreichst du:</p>
+<ul>
+  <li><strong>Name und E-Mail-Adresse</strong> – bei lokalen Konten änderbar (für eine neue Mailadresse ist das aktuelle Kennwort nötig). Bei AD- und SSO-Konten kommen beide Angaben aus dem Firmenkonto.</li>
+  <li><strong>Sprache</strong> der Oberfläche und der Mails an dich.</li>
+  <li><strong>Zwei-Faktor-Anmeldung</strong> einrichten oder verwalten.</li>
+  <li><strong>Kennwort ändern</strong> (nur lokale Konten; AD-Kennwörter änderst du wie gewohnt in Windows).</li>
+</ul>
+<figure><img src="img/de/profile.jpg" alt=""><figcaption>Profil eines Benutzers</figcaption></figure>
+
+<h2 id="2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</h2>
+<p>Wenn deine IT es verlangt (oder freiwillig): <em>Profil → Zwei-Faktor-Anmeldung → Jetzt einrichten</em>.</p>
+<ol>
+  <li>Authenticator-App auf dem Handy öffnen (z. B. Microsoft Authenticator, Google Authenticator, Aegis, 2FAS).</li>
+  <li>Den QR-Code scannen.</li>
+  <li>Den angezeigten 6-stelligen Code eingeben und <strong>Aktivieren</strong>.</li>
+  <li>Die <strong>10 Wiederherstellungscodes</strong> sicher aufbewahren (ausdrucken oder im Passwortmanager). Jeder gilt genau einmal, falls das Handy nicht zur Hand ist.</li>
+</ol>
+<div class="note"><p>Die Ersteinrichtung geht aus Sicherheitsgründen normalerweise nur im <strong>Firmennetz</strong>. So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. <strong>Handy verloren?</strong> Mit einem Wiederherstellungscode anmelden oder die IT bitten, die 2FA zurückzusetzen.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="bearbeiter">Für Bearbeiter <span class="role role-agent">Bearbeiter</span></h1>
+
+<h2 id="warteschlangen">Warteschlangen und Zusammenfassung</h2>
+<p>Die Seitenleiste zeigt für das gewählte Projekt feste <strong>Warteschlangen</strong> mit Live-Zahlen: <em>Alle offenen Tickets</em>, <em>Mir zugewiesen</em>, <em>Nicht zugewiesen</em>, <em>Wartet auf Melder</em>, <em>Kürzlich erledigt</em> (7 Tage) und <em>Alle Tickets</em>. Darunter <em>Serviceanfragen</em> und <em>Vorfälle</em> (offene Anfragen bzw. Störungen). Das Projekt wechselst du oben in der Seitenleiste.</p>
+<p>Die <strong>Zusammenfassung</strong> zeigt Kennzahlen, Verteilungen nach Status, Typ und Priorität und die dringendsten offenen Tickets.</p>
+<figure><img src="img/de/summary.jpg" alt=""><figcaption>Zusammenfassung eines Projekts</figcaption></figure>
+<p><em>Meine Arbeit</em> in der Kopfzeile sammelt alles, was dir zugewiesen ist, was niemandem zugewiesen ist und was du selbst gemeldet hast.</p>
+
+<h2 id="board">Board</h2>
+<p>Das Board zeigt die Tickets in vier Spalten nach Status. Ziehe eine Karte mit der Maus in eine andere Spalte, um den Status zu ändern, oder innerhalb einer Spalte, um die Reihenfolge festzulegen. Oben filterst du nach Text, Bearbeiter (Avatare), Typ oder „Nur meine“.</p>
+
+<h2 id="liste">Ticketliste und Filter</h2>
+<p><em>Alle Tickets</em> zeigt eine sortierbare Liste. Filter für Projekt, Status, Typ, Priorität und Bearbeiter lassen sich kombinieren; ein Klick auf eine Spaltenüberschrift sortiert. Die Adresse der Seite enthält die Filter – du kannst sie als Lesezeichen speichern oder weitergeben.</p>
+<figure><img src="img/de/list.jpg" alt=""><figcaption>Ticketliste mit Filtern</figcaption></figure>
+
+<h2 id="ticket">Ein Ticket bearbeiten</h2>
+<figure><img src="img/de/ticket.jpg" alt=""><figcaption>Ticketansicht: links Beschreibung und Aktivität, rechts Status und Details</figcaption></figure>
+<ul>
+  <li><strong>Status</strong> über den Knopf oben rechts (z. B. „Offen“ → „In Arbeit“).</li>
+  <li><strong>Bearbeiter</strong>, <strong>Priorität</strong>, <strong>Typ</strong>, <strong>Stichwörter</strong>, <strong>Fällig</strong> und <strong>Projekt</strong> direkt in den Details ändern. „Mir zuweisen“ geht mit einem Klick oder der Taste <kbd>i</kbd>.</li>
+  <li><strong>Titel</strong> und <strong>Beschreibung</strong> durch Anklicken bearbeiten.</li>
+  <li><strong>Projekt wechseln:</strong> Das Ticket bekommt im neuen Projekt eine neue Nummer, die alte steht im Verlauf. Antworten auf alte Mails werden trotzdem richtig zugeordnet.</li>
+  <li><strong>Aktivität:</strong> Reiter <em>Kommentare</em>, <em>Verlauf</em> (jede Änderung mit Person und Zeit) und <em>Alle</em>.</li>
+  <li><strong>Link kopieren</strong> über das Kettensymbol oben rechts.</li>
+</ul>
+
+<h2 id="notizen">Antworten und interne Notizen</h2>
+<p>Über dem Kommentarfeld wählst du zwischen <strong>Antworten</strong> und <strong>Interne Notiz</strong>:</p>
+<ul>
+  <li><strong>Antworten</strong> gehen per E-Mail an den Melder und alle Teilnehmer, jeweils in deren Sprache.</li>
+  <li><strong>Interne Notizen</strong> (gelb hinterlegt) sehen nur Bearbeiter. Sie gehen nie per E-Mail hinaus, auch eingefügte Bilder bleiben intern.</li>
+</ul>
+<div class="warn"><p>Mails, die von der Adresse eines Bearbeiters kommen, gelten nie als Bearbeiter-Antwort (Absender lassen sich fälschen). Bearbeiter antworten deshalb immer über die Weboberfläche.</p></div>
+
+<h2 id="html-mails">HTML-Mails</h2>
+<p>Kommt ein Ticket oder eine Antwort als HTML-Mail, zeigt Helfi.Space sie <strong>formatiert</strong> an – mit Tabellen, Fettdruck, Farben, Signatur und eingebetteten Bildern. Der Umschalter <strong>Formatiert | Text</strong> wechselt zur Textfassung; der Browser merkt sich die Wahl.</p>
+<figure><img src="img/de/html-mail.jpg" alt=""><figcaption>Formatierte Ansicht einer HTML-Mail</figcaption></figure>
+<ul>
+  <li>Bilder aus dem Internet (oft Zählpixel) werden aus Datenschutzgründen nie geladen; ein Hinweis nennt ihre Anzahl.</li>
+  <li>Bei Antworten ist der zitierte Verlauf eingeklappt („Zitierten Text anzeigen“).</li>
+  <li>Bearbeitet wird immer die Textfassung. Nach dem Bearbeiten einer Beschreibung gilt nur noch der Text.</li>
+</ul>
+
+<h2 id="vorlagen">Antwortvorlagen</h2>
+<p>Für Antworten, die immer wieder gleich sind: im Kommentarfeld auf <strong>Vorlage</strong> klicken, tippen zum Suchen, mit Enter oder Klick einfügen. Der Text landet an der Cursorposition und lässt sich vor dem Speichern anpassen.</p>
+<figure><img src="img/de/templates.jpg" alt=""><figcaption>Vorlage auswählen: oben „Für alle“, darunter die eigenen</figcaption></figure>
+<ul>
+  <li><strong>Platzhalter</strong> werden beim Einfügen ersetzt: <code>{melder}</code>, <code>{ticket}</code>, <code>{titel}</code>, <code>{bearbeiter}</code>.</li>
+  <li><strong>Neue Vorlage:</strong> Text im Kommentarfeld schreiben und <em>Als Vorlage speichern</em> wählen. Persönliche Vorlagen verwaltest du im <em>Profil</em>, Vorlagen für alle pflegen Admins unter <em>Administration → Antwortvorlagen</em>.</li>
+</ul>
+
+<h2 id="mehrfach">Mehrere Tickets auf einmal</h2>
+<p>In <em>Alle Tickets</em> wählst du Tickets über die Kästchen aus (Umschalt+Klick für einen Bereich, <kbd>x</kbd> für das markierte Ticket). Die Aktionsleiste bietet:</p>
+<ul>
+  <li><strong>Erledigen</strong> – optional mit einer Antwort an Melder und Teilnehmer, auch mit Vorlage und Platzhaltern je Ticket.</li>
+  <li><strong>Status</strong>, <strong>Zuweisen</strong>, <strong>Priorität</strong> und <strong>Verschieben</strong> in ein anderes Projekt.</li>
+</ul>
+<figure><img src="img/de/bulk.jpg" alt=""><figcaption>Drei Tickets ausgewählt – Aktionsleiste oben</figcaption></figure>
+
+<h2 id="berichte">Berichte</h2>
+<p><em>Berichte</em> zeigt für einen Zeitraum (7, 30, 90 Tage, dieses Jahr oder frei) und optional ein Projekt: erstellte, erledigte und offene Tickets, „Erledigt pro Bearbeiter“, den Verlauf „Erstellt und erledigt“ und eine Tabelle je Bearbeiter (erledigt, offen zugewiesen, bearbeitet, Antworten, interne Notizen, durchschnittliche Lösungsdauer). Die Tabelle lässt sich sortieren und als CSV herunterladen.</p>
+<figure><img src="img/de/reports.jpg" alt=""><figcaption>Berichte</figcaption></figure>
+
+<h2 id="kuerzel">Tastenkürzel</h2>
+<p><kbd>?</kbd> zeigt alle Kürzel. Sie greifen nie, während du in ein Feld schreibst.</p>
+<table>
+  <tr><th style="width:18%">Wo</th><th style="width:24%">Taste</th><th>Wirkung</th></tr>
+  <tr><td>überall</td><td><kbd>c</kbd></td><td>Ticket erstellen</td></tr>
+  <tr><td></td><td><kbd>/</kbd></td><td>Suchen</td></tr>
+  <tr><td></td><td><kbd>g</kbd> dann <kbd>b</kbd> / <kbd>i</kbd> / <kbd>m</kbd></td><td>Board / Alle Tickets / Meine Arbeit</td></tr>
+  <tr><td>Ticket</td><td><kbd>i</kbd></td><td>mir zuweisen</td></tr>
+  <tr><td></td><td><kbd>a</kbd></td><td>Bearbeiter wählen</td></tr>
+  <tr><td></td><td><kbd>m</kbd></td><td>kommentieren</td></tr>
+  <tr><td></td><td><kbd>e</kbd> / <kbd>l</kbd></td><td>Titel / Stichwörter bearbeiten</td></tr>
+  <tr><td></td><td><kbd>.</kbd></td><td>Aktionen mit Suche (Status, Priorität, Typ, Vorlage …)</td></tr>
+  <tr><td></td><td><kbd>Strg</kbd>+<kbd>Enter</kbd></td><td>Kommentar speichern</td></tr>
+  <tr><td>Listen</td><td><kbd>j</kbd> / <kbd>k</kbd></td><td>nächstes / voriges Ticket</td></tr>
+  <tr><td></td><td><kbd>o</kbd> / <kbd>Enter</kbd></td><td>markiertes Ticket öffnen</td></tr>
+  <tr><td></td><td><kbd>x</kbd></td><td>markiertes Ticket auswählen</td></tr>
+</table>
+
+<h2 id="nie-loeschen">Tickets werden nie gelöscht</h2>
+<p>Tickets sind Nachweise: Wer hat wann was gemeldet, was wurde getan? Deshalb lassen sie sich <strong>nicht löschen</strong>, auch nicht von Administratoren. Erledigtes wird auf „Erledigt“ gesetzt. Gegen Spam hilft eine Absender-Regel „Ignorieren“ (<a href="#email">4.7</a>) – dann entsteht gar nicht erst ein Ticket.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="admin">Für Administratoren: Einrichtung <span class="role role-admin">Admin</span></h1>
+
+<h2 id="installation">Installation</h2>
+<p>Voraussetzung ist Docker mit Compose (Linux-Server, Synology …). Aus dem neuesten Release <code>docker-compose.yml</code>, <code>env.example</code> und <code>update.sh</code> herunterladen, dann:</p>
+<pre><code>mkdir helfi &amp;&amp; cd helfi
+cp env.example .env
+nano .env                 # mindestens HELFI_BASE_URL anpassen
+docker compose up -d
+docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
+<p>Auf dem Server liegen danach nur vier Dinge:</p>
+<table>
+  <tr><td style="width:30%"><code>docker-compose.yml</code></td><td>bleibt bei Updates in der Regel gleich</td></tr>
+  <tr><td><code>.env</code></td><td>deine Einstellungen (Adresse, Port, Version, PUID/PGID)</td></tr>
+  <tr><td><code>update.sh</code></td><td>Update von Hand (optional)</td></tr>
+  <tr><td><code>data/</code></td><td>Datenbank, Anhänge, Logo, Sicherungen, Schlüsseldatei</td></tr>
+</table>
+<p>Wichtige Einträge in der <code>.env</code>:</p>
+<table>
+  <tr><td style="width:34%"><code>HELFI_BASE_URL</code></td><td>Adresse, unter der Helfi.Space erreichbar ist (für Links in Mails und SSO)</td></tr>
+  <tr><td><code>HELFI_HTTP_PORT</code></td><td>Port auf dem Server (Standard 8080)</td></tr>
+  <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> oder eine feste Version, z. B. <code>1.5.0</code></td></tr>
+  <tr><td><code>PUID</code> / <code>PGID</code></td><td>Besitzer der Dateien in <code>data/</code> (Synology z. B. <code>1026</code> / <code>100</code>; nicht 0)</td></tr>
+  <tr><td><code>HELFI_TRUST_PROXY</code></td><td>Adresse des Reverse-Proxys (siehe nächster Abschnitt)</td></tr>
+  <tr><td><code>HELFI_SECRET</code></td><td>optional: eigener Schlüssel für gespeicherte Kennwörter – nur bei der Einrichtung setzen</td></tr>
+  <tr><td><code>TZ</code></td><td>Zeitzone, z. B. <code>Europe/Berlin</code></td></tr>
+</table>
+
+<h2 id="https">HTTPS und Reverse-Proxy</h2>
+<p>Helfi.Space selbst spricht HTTP auf Port 8080. Für den Betrieb gehört ein Reverse-Proxy mit HTTPS davor (Synology-Reverse-Proxy, Nginx Proxy Manager, Caddy, Traefik …). Danach <code>HELFI_BASE_URL=https://helfi.firma.local</code> setzen – Cookies werden dann automatisch als <code>Secure</code> markiert.</p>
+<pre><code>helfi.firma.local {
+    reverse_proxy 10.0.10.20:8080
+}</code></pre>
+<div class="warn"><p>Trage die Adresse des Proxys in <code>HELFI_TRUST_PROXY</code> ein, z. B. <code>10.0.10.5</code>. Ohne diesen Eintrag sieht Helfi.Space nur den Proxy: Die Bremse gegen Kennwort-Raten trifft dann alle gemeinsam, und jeder Zugriff gilt sicherheitshalber als „von außen“.</p></div>
+
+<h2 id="ersteinrichtung">Ersteinrichtung</h2>
+<p>Beim ersten Aufruf von <code>HELFI_BASE_URL</code> startet der Einrichtungsassistent. Er fragt nach dem <strong>Einrichtungscode</strong> aus dem Container-Protokoll (<code>docker compose logs helfi</code>) und legt den <strong>lokalen Administrator</strong> und das erste Projekt an. Danach geht es direkt zur AD-Einrichtung.</p>
+
+<h2 id="ad">Active Directory</h2>
+<p><em>Administration → Active Directory</em></p>
+<figure><img src="img/de/admin-ldap.jpg" alt=""><figcaption>Einstellungen für Active Directory</figcaption></figure>
+<ol>
+  <li><strong>Domänencontroller</strong> mit dem Namen eintragen, der im Zertifikat steht (z. B. <code>dc01.firma.local</code>). Verschlüsselung: LDAPS (636) oder StartTLS (389).</li>
+  <li><strong>Zertifikat abrufen</strong> und den SHA-256-Fingerabdruck mit dem am Server vergleichen, dann <strong>Zertifikat übernehmen</strong>.
+    <br>Windows: <code>certlm.msc</code> → Eigene Zertifikate → Zertifikat des DCs. Samba: <code>openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256</code></li>
+  <li><strong>Dienstkonto</strong> eintragen, z. B. <code>svc-helfi@firma.local</code> – ein normales Domänenkonto ohne besondere Rechte.</li>
+  <li><strong>Gruppen</strong> für Administratoren und Bearbeiter, z. B. <code>Helfi-Admins</code> und <code>Helfi-Bearbeiter</code> (Name oder DN, verschachtelte Gruppen zählen mit). Optional eine Gruppe „Zugelassene Benutzer“.</li>
+  <li><strong>Verbindung testen</strong>, am besten mit einer Testanmeldung. Ein leerer Base-DN wird dabei übernommen; eine gefundene Microsoft-Zertifizierungsstelle (AD CS) lässt sich mit übernehmen, dann bleiben erneuerte DC-Zertifikate gültig.</li>
+  <li><strong>AD-Anmeldung aktivieren</strong> und speichern.</li>
+</ol>
+<p>Benutzer entstehen bei der ersten Anmeldung. Ihre Rolle folgt bei jeder Anmeldung den Gruppen, außer ein Admin hat sie unter <em>Benutzer</em> mit „Rolle fest“ gesperrt. Helfi.Space prüft täglich, ob das Zertifikat noch passt und bald abläuft, und zeigt Probleme als Hinweis an.</p>
+
+<h2 id="sso">Single Sign-on</h2>
+<p><em>Administration → Single Sign-on</em> (OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …)</p>
+<ol>
+  <li>Beim Anbieter eine App anlegen und als Umleitungs-URI die angezeigte Adresse eintragen, z. B. <code>https://helfi.firma.local/auth/oidc/callback</code>.</li>
+  <li>Issuer-URL, Client-ID und Client-Geheimnis eintragen und <strong>Testen</strong>. Entra ID: <code>https://login.microsoftonline.com/&lt;Mandanten-ID&gt;/v2.0</code> und unter <em>Tokenkonfiguration</em> den Gruppenanspruch hinzufügen.</li>
+  <li>Admin- und Bearbeiter-Gruppe eintragen (bei Entra ID die Gruppen-IDs).</li>
+  <li>Optional „direkt zu SSO weiterleiten“. Die normale Anmeldung bleibt unter <code>/login?local=1</code> erreichbar.</li>
+</ol>
+<p><strong>SSO und AD zusammen:</strong> Mit „Mit AD-Konten zusammenführen für Domäne“ (z. B. <code>firma.local</code>) ist <code>m.muster@firma.local</code> aus dem SSO dasselbe Konto wie der AD-Benutzer <code>m.muster</code>. Nur eintragen, wenn der Anbieter keine Gastkonten anderer Organisationen zulässt.</p>
+
+<h2 id="2fa">Zwei-Faktor-Anmeldung und Netze</h2>
+<p><em>Administration → Sicherheit</em></p>
+<figure class="medium"><img src="img/de/admin-security-full.jpg" alt=""><figcaption>Zwei-Faktor-Pflicht, interne Netze und eigener Internetanschluss</figcaption></figure>
+<table>
+  <tr><th style="width:36%">Einstellung</th><th>Auswahl</th></tr>
+  <tr><td>Pflicht bei Anmeldung von außen</td><td>alle Benutzer (Standard) · Bearbeiter und Administratoren · nur Administratoren · niemand</td></tr>
+  <tr><td>Im internen Netz</td><td>keine Abfrage (Standard) · nur Administratoren · Bearbeiter und Administratoren · alle Benutzer</td></tr>
+</table>
+<ul>
+  <li><strong>Interne Netze:</strong> eine Adresse oder ein Bereich pro Zeile. Die Vorgabe deckt alle privaten Bereiche ab, auch Docker-Netze und ein Gäste-WLAN – am besten auf die echten Firmennetze eingrenzen, z. B. <code>10.0.10.0/24</code>.</li>
+  <li><strong>Eigener Internetanschluss:</strong> Öffentliche IP oder DynDNS-Name (z. B. <code>203.0.113.10</code> oder <code>helfi.dyndns.example</code>). Zugriffe von dort gelten als intern; Namen werden alle 5 Minuten neu aufgelöst. Achtung bei einem Gäste-WLAN am selben Anschluss.</li>
+  <li><strong>Reverse-Proxy:</strong> Ohne passendes <code>HELFI_TRUST_PROXY</code> gilt jeder Zugriff als extern; die Seite zeigt den aktuellen Wert.</li>
+  <li><strong>Ersteinrichtung auch von außen erlauben:</strong> standardmäßig aus.</li>
+  <li><strong>SSO-Anmeldungen gelten als zweiter Faktor:</strong> standardmäßig an (MFA beim Identitätsanbieter).</li>
+  <li><strong>2FA zurücksetzen</strong> für eine Person: <em>Benutzer → 2FA zurücksetzen</em>.</li>
+</ul>
+
+<h2 id="email">E-Mail</h2>
+<p><em>Administration → E-Mail</em></p>
+<figure><img src="img/de/admin-mail-1.jpg" alt=""><figcaption>Postfach abrufen (IMAP)</figcaption></figure>
+<ul>
+  <li><strong>Postfach abrufen (IMAP):</strong> Server, Benutzer und Kennwort des Helpdesk-Postfachs. Neue Mails werden Tickets, Antworten werden Kommentare. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben – empfohlen ist ein eigener Ordner. Das Postfach am besten nicht parallel in Outlook lesen.</li>
+  <li><strong>Versand (SMTP):</strong> als Absender am besten dieselbe Adresse wie das Postfach, dann landen Antworten wieder im Ticket.</li>
+  <li><strong>Absender im Active Directory nachschlagen:</strong> Unbekannte Absender werden im AD gesucht und gleich als AD-Benutzer angelegt. Sonst werden sie <em>E-Mail-Kontakte</em>; melden sie sich später an, gehören ihnen ihre Tickets.</li>
+  <li><strong>Empfänger in An/CC werden Teilnehmer</strong> (abschaltbar).</li>
+  <li><strong>Aufbewahrung:</strong> „Verarbeitete Mails löschen nach … Tagen“ (Standard: nie). Gelöscht wird nur im Ordner für verarbeitete Mails, nie im Posteingang.</li>
+</ul>
+<h3>Schutz vor Mail-Schleifen und Absender-Regeln</h3>
+<figure><img src="img/de/admin-mail-3.jpg" alt=""><figcaption>Absender-Regeln und gesperrte Empfänger</figcaption></figure>
+<ul>
+  <li>Unzustellbarkeitsberichte und Lesebestätigungen werden nie zu Tickets und nie beantwortet. Die betroffene Adresse bekommt 7 Tage lang keine Mails (<em>Gesperrte Empfänger</em>, dort vorzeitig freigebbar).</li>
+  <li><strong>Absender-Regeln</strong> (Adresse oder Muster wie <code>*@pve.firma.local</code>): „Ticket anlegen, nie antworten“ – wahlweise in ein eigenes Projekt – oder „Ignorieren“.</li>
+  <li><strong>Automatisch erzeugte Mails</strong> (Proxmox, NAS, Monitoring; erkennbar an <code>Auto-Submitted</code>, <code>Precedence: bulk</code> oder <code>noreply@</code>) werden <strong>nur mit der Regel „Ticket anlegen, nie antworten“</strong> angenommen. Unter <em>Zuletzt übersprungene E-Mails</em> stehen Absender und Grund.</li>
+  <li>Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.</li>
+</ul>
+
+<h2 id="projekte">Projekte</h2>
+<p><em>Administration → Projekte</em>: Projekte anlegen (Schlüssel wie <code>IT</code> oder <code>NET</code> und Name), Leitung festlegen, <strong>archivieren</strong> (bleibt mit allen Tickets erhalten, verschwindet aus der Auswahl) oder löschen. Ein Projekt mit Tickets lässt sich nur löschen, wenn seine Tickets dabei in ein anderes Projekt verschoben werden; vorher wird automatisch gesichert.</p>
+<figure><img src="img/de/admin-projects.jpg" alt=""><figcaption>Projekte</figcaption></figure>
+
+<h2 id="benutzerverwaltung">Benutzer</h2>
+<p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten und setzt die 2FA zurück.</p>
+<figure><img src="img/de/admin-users.jpg" alt=""><figcaption>Benutzerverwaltung</figcaption></figure>
+
+<h2 id="design">Erscheinungsbild</h2>
+<p><em>Administration → Allgemein → Erscheinungsbild</em></p>
+<figure class="medium"><img src="img/de/admin-brand.jpg" alt=""><figcaption>Logo, Hauptfarbe und Kopfzeile mit Vorschau</figcaption></figure>
+<ul>
+  <li><strong>Logo</strong> als PNG oder SVG (höchstens 512 KB) für Kopfzeile, Anmeldeseite und Browser-Tab. SVGs mit Skripten oder externen Verweisen werden abgelehnt.</li>
+  <li><strong>Hauptfarbe</strong> mit Kontrastprüfung (Warnung unter 4,5:1) und <strong>Kopfzeile</strong> hell oder in der Hauptfarbe.</li>
+  <li><em>Auf Standard zurücksetzen</em> stellt alles wieder her.</li>
+</ul>
+
+<h2 id="anmeldeseite">Anmeldeseite</h2>
+<p><em>Administration → Allgemein → Anmeldeseite</em>: eigene Überschrift, Begrüßungstext auf Deutsch und Englisch (z. B. wie man im Notfall Hilfe bekommt) und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: <code>**fett**</code>, Links und Mailadressen werden anklickbar, HTML wird nie ausgeführt.</p>
+<figure><img src="img/de/admin-login.jpg" alt=""><figcaption>Anmeldeseite anpassen mit Vorschau</figcaption></figure>
+
+<h2 id="import">Import aus einem anderen Ticketsystem</h2>
+<p><em>Administration → Import</em> übernimmt Projekte, Tickets, Kommentare und Anhänge über die REST-API des bisherigen Systems (Cloud und Server/Data Center). Die Zugangsdaten werden nicht gespeichert.</p>
+<ol>
+  <li><strong>Verbinden</strong> (Adresse, E-Mail und API-Token bzw. Personal Access Token).</li>
+  <li><strong>Projekte wählen</strong> und Zielprojekt festlegen.</li>
+  <li><strong>Status und Typen zuordnen</strong> (Vorschläge sind eingetragen).</li>
+  <li><strong>Importieren</strong> – mit Fortschritt, abbrechbar.</li>
+</ol>
+<p>Ticketnummern bleiben erhalten (<code>SUP-123</code> bleibt <code>SUP-123</code>), Personen werden über die E-Mail-Adresse zugeordnet, es werden keine Mails verschickt. Ein zweiter Lauf aktualisiert nur Geändertes und legt nichts doppelt an – so lässt sich vorab probehalber und am Stichtag noch einmal importieren.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapter" id="betrieb">Für Administratoren: Betrieb <span class="role role-admin">Admin</span></h1>
+
+<h2 id="updates">Updates</h2>
+<h3>Mit Container-Verwaltung (empfohlen)</h3>
+<p>Dockhand, Watchtower oder Tugtainer erkennen neue Images von <code>ghcr.io/soleil0815/helfi.space.ticket:latest</code> und aktualisieren den Container – am besten nachts. Helfi.Space sichert die Datenbank beim Start einer neuen Version selbst (<code>data/backups/helfi-vor-&lt;Version&gt;-….sqlite</code>) und stellt sie danach um.</p>
+<h3>Von Hand</h3>
+<pre><code>./update.sh             # neueste Version
+./update.sh 1.5.0       # bestimmte Version (wird in .env festgehalten)
+./update.sh -y          # ohne Rückfragen
+./update.sh --cleanup   # Reste früherer Updates anzeigen und nach Rückfrage löschen
+./update.sh --offline helfi-1.5.0-amd64.tar.gz 1.5.0   # ohne Internet</code></pre>
+<p><code>update.sh</code> holt die neue Version, übernimmt eine neuere <code>docker-compose.yml</code> (die alte bleibt als <code>docker-compose.yml.alt-…</code>), startet den Container und wartet auf den Gesundheitscheck. Startet die neue Version nicht, stellt es die vorherige Version samt Datenbanksicherung wieder her. Es läuft mit <code>/bin/sh</code>, auch auf einer Synology. <code>--cleanup</code> fasst <code>data/</code>, Sicherungen, <code>.env</code> und die aktuelle <code>docker-compose.yml</code> nie an.</p>
+<div class="note"><p>Nach einem Update lädt der Browser die neue Oberfläche sofort (ab Version 1.5.0). Erscheint bei älteren Versionen noch die alte Oberfläche, hilft einmal <kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>R</kbd>.</p></div>
+
+<h2 id="zurueck">Version festhalten und zurückgehen</h2>
+<ol>
+  <li>In der <code>.env</code> eine feste Version eintragen, z. B. <code>HELFI_VERSION=1.4.0</code>.</li>
+  <li>Hat die neuere Version die Datenbank schon umgestellt, startet die ältere nicht und nennt im Protokoll die passende Sicherung. Dann:
+<pre><code>docker compose down
+cp data/helfi.sqlite data/helfi.sqlite.neu
+cp data/backups/helfi-vor-1.5.0-&lt;Datum&gt;.sqlite data/helfi.sqlite
+rm -f data/helfi.sqlite-wal data/helfi.sqlite-shm
+docker compose up -d</code></pre></li>
+</ol>
+
+<h2 id="sicherung">Sicherung und Wiederherstellung</h2>
+<ul>
+  <li><strong>Automatisch:</strong> täglich (14 Tage aufbewahrt, <code>HELFI_BACKUP_KEEP_DAYS</code>) und vor jedem Versionswechsel in <code>data/backups/</code>. <strong>Von Hand:</strong> <em>Administration → System → Jetzt sichern</em>.</li>
+  <li>Die Sicherungen enthalten nur die Datenbank. <strong>Immer den ganzen Ordner <code>data/</code></strong> auf ein anderes Laufwerk sichern – mit Anhängen, Logo und <code>secret.key</code>.</li>
+  <li>Ohne <code>secret.key</code> (oder das gesetzte <code>HELFI_SECRET</code>) lassen sich gespeicherte Kennwörter und 2FA-Schlüssel nicht mehr entschlüsseln.</li>
+</ul>
+<figure><img src="img/de/admin-system.jpg" alt=""><figcaption>System: Version, Datenbank, Sicherungen</figcaption></figure>
+
+<h2 id="sicherheit">Sicherheit</h2>
+<ul>
+  <li>Kennwörter lokaler Konten mit scrypt, hinterlegte Zugangsdaten (Dienstkonto, Postfach, SSO) mit AES-256-GCM verschlüsselt; sie werden nie an den Browser geschickt.</li>
+  <li>Zwei-Faktor-Anmeldung nach RFC 6238, jeder Code nur einmal, Wiederherstellungscodes nur als Hash.</li>
+  <li>Bremse bei falschen Kennwörtern, Cookies <code>HttpOnly</code>/<code>SameSite</code>, CSRF-Schutz, strenge Content-Security-Policy. Die Oberfläche lädt nichts aus dem Internet.</li>
+  <li>HTML-Mails werden bereinigt und in einem abgeschotteten Rahmen ohne Skripte angezeigt.</li>
+  <li>Der Container läuft ohne root-Rechte, mit schreibgeschütztem Programmteil, ohne zusätzliche Linux-Rechte und mit <code>no-new-privileges</code>.</li>
+  <li>Tickets werden nie gelöscht; jede Änderung steht im Verlauf.</li>
+</ul>
+
+<h2 id="hilfe">Fragen und Lösungen</h2>
+<table>
+  <tr><th style="width:38%">Problem</th><th>Lösung</th></tr>
+  <tr><td>Mails von Proxmox, NAS oder Monitoring werden übersprungen</td><td>Absender-Regel „Ticket anlegen, nie antworten“ anlegen. Die genaue Absenderadresse steht unter <em>E-Mail → Zuletzt übersprungene E-Mails</em>.</td></tr>
+  <tr><td>Jeder Zugriff gilt als „von außen“</td><td><code>HELFI_TRUST_PROXY</code> auf die Adresse des Reverse-Proxys setzen; interne Netze prüfen. Die Seite <em>Sicherheit</em> zeigt, wie deine Adresse erkannt wird.</td></tr>
+  <tr><td>Handy mit Authenticator verloren</td><td>Mit einem Wiederherstellungscode anmelden oder <em>Benutzer → 2FA zurücksetzen</em>; danach im Firmennetz neu einrichten.</td></tr>
+  <tr><td>AD-Anmeldung geht nicht mehr, Hinweis zum Zertifikat</td><td>Das DC-Zertifikat wurde erneuert: <em>Active Directory → Zertifikat abrufen</em> und übernehmen (oder die Zertifizierungsstelle hinterlegen).</td></tr>
+  <tr><td>Rolle eines AD-Benutzers stimmt nicht</td><td>Gruppenmitgliedschaft im AD prüfen; ist der Gruppenname mehrdeutig, den vollständigen DN eintragen. Ist „Rolle fest“ gesetzt, gilt die Rolle aus Helfi.Space.</td></tr>
+  <tr><td>Hinweis „docker-compose.yml ist veraltet“</td><td><code>./update.sh</code> übernimmt die neue Datei, oder sie aus dem Release laden.</td></tr>
+  <tr><td>Helfi.Space startet nach dem Wiederherstellen nicht</td><td>Passt <code>secret.key</code> bzw. <code>HELFI_SECRET</code> zur Datenbank? Das Protokoll (<code>docker compose logs helfi</code>) nennt die Ursache.</td></tr>
+  <tr><td>Einrichtungscode verloren</td><td>Steht im Protokoll: <code>docker compose logs helfi</code>.</td></tr>
+</table>
+
+</body>
+</html>
