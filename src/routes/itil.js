@@ -101,6 +101,7 @@ export function createItilRoutes(ctx) {
     fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
   r.get('/kb/tree', (req, res) => res.json({ tree: kb.tree(req.user) }));
+  r.patch('/kb/:id/parent', requireRole('agent'), (req, res) => res.json({ article: kb.move(req.user, req.params.id, req.body?.parentId ?? null) }));
   r.get('/kb/:id/bundle', (req, res) => res.json({ articles: kb.bundle(req.user, req.params.id) }));
   // Vorlagen (vor /kb/:id, sonst wäre „templates“ eine Artikel-ID)
   r.get('/kb/templates', requireRole('agent'), (req, res) => res.json({ templates: kb.templates(req.user) }));
