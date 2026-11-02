@@ -624,7 +624,12 @@ async function mailPage(body, s) {
     const r = st.lastResult || {};
     mount(status, `${t('mail.lastRun')}: ${relTime(st.lastRun)} – ${t('mail.result', { tickets: r.tickets ?? 0, comments: r.comments ?? 0, skipped: r.skipped ?? 0, errors: r.errors ?? 0 })}`,
       st.lastPurge ? h('span.block', t('mail.lastPurge', { when: relTime(st.lastPurge.at), count: st.lastPurge.deleted })) : null,
-      st.lastError ? h('span.block.error-text', st.lastError) : null);
+      st.lastError ? h('span.block.error-text', st.lastError) : null,
+      st.recentSkipped?.length ? h('details.skipped-list', h('summary', t('mail.skippedTitle', { n: st.recentSkipped.length })),
+        h('table.data', h('tbody', st.recentSkipped.map((x) => h('tr',
+          h('td', { style: { whiteSpace: 'nowrap' } }, relTime(x.at)), h('td', x.from || '—'), h('td', x.subject || '—'),
+          h('td', t(`mail.skip.${x.reason}`)))))),
+        st.recentSkipped.some((x) => x.reason === 'automated') ? h('p', t('mail.skipAutomatedHint')) : null) : null);
   };
   api.admin.system().then((sys) => drawStatus(sys.imap)).catch(() => {});
 

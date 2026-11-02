@@ -152,6 +152,29 @@ test('Regel „nie antworten“: Ticket im gewählten Projekt, keine Mail an den
   assert.match(r2.key, /^IT-/);
 });
 
+test('Automatisch erzeugte Mails (Proxmox, Monitoring): nur mit Regel „nie antworten“', async () => {
+  const pve = (id, from = 'pve@pve.firma.local', extra = 'Auto-Submitted: auto-generated') => eml([`From: ${from}`, 'To: helpdesk@firma.local', 'Subject: Testnachricht', `Message-ID: <${id}@x>`, extra, '', 'Dies ist ein Test']);
+  ctx.settings.set('imap.senderRules', '[]');
+  let r = await run(pve('pv1'));
+  assert.equal(r.action, 'skipped');
+  assert.equal(r.reason, 'automated');
+  assert.equal(r.from, 'pve@pve.firma.local');
+  ctx.settings.set('imap.senderRules', JSON.stringify([{ pattern: '*@pve.firma.local', action: 'noreply' }, { pattern: 'noreply@firma.local', action: 'noreply' }]));
+  r = await run(pve('pv2'));
+  assert.equal(r.action, 'ticket', 'mit Regel angenommen');
+  assert.equal(ctx.mailer.blocked('pve@pve.firma.local'), 'Regel', 'und nie beantwortet');
+  // noreply-Absender und Precedence: bulk ebenso
+  assert.equal((await run(pve('pv3', 'noreply@firma.local', 'Precedence: bulk'))).action, 'ticket');
+  // ohne passende Regel weiterhin verworfen
+  assert.equal((await run(pve('pv4', 'alarm@nas.firma.local'))).reason, 'automated');
+  // eigene Adresse immer verwerfen, auch wenn eine Regel passt
+  ctx.settings.set('imap.senderRules', JSON.stringify([{ pattern: '*@firma.local', action: 'noreply' }]));
+  const own = ctx.settings.get('smtp.from') || 'helpdesk@firma.local';
+  ctx.settings.set('smtp.from', own);
+  assert.equal((await run(pve('pv5', own))).reason, 'own');
+  ctx.settings.set('imap.senderRules', '[]');
+});
+
 test('Eingangsbestätigung geht nicht an gesperrte Adressen (Versand prüft vor dem Senden)', async () => {
   const { createMailer } = await import('../src/mail/smtp.js');
   const { createSuppressions } = await import('../src/mail/rules.js');

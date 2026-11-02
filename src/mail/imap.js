@@ -9,6 +9,16 @@ import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEm
 import { parseRules, matchRule } from './rules.js';
 
 export const MAX_NEW_TICKETS_PER_HOUR = 20;
+// Gründe für übersprungene Mails (für das Protokoll)
+const SKIP_REASONS = {
+  automated: 'automatisch erzeugt (Auto-Submitted/Precedence/noreply) – für solche Absender eine Regel „Ticket anlegen, nie antworten“ anlegen',
+  own: 'eigene Adresse von Helfi.Space',
+  rule: 'Absender-Regel „ignorieren“',
+  inactive: 'Konto deaktiviert',
+  rate: `mehr als ${MAX_NEW_TICKETS_PER_HOUR} neue Tickets pro Stunde von diesem Absender`,
+  receipt: 'Lesebestätigung',
+  'no-sender': 'kein gültiger Absender',
+};
 export const MAX_ATTACHMENTS = 30;
 export const MAX_CC_PARTICIPANTS = 10; // so viele Empfänger (An/CC) je Mail werden höchstens Teilnehmer
 const MAX_MESSAGE_BYTES = 80 * 1024 * 1024; // größere Mails nicht laden (Speicher)
@@ -191,16 +201,20 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
 
     if (!isEmail(fromAddr)) { remember.run(messageId, null); return { action: 'skipped', reason: 'no-sender', messageId }; }
     const rule = matchRule(parseRules(cfg.senderRules), fromAddr);
-    if (rule?.action === 'ignore') { remember.run(messageId, null); return { action: 'skipped', reason: 'rule', messageId }; }
+    if (rule?.action === 'ignore') { remember.run(messageId, null); return { action: 'skipped', reason: 'rule', from: fromAddr, messageId }; }
 
     const own = [settings.get('smtp.from'), cfg.user].filter(Boolean).map((x) => x.toLowerCase());
-    if (own.includes(fromAddr) || isAutomated(parsed.headers, fromAddr)) {
+    // Eigene Adresse: immer verwerfen (sonst Schleife mit sich selbst)
+    if (own.includes(fromAddr)) { remember.run(messageId, null); return { action: 'skipped', reason: 'own', from: fromAddr, messageId }; }
+    // Automatisch erzeugte Mails (Monitoring, NAS, Hypervisor …) nur mit ausdrücklicher Regel
+    // „Ticket anlegen, nie antworten“ – dann gehen ohnehin keine Mails an diese Adresse zurück
+    if (isAutomated(parsed.headers, fromAddr) && rule?.action !== 'noreply') {
       remember.run(messageId, null);
-      return { action: 'skipped', reason: 'automated', messageId };
+      return { action: 'skipped', reason: 'automated', from: fromAddr, messageId };
     }
 
     const sender = opts.sender || users.byEmail(fromAddr) || users.contactForEmail(fromAddr, from?.name || '');
-    if (!sender.active) { remember.run(messageId, null); return { action: 'skipped', reason: 'inactive', messageId }; }
+    if (!sender.active) { remember.run(messageId, null); return { action: 'skipped', reason: 'inactive', from: fromAddr, messageId }; }
 
     // Reine HTML-Mails (z. B. aus Outlook) in lesbaren Text umwandeln
     const text = String(parsed.text || '').trim()
@@ -226,7 +240,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     // Schutz vor Mail-Schleifen mit Autorespondern ohne Kennzeichnung
     if (!existingId) {
       const recent = db.prepare("SELECT COUNT(*) n FROM tickets WHERE lower(reporter_email)=? AND created_at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 hour')").get(fromAddr).n;
-      if (recent >= MAX_NEW_TICKETS_PER_HOUR) { remember.run(messageId, null); return { action: 'skipped', reason: 'rate', messageId }; }
+      if (recent >= MAX_NEW_TICKETS_PER_HOUR) { remember.run(messageId, null); return { action: 'skipped', reason: 'rate', from: fromAddr, messageId }; }
     }
 
     // An/CC-Empfänger werden Anfrage-Teilnehmer.
@@ -279,7 +293,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
 }
 
 export function createImapPoller({ settings, processor }) {
-  const status = { running: false, lastRun: null, lastError: null, lastResult: null, processedTotal: 0, lastPurge: null };
+  // recentSkipped: die letzten übersprungenen Mails (nur im Speicher), damit Admins den Grund sehen
+  const status = { running: false, lastRun: null, lastError: null, lastResult: null, processedTotal: 0, lastPurge: null, recentSkipped: [] };
   const failures = new Map();
   let timer = null;
   let lastPurge = 0;
@@ -289,7 +304,7 @@ export function createImapPoller({ settings, processor }) {
     if (!cfg.enabled || !cfg.host || !cfg.user) return { skipped: true };
     if (status.running) return { busy: true };
     status.running = true;
-    const result = { tickets: 0, comments: 0, skipped: 0, errors: 0 };
+    const result = { tickets: 0, comments: 0, skipped: 0, errors: 0, skippedReasons: {} };
     const client = new ImapFlow(imapOptions(cfg));
     client.on('error', (e) => log.warn('IMAP-Fehler', { error: e.message }));
     try {
@@ -319,7 +334,13 @@ export function createImapPoller({ settings, processor }) {
             if (r.action === 'ticket') { result.tickets++; log.info(`E-Mail → neues Ticket ${r.key}`); }
             else if (r.action === 'bounce') { result.skipped++; log.info(`Unzustellbarkeitsbericht für ${r.failed.join(', ') || '?'}${r.ticketId ? ` (Ticket #${r.ticketId})` : ''} – nicht beantwortet`); }
             else if (r.action === 'comment') { result.comments++; log.info(`E-Mail → Kommentar zu Ticket #${r.ticketId}`); }
-            else result.skipped++;
+            else if (r.action === 'skipped') {
+              result.skipped++;
+              result.skippedReasons[r.reason] = (result.skippedReasons[r.reason] || 0) + 1;
+              log.info(`E-Mail${r.from ? ` von ${r.from}` : ''} übersprungen: ${SKIP_REASONS[r.reason] || r.reason}`);
+              status.recentSkipped = [{ at: new Date().toISOString(), from: r.from || '', subject: String(parsed.subject || '').slice(0, 120), reason: r.reason },
+                ...status.recentSkipped].slice(0, 20);
+            } else result.skipped++;
             await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });
             if (cfg.processedFolder) await client.messageMove(String(uid), cfg.processedFolder, { uid: true });
             failures.delete(uid);
