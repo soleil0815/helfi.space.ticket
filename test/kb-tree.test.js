@@ -59,3 +59,14 @@ test('Löschen: Unterseiten rücken eine Ebene hoch', async () => {
   await anna('DELETE', `/api/kb/${id.onb}`);
   assert.deepEqual(titles((await anna('GET', '/api/kb/tree')).body.tree).map((x) => x[0]), ['Konten', 'PC einrichten', 'VPN']);
 });
+
+test('Verschieben per Seitenbaum (nur Platz, keine Version)', async () => {
+  const a = (await anna('POST', '/api/kb', { title: 'Windows', body: '', visibility: 'public' })).body.article;
+  const b = (await anna('POST', '/api/kb', { title: 'CMD-Befehle', body: 'x', visibility: 'public' })).body.article;
+  assert.equal((await karl('PATCH', `/api/kb/${b.id}/parent`, { parentId: a.id })).status, 403);
+  const r = await anna('PATCH', `/api/kb/${b.id}/parent`, { parentId: a.id });
+  assert.equal(r.body.article.parentId, a.id);
+  assert.equal(r.body.article.version, 1);
+  assert.equal((await anna('PATCH', `/api/kb/${a.id}/parent`, { parentId: b.id })).status, 400, 'Schleife');
+  assert.equal((await anna('PATCH', `/api/kb/${b.id}/parent`, { parentId: null })).body.article.parentId, null);
+});

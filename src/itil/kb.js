@@ -105,6 +105,14 @@ export function createKb(db, tickets) {
     walk(root.id, 1);
     return out2;
   }
+  /** nur den Platz im Baum ändern (Ziehen im Seitenbaum) – keine neue Version */
+  function move(user, id, parentId) {
+    if (!isAgent(user)) throw forbidden();
+    get(user, id);
+    const parent = checkParent(user, id, parentId);
+    db.prepare('UPDATE kb_articles SET parent_id=? WHERE id=?').run(parent, int(id));
+    return get(user, id);
+  }
   /** neuer Elternteil prüfen: muss existieren, darf nicht der Artikel selbst oder einer seiner Nachfahren sein */
   function checkParent(user, id, parentId) {
     if (!parentId) return null;
@@ -295,5 +303,5 @@ export function createKb(db, tickets) {
     return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}` };
   }
 
-  return { search, get, tree, bundle, create, update, remove, categories, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
+  return { search, get, tree, bundle, move, create, update, remove, categories, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
 }

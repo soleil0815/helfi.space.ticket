@@ -864,6 +864,21 @@ a.stat-link:hover { border-color: var(--blue); }
 .kb-cm-input .form-actions { margin-top: 6px; align-items: center; gap: 10px; }
 .kb-cm-count { font-size: 12px; font-weight: 500; color: var(--text-subtle); margin-left: auto; }
 
+/* Seitenbaum: Ziehen, Ordner, Felder im Editor */
+.kb-tree-title .spacer { flex: 1; }
+.kb-folder-btn { font-weight: 400; }
+.kb-tree-row[draggable="true"], .kb-tree-row a[draggable="true"] { cursor: grab; }
+.kb-tree-row.drop { background: var(--blue-subtle); box-shadow: inset 0 0 0 2px var(--blue); }
+.kb-tree-top { display: none; align-items: center; gap: 6px; margin-top: 8px; padding: 8px; border: 2px dashed var(--border-strong); border-radius: 4px; color: var(--text-subtle); font-size: 13px; }
+.kb-tree.dragging .kb-tree-top { display: flex; }
+.kb-tree-top.drop { border-color: var(--blue); background: var(--blue-subtle); color: var(--blue); }
+.kb-tree-hint { margin-top: 8px; }
+.kb-edit-meta { align-items: flex-end; }
+.kb-meta-field { display: flex; flex-direction: column; gap: 4px; }
+.kb-meta-field > label { font-size: 12px; font-weight: 600; color: var(--text-subtle); display: flex; align-items: center; gap: 4px; }
+.kb-meta-field > label .icon { width: 14px; height: 14px; }
+.kb-vis-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
 /* Druckansicht mit Unterseiten */
 .kb-print-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--blue-subtle); border-radius: 6px; margin-bottom: 20px; flex-wrap: wrap; max-width: 860px; }
 .kb-print { max-width: 860px; }
@@ -1120,7 +1135,7 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
   .kb-page-main .page-head .btn-label { display: none; }
   .kb-tree-row { min-height: 40px; }
   .kb-parent { max-width: none; width: 100%; }
-  .kb-parent-label { width: 100%; }
+  .kb-meta-field { width: 100%; }
   .kb-title-input { font-size: 22px; }
   .kb-edit-meta > input { width: 100%; }
   .kb-toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; top: 52px; }

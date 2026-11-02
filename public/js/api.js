@@ -79,6 +79,7 @@ export const api = {
   kbCommentAdd: (id, body) => request('POST', `/api/kb/${id}/comments`, { body }),
   kbCommentResolve: (cid, resolved) => request('PATCH', `/api/kb/comments/${cid}`, { resolved }),
   kbCommentDelete: (cid) => request('DELETE', `/api/kb/comments/${cid}`),
+  kbMove: (id, parentId) => request('PATCH', `/api/kb/${id}/parent`, { parentId }),
   kbTree: () => request('GET', '/api/kb/tree'),
   kbBundle: (id) => request('GET', `/api/kb/${id}/bundle`),
   kbVersions: (id) => request('GET', `/api/kb/${id}/versions`),

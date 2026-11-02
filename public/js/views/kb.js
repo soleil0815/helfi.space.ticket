@@ -89,7 +89,7 @@ async function list(content, params) {
       h('a.chip', { href: '/kb', 'data-link': '', class: !cat ? 'active' : '' }, t('kb.allCategories')),
       categories.map((c) => h('a.chip', { href: `/kb?category=${encodeURIComponent(c.name)}`, 'data-link': '', class: c.name === cat ? 'active' : '' }, c.name, h('span.count', c.count)))) : null,
     overview ? h('div.kb-overview',
-      h('section.kb-overview-tree', h('h3', icon('ed-toc'), t('kb.tree.title')), treeNav(tree)),
+      h('section.kb-overview-tree', treeHead(tree, null), treeNav(tree)),
       h('section.kb-overview-recent', h('h3', t('kb.recent')), articles.slice(0, 8).map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
         h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
         a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
@@ -100,8 +100,56 @@ async function list(content, params) {
       h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · ')))) : h('p.muted', q ? t('kb.noResults') : t('kb.empty')));
 }
 
-/** Seitenbaum zum Auf- und Zuklappen; der aktuelle Artikel und seine Vorfahren sind offen */
+const reloadPage = () => navigate(location.pathname + location.search, { replace: true });
+
+/** Kopf des Seitenbaums; Bearbeiter können hier einen Ordner anlegen */
+function treeHead(tree, currentId) {
+  return h('div.kb-tree-title', icon('ed-toc'), h('span', t('kb.tree.title')), h('span.spacer'),
+    state.isAgent ? h('button.btn.btn-subtle.small.kb-folder-btn', { type: 'button', onclick: () => folderDialog(tree, currentId) }, icon('plus'), t('kb.tree.newFolder')) : null);
+}
+
+/** Auswahl „Liegt unter“: eingerückt, optional ohne einen Artikel und seine Unterseiten */
+function parentOptions(tree, excludeId = null) {
+  const opts = [['', t('kb.tree.noParent')]];
+  const walk = (nodes, depth) => { for (const n of nodes) { if (n.id === excludeId) continue; opts.push([n.id, `${'\u2003'.repeat(depth)}${n.title}`]); walk(n.children, depth + 1); } };
+  walk(tree, 0);
+  return opts;
+}
+
+/** Ordner = kurze Sammelseite ohne eigenen Text; ihre Unterseiten werden aufgelistet */
+function folderDialog(tree, parentId) {
+  const name = h('input', { maxLength: 200, placeholder: t('kb.tree.folderHint') });
+  const under = select(parentOptions(tree), parentId || '');
+  const vis = select([['public', t('kb.vis.public')], ['internal', t('kb.vis.internal')]], 'public');
+  const dlg = modal(t('kb.tree.newFolder'), h('div', h('p.muted.small', t('kb.tree.folderIntro')), field(t('kb.tree.folderName'), name), field(t('kb.tree.parent'), under), field(t('kb.f.visibility'), vis)), {
+    footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')),
+      h('button.btn.btn-primary', {
+        type: 'button',
+        onclick: async () => {
+          if (!name.value.trim()) { name.focus(); return; }
+          try {
+            await api.kbCreate({ title: name.value, body: '', visibility: vis.value, parentId: Number(under.value) || null, note: t('kb.tree.folderNote') });
+            dlg.close(); toast(t('kb.tree.folderCreated'), 'success'); reloadPage();
+          } catch (e) { toast(e.message, 'error'); }
+        },
+      }, t('kb.tree.create'))],
+  });
+}
+
+/** Seitenbaum zum Auf- und Zuklappen; der aktuelle Artikel und seine Vorfahren sind offen.
+ *  Bearbeiter ziehen Artikel auf einen anderen (wird Unterseite) oder auf „Oberste Ebene“. */
 function treeNav(nodes, currentId = null, openIds = new Set()) {
+  const canDrag = state.isAgent && !window.matchMedia('(max-width: 800px)').matches;
+  let dragId = null;
+  const drop = async (targetId) => {
+    if (!dragId || dragId === targetId) return;
+    try { await api.kbMove(dragId, targetId); toast(t('kb.tree.moved'), 'success'); reloadPage(); } catch (e) { toast(e.message, 'error'); }
+  };
+  const dropZone = (el, targetId) => {
+    el.addEventListener('dragover', (e) => { if (!dragId || dragId === targetId) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); });
+    el.addEventListener('dragleave', (e) => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop'); });
+    el.addEventListener('drop', (e) => { e.preventDefault(); el.classList.remove('drop'); drop(targetId); });
+  };
   const KEY = 'helfi.kbtree.open';
   let stored = new Set();
   try { stored = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { /* egal */ }
@@ -118,17 +166,27 @@ function treeNav(nodes, currentId = null, openIds = new Set()) {
         remember();
       },
     }, icon('chevron-down')) : h('span.kb-tree-dot');
-    return h('li', h(`div.kb-tree-row${n.id === currentId ? '.current' : ''}`, toggle,
-      h('a', { href: `/kb/${n.id}`, 'data-link': '', 'aria-current': n.id === currentId ? 'page' : null }, n.title),
-      state.isAgent && n.visibility === 'internal' ? h('span.kb-tree-lock', { title: t('kb.vis.internal') }, icon('lock')) : null), sub);
+    const row = h(`div.kb-tree-row${n.id === currentId ? '.current' : ''}`, toggle,
+      h('a', { href: `/kb/${n.id}`, 'data-link': '', 'aria-current': n.id === currentId ? 'page' : null, draggable: canDrag ? 'true' : 'false' }, n.title),
+      state.isAgent && n.visibility === 'internal' ? h('span.kb-tree-lock', { title: t('kb.vis.internal') }, icon('lock')) : null);
+    if (canDrag) {
+      row.addEventListener('dragstart', (e) => { dragId = n.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(n.id)); root.classList.add('dragging'); });
+      row.addEventListener('dragend', () => { dragId = null; root.classList.remove('dragging'); });
+      dropZone(row, n.id);
+    }
+    return h('li', row, sub);
   };
-  return h('ul.kb-tree-list.kb-tree-root', nodes.map((n) => item(n, 0)));
+  const top = canDrag ? h('div.kb-tree-top', icon('arrow-down'), t('kb.tree.dropTop')) : null;
+  if (top) dropZone(top, null);
+  const root = h('div.kb-tree', h('ul.kb-tree-list.kb-tree-root', nodes.map((n) => item(n, 0))), top,
+    canDrag && nodes.length ? h('div.kb-tree-hint.muted.small', t('kb.tree.dragHint')) : null);
+  return root;
 }
 
 async function article(content, id) {
   const [{ article: a }, { tree }] = await Promise.all([api.kbArticle(id, true), api.kbTree()]);
   const agent = state.isAgent;
-  const side = h('aside.kb-tree-side', h('div.kb-tree-title', icon('ed-toc'), t('kb.tree.title')), treeNav(tree, a.id, new Set([...a.path.map((x) => x.id), a.id])));
+  const side = h('aside.kb-tree-side', treeHead(tree, a.id), treeNav(tree, a.id, new Set([...a.path.map((x) => x.id), a.id])));
   const treeBtn = h('button.btn.btn-subtle.kb-tree-btn', { type: 'button', onclick: () => side.classList.toggle('open') }, icon('ed-toc'), t('kb.tree.pages'));
   const printMenu = (e) => {
     if (!a.children.length) { window.print(); return; }
@@ -280,15 +338,12 @@ async function editor(content, opts = {}) {
   }
   const [{ categories }, { tree }] = tplMode ? [{ categories: [] }, { tree: [] }] : await Promise.all([api.kb({}), api.kbTree()]);
   // Auswahl des übergeordneten Artikels: eingerückt, ohne den Artikel selbst und seine Unterseiten
-  const parentOpts = [['', t('kb.tree.noParent')]];
-  const walk = (nodes, depth) => { for (const n of nodes) { if (n.id === id) continue; parentOpts.push([n.id, `${'\u2003'.repeat(depth)}${n.title}`]); walk(n.children, depth + 1); } };
-  walk(tree, 0);
-  const parentSel = select(parentOpts, a.parentId || '', { class: 'kb-parent', 'aria-label': t('kb.tree.parent'), title: t('kb.tree.parent') });
+  const parentSel = select(parentOptions(tree, id), a.parentId || '', { class: 'kb-parent', id: 'kb-parent' });
   const key = tplMode ? `helfi.kbtpl.${tplId || 'new'}` : draftKey(id, fromKey);
   const original = { title: a.title, body: a.body, category: a.category, visibility: a.visibility, description: a.description || '', parentId: a.parentId || null };
 
   const title = h('input.kb-title-input', { value: a.title, maxLength: tplMode ? 120 : 200, required: true, placeholder: tplMode ? t('kb.tpl.name') : t('kb.f.titleHint'), 'aria-label': t('kb.f.title') });
-  const cat = h('input', { value: a.category, maxLength: 60, list: 'kb-cats', placeholder: t('kb.f.category') });
+  const cat = h('input', { id: 'kb-cat', value: a.category, maxLength: 60, list: 'kb-cats', placeholder: t('kb.f.categoryHint') });
   const desc = h('input', { value: a.description || '', maxLength: 300, placeholder: t('kb.tpl.descHint') });
   const dl = h('datalist', { id: 'kb-cats' }, categories.map((c) => h('option', { value: c.name })));
   let visibility = a.visibility;
@@ -375,7 +430,10 @@ async function editor(content, opts = {}) {
     h('div.kb-edit',
       a.sourceTicket && !id ? h('p.muted.small', t('kb.fromTicket', { key: a.sourceTicket })) : null,
       title,
-      tplMode ? h('div.kb-edit-meta', desc) : h('div.kb-edit-meta', h('label.kb-parent-label', icon('ed-toc'), parentSel), cat, dl, visRow, h('span.muted.small.kb-vis-hint', t(`kb.visHint.${visibility}`))),
+      tplMode ? h('div.kb-edit-meta', desc) : h('div.kb-edit-meta',
+        h('div.kb-meta-field', h('label', { for: 'kb-parent' }, icon('ed-toc'), t('kb.tree.parent')), parentSel),
+        h('div.kb-meta-field', h('label', { for: 'kb-cat' }, t('kb.f.category')), cat, dl),
+        h('div.kb-meta-field', h('label', t('kb.f.visibility')), h('div.kb-vis-row', visRow, h('span.muted.small.kb-vis-hint', t(`kb.visHint.${visibility}`))))),
       ed.el));
   visRow.addEventListener('click', () => { const x = content.querySelector('.kb-vis-hint'); if (x) x.textContent = t(`kb.visHint.${visibility}`); });
   content.querySelector('.kb-edit').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); } });
