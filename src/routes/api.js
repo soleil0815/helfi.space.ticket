@@ -342,6 +342,7 @@ export function createApi(ctx) {
 
   r.get('/tickets', (req, res) => {
     let list = tickets.list(req.user, req.query);
+    const searchTerms = list.searchTerms;
     // SLA-Stand für Bearbeiter; Filter „SLA gefährdet“
     if (isAgent(req.user) && ctx.sla.enabled()) {
       list = list.map((tk) => ({ ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) }));
@@ -352,7 +353,7 @@ export function createApi(ctx) {
       const ids = new Set(ctx.approvals.pendingFor(req.user.id));
       list = list.filter((tk) => ids.has(tk.id));
     }
-    res.json({ tickets: list });
+    res.json({ tickets: list, ...(searchTerms ? { searchTerms } : {}) });
   });
 
   r.post('/tickets', wrap(async (req, res) => {

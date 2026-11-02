@@ -493,6 +493,30 @@ export const MIGRATIONS = [
     CREATE INDEX idx_kb_comments_article ON kb_comments(article_id);
     `,
   },
+  {
+    id: 22,
+    name: 'Volltextsuche für Tickets',
+    // Achtung: Baut eine spätere Migration „tickets“, „comments“ oder „attachments“ neu auf,
+    // müssen die search_*-Trigger dort neu angelegt werden.
+    sql: `
+    CREATE VIRTUAL TABLE ticket_fts USING fts5(title, public_text, internal_text, people, tokenize='trigram');
+    CREATE TABLE search_dirty (ticket_id INTEGER PRIMARY KEY);
+    CREATE TRIGGER search_t_ins AFTER INSERT ON tickets BEGIN INSERT OR IGNORE INTO search_dirty VALUES (NEW.id); END;
+    CREATE TRIGGER search_t_upd AFTER UPDATE OF title, description, reporter_id, reporter_email, reporter_name, assignee_id, labels ON tickets
+      BEGIN INSERT OR IGNORE INTO search_dirty VALUES (NEW.id); END;
+    CREATE TRIGGER search_t_del AFTER DELETE ON tickets BEGIN INSERT OR IGNORE INTO search_dirty VALUES (OLD.id); END;
+    CREATE TRIGGER search_c_ins AFTER INSERT ON comments BEGIN INSERT OR IGNORE INTO search_dirty VALUES (NEW.ticket_id); END;
+    CREATE TRIGGER search_c_upd AFTER UPDATE ON comments BEGIN INSERT OR IGNORE INTO search_dirty VALUES (NEW.ticket_id); INSERT OR IGNORE INTO search_dirty VALUES (OLD.ticket_id); END;
+    CREATE TRIGGER search_c_del AFTER DELETE ON comments BEGIN INSERT OR IGNORE INTO search_dirty VALUES (OLD.ticket_id); END;
+    CREATE TRIGGER search_a_ins AFTER INSERT ON attachments BEGIN INSERT OR IGNORE INTO search_dirty VALUES (NEW.ticket_id); END;
+    CREATE TRIGGER search_a_upd AFTER UPDATE ON attachments BEGIN INSERT OR IGNORE INTO search_dirty VALUES (NEW.ticket_id); INSERT OR IGNORE INTO search_dirty VALUES (OLD.ticket_id); END;
+    CREATE TRIGGER search_a_del AFTER DELETE ON attachments BEGIN INSERT OR IGNORE INTO search_dirty VALUES (OLD.ticket_id); END;
+    CREATE TRIGGER search_u_upd AFTER UPDATE OF display_name, email, username ON users
+      BEGIN INSERT OR IGNORE INTO search_dirty SELECT id FROM tickets WHERE reporter_id=NEW.id OR assignee_id=NEW.id; END;
+    -- vorhandene Tickets: Index beim nächsten Start aufbauen
+    INSERT INTO search_dirty SELECT id FROM tickets;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
