@@ -246,3 +246,24 @@ test('SSO-Anmeldung zählt als zweiter Faktor (Standard)', () => {
   assert.deepEqual(out, { done: true });
   assert.equal(db.prepare("SELECT mfa FROM sessions WHERE auth_method='oidc' ORDER BY created_at DESC").get().mfa, 1);
 });
+
+test('Pflicht je Rolle: Benutzer von außen ohne Code, Bearbeiter mit; ungültige Stufe abgelehnt', async () => {
+  const adm = client(INTERN);
+  await adm('POST', '/api/auth/login', { username: 'admin', password: 'Sehrgeheim123' });
+  assert.equal((await adm('PUT', '/api/admin/settings', { settings: { 'mfa.external': 'alle' } })).status, 400);
+  assert.equal((await adm('PUT', '/api/admin/settings', { settings: { 'mfa.external': 'agents', 'mfa.internal': 'none' } })).status, 200);
+  const net = (await adm('GET', '/api/admin/mfa/network')).body;
+  assert.deepEqual(net.levels, { external: 'agents', internal: 'none' });
+  assert.ok(Array.isArray(net.own.ips));
+  await adm('POST', '/api/users', { username: 'kunde', displayName: 'Kunde', role: 'user', password: 'Sehrgeheim123' });
+  const k = client(EXTERN);
+  const r = await k('POST', '/api/auth/login', { username: 'kunde', password: 'Sehrgeheim123' });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.user);
+  assert.equal((await k('GET', '/api/bootstrap')).body.mfa.mode, 'off');
+  const rem = client(EXTERN);
+  // Bearbeiter ohne eingerichteten Faktor: von außen gesperrt (Einrichtung nur intern)
+  assert.equal((await rem('POST', '/api/auth/login', { username: 'remote', password: 'Sehrgeheim123' })).body.error.code, 'err.mfaEnrollInternal');
+  ctx.settings.set('mfa.external', '');
+  ctx.settings.set('mfa.internal', '');
+});

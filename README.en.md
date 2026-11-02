@@ -15,7 +15,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Import from another ticket system** (via its REST API, cloud and Server/Data Center): projects, tickets, comments and attachments. Ticket numbers are kept.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **Roles:** administrator, agent, user. Users only see their own requests.
-- **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required.
+- **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
 - Automatic backups daily and before every update
 
@@ -98,10 +98,18 @@ Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users
 
 *Administration → Security*
 
-Default: **on the internal network a password is enough, from outside a second factor is required.** That is a 6-digit code from an authenticator app such as Microsoft Authenticator, Google Authenticator, Aegis or 2FAS. Alternatively, 2FA can be required "always" or "never (optional)".
+Default: **on the internal network a password is enough, from outside a second factor is required.** That is a 6-digit code from an authenticator app such as Microsoft Authenticator, Google Authenticator, Aegis or 2FAS. The requirement can be set separately per role:
+
+| Setting | Options |
+|---|---|
+| Required when signing in from outside | all users (default) · agents and administrators · administrators only · nobody |
+| Inside the internal network | no two-factor prompt (default) · administrators only · agents and administrators · all users |
+
+Example: reporters without a code, agents with a code from outside, administrators always with a code. Installations that had "always" or "never" set keep that behaviour.
 
 - **Requests from the server itself** (127.0.0.1) do not count as internal automatically. A reverse proxy on the same host must set X-Forwarded-For, otherwise every request would look like it came from the server itself. For testing, `127.0.0.1` can be added to the list.
-- **Internal networks** are a list in the settings (default: `10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7`). The page shows how your current address is classified.
+- **Internal networks** are listed in the settings, one entry per line (default: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). The default covers all private ranges, including Docker networks and a guest Wi-Fi. Best narrow it down to the real company networks, e.g. `10.0.10.0/24`. The page shows how your current address is classified.
+- **Own internet connection:** when a computer inside the company opens Helfi.Space via its public address, it often arrives with the public IP of your own connection (hairpin NAT). Enter that IP or a DynDNS name (e.g. `203.0.113.10` or `helfi.dyndns.example`) and such requests count as internal. Names are resolved again every 5 minutes; if DNS is briefly unreachable, the last known address keeps counting. Caution: if a guest Wi-Fi uses the same connection, guests count as internal too.
 - **Behind a reverse proxy** its address must be in `HELFI_TRUST_PROXY`. Otherwise Helfi.Space only sees the proxy and, to be safe, treats every request as external. Admins then get a notice.
 - **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Security* can allow "first-time setup from outside too".
 - **Sessions:** if you signed in at the office without a code and later use the same browser from home, you have to sign in again with a code there.

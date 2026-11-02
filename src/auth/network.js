@@ -1,5 +1,6 @@
 // Erkennt, ob eine Anfrage aus dem internen Netz kommt, und ob dafür 2FA nötig ist.
 import fs from 'node:fs';
+import dns from 'node:dns';
 import net from 'node:net';
 import { log } from '../lib/log.js';
 
@@ -42,10 +43,83 @@ export function readDefaultGateway(routeFile = '/proc/net/route') {
   return null;
 }
 
-export function createNetworkPolicy(settings, { gateway = readDefaultGateway() } = {}) {
+export const MFA_LEVELS = ['none', 'admins', 'agents', 'all'];
+export const RESOLVE_EVERY_MS = 5 * 60 * 1000;
+
+/** Gilt die Stufe für diese Rolle? none / admins / agents (Bearbeiter + Admins) / all */
+export function levelApplies(level, role) {
+  if (level === 'all') return true;
+  if (level === 'agents') return role === 'agent' || role === 'admin';
+  if (level === 'admins') return role === 'admin';
+  return false;
+}
+
+/**
+ * Wirksame Pflicht außen/innen. Ältere Installationen haben nur mfa.mode
+ * (off | external | always) – daraus wird abgeleitet, solange nichts Neues gespeichert ist.
+ */
+export function mfaLevels(settings) {
+  const mode = settings.get('mfa.mode');
+  const ext = settings.get('mfa.external');
+  const int = settings.get('mfa.internal');
+  return {
+    external: MFA_LEVELS.includes(ext) ? ext : (mode === 'off' ? 'none' : 'all'),
+    internal: MFA_LEVELS.includes(int) ? int : (mode === 'always' ? 'all' : 'none'),
+  };
+}
+
+/** Einträge „Eigener Internetanschluss“: IP-Adressen und Namen (DynDNS), eine pro Zeile. */
+export function parseOwnAddresses(text) {
+  const ips = [];
+  const names = [];
+  const invalid = [];
+  for (const raw of String(text || '').split(/[\s,;]+/).filter(Boolean)) {
+    const v = raw.trim().toLowerCase();
+    if (net.isIP(v)) ips.push(normalizeIp(v));
+    else if (/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(v)) names.push(v);
+    else invalid.push(raw);
+  }
+  return { ips, names, invalid };
+}
+
+export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), resolver = (name) => dns.promises.lookup(name, { all: true }) } = {}) {
   let cacheKey = null;
   let cached = null;
   let warnedProxy = false;
+  // Eigener Internetanschluss: aufgelöste Adressen (Namen werden regelmäßig neu aufgelöst)
+  let ownKey = null;
+  let own = { ips: new Set(), resolved: {}, at: null, errors: {} };
+
+  async function refreshOwn(force = false) {
+    const text = settings.get('mfa.ownAddresses');
+    if (!force && text === ownKey && own.at && Date.now() - own.at < RESOLVE_EVERY_MS) return own;
+    const { ips, names } = parseOwnAddresses(text);
+    const next = { ips: new Set(ips), resolved: {}, at: Date.now(), errors: {} };
+    for (const n of names) {
+      try {
+        const res = await resolver(n);
+        next.resolved[n] = res.map((r) => normalizeIp(r.address));
+        for (const a of next.resolved[n]) next.ips.add(a);
+      } catch (e) {
+        next.errors[n] = e.code || e.message;
+        // Bei einem Fehler die zuletzt bekannte Auflösung behalten (DNS kurz nicht erreichbar)
+        if (own.resolved[n]) { next.resolved[n] = own.resolved[n]; for (const a of own.resolved[n]) next.ips.add(a); }
+      }
+    }
+    ownKey = text;
+    own = next;
+    return own;
+  }
+  const ownSync = () => {
+    // Geänderte Einstellung sofort für reine IP-Einträge übernehmen; Namen folgen asynchron
+    const text = settings.get('mfa.ownAddresses');
+    if (text !== ownKey) {
+      const { ips } = parseOwnAddresses(text);
+      own = { ...own, ips: new Set([...ips, ...Object.values(own.resolved).flat()]) };
+      refreshOwn(true).catch(() => {});
+    } else if (!own.at || Date.now() - own.at >= RESOLVE_EVERY_MS) refreshOwn().catch(() => {});
+    return own.ips;
+  };
 
   function networks() {
     const text = settings.get('mfa.internalNetworks');
@@ -78,6 +152,9 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway() }
     // Docker-Gateway: Bei manchen Docker-Setups (userland-proxy, rootless, IPv6) kommen ALLE
     // Zugriffe scheinbar vom Gateway. Er zählt deshalb nur als intern, wenn er einzeln eingetragen ist.
     if (gateway && ip === gateway && !explicitlyListed(ip)) return { ip, internal: false, reason: 'dockerGateway' };
+    // Eigener Internetanschluss: interne Rechner rufen die öffentliche Adresse auf, der Router reicht
+    // sie mit der eigenen öffentlichen IP weiter (Hairpin-NAT) → gilt als intern
+    if (ownSync().has(ip)) return { ip, internal: true, reason: 'ownAddress' };
     return { ip, internal: networks().check(ip, type), reason: 'networks' };
   }
 
@@ -85,13 +162,31 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway() }
     return String(settings.get('mfa.internalNetworks') || '').split(/[\s,;]+/).some((x) => x === ip || x === `${ip}/32`);
   }
 
-  /** Muss für diese Anfrage ein zweiter Faktor vorliegen? */
-  function mfaRequired(req) {
-    const mode = settings.get('mfa.mode');
-    if (mode === 'off') return false;
-    if (mode === 'always') return true;
-    return !isInternal(req);
+  /** Muss für diese Anfrage (und diesen Benutzer) ein zweiter Faktor vorliegen? */
+  function mfaRequired(req, user) {
+    const levels = mfaLevels(settings);
+    const level = isInternal(req) ? levels.internal : levels.external;
+    return levelApplies(level, user?.role || 'user');
   }
 
-  return { isInternal, classify, mfaRequired, proxyWarning: () => warnedProxy };
+  // regelmäßig neu auflösen, damit eine geänderte DynDNS-Adresse ohne Neustart gilt
+  const timer = setInterval(() => refreshOwn().catch(() => {}), RESOLVE_EVERY_MS);
+  timer.unref?.();
+  refreshOwn().catch(() => {});
+
+  /** Pflicht für diesen Benutzer außen/innen – für Anzeige in Profil und Banner */
+  function userMode(user) {
+    const levels = mfaLevels(settings);
+    const role = user?.role || 'user';
+    const ext = levelApplies(levels.external, role);
+    const int = levelApplies(levels.internal, role);
+    return ext && int ? 'always' : ext ? 'external' : int ? 'internal' : 'off';
+  }
+
+  return {
+    isInternal, classify, mfaRequired, userMode, levels: () => mfaLevels(settings), proxyWarning: () => warnedProxy,
+    ownAddresses: async () => { const o = await refreshOwn(); return { ips: [...o.ips], resolved: o.resolved, errors: o.errors, at: o.at }; },
+    refreshOwn: () => refreshOwn(true),
+    stop: () => clearInterval(timer),
+  };
 }

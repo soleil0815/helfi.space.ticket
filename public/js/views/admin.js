@@ -123,20 +123,50 @@ function loginPagePanel(s) {
 
 // ---------- Sicherheit (2FA) ----------
 async function securityPage(body, s) {
-  const st = await api.mfaStatus();
+  const [st, netInfo] = await Promise.all([api.mfaStatus(), api.admin.mfaNetwork()]);
+  // Ältere Installationen: Stufen aus dem bisherigen Modus übernehmen
+  if (!s['mfa.external']) s['mfa.external'] = netInfo.levels.external;
+  if (!s['mfa.internal']) s['mfa.internal'] = netInfo.levels.internal;
+  // Eine Angabe pro Zeile (früher durch Komma getrennt)
+  const lines = (v) => String(v || '').split(/[\s,;]+/).filter(Boolean).join('\n');
+  const textarea = (key, rows, placeholder) => {
+    const ta = h('textarea.mono', { rows, placeholder, spellcheck: false });
+    ta.value = lines(s[key]);
+    s[key] = ta.value;
+    ta.addEventListener('input', () => { s[key] = ta.value; onInput?.(); });
+    let onInput;
+    return Object.assign(ta, { setOnInput: (f) => { onInput = f; } });
+  };
+  const extWarn = h('div.hint-box.hint-warn', { hidden: s['mfa.external'] !== 'none' }, icon('warning'), h('div', t('mfa.externalNoneWarn')));
+  const own = textarea('mfa.ownAddresses', 3, '203.0.113.10\nhelfi.dyndns.example');
+  const guestWarn = h('div.hint-box.hint-warn', { hidden: !s['mfa.ownAddresses'].trim() }, icon('warning'), h('div', t('mfa.ownGuestWarn')));
+  own.setOnInput(() => { guestWarn.hidden = !s['mfa.ownAddresses'].trim(); });
+  const o = netInfo.own;
+  const ownStatus = h('div.muted.small',
+    h('p', o.ips.length ? t('mfa.ownResolved', { ips: o.ips.join(', ') }) : t('mfa.ownNone')),
+    Object.entries(o.errors || {}).map(([name, error]) => h('p', t('mfa.ownError', { name, error }))));
+  const reason = { untrustedProxy: 'mfa.reason.untrustedProxy', dockerGateway: 'mfa.reason.dockerGateway', ownAddress: 'mfa.reason.ownAddress' }[st.network.reason];
   mount(body,
     h('section.panel',
       h('h2', t('mfa.adminTitle')),
       h('p.muted', t('mfa.adminIntro')),
-      field(t('mfa.mode'), bindSelect(s, 'mfa.mode', [['external', t('mfa.mode.external')], ['always', t('mfa.mode.always')], ['off', t('mfa.mode.off')]])),
-      field(t('mfa.networks'), (() => { const ta = h('textarea.mono', { rows: 3 }); ta.value = s['mfa.internalNetworks']; ta.addEventListener('input', () => { s['mfa.internalNetworks'] = ta.value; }); return ta; })(), t('mfa.networksHint')),
+      field(t('mfa.external'), bindSelect(s, 'mfa.external', [['all', t('mfa.level.all')], ['agents', t('mfa.level.agents')], ['admins', t('mfa.level.admins')], ['none', t('mfa.level.noneExternal')]], (v) => { extWarn.hidden = v !== 'none'; })),
+      extWarn,
+      field(t('mfa.internal'), bindSelect(s, 'mfa.internal', [['none', t('mfa.level.noneInternal')], ['admins', t('mfa.level.admins')], ['agents', t('mfa.level.agents')], ['all', t('mfa.level.all')]]), t('mfa.internalHint')),
+      h('div.hint-box.hint-warn', icon('warning'), h('div',
+        h('p', h('strong', t('mfa.proxyTitle')), ' ', t('mfa.proxyText')),
+        h('p', t('mfa.proxyCurrent', { value: netInfo.trustProxy })),
+        netInfo.proxyWarning ? h('p', h('strong', t('mfa.proxyProblem'))) : null)),
+      field(t('mfa.networksLines'), textarea('mfa.internalNetworks', 5, '10.0.10.0/24'), t('mfa.networksLinesHint')),
+      field(t('mfa.ownTitle'), own, t('mfa.ownHint')),
+      ownStatus,
+      guestWarn,
       h('div.hint-box', icon(st.network.internal ? 'check' : 'globe'), h('div',
         h('p', t(st.network.internal ? 'mfa.youAreInternal' : 'mfa.youAreExternal', { ip: st.network.ip })),
-        st.network.reason === 'untrustedProxy' ? h('p', t('mfa.reason.untrustedProxy')) : null,
-        st.network.reason === 'dockerGateway' ? h('p', t('mfa.reason.dockerGateway')) : null)),
+        reason ? h('p', t(reason)) : null)),
       field(t('mfa.enrollExternal'), bindCheck(s, 'mfa.enrollExternal'), t('mfa.enrollExternalHint')),
       field(t('mfa.trustSso'), bindCheck(s, 'mfa.trustSso'), t('mfa.trustSsoHint')),
-      saveBar(() => saveKeys(s, ['mfa.']))));
+      saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })));
 }
 
 // ---------- Projekte ----------

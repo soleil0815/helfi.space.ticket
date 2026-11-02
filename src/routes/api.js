@@ -10,7 +10,7 @@ import { requireAuth, requireRole, isAgent } from '../auth/session.js';
 import { publicUser, userRef, roleFromGroups, normalizeEmail } from '../users.js';
 import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
-import { parseNetworks } from '../auth/network.js';
+import { parseNetworks, parseOwnAddresses, MFA_LEVELS } from '../auth/network.js';
 import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
 import { fillPlaceholders } from '../../public/js/placeholders.js';
@@ -53,7 +53,11 @@ export function createApi(ctx) {
       },
       allowSelfService: settings.get('general.allowSelfService'),
       defaultLanguage: settings.get('general.defaultLanguage'),
-      mfa: { mode: settings.get('mfa.mode'), internal: policy.isInternal(req), enabled: !!req.user?.totp_enabled },
+      // mode: Pflicht für dieses Konto (always/external/internal/off); ohne Anmeldung zählt „von außen“ für alle
+      mfa: {
+        mode: req.user ? policy.userMode(req.user) : (policy.levels().external === 'none' ? 'off' : 'external'),
+        internal: policy.isInternal(req), enabled: !!req.user?.totp_enabled,
+      },
       warnings: req.user?.role === 'admin' ? adminWarnings() : [],
     });
   });
@@ -69,6 +73,8 @@ export function createApi(ctx) {
     if (policy.proxyWarning()) w.push({ code: 'proxyUntrusted' });
     const nets = parseNetworks(settings.get('mfa.internalNetworks'));
     if (nets.invalid.length) w.push({ code: 'networksInvalid', message: nets.invalid.join(', ') });
+    const own = parseOwnAddresses(settings.get('mfa.ownAddresses'));
+    if (own.invalid.length) w.push({ code: 'ownAddressesInvalid', message: own.invalid.join(', ') });
     return w;
   }
 
@@ -447,11 +453,20 @@ export function createApi(ctx) {
   const admin = express.Router();
   admin.use(requireRole('admin'));
 
+  // Eigener Internetanschluss: aktuell aufgelöste Adressen (zur Kontrolle in der Oberfläche)
+  admin.get('/mfa/network', wrap(async (req, res) => res.json({
+    own: await policy.ownAddresses(), levels: policy.levels(),
+    trustProxy: String(config.trustProxy), proxyWarning: policy.proxyWarning(),
+  })));
+
   admin.get('/settings', (req, res) => res.json({ settings: settings.publicView(), redirectUri: oidcAuth.redirectUri(), languages: LANGUAGES }));
 
   admin.put('/settings', wrap(async (req, res) => {
     const incoming = req.body?.settings || {};
     for (const k of Object.keys(incoming)) if (!(k in DEFAULTS)) delete incoming[k];
+    for (const k of ['mfa.external', 'mfa.internal']) {
+      if (incoming[k] !== undefined && !MFA_LEVELS.includes(incoming[k])) throw new HttpError(400, 'err.badRequest', k);
+    }
     if (incoming['ldap.caPem'] !== undefined && incoming['ldap.caPem']) {
       incoming['ldap.caPem'] = ldap.mergePem('', incoming['ldap.caPem']);
       incoming['ldap.caInfo'] = JSON.stringify(ldap.splitPem(incoming['ldap.caPem']).map((p) => { const { pem, ...rest } = ldap.describeCert(p); return rest; }));
@@ -460,6 +475,7 @@ export function createApi(ctx) {
     if (Object.keys(incoming).some((k) => k.startsWith('oidc.'))) oidcAuth.resetOidcCache();
     if (Object.keys(incoming).some((k) => k.startsWith('imap.'))) poller.start();
     if (Object.keys(incoming).some((k) => k.startsWith('ldap.'))) ctx.ldapCertWarning = null;
+    if (incoming['mfa.ownAddresses'] !== undefined) await policy.refreshOwn().catch(() => {});
     log.info(`Einstellungen geändert von ${req.user.username}`, { keys: Object.keys(incoming) });
     res.json({ settings: settings.publicView() });
   }));

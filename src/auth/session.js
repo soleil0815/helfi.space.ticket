@@ -38,7 +38,7 @@ export function createSessions(db, { policy } = {}) {
       const id = req.cookies?.[COOKIE];
       if (id) {
         const row = find.get(id);
-        if (row && row.expires_at > Date.now() && row.active && !row.session_mfa && policy?.mfaRequired(req)) {
+        if (row && row.expires_at > Date.now() && row.active && !row.session_mfa && policy?.mfaRequired(req, row)) {
           // Sitzung ohne zweiten Faktor (z. B. im Büro angemeldet), jetzt aber von außen → neu anmelden
           req.mfaBlocked = true;
         } else if (row && row.expires_at > Date.now() && row.active) {
