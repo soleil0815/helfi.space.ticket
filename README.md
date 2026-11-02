@@ -188,6 +188,7 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
   - das Ticket sehen, auch unter *Meine Anfragen* mit dem Filter „Ich bin Teilnehmer“
   - im Web oder per Antwort-Mail kommentieren und Dateien anhängen
 - **Was Teilnehmer nicht dürfen:** interne Notizen sehen, Status, Zuweisung oder Titel ändern.
+- **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 

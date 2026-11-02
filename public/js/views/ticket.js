@@ -360,7 +360,7 @@ export async function renderTicket(content, key) {
         icon('chevron-down', 'details-chevron')),
         tk.sla ? detailRow(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
         tk.sla ? detailRow(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
-        detailRow(t('ticket.assignee'), assignee),
+        detailRow(agent ? t('ticket.assignee') : t('ticket.yourContact'), assignee),
         detailRow(t('ticket.reporter'), h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—', tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.muted.block', tk.reporter.email) : null))),
         detailRow(t('ticket.participants'), participantsEl()),
         agent ? detailRow(t('itil.impact'), pick(tk.impact, [[null, t('app.none')], ...['high', 'medium', 'low'].map((v) => [v, t(`level.${v}`)])], (v) => save({ impact: v }),

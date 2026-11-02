@@ -445,6 +445,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <ul>
   <li><strong>Postfach abrufen (IMAP):</strong> Server, Benutzer und Kennwort des Helpdesk-Postfachs. Neue Mails werden Tickets, Antworten werden Kommentare. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben – empfohlen ist ein eigener Ordner. Das Postfach am besten nicht parallel in Outlook lesen.</li>
   <li><strong>Versand (SMTP):</strong> als Absender am besten dieselbe Adresse wie das Postfach, dann landen Antworten wieder im Ticket.</li>
+  <li><strong>Absender ist immer das Ticketsystem</strong> – nie die Adresse eines Bearbeiters, keine persönlichen Signaturen. Damit der Melder weiß, wer ihn betreut, enden Antwort- und Erledigt-Mails mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei. Im Browser heißt das Feld für Benutzer ebenfalls „Ihr Ansprechpartner“.</li>
   <li><strong>Absender im Active Directory nachschlagen:</strong> Unbekannte Absender werden im AD gesucht und gleich als AD-Benutzer angelegt. Sonst werden sie <em>E-Mail-Kontakte</em>; melden sie sich später an, gehören ihnen ihre Tickets.</li>
   <li><strong>Empfänger in An/CC werden Teilnehmer</strong> (abschaltbar).</li>
   <li><strong>Aufbewahrung:</strong> „Verarbeitete Mails löschen nach … Tagen“ (Standard: nie). Gelöscht wird nur im Ordner für verarbeitete Mails, nie im Posteingang.</li>

@@ -445,6 +445,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <ul>
   <li><strong>Fetch mailbox (IMAP):</strong> server, user and password of the help desk mailbox. New emails become tickets, replies become comments. Processed emails are marked as read or moved to a folder – a separate folder is recommended. Better not read the mailbox in Outlook in parallel.</li>
   <li><strong>Sending (SMTP):</strong> ideally use the mailbox address as sender, so replies come back into the ticket.</li>
+  <li><strong>The sender is always the ticket system</strong> – never an agent’s address, no personal signatures. So the reporter knows who looks after them, reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added. In the browser, users see the field as “Your contact”.</li>
   <li><strong>Look up senders in Active Directory:</strong> unknown senders are searched in AD and created as AD users right away. Otherwise they become <em>email contacts</em>; when they sign in later, their tickets are theirs.</li>
   <li><strong>Recipients in To/CC become participants</strong> (can be turned off).</li>
   <li><strong>Retention:</strong> “Delete processed emails after … days” (default: never). Only the folder for processed emails is cleaned, never the inbox.</li>
