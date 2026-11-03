@@ -9,7 +9,9 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SHELL = fs.existsSync('/usr/bin/dash') ? '/usr/bin/dash' : '/bin/sh';
+// HELFI_TEST_SHELL/HELFI_TEST_PATH: z. B. BusyBox ash samt BusyBox-Werkzeugen prüfen
+const SHELL = process.env.HELFI_TEST_SHELL || (fs.existsSync('/usr/bin/dash') ? '/usr/bin/dash' : '/bin/sh');
+const BASE_PATH = process.env.HELFI_TEST_PATH || '/usr/bin:/bin';
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 function setup({ composeVersionInImage = 1, customizeCompose = false, envText = 'HELFI_BASE_URL=http://x\nHELFI_VERSION=latest\n' } = {}) {
@@ -39,7 +41,7 @@ function run(ctx, args = [], env = {}) {
     encoding: 'utf8',
     input: '',
     env: {
-      PATH: `${ctx.bin}:/usr/bin:/bin`, FAKE_LOG: ctx.log, FAKE_DIR: ctx.dir,
+      PATH: `${ctx.bin}:${BASE_PATH}`, FAKE_LOG: ctx.log, FAKE_DIR: ctx.dir,
       FAKE_IMAGE_COMPOSE: ctx.imageCompose, FAKE_IMAGE_HASHES: ctx.imageHashes, HELFI_UPDATE_WAIT: '3', ...env,
     },
   });

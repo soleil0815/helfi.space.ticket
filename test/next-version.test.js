@@ -54,3 +54,16 @@ test('Ungültige Eingaben werden abgelehnt', () => {
   assert.equal(run(dir, 'irgendwas').code, 2);
   assert.notEqual(run(repo([], 'kaputt'), 'patch').code, 0);
 });
+
+test('Tags mit führenden Nullen zählen nicht und werden abgelehnt (Audit)', () => {
+  let dir = repo(['v1.10.0', 'v1.10.08']);
+  const r = run(dir, 'patch');
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.out, { version: '1.10.1', latest: 'true' });
+  dir = repo(['v1.11.0', 'v1.11.010']);
+  assert.deepEqual(run(dir, 'patch').out, { version: '1.11.1', latest: 'true' });
+  assert.notEqual(run(dir, 'tag:v1.11.010').code, 0);
+  assert.notEqual(run(dir, 'tag:v01.2.3').code, 0);
+  assert.notEqual(run(repo([], '1.02.0'), 'patch').code, 0);
+  assert.deepEqual(run(repo(['v0.0.0']), 'patch').out, { version: '0.0.1', latest: 'true' });
+});

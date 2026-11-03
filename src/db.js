@@ -571,9 +571,18 @@ function stamp() {
 export async function backupDatabase(db, label, dir = paths.backups) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `helfi-${label}-${stamp()}.sqlite`);
-  await db.backup(file);
-  // Enthält Kennwort-Hashes und personenbezogene Daten → nur für den Besitzer lesbar
-  try { fs.chmodSync(file, 0o600); } catch { /* z. B. Dateisystem ohne Rechte */ }
+  // Erst unter Zwischennamen schreiben, dann umbenennen: Wird der Start mittendrin abgebrochen,
+  // liegt nie eine halbfertige Sicherung unter dem endgültigen Namen (update.sh spielt sie sonst zurück)
+  const part = `${file}.part`;
+  try {
+    await db.backup(part);
+    // Enthält Kennwort-Hashes und personenbezogene Daten → nur für den Besitzer lesbar
+    try { fs.chmodSync(part, 0o600); } catch { /* z. B. Dateisystem ohne Rechte */ }
+    fs.renameSync(part, file);
+  } catch (e) {
+    for (const f of [part, `${part}-journal`]) { try { fs.rmSync(f, { force: true }); } catch { /* egal */ } }
+    throw e;
+  }
   log.info(`Sicherung erstellt: ${file}`);
   return file;
 }

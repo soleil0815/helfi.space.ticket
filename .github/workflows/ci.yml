@@ -106,10 +106,12 @@ jobs:
       - name: Schwachstellen auswerten
         run: sh .github/scripts/trivy-check.sh trivy.json
 
-  # Veröffentlichen: nur Tags, nur von main, nur nach erfolgreichen Prüfungen
+  # Veröffentlichen: nur Tags, nur von main, nur nach erfolgreichen Prüfungen.
+  # Tag-Bedingung nur für push: „Run workflow“ von einem Tag aus würde sonst einen alten Stand
+  # mit neuer Versionsnummer (und als latest) veröffentlichen.
   release-check:
     if: >-
-      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
       (github.event_name == 'workflow_dispatch' && inputs.release != 'nein' && github.ref == 'refs/heads/main')
     needs: [image]
     runs-on: ubuntu-24.04
@@ -127,6 +129,13 @@ jobs:
           MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.release || format('tag:{0}', github.ref_name) }}
         run: |
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::Commit liegt nicht auf main"; exit 1; }
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            # Release per Knopf: nur vom Branch main und nur dessen aktueller Stand
+            [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::Release per Knopf nur vom Branch main ($GITHUB_REF)"; exit 1; }
+            [ "$GITHUB_SHA" = "$(git rev-parse origin/main)" ] || { echo "::error::$GITHUB_SHA ist nicht der aktuelle Stand von main"; exit 1; }
+          elif [ "$GITHUB_EVENT_NAME" != push ]; then
+            echo "::error::Release nur per Tag-Push oder per Knopf ($GITHUB_EVENT_NAME)"; exit 1
+          fi
           out="$(sh .github/scripts/next-version.sh "$MODE")" || { echo "::error::Version nicht bestimmbar ($MODE)"; exit 1; }
           echo "$out"
           echo "$out" >> "$GITHUB_OUTPUT"
