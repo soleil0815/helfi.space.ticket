@@ -147,31 +147,17 @@ test('Personen suchen (Teilnehmer aus dem AD) und per objectGUID holen', { skip 
   await assert.rejects(ldap.searchPeople({ ...cfg, bindDn: '' }, 'Muster'), /Dienstkonto/);
 });
 
-test('Ohne Dienstkonto: UPN eines anderen Kontos führt nicht zur Anmeldung als dieses Konto', { skip }, async () => {
+test('Ohne Dienstkonto: Anmeldung prüft das Kennwort am gefundenen Konto', { skip }, async () => {
+  // Die eigentliche Kollision (UPN eines Kontos = sAMAccountName@Domäne eines anderen) lässt Samba gar nicht
+  // erst zu („implied by userPrincipalName“); hier wird der Weg über den zweiten Bind auf den DN geprüft.
   const cfg = { ...base, bindDn: '', bindPassword: '' };
   if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
-  const { Change, Attribute } = await import('ldapts');
-  const adm = await ldap.connect(cfg);
-  const upn = (dn, value) => adm.modify(dn, [new Change({ operation: 'replace', modification: new Attribute({ type: 'userPrincipalName', values: [value] }) })]);
-  const MAX = 'CN=Max Muster,CN=Users,DC=firma,DC=local';
-  const KARL = 'CN=Karl Kunde,CN=Users,DC=firma,DC=local';
-  await adm.bind('Administrator@firma.local', 'Passw0rd!2026');
-  try {
-    // Kollision: Karls UPN lautet „m.muster@firma.local“, der sAMAccountName „m.muster“ gehört Max
-    await upn(MAX, 'max.muster@firma.local');
-    await upn(KARL, 'm.muster@firma.local');
-    const r = await ldap.authenticate(cfg, 'm.muster', 'Kunde!Pass2026');
-    assert.equal(r, null, 'Karls Kennwort darf nicht als Max anmelden');
-    // Gegenprobe: ohne Kollision klappt die Anmeldung ohne Dienstkonto
-    await upn(KARL, 'k.kunde@firma.local');
-    const ok = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
-    assert.equal(ok?.username, 'k.kunde');
-    assert.match(ok.sid, /^S-1-5-21-\d+-\d+-\d+-\d+$/, 'objectSid wird mitgeliefert');
-  } finally {
-    await upn(KARL, 'k.kunde@firma.local').catch(() => {});
-    await upn(MAX, 'm.muster@firma.local').catch(() => {});
-    await adm.unbind().catch(() => {});
-  }
+  const ok = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
+  assert.equal(ok?.username, 'k.kunde');
+  assert.match(ok.sid, /^S-1-5-21-\d+-\d+-\d+-\d+$/, 'objectSid wird mitgeliefert');
+  assert.match(ok.externalId, /^[0-9a-f]{32}$/, 'objectGUID als Hex');
+  assert.equal(await ldap.authenticate(cfg, 'k.kunde', 'falsch'), null);
+  assert.equal(await ldap.authenticate(cfg, 'm.muster', 'Kunde!Pass2026'), null, 'fremdes Kennwort');
 });
 
 test('objectSid: Konto über die SID finden (SSO-Zusammenführung)', { skip }, async () => {
