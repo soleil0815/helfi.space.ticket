@@ -123,7 +123,12 @@ export function createUsers(db) {
    * trustEmail: E-Mail-Adresse ist bestätigt – E-Mail-Kontakte dürfen übernommen werden.
    * allowCreate: false = nur bestehende Konten anmelden.
    */
-  function upsertExternal({ source, username, displayName, email, externalId, role, trustName = true, trustEmail = true, allowCreate = true }) {
+  /** Bis 1.12 konnte die objectGUID als Text (statt Hex) gespeichert werden: weder 32 Hex-Zeichen noch ein DN */
+  const garbledGuid = (id) => !/^[0-9a-f]{32}$/i.test(String(id)) && !String(id).includes('=');
+
+  function upsertExternal({ source, username, displayName, email, externalId, role, trustName = true, trustEmail = true, allowCreate = true, sid = '' }) {
+    // objectSid nur von AD-Konten speichern (stabile Kennung für die Zusammenführung mit SSO)
+    const adSid = source === 'ldap' && /^S-1-[\d-]+$/.test(String(sid || '')) ? String(sid) : null;
     // Unbestätigte Adressen nie speichern: Mails von dieser Adresse würden sonst diesem Konto zugeordnet
     if (!trustEmail) email = '';
     let u = externalId ? db.prepare('SELECT * FROM users WHERE source=? AND external_id=?').get(source, externalId) : null;
@@ -131,8 +136,10 @@ export function createUsers(db) {
     if (!u) {
       const byUsername = byName.get(username);
       const mergeable = byUsername && trustName && byUsername.source !== 'local'
-        // nie ein Konto derselben Quelle mit anderer Identität übernehmen
-        && !(byUsername.source === source && byUsername.external_id && byUsername.external_id !== externalId)
+        // nie ein Konto derselben Quelle mit anderer Identität übernehmen – außer bei AD-Konten, deren
+        // gespeicherte objectGUID bis 1.12 verstümmelt sein konnte (16 Bytes zufällig gültiges UTF-8 → Text statt Hex)
+        && !(byUsername.source === source && byUsername.external_id && byUsername.external_id !== externalId
+          && !(source === 'ldap' && garbledGuid(byUsername.external_id) && /^[0-9a-f]{32}$/.test(String(externalId || ''))))
         // Konten im Namensraum "oidc:" (nicht vertrauenswürdige SSO-Namen) nie übernehmen
         && !String(byUsername.username).startsWith('oidc:');
       if (mergeable) u = byUsername;
@@ -157,8 +164,8 @@ export function createUsers(db) {
       if (!allowCreate) return null;
       if (byName.get(username)) throw new HttpError(409, 'err.usernameTaken');
       const info = db.prepare(
-        'INSERT INTO users(username,display_name,email,role,source,external_id) VALUES(?,?,?,?,?,?)',
-      ).run(username, displayName || username, email || null, role || 'user', source, externalId || null);
+        'INSERT INTO users(username,display_name,email,role,source,external_id,ad_sid) VALUES(?,?,?,?,?,?,?)',
+      ).run(username, displayName || username, email || null, role || 'user', source, externalId || null, adSid);
       return byId.get(info.lastInsertRowid);
     }
 
@@ -171,6 +178,7 @@ export function createUsers(db) {
       `UPDATE users SET display_name=?, email=COALESCE(NULLIF(?,''),email), role=?, source=?, external_id=? WHERE id=?`,
     ).run(displayName || u.display_name, email || '', safeRole,
       adopt ? source : u.source, adopt ? (externalId || u.external_id) : u.external_id, u.id);
+    if (adSid && (adopt || u.source === 'ldap')) db.prepare('UPDATE users SET ad_sid=? WHERE id=?').run(adSid, u.id);
     if (adopt && u.source === 'email' && u.username !== username && !byName.get(username)) {
       db.prepare('UPDATE users SET username=? WHERE id=?').run(username, u.id);
     }
@@ -189,7 +197,14 @@ export function createUsers(db) {
     return byId.get(info.lastInsertRowid);
   }
 
-  return { byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, countActiveAdmins, setEmail };
+  /** AD-Konto über die AD-Kennung aus einem SSO-Claim ({ sid } oder { guid }) */
+  function byAdId(adId) {
+    if (adId?.sid) return db.prepare("SELECT * FROM users WHERE source='ldap' AND ad_sid=? COLLATE NOCASE").get(adId.sid) || null;
+    if (adId?.guid) return db.prepare("SELECT * FROM users WHERE source='ldap' AND lower(external_id)=?").get(adId.guid) || null;
+    return null;
+  }
+
+  return { byAdId, byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, countActiveAdmins, setEmail };
 }
 
 /** Rolle aus Gruppenmitgliedschaft ableiten. Keine Gruppen konfiguriert → null (Rolle bleibt). */

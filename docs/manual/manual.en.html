@@ -122,6 +122,7 @@
 <ul>
   <li><strong>Name and email address</strong> – editable for local accounts (a new email address requires your current password). For AD and SSO accounts both come from the company account.</li>
   <li><strong>Language</strong> of the interface and of emails sent to you.</li>
+  <li><strong>What's new</strong> (also in the menu at the top right): what changed in each version. After an update Helfi.Space shows the news once by itself. Clicking the version number at the bottom of the sidebar also leads there, “Helfi.Space” next to it opens the website <code>helfi.space</code>.</li>
   <li><strong>Two-factor authentication</strong> setup and management.</li>
   <li><strong>Change password</strong> (local accounts only; change AD passwords in Windows as usual).</li>
 </ul>
@@ -184,7 +185,7 @@
 <p><em>All tickets</em> shows a sortable list. Filters for project, status, type, priority and assignee can be combined; clicking a column header sorts. The page address contains the filters – bookmark or share it.</p>
 <figure><img src="img/en/list.jpg" alt=""><figcaption>Ticket list with filters</figcaption></figure>
 <h3>Search</h3>
-<p>The search box at the top searches the full text of all tickets: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (also by email address and logon name). Users without the agent role find tickets only by title, description, public replies, attachment names and labels, not by names or addresses of people.</p>
+<p>The search box at the top searches the full text of all tickets: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (also by email address and logon name). Users without the agent role find tickets by title, description, public replies, attachment names, labels and the names visible in the ticket – not by email addresses or logon names.</p>
 <ul>
   <li><strong>Word parts</strong> match: “printer” also finds “networkprinter”.</li>
   <li><strong>Several words</strong> must all appear, in any order. <code>"exact phrase"</code> in quotes, <code>-word</code> excludes.</li>
@@ -199,7 +200,7 @@
   <li>Change <strong>assignee</strong>, <strong>priority</strong>, <strong>type</strong>, <strong>labels</strong>, <strong>due date</strong> and <strong>project</strong> directly in the details. “Assign to me” takes one click or the <kbd>i</kbd> key.</li>
   <li>Click <strong>title</strong> and <strong>description</strong> to edit them.</li>
   <li><strong>Changing the project:</strong> the ticket gets a new key in the new project; the old one stays in the history. Replies to old emails are still assigned correctly.</li>
-  <li><strong>Activity:</strong> tabs <em>Comments</em>, <em>History</em> (every change with person and time) and <em>All</em>.</li>
+  <li><strong>Activity:</strong> tabs <em>Comments</em>, <em>History</em> (every change with person and time) and <em>All</em>. For a changed description, <strong>Show change</strong> shows the differences and the previous version.</li>
   <li><strong>Copy link</strong> via the chain icon at the top right.</li>
 </ul>
 
@@ -431,6 +432,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li>Optionally “redirect straight to SSO”. The normal sign-in remains available at <code>/login?local=1</code>.</li>
 </ol>
 <p><strong>SSO and AD together:</strong> with “Merge with AD accounts for domain” (e.g. <code>firma.local</code>), <code>m.muster@firma.local</code> from SSO is the same account as the AD user <code>m.muster</code>. Only enter it if the provider does not allow guest accounts from other organisations. If the token contains only the email address (no <code>preferred_username</code>/UPN), accounts are only merged if the provider reports it as verified (<code>email_verified</code>). Email addresses from SSO are only taken over if they are verified or equal the user name of the allowed domain.</p>
+<p><strong>Stable via the AD identifier (recommended):</strong> under <em>Claim with AD identifier</em> enter the claim holding <code>objectSid</code> or <code>objectGUID</code> – <code>onprem_sid</code> (optional claim) for Entra ID, a custom mapping for Keycloak/Authentik. Then accounts are merged only this way, not by freely chosen names. With a service account the AD account is checked on every SSO sign-in (disabled, group, role); if the AD is unreachable, the SSO sign-in is cancelled.</p>
 
 <h2 id="2fa">Two-factor authentication and networks</h2>
 <p><em>Administration → Security</em></p>
@@ -445,7 +447,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Own internet connection:</strong> public IP or DynDNS name (e.g. <code>203.0.113.10</code> or <code>helfi.dyndns.example</code>). Requests from there count as internal; names are resolved again every 5 minutes. Careful with a guest Wi-Fi on the same connection.</li>
   <li><strong>Reverse proxy:</strong> without a matching <code>HELFI_TRUST_PROXY</code> every request counts as external; the page shows the current value.</li>
   <li><strong>Allow first-time setup from outside:</strong> off by default.</li>
-  <li><strong>SSO sign-ins count as second factor:</strong> on by default (MFA at the identity provider).</li>
+  <li><strong>SSO sign-in as second factor:</strong> <em>Only if the provider reports MFA</em> (default: the token shows a multi-factor sign-in via <code>amr</code> or an entered <code>acr</code> value), <em>Always</em> or <em>Never</em>. Otherwise Helfi.Space asks for its own code after the SSO sign-in. Installations with SSO enabled keep “Always” on update.</li>
   <li><strong>Reset 2FA</strong> for a person: <em>Users → Reset 2FA</em>.</li>
 </ul>
 
@@ -453,7 +455,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p><em>Administration → Email</em></p>
 <figure><img src="img/en/admin-mail-1.jpg" alt=""><figcaption>Fetching a mailbox (IMAP)</figcaption></figure>
 <ul>
-  <li><strong>Fetch mailbox (IMAP):</strong> server, user and password of the help desk mailbox. New emails become tickets, replies become comments. Processed emails are marked as read or moved to a folder – a separate folder is recommended. Skipped emails and delivery failure reports stay in the inbox, marked as read, and are not deleted automatically. Better not read the mailbox in Outlook in parallel.</li>
+  <li><strong>Fetch mailbox (IMAP):</strong> server, user and password of the help desk mailbox. New emails become tickets, replies become comments. Processed emails are marked as read or moved to a folder – a separate folder is recommended. Skipped emails and delivery failure reports stay in the inbox, marked as read, and are not deleted automatically. Processed emails get their own flag; if the mailbox is read in Outlook in parallel, they are still not lost (if the mail server supports custom flags, otherwise better not read it in parallel).</li>
   <li><strong>Replies by ticket key</strong> in the subject are only accepted from the reporter, request participants and everyone who has already written in the ticket; anyone who merely guesses the key gets a new ticket. Replies to mails from Helfi.Space are matched via the Message-ID.</li>
   <li><strong>Sending (SMTP):</strong> ideally use the mailbox address as sender, so replies come back into the ticket.</li>
   <li><strong>The sender is always the ticket system</strong> – never an agent’s address, no personal signatures. So the reporter knows who looks after them, reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added. In the browser, users see the field as “Your contact”.</li>

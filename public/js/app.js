@@ -12,6 +12,7 @@ import { renderReports } from './views/reports.js';
 import { renderSummary } from './views/summary.js';
 import { QUEUES, VIEWS, queueHref, matchQueue } from './queues.js';
 import { renderProfile } from './views/profile.js';
+import { renderNews, showNewsPopup } from './views/news.js';
 import { brandLogo, brandTitle } from './brand.js';
 import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
@@ -39,6 +40,14 @@ const root = document.getElementById('app');
 // Ungespeicherte Änderungen (z. B. im Artikel-Editor): vor dem Verlassen nachfragen
 let leaveGuard = null;
 let guardUrl = null;
+/** Fuß der Seitenleiste: Link zur Website (neuer Tab) und Version (→ Neuigkeiten) */
+export const HOME_URL = 'https://helfi.space';
+function sidebarFoot() {
+  return h('div.sidebar-foot',
+    h('a.home-link', { href: HOME_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.website') }, 'Helfi.Space'), ' ',
+    h('a.version-link', { href: '/news', 'data-link': '', title: t('news.title') }, state.boot.app.version));
+}
+
 export function setLeaveGuard(isDirty) { leaveGuard = isDirty; guardUrl = isDirty ? location.pathname + location.search : null; }
 const mayLeave = () => !leaveGuard || !leaveGuard() || window.confirm(t('app.leaveConfirm'));
 window.addEventListener('beforeunload', (e) => { if (leaveGuard && leaveGuard()) { e.preventDefault(); e.returnValue = ''; } });
@@ -153,6 +162,7 @@ export async function route() {
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
     if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
     if (path === '/profile') return renderProfile(content);
+    if (path === '/news') return await renderNews(content);
     mount(content, h('div.empty-state', h('h2', '404'), h('a', { href: '/', 'data-link': '' }, '←')));
   } catch (e) {
     mount(content, h('div.empty-state', h('h2', t('app.error')), h('p', e.message)));
@@ -199,6 +209,7 @@ function layout(content, path) {
     type: 'button', 'aria-label': u.displayName,
     onclick: (e) => dropdown(e.currentTarget, [
       { label: t('app.profile'), icon: icon('user'), onClick: () => navigate('/profile') },
+      { label: t('news.title'), icon: icon('info'), onClick: () => navigate('/news') },
       ...(state.isAdmin ? [{ label: t('nav.admin'), icon: icon('settings'), onClick: () => navigate('/admin') }] : []),
       '-',
       { label: 'Deutsch', active: getLang() === 'de', onClick: () => setLanguage('de') },
@@ -264,7 +275,7 @@ function layout(content, path) {
       state.isAdmin ? nav('/admin/mail', t('nav.channelsMail'), 'mail', path === '/admin/mail') : null,
       state.isAdmin ? h('div.sidebar-label', t('nav.admin')) : null,
       state.isAdmin ? nav('/admin', t('app.settings'), 'settings', path.startsWith('/admin')) : null,
-      h('div.sidebar-foot', `Helfi.Space ${state.boot.app.version}`),
+      sidebarFoot(),
     );
   } else {
     sidebar = h('aside.sidebar',
@@ -272,7 +283,7 @@ function layout(content, path) {
       state.boot.hasCatalog ? nav('/catalog', t('catalog.request'), 'plus', path.startsWith('/catalog')) : null,
       state.boot.pendingApprovals ? nav('/requests?approval=mine', t('nav.approvals'), 'check', false) : null,
       nav('/kb', t('kb.titleUser'), 'file', path.startsWith('/kb')),
-      h('div.sidebar-foot', `Helfi.Space ${state.boot.app.version}`),
+      sidebarFoot(),
     );
   }
 
@@ -289,6 +300,12 @@ function layout(content, path) {
     warnings.push(b);
   }
   if (state.isAgent) refreshQueueCounts(p?.key);
+  // Nach einem Update einmal zeigen, was neu ist (nicht auf der Neuigkeiten-Seite selbst)
+  if (state.boot.news && !state.newsShown && path !== '/news') {
+    state.newsShown = true;
+    const entry = state.boot.news;
+    setTimeout(() => { if (state.boot.news) showNewsPopup(entry); }, 300);
+  }
   // Antippen eines Eintrags schließt die Schublade (die Seite wird ohnehin neu aufgebaut)
   sidebar.addEventListener('click', (e) => { if (e.target.closest('a[data-link]')) toggleNav(false); });
   const backdrop = h('div.nav-backdrop', { onclick: () => toggleNav(false) });

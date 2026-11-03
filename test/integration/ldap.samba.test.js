@@ -146,3 +146,41 @@ test('Personen suchen (Teilnehmer aus dem AD) und per objectGUID holen', { skip 
   assert.equal(await ldap.findByGuid(cfg, 'kein-guid'), null);
   await assert.rejects(ldap.searchPeople({ ...cfg, bindDn: '' }, 'Muster'), /Dienstkonto/);
 });
+
+test('Ohne Dienstkonto: UPN eines anderen Kontos führt nicht zur Anmeldung als dieses Konto', { skip }, async () => {
+  const cfg = { ...base, bindDn: '', bindPassword: '' };
+  if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+  const { Change, Attribute } = await import('ldapts');
+  const adm = await ldap.connect(cfg);
+  const upn = (dn, value) => adm.modify(dn, [new Change({ operation: 'replace', modification: new Attribute({ type: 'userPrincipalName', values: [value] }) })]);
+  const MAX = 'CN=Max Muster,CN=Users,DC=firma,DC=local';
+  const KARL = 'CN=Karl Kunde,CN=Users,DC=firma,DC=local';
+  await adm.bind('Administrator@firma.local', 'Passw0rd!2026');
+  try {
+    // Kollision: Karls UPN lautet „m.muster@firma.local“, der sAMAccountName „m.muster“ gehört Max
+    await upn(MAX, 'max.muster@firma.local');
+    await upn(KARL, 'm.muster@firma.local');
+    const r = await ldap.authenticate(cfg, 'm.muster', 'Kunde!Pass2026');
+    assert.equal(r, null, 'Karls Kennwort darf nicht als Max anmelden');
+    // Gegenprobe: ohne Kollision klappt die Anmeldung ohne Dienstkonto
+    await upn(KARL, 'k.kunde@firma.local');
+    const ok = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
+    assert.equal(ok?.username, 'k.kunde');
+    assert.match(ok.sid, /^S-1-5-21-\d+-\d+-\d+-\d+$/, 'objectSid wird mitgeliefert');
+  } finally {
+    await upn(KARL, 'k.kunde@firma.local').catch(() => {});
+    await upn(MAX, 'm.muster@firma.local').catch(() => {});
+    await adm.unbind().catch(() => {});
+  }
+});
+
+test('objectSid: Konto über die SID finden (SSO-Zusammenführung)', { skip }, async () => {
+  const cfg = { ...base };
+  if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+  const max = await ldap.findByEmail(cfg, 'm.muster@firma.local');
+  assert.match(max.sid, /^S-1-5-21-/);
+  const bySid = await ldap.findBySid(cfg, max.sid);
+  assert.equal(bySid.username, 'm.muster');
+  assert.equal(bySid.externalId, max.externalId);
+  assert.equal(await ldap.findBySid(cfg, 'S-1-5-21-1-2-3-999999'), null);
+});

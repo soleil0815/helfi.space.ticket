@@ -114,12 +114,15 @@ test('Antwort auf Bearbeiter-Mail (Zuweisung): interne Notiz, kein Wiederöffnen
     await wait();
     const confirm = outbox.find((m) => m.to === 'kunde@extern.example');
     assert.ok(confirm && !/\.agent@/.test(confirm.messageId), 'Mail an Kunden ohne Kennung');
+    assert.equal(db.prepare('SELECT agent_only FROM mail_messages WHERE message_id=?').get(confirm.messageId.replace(/[<>]/g, '')).agent_only, 0);
     outbox.length = 0;
     ctx.tickets.update({ id: 1, role: 'admin' }, first.ticketId, { assigneeId: S.ids.anna, status: 'waiting' });
     await wait();
     const assigned = outbox.find((m) => m.to === 'anna@firma.local');
     assert.ok(assigned, 'Zuweisungs-Mail');
-    assert.match(assigned.messageId, /\.agent@firma\.local>$/);
+    // Kennung steht in der Datenbank, nicht in der Message-ID (die sehen auch Dritte, z. B. bei Weiterleitung)
+    assert.doesNotMatch(assigned.messageId, /\.agent@/);
+    assert.equal(db.prepare('SELECT agent_only FROM mail_messages WHERE message_id=?').get(assigned.messageId.replace(/[<>]/g, '')).agent_only, 1);
 
     const r = await run(['From: anna@firma.local', 'To: helpdesk@firma.local', 'Cc: fremd2@extern.example', `Subject: Re: [${first.key}] zugewiesen`,
       'Message-ID: <ag2@firma.local>', `In-Reply-To: ${assigned.messageId}`, '', 'Intern: Kunde nervt, Ticket liegen lassen']);

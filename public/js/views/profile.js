@@ -90,9 +90,12 @@ async function drawMfa(panel) {
     t(st.network.internal ? 'mfa.youAreInternal' : 'mfa.youAreExternal', { ip: st.network.ip }));
   const modeText = { off: t('mfa.modeOffInfo'), external: t('mfa.modeExternalInfo'), always: t('mfa.modeAlwaysInfo'), internal: t('mfa.modeInternalInfo') }[st.mode];
 
-  if (st.sso && !st.enabled) {
+  // SSO zählt immer als zweiter Faktor: hier nichts einzurichten
+  if (st.sso === 'always' && !st.enabled) {
     return mount(panel, h('h2', t('mfa.title')), h('p', t('mfa.ssoInfo')), where);
   }
+  // Nur wenn der Anbieter MFA meldet: Hinweis, Einrichtung bleibt möglich
+  const ssoNote = st.sso === 'confirmed' && !st.enabled ? h('p', t('mfa.ssoInfoConfirmed')) : null;
 
   if (!st.enabled) {
     const start = h('button.btn.btn-primary', {
@@ -124,6 +127,7 @@ async function drawMfa(panel) {
     }, icon('shield'), t('mfa.setup'));
     return mount(panel, h('h2', t('mfa.title')),
       h('p', h('span.badge', t('mfa.statusOff')), ' ', modeText),
+      ssoNote,
       where,
       st.canSetup ? null : h('div.hint-box', icon('info'), h('div', t('mfa.setupOnlyInternal'))),
       start);

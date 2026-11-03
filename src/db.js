@@ -529,6 +529,38 @@ export const MIGRATIONS = [
       WHEN EXISTS (SELECT 1 FROM tickets WHERE project_id=OLD.id) BEGIN SELECT RAISE(ABORT, 'Projekt hat Tickets'); END;
     `,
   },
+  {
+    id: 24,
+    name: 'AD-Kennung, Bearbeiter-Mails, Suche nach Namen, Neuigkeiten, SSO als zweiter Faktor',
+    sql: `
+    -- objectSid von AD-Konten (Zusammenführung mit SSO über eine stabile Kennung)
+    ALTER TABLE users ADD COLUMN ad_sid TEXT;
+    CREATE INDEX idx_users_ad_sid ON users(ad_sid) WHERE ad_sid IS NOT NULL;
+    -- zuletzt gesehene Neuigkeiten (Version). Bestehende Konten (NULL) sehen die Neuigkeiten nach dem
+    -- Update einmal; neue Konten starten beim aktuellen Stand (kein Hinweis auf Altes)
+    ALTER TABLE users ADD COLUMN news_seen TEXT;
+    CREATE TRIGGER users_news_seen AFTER INSERT ON users WHEN NEW.news_seen IS NULL
+      BEGIN UPDATE users SET news_seen=(SELECT value FROM meta WHERE key='app_version') WHERE id=NEW.id; END;
+
+    -- Mail ging nur an einen Bearbeiter: eigene Spalte statt Kennung in der Message-ID
+    ALTER TABLE mail_messages ADD COLUMN agent_only INTEGER NOT NULL DEFAULT 0;
+    UPDATE mail_messages SET agent_only=1 WHERE direction='out' AND message_id LIKE 'helfi.%.agent@%';
+
+    -- Suchindex mit eigener Spalte für sichtbare Namen (für Benutzer); neu aufbauen
+    DROP TABLE ticket_fts;
+    CREATE VIRTUAL TABLE ticket_fts USING fts5(title, public_text, internal_text, people, people_public, tokenize='trigram');
+    INSERT OR IGNORE INTO search_dirty SELECT id FROM tickets;
+
+    -- SSO als zweiter Faktor: bestehende Installationen mit aktivem SSO behalten ihr Verhalten
+    INSERT OR IGNORE INTO settings(key, value, secret)
+      SELECT 'mfa.ssoSecondFactor',
+        CASE WHEN EXISTS (SELECT 1 FROM settings WHERE key='mfa.trustSso' AND value='false') THEN '"never"' ELSE '"always"' END, 0
+      WHERE EXISTS (SELECT 1 FROM settings WHERE key='oidc.enabled' AND value='true');
+    INSERT OR IGNORE INTO settings(key, value, secret)
+      SELECT 'mfa.ssoSecondFactor', '"never"', 0
+      WHERE EXISTS (SELECT 1 FROM settings WHERE key='mfa.trustSso' AND value='false');
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

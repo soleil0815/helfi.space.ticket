@@ -279,7 +279,8 @@ async function securityPage(body, s) {
         h('p', t(st.network.internal ? 'mfa.youAreInternal' : 'mfa.youAreExternal', { ip: st.network.ip })),
         reason ? h('p', t(reason)) : null)),
       field(t('mfa.enrollExternal'), bindCheck(s, 'mfa.enrollExternal'), t('mfa.enrollExternalHint')),
-      field(t('mfa.trustSso'), bindCheck(s, 'mfa.trustSso'), t('mfa.trustSsoHint')),
+      field(t('mfa.ssoSecondFactor'), bindSelect(s, 'mfa.ssoSecondFactor', ['confirmed', 'always', 'never'].map((v) => [v, t(`mfa.sso.${v}`)])), t('mfa.ssoSecondFactorHint')),
+      s['oidc.enabled'] && s['mfa.ssoSecondFactor'] === 'always' ? h('div.hint-box.hint-warn', icon('warning'), h('p', t('mfa.ssoAlwaysWarn'))) : null,
       saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })));
 }
 
@@ -603,6 +604,8 @@ function ssoPage(body, s, { redirectUri }) {
       h('div.grid-2', field(t('sso.buttonLabel'), bindInput(s, 'oidc.buttonLabel')), field(t('sso.scopes'), bindInput(s, 'oidc.scopes'))),
       h('div.grid-2', field(t('sso.usernameClaim'), bindInput(s, 'oidc.usernameClaim')), field(t('sso.groupsClaim'), bindInput(s, 'oidc.groupsClaim'))),
       field(t('sso.mergeDomain'), bindInput(s, 'oidc.mergeDomain', { placeholder: 'firma.local' }), t('sso.mergeDomainHint')),
+      field(t('sso.adIdClaim'), bindInput(s, 'oidc.adIdClaim', { placeholder: 'onprem_sid' }), t('sso.adIdClaimHint')),
+      field(t('sso.mfaAcr'), bindInput(s, 'oidc.mfaAcr', { placeholder: 'mfa, 2' }), t('sso.mfaAcrHint')),
       h('div.grid-2', field(t('sso.adminGroup'), bindInput(s, 'oidc.adminGroup'), t('sso.groupHint')), field(t('sso.agentGroup'), bindInput(s, 'oidc.agentGroup'))),
       field(t('sso.allowCreate'), bindCheck(s, 'oidc.allowCreate')),
       field(t('sso.autoRedirect'), bindCheck(s, 'oidc.autoRedirect')),

@@ -50,7 +50,13 @@ test('Klassische Smileys: nur wenn sie allein stehen', () => {
   assert.equal(emoticonBefore(':-)', 3).char, '🙂', 'längste Form zuerst');
   assert.equal(emoticonBefore(';)', 2).char, '😉');
   assert.equal(emoticonBefore('Gut :D', 6).char, '😄');
-  assert.equal(emoticonBefore('x <3', 4).char, '❤️');
+  assert.equal(emoticonBefore('x <3', 4).char, '❤️', 'am Textende');
+  assert.equal(emoticonBefore('x <3', 4, '\n').char, '❤️', 'am Zeilenende');
+  assert.equal(emoticonBefore('Antwortzeit <3', 14, ' '), null, '„kleiner als 3“ mitten im Satz');
+  assert.equal(emoticonBefore('Danke :)', 8, ' ').char, '🙂', 'andere Smileys auch vor Leerzeichen');
+  assert.equal(emoticonBefore('Wert `a :)', 10), null, 'in Inline-Code nicht');
+  assert.equal(emoticonBefore('```\nif (x) :)', 13), null, 'im Code-Block nicht');
+  assert.equal(emoticonBefore('```\ncode\n```\nDanke :)', 21).char, '🙂', 'nach dem Code-Block wieder');
   assert.equal(emoticonBefore('(y)', 3).char, '👍');
   assert.equal(emoticonBefore('Laufwerk C:)', 12), null, 'direkt angehängt → nicht');
   assert.equal(emoticonBefore('https://x', 7), null);

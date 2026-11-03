@@ -42,11 +42,15 @@ test('Suche: Steuerzeichen (NUL) führen nicht zu einem Serverfehler', async () 
 });
 
 test('Suche: Benutzer können Adresse und Anmeldenamen des Bearbeiters nicht bestätigen', async () => {
+  // Anzeigename ≠ Anmeldename (im Testaufbau sind beide „anna“)
+  S.db.prepare("UPDATE users SET display_name='Bea Bearbeiterin' WHERE username='anna'").run();
   assert.deepEqual(await keys(karl, 'anna@firma.local'), [], 'E-Mail des Bearbeiters');
   assert.deepEqual(await keys(karl, 'anna'), [], 'Anmeldename des Bearbeiters');
   assert.deepEqual(await keys(karl, 'Drucker'), [k.a], 'Titel weiter suchbar');
   assert.deepEqual(await keys(karl, 'klemmt'), [k.a], 'Beschreibung weiter suchbar');
   assert.deepEqual(await keys(anna, 'anna@firma.local'), [k.a], 'Bearbeiter finden weiter über Personen');
+  // Den sichtbaren Namen des Bearbeiters finden auch Benutzer
+  assert.deepEqual(await keys(karl, 'Bearbeiterin'), [k.a], 'Anzeigename (sichtbar im Ticket)');
 });
 
 test('Projekt löschen: abgelehnt → keine Sicherung; erlaubt → eigene Art, wird aufgeräumt', async () => {

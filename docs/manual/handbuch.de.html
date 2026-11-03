@@ -122,6 +122,7 @@
 <ul>
   <li><strong>Name und E-Mail-Adresse</strong> – bei lokalen Konten änderbar (für eine neue Mailadresse ist das aktuelle Kennwort nötig). Bei AD- und SSO-Konten kommen beide Angaben aus dem Firmenkonto.</li>
   <li><strong>Sprache</strong> der Oberfläche und der Mails an dich.</li>
+  <li><strong>Neuigkeiten</strong> (ebenfalls im Menü oben rechts): was sich in den einzelnen Versionen geändert hat. Nach einem Update zeigt Helfi.Space die Neuigkeiten einmal von selbst. Ein Klick auf die Versionsnummer unten in der Seitenleiste führt ebenfalls dorthin, „Helfi.Space“ daneben öffnet die Website <code>helfi.space</code>.</li>
   <li><strong>Zwei-Faktor-Anmeldung</strong> einrichten oder verwalten.</li>
   <li><strong>Kennwort ändern</strong> (nur lokale Konten; AD-Kennwörter änderst du wie gewohnt in Windows).</li>
 </ul>
@@ -184,7 +185,7 @@
 <p><em>Alle Tickets</em> zeigt eine sortierbare Liste. Filter für Projekt, Status, Typ, Priorität und Bearbeiter lassen sich kombinieren; ein Klick auf eine Spaltenüberschrift sortiert. Die Adresse der Seite enthält die Filter – du kannst sie als Lesezeichen speichern oder weitergeben.</p>
 <figure><img src="img/de/list.jpg" alt=""><figcaption>Ticketliste mit Filtern</figcaption></figure>
 <h3>Suche</h3>
-<p>Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und beteiligte Personen (auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets nur über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge und Stichwörter, nicht über Namen oder Adressen von Personen.</p>
+<p>Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und beteiligte Personen (auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge, Stichwörter und die im Ticket sichtbaren Namen – nicht über Mailadressen oder Anmeldenamen.</p>
 <ul>
   <li><strong>Wortteile</strong> werden gefunden: „drucker“ findet auch „Netzwerkdrucker“.</li>
   <li><strong>Mehrere Wörter</strong> müssen alle vorkommen, egal in welcher Reihenfolge. <code>"genaue Folge"</code> in Anführungszeichen, <code>-wort</code> schließt aus.</li>
@@ -199,7 +200,7 @@
   <li><strong>Bearbeiter</strong>, <strong>Priorität</strong>, <strong>Typ</strong>, <strong>Stichwörter</strong>, <strong>Fällig</strong> und <strong>Projekt</strong> direkt in den Details ändern. „Mir zuweisen“ geht mit einem Klick oder der Taste <kbd>i</kbd>.</li>
   <li><strong>Titel</strong> und <strong>Beschreibung</strong> durch Anklicken bearbeiten.</li>
   <li><strong>Projekt wechseln:</strong> Das Ticket bekommt im neuen Projekt eine neue Nummer, die alte steht im Verlauf. Antworten auf alte Mails werden trotzdem richtig zugeordnet.</li>
-  <li><strong>Aktivität:</strong> Reiter <em>Kommentare</em>, <em>Verlauf</em> (jede Änderung mit Person und Zeit) und <em>Alle</em>.</li>
+  <li><strong>Aktivität:</strong> Reiter <em>Kommentare</em>, <em>Verlauf</em> (jede Änderung mit Person und Zeit) und <em>Alle</em>. Bei einer geänderten Beschreibung zeigt <strong>Änderung anzeigen</strong> die Unterschiede und die frühere Fassung.</li>
   <li><strong>Link kopieren</strong> über das Kettensymbol oben rechts.</li>
 </ul>
 
@@ -431,6 +432,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li>Optional „direkt zu SSO weiterleiten“. Die normale Anmeldung bleibt unter <code>/login?local=1</code> erreichbar.</li>
 </ol>
 <p><strong>SSO und AD zusammen:</strong> Mit „Mit AD-Konten zusammenführen für Domäne“ (z. B. <code>firma.local</code>) ist <code>m.muster@firma.local</code> aus dem SSO dasselbe Konto wie der AD-Benutzer <code>m.muster</code>. Nur eintragen, wenn der Anbieter keine Gastkonten anderer Organisationen zulässt. Steht im Token nur die E-Mail-Adresse (kein <code>preferred_username</code>/UPN), wird nur zusammengeführt, wenn der Anbieter sie als bestätigt meldet (<code>email_verified</code>). E-Mail-Adressen aus dem SSO werden nur übernommen, wenn sie bestätigt oder gleich dem Anmeldenamen der freigegebenen Domäne sind.</p>
+<p><strong>Stabil über die AD-Kennung (empfohlen):</strong> Unter <em>Claim mit AD-Kennung</em> den Claim eintragen, der <code>objectSid</code> oder <code>objectGUID</code> enthält – bei Entra ID <code>onprem_sid</code> (optionaler Claim), bei Keycloak/Authentik ein eigenes Mapping. Dann wird nur noch darüber zusammengeführt, nicht über frei wählbare Namen. Mit Dienstkonto wird das AD-Konto bei jeder SSO-Anmeldung geprüft (deaktiviert, Gruppe, Rolle); ist das AD nicht erreichbar, bricht die SSO-Anmeldung ab.</p>
 
 <h2 id="2fa">Zwei-Faktor-Anmeldung und Netze</h2>
 <p><em>Administration → Sicherheit</em></p>
@@ -445,7 +447,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Eigener Internetanschluss:</strong> Öffentliche IP oder DynDNS-Name (z. B. <code>203.0.113.10</code> oder <code>helfi.dyndns.example</code>). Zugriffe von dort gelten als intern; Namen werden alle 5 Minuten neu aufgelöst. Achtung bei einem Gäste-WLAN am selben Anschluss.</li>
   <li><strong>Reverse-Proxy:</strong> Ohne passendes <code>HELFI_TRUST_PROXY</code> gilt jeder Zugriff als extern; die Seite zeigt den aktuellen Wert.</li>
   <li><strong>Ersteinrichtung auch von außen erlauben:</strong> standardmäßig aus.</li>
-  <li><strong>SSO-Anmeldungen gelten als zweiter Faktor:</strong> standardmäßig an (MFA beim Identitätsanbieter).</li>
+  <li><strong>SSO-Anmeldung als zweiter Faktor:</strong> <em>Nur wenn der Anbieter eine MFA meldet</em> (Standard: das Token belegt eine Mehrfaktor-Anmeldung über <code>amr</code> oder einen eingetragenen <code>acr</code>-Wert), <em>Immer</em> oder <em>Nie</em>. Sonst fragt Helfi.Space nach der SSO-Anmeldung seinen eigenen Code ab. Installationen mit aktivem SSO behalten beim Update „Immer“.</li>
   <li><strong>2FA zurücksetzen</strong> für eine Person: <em>Benutzer → 2FA zurücksetzen</em>.</li>
 </ul>
 
@@ -453,7 +455,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <p><em>Administration → E-Mail</em></p>
 <figure><img src="img/de/admin-mail-1.jpg" alt=""><figcaption>Postfach abrufen (IMAP)</figcaption></figure>
 <ul>
-  <li><strong>Postfach abrufen (IMAP):</strong> Server, Benutzer und Kennwort des Helpdesk-Postfachs. Neue Mails werden Tickets, Antworten werden Kommentare. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben – empfohlen ist ein eigener Ordner. Übersprungene Mails und Unzustellbarkeitsberichte bleiben gelesen im Posteingang und werden nicht automatisch gelöscht. Das Postfach am besten nicht parallel in Outlook lesen.</li>
+  <li><strong>Postfach abrufen (IMAP):</strong> Server, Benutzer und Kennwort des Helpdesk-Postfachs. Neue Mails werden Tickets, Antworten werden Kommentare. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben – empfohlen ist ein eigener Ordner. Übersprungene Mails und Unzustellbarkeitsberichte bleiben gelesen im Posteingang und werden nicht automatisch gelöscht. Verarbeitete Mails bekommen ein eigenes Kennzeichen; wird das Postfach parallel in Outlook gelesen, gehen sie trotzdem nicht verloren (wenn der Mailserver eigene Kennzeichen kann, sonst besser nicht parallel lesen).</li>
   <li><strong>Antworten per Ticketnummer</strong> im Betreff dürfen nur der Melder, Anfrage-Teilnehmer und alle, die schon im Ticket geschrieben haben; wer die Nummer nur errät, bekommt ein neues Ticket. Antworten auf Mails von Helfi.Space werden über die Message-ID zugeordnet.</li>
   <li><strong>Versand (SMTP):</strong> als Absender am besten dieselbe Adresse wie das Postfach, dann landen Antworten wieder im Ticket.</li>
   <li><strong>Absender ist immer das Ticketsystem</strong> – nie die Adresse eines Bearbeiters, keine persönlichen Signaturen. Damit der Melder weiß, wer ihn betreut, enden Antwort- und Erledigt-Mails mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei. Im Browser heißt das Feld für Benutzer ebenfalls „Ihr Ansprechpartner“.</li>

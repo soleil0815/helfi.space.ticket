@@ -28,8 +28,9 @@ import { createMailer, wireNotifications } from './mail/smtp.js';
 import { createMailProcessor, createImapPoller } from './mail/imap.js';
 import { createSuppressions } from './mail/rules.js';
 import { createCanned } from './canned.js';
+import { createNews } from './news.js';
 import { createReports } from './reports.js';
-import { findByEmail as ldapFindByEmail, searchPeople as ldapSearchPeople, findByGuid as ldapFindByGuid } from './auth/ldap.js';
+import { findByEmail as ldapFindByEmail, searchPeople as ldapSearchPeople, findByGuid as ldapFindByGuid, findBySid as ldapFindBySid } from './auth/ldap.js';
 import { createJiraImporter } from './import/jira-import.js';
 import { createApi } from './routes/api.js';
 import { createOidcRoutes } from './routes/oidc.js';
@@ -98,10 +99,11 @@ export function createApp(db) {
 
   const jiraImporter = createJiraImporter({ db, tickets, users });
   const canned = createCanned(db);
+  const news = createNews(db);
   const reports = createReports(db);
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions, ldapCertWarning: null,
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, news, reports, suppressions, ldapCertWarning: null,
     // Verzeichnis für Teilnehmer aus dem AD (in Tests austauschbar)
-    directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, byEmail: ldapFindByEmail } };
+    directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 
   const app = express();
   app.disable('x-powered-by');

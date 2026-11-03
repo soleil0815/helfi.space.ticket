@@ -2,7 +2,7 @@
 
 # Helfi.Space
 
-**Deutsch** · [English](README.en.md)
+**Deutsch** · [English](README.en.md) · [helfi.space](https://helfi.space)
 
 Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und Englisch. Helfi.Space läuft als ein einzelner Docker-Container mit SQLite.
 
@@ -18,6 +18,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen.
 - **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht – einstellbar je Rolle.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
+- **Neuigkeiten:** Nach einem Update zeigt Helfi.Space jedem einmal, was sich für ihn geändert hat; alle Versionen stehen im Benutzermenü unter *Neuigkeiten*.
 - Automatische Sicherungen täglich und vor jedem Update
 
 ![Ticketansicht mit Kommentaren, interner Notiz und Details](docs/images/ticket-de.png)
@@ -93,7 +94,7 @@ helfi.firma.local {
 2. **Zertifikat abrufen** holt das Zertifikat direkt vom DC und zeigt den SHA-256-Fingerabdruck. Vergleiche ihn mit dem am Server und klicke dann **Zertifikat übernehmen**.
    - Windows: `certlm.msc` → Eigene Zertifikate → Zertifikat des DCs → Details → Fingerabdruck (SHA-256 über PowerShell: `Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, @{n='SHA256';e={$_.GetCertHashString('SHA256')}}`)
    - Samba: `openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256`
-3. **Dienstkonto** eintragen, z. B. `svc-helfi@firma.local` (normales Domänenkonto, keine besonderen Rechte nötig). Ohne Dienstkonto sucht Helfi.Space mit dem Konto, das sich gerade anmeldet.
+3. **Dienstkonto** eintragen, z. B. `svc-helfi@firma.local` (normales Domänenkonto, keine besonderen Rechte nötig). Ohne Dienstkonto sucht Helfi.Space mit dem Konto, das sich gerade anmeldet, und prüft das Kennwort danach noch einmal am gefundenen Konto (so führt der UPN eines anderen Kontos nie zur falschen Anmeldung).
 4. **Gruppen** für Administratoren und Bearbeiter eintragen, z. B. `Helfi-Admins` und `Helfi-Bearbeiter` (Name oder vollständiger DN). Verschachtelte Gruppen werden berücksichtigt. Optional lässt sich über eine Gruppe „Zugelassene Benutzer“ einschränken, wer sich überhaupt anmelden darf (Admins und Bearbeiter dürfen immer). Ist ein Gruppenname mehrdeutig (gleicher Name in mehreren OUs), wird keine Rolle vergeben und das Protokoll meldet es – dann den vollständigen DN eintragen.
 5. **Verbindung testen**, am besten mit einer Testanmeldung. Ist der Base-DN leer, wird er dabei aus dem AD übernommen. Gibt es eine Microsoft-Zertifizierungsstelle (AD CS), findet der Test sie und bietet an, sie mit zu übernehmen. Dann bleiben auch erneuerte DC-Zertifikate automatisch gültig.
 6. **AD-Anmeldung aktivieren** und speichern.
@@ -128,7 +129,10 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 - **Einrichten:** Jeder richtet 2FA unter *Profil → Zwei-Faktor-Anmeldung* ein: QR-Code scannen, Code eingeben, 10 Wiederherstellungscodes sichern. Aus Sicherheitsgründen geht die Ersteinrichtung nur im internen Netz, und zwar in jedem Modus. Ausnahme: nach einer SSO-Anmeldung, deren zweiten Faktor der Identitätsanbieter geprüft hat („SSO-Anmeldungen gelten als zweiter Faktor“). Ist 2FA schon eingerichtet, lässt sie sich nur mit gültigem Code abschalten und dann neu einrichten (z. B. neues Handy). So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. Wer nur von außen arbeitet, für den lässt sich unter *Sicherheit* die „Ersteinrichtung auch von außen“ erlauben.
 - **Sitzungen:** Wer sich im Büro ohne Code angemeldet hat und denselben Browser später von zu Hause nutzt, muss sich dort neu mit Code anmelden. Eine Sitzung endet nach `HELFI_SESSION_HOURS` (Standard 12 Stunden) ohne Nutzung und spätestens 30 Tage nach der Anmeldung, auch bei ständiger Nutzung.
 - **Handy verloren:** Mit einem Wiederherstellungscode anmelden. Alternativ setzt ein Admin unter *Benutzer → 2FA zurücksetzen* die 2FA zurück, und die Person richtet sie im Büro neu ein.
-- **Gilt für** lokale Konten und Active-Directory-Anmeldungen. Bei **SSO** prüft standardmäßig der Identitätsanbieter den zweiten Faktor (z. B. MFA in Entra ID). Das lässt sich abschalten, dann fragt Helfi.Space zusätzlich seinen eigenen Code ab.
+- **Gilt für** lokale Konten und Active-Directory-Anmeldungen. Bei **SSO** regelt *Sicherheit → SSO-Anmeldung als zweiter Faktor*, ob die Anmeldung beim Identitätsanbieter reicht:
+  - **Nur wenn der Anbieter eine MFA meldet** (Standard): Das Token muss eine Mehrfaktor-Anmeldung belegen, also `amr` mit z. B. `mfa`, `otp` oder `hwk` (Entra ID: `mfa`), oder einen der unter *Single Sign-on → acr-Werte für MFA* eingetragenen `acr`-Werte (z. B. Keycloak-Stufe `2`). Sonst fragt Helfi.Space seinen eigenen Code ab.
+  - **Immer** oder **Nie** (dann immer zusätzlich der eigene Code).
+  - Installationen mit aktivem SSO behalten beim Update ihr bisheriges Verhalten („Immer“); unter *Sicherheit* steht dann ein Hinweis mit der Empfehlung.
 - Docker-Hinweis: Bei manchen Docker-Setups kommen alle Zugriffe scheinbar vom Docker-Gateway, z. B. bei rootless Docker oder IPv6. Diese Adresse gilt deshalb nur als intern, wenn sie einzeln eingetragen ist.
 
 ![Einstellungen zur Zwei-Faktor-Anmeldung](docs/images/2fa-de.png)
@@ -146,6 +150,8 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 
 **SSO und AD zusammen:** Trägst du bei „Mit AD-Konten zusammenführen für Domäne“ deine Domäne ein (z. B. `firma.local`), ist `m.muster@firma.local` aus dem SSO dasselbe Konto wie der AD-Benutzer `m.muster`. Trag die Domäne nur ein, wenn der Anbieter sie wirklich kontrolliert, also keine Gastkonten aus anderen Organisationen zulässt. Ohne Eintrag bleiben SSO-Konten getrennt, und ein Gast `m.muster@fremd.example` kann nie das Konto `m.muster` übernehmen. Steht im Token kein Anmeldename (`preferred_username`/UPN), sondern nur die E-Mail-Adresse, wird nur zusammengeführt, wenn der Anbieter sie als bestätigt meldet (`email_verified`). E-Mail-Adressen aus dem SSO werden nur übernommen und mit E-Mail-Kontakten zusammengeführt, wenn der Anbieter sie als bestätigt meldet oder wenn sie gleich dem Anmeldenamen der freigegebenen Domäne sind (z. B. Entra ID: UPN = Mailadresse).
 
+**Stabile Zusammenführung über die AD-Kennung (empfohlen):** Bei manchen Anbietern (z. B. Keycloak, Authentik) ist der Anmeldename frei wählbar. Trag deshalb unter *Claim mit AD-Kennung* den Claim ein, der die `objectSid` oder `objectGUID` des AD-Kontos enthält: bei Entra ID den optionalen Claim `onprem_sid`, bei Keycloak oder Authentik ein eigenes Mapping auf `objectGUID` (als Text mit Bindestrichen, Hex oder Base64). Dann wird **nur** darüber zusammengeführt, nicht mehr über Namen und Domäne. Mit Dienstkonto prüft Helfi.Space bei jeder SSO-Anmeldung das AD-Konto wie bei einer Kennwort-Anmeldung: deaktiviert oder nicht mehr in der Gruppe „Zugelassene Benutzer“ heißt kein Zugang, die Rolle folgt den AD-Gruppen, und ein noch unbekanntes AD-Konto wird angelegt (außer „Nur vorhandene Konten“ ist eingestellt). Ist das AD gerade nicht erreichbar, wird die SSO-Anmeldung abgebrochen, statt ein getrenntes Konto anzulegen. Ein früher getrenntes SSO-Konto derselben Person bleibt liegen, angemeldet wird ab dann das AD-Konto. Fehlt der Claim im Token oder gibt es die Person im AD nicht, bleibt das SSO-Konto getrennt.
+
 ## E-Mail
 
 *Administration → E-Mail*
@@ -157,7 +163,7 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 - Wird eine Antwort nur über die Nummer im Betreff zugeordnet, werden ihre An/CC-Empfänger nicht Teilnehmer. Das geschieht nur bei neuen Tickets und bei Antworten auf Mails von Helfi.Space (Bezug über die Message-ID).
 - Absenderadressen lassen sich fälschen. Deshalb gilt eine Mail nie als Bearbeiter-Antwort, auch wenn sie von der Adresse eines Bearbeiters kommt: Sie erscheint mit der Absenderadresse, nicht unter dem Konto, und wird nicht an den Melder weitergeleitet. Bearbeiter antworten über die Weboberfläche.
 - Antworten per Mail auf Zuweisungs-, SLA- oder Genehmigungsmails an Bearbeiter werden interne Notizen und öffnen das Ticket nicht wieder.
-- Postfach am besten nicht parallel in Outlook oder auf dem Handy lesen: Helfi.Space holt nur ungelesene Mails. Empfohlen ist ein Ordner für verarbeitete Mails.
+- Helfi.Space merkt sich verarbeitete Mails mit einem eigenen IMAP-Kennzeichen (`$HelfiDone`). Liest jemand das Postfach parallel in Outlook oder auf dem Handy, werden die Mails trotzdem verarbeitet. Kann der Mailserver keine eigenen Kennzeichen speichern, holt Helfi.Space wie früher nur ungelesene Mails – dann das Postfach nicht parallel lesen. Empfohlen ist ein Ordner für verarbeitete Mails.
 - Eingangsbestätigungen gehen höchstens 60-mal pro Stunde raus (Schutz vor Missbrauch mit gefälschten Absendern).
 - Schleifenschutz: Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.
 - **Schutz vor Mail-Schleifen** (z. B. mit Monitoren, Druckern, Backup-Software):
@@ -180,7 +186,7 @@ Mails im HTML-Format zeigt Helfi.Space bei Beschreibung und Antworten **formatie
 
 ## Suche
 
-Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und die beteiligten Personen (Melder, Bearbeiter, Antwortende, auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets nur über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge und Stichwörter, nie über interne Notizen oder Namen und Adressen von Personen.
+Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und die beteiligten Personen (Melder, Bearbeiter, Antwortende, auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge, Stichwörter und die Namen, die sie im Ticket auch sehen (Melder, Bearbeiter, Antwortende) – nie über interne Notizen, Mailadressen oder Anmeldenamen.
 
 - **Wortteile** werden gefunden: `drucker` findet auch „Netzwerkdrucker“. Groß- und Kleinschreibung spielt keine Rolle.
 - **Mehrere Wörter** in beliebiger Reihenfolge müssen alle vorkommen, `"genaue Folge"` in Anführungszeichen, `-wort` schließt aus.
@@ -497,7 +503,7 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 
 ## Sicherheit
 
-- Zwei-Faktor-Anmeldung nach RFC 6238. Jeder Code gilt nur einmal, nach 5 Fehlversuchen beginnt die Anmeldung von vorn. Der Schlüssel ist verschlüsselt gespeichert, die Wiederherstellungscodes nur als Hash.
+- Zwei-Faktor-Anmeldung nach RFC 6238. Jeder Code gilt nur einmal, nach 5 Fehlversuchen beginnt die Anmeldung von vorn. Der Schlüssel ist verschlüsselt gespeichert, die Wiederherstellungscodes nur als scrypt-Hash mit eigenem Salz je Code.
 - Kennwörter lokaler Konten werden mit scrypt gespeichert. Hinterlegte Zugangsdaten (Dienstkonto, Postfach, SSO) sind mit AES-256-GCM verschlüsselt und werden nie an den Browser geschickt.
 - Die Ersteinrichtung ist nur mit dem Einrichtungscode aus dem Container-Protokoll möglich.
 - Nach mehreren falschen Kennwörtern wird die Anmeldung gebremst. Die Sitzungscookies sind `HttpOnly` und `SameSite`, außerdem gibt es CSRF-Schutz und eine strenge Content-Security-Policy.
@@ -519,6 +525,8 @@ sudo scripts/test-samba-ad.sh && HELFI_TEST_LDAP_HOST=dc01.firma.local npm run t
 Handbuch neu bauen (nach Änderungen an `docs/manual/`): `npm install --no-save playwright && npx playwright install chromium && node scripts/build-manual.mjs`.
 
 Aufbau: `src/` Server (Express, better-sqlite3), `public/` Oberfläche (reines JavaScript ohne Build-Schritt), `src/i18n.js` und `public/js/i18n.js` für die Texte (de/en).
+
+Neuigkeiten: `src/news.json`, je Version Punkte für `all`, `agent` oder `admin` (de/en). Neue Punkte kommen in den obersten Eintrag mit `"version": ""` – das ist die nächste Version, die Nummer setzt der Build. Ist die Version veröffentlicht und kommt Neues dazu, im bisherigen Eintrag die Nummer eintragen und oben einen neuen leeren anlegen. Benutzer sehen die Punkte nach dem Update einmal, alle Versionen stehen unter *Neuigkeiten*.
 
 Releases: *Actions → CI → Run workflow*, Branch `main`, bei „Release“ `patch`, `minor` oder `major` wählen. Die Version zählt sich selbst hoch (höchster Tag + 1), `package.json` muss nicht angepasst werden. Die CI testet, baut die Images für amd64 und arm64 nativ, prüft auf Schwachstellen und legt erst danach Tag, Images und GitHub-Release an. Das ist der einzige Weg zu einem Release: Ein von Hand gepushter Tag startet nichts. Es läuft immer nur ein Release gleichzeitig; freigegeben wird genau das geprüfte Image (gleicher Digest), mit signiertem Herkunftsnachweis (`gh attestation verify oci://ghcr.io/soleil0815/helfi.space.ticket:<Version> -R soleil0815/helfi.space.ticket`). Das Basis-Image ist per Digest festgelegt; neue Digests schlägt Dependabot wöchentlich vor.
 
