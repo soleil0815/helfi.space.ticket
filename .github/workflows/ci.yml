@@ -5,8 +5,9 @@
 #   Das ist der EINZIGE Weg zu einem Release – ein von Hand gepushter Tag startet nichts.
 # - Ablauf: Image für amd64/arm64 nativ bauen (ohne QEMU), je Architektur testen, als Kandidat
 #   (eindeutig je Lauf) zusammenführen, GENAU DIESEN Digest auf Schwachstellen prüfen, erst dann als
-#   1.2.3 (+ latest, wenn höchste Version) freigeben, Herkunftsnachweis (Build-Provenance) anhängen,
-#   GitHub-Release mit Offline-Images und Prüfsummen. Veröffentlicht wird im Environment „release“
+#   1.2.3 (+ latest, wenn höchste Version) freigeben, GitHub-Release mit Offline-Images und Prüfsummen.
+#   (Kein Herkunftsnachweis per actions/attest-build-provenance: GitHub bietet ihn für private
+#   Repositories von Einzelkonten nicht an.) Veröffentlicht wird im Environment „release“
 #   (nur Branch main). Es läuft immer nur ein Release zur selben Zeit.
 # Actions sind auf Commit-SHAs festgelegt (Dependabot hält sie aktuell).
 name: CI
@@ -196,8 +197,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-      id-token: write      # Herkunftsnachweis signieren
-      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -251,23 +250,6 @@ jobs:
           output: trivy-arm64.json
           exit-code: '0'
       - run: sh .github/scripts/trivy-check.sh trivy-arm64.json
-      - name: Geprüftes Image freigeben (gleicher Digest)
-        env:
-          DIGEST: ${{ steps.cand.outputs.digest }}
-        run: |
-          v="${{ steps.v.outputs.version }}"
-          tags="-t $IMAGE:$v"
-          [ "${{ steps.v.outputs.latest }}" = true ] && tags="$tags -t $IMAGE:latest"
-          # shellcheck disable=SC2086
-          docker buildx imagetools create $tags "$IMAGE@$DIGEST"
-          now="$(docker buildx imagetools inspect "$IMAGE:$v" --format '{{json .Manifest.Digest}}' | tr -d '"')"
-          [ "$now" = "$DIGEST" ] || { echo "::error::Freigegebenes Image ($now) ist nicht der geprüfte Kandidat ($DIGEST)"; exit 1; }
-      - name: Herkunftsnachweis (Build-Provenance)
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ steps.cand.outputs.digest }}
-          push-to-registry: true
       - name: Release-Dateien (Offline-Images + Prüfsummen)
         env:
           DIGEST: ${{ steps.cand.outputs.digest }}
@@ -289,6 +271,18 @@ jobs:
           done
           cp docker-compose.yml env.example update.sh release/
           (cd release && sha256sum -- * > SHA256SUMS)
+      # Erst ganz am Ende freigeben: scheitert vorher etwas, bleibt kein halbes Release in der Registry
+      - name: Geprüftes Image freigeben (gleicher Digest)
+        env:
+          DIGEST: ${{ steps.cand.outputs.digest }}
+        run: |
+          v="${{ steps.v.outputs.version }}"
+          tags="-t $IMAGE:$v"
+          [ "${{ steps.v.outputs.latest }}" = true ] && tags="$tags -t $IMAGE:latest"
+          # shellcheck disable=SC2086
+          docker buildx imagetools create $tags "$IMAGE@$DIGEST"
+          now="$(docker buildx imagetools inspect "$IMAGE:$v" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          [ "$now" = "$DIGEST" ] || { echo "::error::Freigegebenes Image ($now) ist nicht der geprüfte Kandidat ($DIGEST)"; exit 1; }
       - name: GitHub-Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:

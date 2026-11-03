@@ -262,10 +262,14 @@ test('CI: Release nur per Knopf von main – nicht „Run workflow“ von einem 
   assert.match(job, /"\$GITHUB_SHA" = "\$\(git rev-parse origin\/main\)"/);  // Tag-Push startet den Workflow gar nicht erst
   const on_ = yml.slice(yml.indexOf('\non:'), yml.indexOf('\npermissions:'));
   assert.doesNotMatch(on_, /tags:/, 'kein Tag-Auslöser');
-  // Veröffentlichen: eindeutiger Kandidat je Lauf, Freigabe per Digest, Environment, Herkunftsnachweis
+  // Veröffentlichen: eindeutiger Kandidat je Lauf, Freigabe per Digest, Environment
   const pub = yml.slice(yml.indexOf('\n  publish:'));
   assert.match(pub, /environment: release/);
-  assert.match(pub, /attest-build-provenance@[0-9a-f]{40}/);
+  // Herkunftsnachweis gibt es für private Repositories von Einzelkonten nicht (Release brach daran ab)
+  assert.doesNotMatch(pub, /attest-build-provenance/);
+  // Tags erst nach den Release-Dateien setzen (sonst bleibt bei einem Fehler ein halbes Release in der Registry)
+  assert.ok(pub.indexOf('Geprüftes Image freigeben') > pub.indexOf('Release-Dateien'), 'Freigabe nach den Release-Dateien');
+  assert.ok(pub.indexOf('Geprüftes Image freigeben') < pub.indexOf('GitHub-Release'));
   assert.match(pub, /imagetools create \$tags "\$IMAGE@\$DIGEST"/);
   assert.match(yml, /kandidat-\$\{\{ github\.run_id \}\}/);
   assert.match(yml, /\nconcurrency:\n {2}group: \$\{\{ github\.event_name == 'workflow_dispatch' && 'release'/);
