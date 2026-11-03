@@ -4,6 +4,7 @@ import {
   h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize,
   richText, toast, modal, dropdown, field, select,
 } from '../dom.js';
+import { peoplePicker } from '../peoplepicker.js';
 import { t } from '../i18n.js';
 import { state, navigate, route } from '../app.js';
 import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.js';
@@ -267,44 +268,20 @@ export async function renderTicket(content, key) {
 
     const add = h('button.link', { type: 'button', onclick: () => openPicker() }, icon('plus'), t('ticket.addParticipant'));
     box.append(add);
-    const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
     function openPicker() {
-      const input = h('input.input-inline', { type: 'search', placeholder: agent ? t('ticket.participantSearchAgent') : t('ticket.participantSearch'), autocomplete: 'off' });
+      const input = h('input.input-inline', { type: 'search', placeholder: agent ? t('ticket.participantSearchAgent') : t('ticket.participantSearch'), 'aria-label': t('ticket.addParticipant') });
       add.replaceWith(input);
-      input.focus();
-      let timer = null;
-      let seq = 0;
-      const pick = async (d) => {
-        try { await api.addParticipant(tk.key, d); await refresh(); }
-        catch (e) { toast(e.message, 'error'); }
-      };
-      input.addEventListener('input', () => {
-        clearTimeout(timer);
-        timer = setTimeout(async () => {
-          const q = input.value.trim();
-          const my = ++seq;
-          if (q.length < 2) { document.querySelectorAll('.menu').forEach((m) => m.remove()); return; }
-          let people = [];
-          let adError = false;
-          try { ({ people, adError } = await api.people(q)); } catch { /* egal */ }
-          if (my !== seq) return;
-          const taken = new Set([tk.reporter?.id, ...list.map((p) => p.id)]);
-          const items = people.filter((p) => !p.id || !taken.has(p.id)).map((p) => {
-            const text = p.email ? `${p.displayName} · ${p.email}` : (p.source === 'ad' ? `${p.displayName} · ${p.username}` : p.displayName);
-            return p.source === 'ad'
-              ? { label: h('span.person-hit', text, h('span.badge.badge-ad', { title: t('ticket.fromAd') }, 'AD')), icon: avatar(p, 'xs'), onClick: () => pick({ adId: p.adId }) }
-              : { label: text, icon: avatar(p, 'xs'), onClick: () => pick({ userId: p.id }) };
-          });
-          if (agent && looksLikeEmail(q) && !people.some((p) => (p.email || '').toLowerCase() === q.toLowerCase())) {
-            items.push({ label: t('ticket.addEmailParticipant', { email: q }), icon: icon('mail'), onClick: () => pick({ email: q }) });
-          }
-          if (!items.length) items.push({ label: t('ticket.noPeopleFound'), onClick: () => input.focus() });
-          if (adError) items.push({ label: h('span.muted', t('ticket.adUnavailable')), icon: icon('warning'), onClick: () => input.focus() });
-          dropdown(input, items);
-        }, 200);
+      peoplePicker(input, {
+        allowEmail: agent,
+        ad: agent && !!state.boot?.adPeople,
+        exclude: () => new Set([tk.reporter?.id, ...list.map((p) => p.id)]),
+        onPick: async (choice) => {
+          try { await api.addParticipant(tk.key, choice); await refresh(); }
+          catch (e) { toast(e.message, 'error'); draw(); }
+        },
+        onClose: () => draw(),
       });
-      input.addEventListener('keydown', (e) => { if (e.key === 'Escape') draw(); });
-      input.addEventListener('blur', () => setTimeout(() => { if (!document.querySelector('.menu')) draw(); }, 200));
+      input.focus();
     }
     return box;
   }

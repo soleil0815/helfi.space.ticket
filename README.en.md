@@ -181,7 +181,7 @@ Helfi.Space shows HTML emails **formatted** in descriptions and replies, with ta
 Besides the reporter, other people can be involved in a ticket, e.g. colleagues with the same problem or a manager.
 
 - **Add:** in the ticket view under *Request participants → Add*.
-  - Agents search by name or enter any email address.
+  - Agents search by name or enter any email address. Suggestions appear while typing and the cursor stays in the field; pick with a click or ↑/↓ and Enter, Esc cancels.
   - **From AD:** from 3 characters on, agents also see people from AD (marked “AD”), searched by name, logon name and email addresses including aliases. The chosen person is created or updated as an AD user, with email address and role from AD; an existing email contact is taken over. A typed email address is looked up in AD as well. People whose groups do not allow them to use Helfi.Space are added as an email contact. If AD is unreachable, only existing people are shown. Can be turned off under *Administration → Active Directory → Suggest participants from AD*; requires the service account.
   - Reporters and participants can add colleagues who have an account, but no arbitrary addresses.
   - At most 20 per ticket.

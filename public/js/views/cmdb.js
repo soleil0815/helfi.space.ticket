@@ -1,6 +1,7 @@
 // Geräte und Dienste: Liste, Eintrag mit Ticket-Verlauf, CSV-Import, Abschnitt im Ticket
 import { api } from '../api.js';
 import { h, mount, icon, toast, field, select, modal, lozenge, typeIcon, fmtDate } from '../dom.js';
+import { peoplePicker } from '../peoplepicker.js';
 import { t } from '../i18n.js';
 import { state, navigate } from '../app.js';
 
@@ -82,20 +83,12 @@ function editor(content, item) {
   const kindSel = select(CI_KINDS.map((k) => [k, kindLabel(k)]), v.kind); kindSel.addEventListener('change', () => { v.kind = kindSel.value; });
   const statusSel = select(CI_STATUS.map((s) => [s, t(`ci.status.${s}`)]), v.status); statusSel.addEventListener('change', () => { v.status = statusSel.value; });
   const desc = h('textarea', { rows: 3 }); desc.value = v.description; desc.addEventListener('input', () => { v.description = desc.value; });
-  // Verantwortlich: Personensuche
-  const listId = `own-${Math.random().toString(36).slice(2, 8)}`;
-  const owner = h('input', { value: item?.owner?.displayName || '', list: listId, autocomplete: 'off', placeholder: t('ci.ownerHint') });
-  const dl = h('datalist', { id: listId });
-  let found = [];
-  let timer;
-  owner.addEventListener('input', () => {
-    const m = found.find((p) => p.displayName === owner.value);
-    v.ownerId = m ? m.id : null;
-    clearTimeout(timer);
-    if (owner.value.trim().length < 2 || m) return;
-    timer = setTimeout(async () => {
-      try { found = (await api.people(owner.value.trim())).people || []; mount(dl, found.map((p) => h('option', { value: p.displayName }, p.email || p.username || ''))); } catch { /* egal */ }
-    }, 200);
+  // Verantwortlich: Personensuche (nur vorhandene Personen)
+  const owner = h('input', { value: item?.owner?.displayName || '', placeholder: t('ci.ownerHint'), 'aria-label': t('ci.f.owner') });
+  owner.addEventListener('input', () => { v.ownerId = null; });
+  peoplePicker(owner, {
+    ad: false,
+    onPick: (choice, person) => { v.ownerId = choice.userId; owner.value = person.displayName; },
   });
   const err = h('div.form-error', { role: 'alert', hidden: true });
   mount(content,
@@ -114,7 +107,7 @@ function editor(content, item) {
       },
     }, err,
     h('div.grid-3', field(t('ci.f.name'), inp('name', { maxLength: 120, required: true, placeholder: 'PC-0001' })), field(t('ci.f.kind'), kindSel), field(t('ci.f.status'), statusSel)),
-    h('div.grid-3', field(t('ci.f.location'), inp('location', { maxLength: 200 })), field(t('ci.f.owner'), h('span', owner, dl)), field(t('ci.f.ip'), inp('ip', { maxLength: 100, placeholder: '10.0.10.21' }))),
+    h('div.grid-3', field(t('ci.f.location'), inp('location', { maxLength: 200 })), field(t('ci.f.owner'), owner), field(t('ci.f.ip'), inp('ip', { maxLength: 100, placeholder: '10.0.10.21' }))),
     h('div.grid-3', field(t('ci.f.serial'), inp('serial', { maxLength: 100 })), field(t('ci.f.vendor'), inp('vendor', { maxLength: 100 })), field(t('ci.f.model'), inp('model', { maxLength: 100 }))),
     field(t('ci.f.description'), desc),
     h('div.form-actions', h('button.btn.btn-primary', { type: 'submit' }, t('app.save')),
