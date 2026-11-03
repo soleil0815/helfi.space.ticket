@@ -12,6 +12,8 @@ export function clearPageShortcuts() { page = {}; }
 
 // Kästchen und Auswahlknöpfe sind keine Texteingabe – dort greifen die Kürzel (z. B. x nach einem Klick)
 const typing = (el) => !!el?.closest?.('input:not([type=checkbox]):not([type=radio]),textarea,select,[contenteditable],[contenteditable=""]');
+// Enter auf Links, Knöpfen & Co. gehört dem Browser (Link öffnen, Knopf auslösen)
+const interactive = (el) => !!el?.closest?.('a[href],button,summary,[tabindex],[role=button],[role=link],[role=menuitem],[role=option],[role=tab]');
 
 export function installShortcuts({ isActive, global, isAgent }) {
   document.addEventListener('keydown', (e) => {
@@ -27,8 +29,14 @@ export function installShortcuts({ isActive, global, isAgent }) {
     pendingG = 0;
     if (key === 'g') { pendingG = Date.now(); return; }
     if (key === '?') { e.preventDefault(); showHelp(isAgent()); return; }
+    if (key === 'Enter' && interactive(e.target)) return;
     const fn = page[key] || global.keys?.[key];
-    if (fn) { e.preventDefault(); fn(e); }
+    if (!fn) return;
+    // Enter nur abfangen, wenn tatsächlich etwas geöffnet wurde (sonst bleibt die Taste beim Browser)
+    if (key === 'Enter') { if (fn(e) === true) e.preventDefault(); return; }
+    // Nach j/k gehört Enter der markierten Zeile – einen zuvor angeklickten Knopf daher loslassen
+    if ((key === 'j' || key === 'k') && interactive(document.activeElement)) document.activeElement.blur?.();
+    e.preventDefault(); fn(e);
   });
 }
 
@@ -111,7 +119,7 @@ export function listKeys(open) {
     next.classList.add('kbd-focus');
     next.scrollIntoView({ block: 'nearest' });
   };
-  const go = () => { const r = document.querySelector('table.issues tr.kbd-focus'); if (r) open(r.dataset.key); };
+  const go = () => { const r = document.querySelector('table.issues tr.kbd-focus[data-key]'); if (!r) return false; open(r.dataset.key); return true; };
   // x: markiertes Ticket aus- bzw. abwählen (Mehrfachauswahl)
   const pick = () => document.querySelector('table.issues tr.kbd-focus input.row-check')?.click();
   return { j: () => move(1), k: () => move(-1), o: go, Enter: go, x: pick };

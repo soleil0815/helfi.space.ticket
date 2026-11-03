@@ -59,7 +59,7 @@ The host only holds a few things:
 
 Helfi.Space itself speaks HTTP on port 8080. In production, put a reverse proxy with HTTPS in front of it (Synology reverse proxy, Nginx Proxy Manager, Caddy, Traefik …). Then set `HELFI_BASE_URL=https://helfi.firma.local`. Cookies are then marked `Secure` automatically.
 
-So that the brake against password guessing sees the real client address, enter the proxy's address in `.env`, e.g. `HELFI_TRUST_PROXY=10.0.10.5`. Without it, Helfi.Space trusts no `X-Forwarded-For` header, because it could otherwise be forged.
+So that the brake against password guessing sees the real client address, enter the proxy's address in `.env`, e.g. `HELFI_TRUST_PROXY=10.0.10.5`. Separate several entries with commas, e.g. `loopback, 10.0.10.5`. Without it, Helfi.Space only trusts `X-Forwarded-For` from its own host (`loopback`), because the header could otherwise be forged. Values such as `true` or a number (count of proxies) are ignored with a warning in the log; `loopback` then applies as well.
 
 Example Caddy:
 
@@ -125,8 +125,8 @@ Example: reporters without a code, agents with a code from outside, administrato
 - **Internal networks** are listed in the settings, one entry per line (default: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). The default covers all private ranges, including Docker networks and a guest Wi-Fi. Best narrow it down to the real company networks, e.g. `10.0.10.0/24`. The page shows how your current address is classified.
 - **Own internet connection:** when a computer inside the company opens Helfi.Space via its public address, it often arrives with the public IP of your own connection (hairpin NAT). Enter that IP or a DynDNS name (e.g. `203.0.113.10` or `helfi.dyndns.example`) and such requests count as internal. Names are resolved again every 5 minutes; if DNS is briefly unreachable, the last known address keeps counting. Caution: if a guest Wi-Fi uses the same connection, guests count as internal too.
 - **Behind a reverse proxy** its address must be in `HELFI_TRUST_PROXY`. Otherwise Helfi.Space only sees the proxy and, to be safe, treats every request as external. Admins then get a notice.
-- **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Security* can allow "first-time setup from outside too".
-- **Sessions:** if you signed in at the office without a code and later use the same browser from home, you have to sign in again with a code there.
+- **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Exception: after an SSO sign-in whose second factor was checked by the identity provider ("SSO sign-ins count as second factor"). Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Security* can allow "first-time setup from outside too".
+- **Sessions:** if you signed in at the office without a code and later use the same browser from home, you have to sign in again with a code there. A session ends after `HELFI_SESSION_HOURS` (default 12 hours) without use and at the latest 30 days after sign-in, even with constant use.
 - **Lost phone:** sign in with a recovery code. Alternatively, an admin resets 2FA under *Users → Reset 2FA*, and the person sets it up again at the office.
 - **Applies to** local accounts and Active Directory sign-ins. With **SSO**, the identity provider checks the second factor by default (e.g. MFA in Entra ID). This can be turned off, and Helfi.Space then asks for its own code as well.
 - Docker note: with some Docker setups all requests seem to come from the Docker gateway, e.g. with rootless Docker or IPv6. That address therefore only counts as internal if it is listed on its own.
@@ -144,24 +144,26 @@ Example: reporters without a code, agents with a code from outside, administrato
    - **Keycloak:** `https://keycloak.firma.local/realms/<realm>`, mapper "Group Membership" with claim `groups`.
 3. Optionally enable "redirect straight to SSO". The normal sign-in page stays reachable at `/login?local=1`, e.g. for the emergency admin.
 
-**SSO and AD together:** if you enter your domain under "Merge with AD accounts for domain" (e.g. `firma.local`), `m.muster@firma.local` from SSO is the same account as the AD user `m.muster`. Only enter the domain if the provider really controls it, i.e. does not allow guest accounts from other organizations. Without it, SSO accounts stay separate, and a guest `m.muster@fremd.example` can never take over the account `m.muster`. Email addresses from SSO are only taken over if the provider reports them as verified or they belong to the allowed domain.
+**SSO and AD together:** if you enter your domain under "Merge with AD accounts for domain" (e.g. `firma.local`), `m.muster@firma.local` from SSO is the same account as the AD user `m.muster`. Only enter the domain if the provider really controls it, i.e. does not allow guest accounts from other organizations. Without it, SSO accounts stay separate, and a guest `m.muster@fremd.example` can never take over the account `m.muster`. If the token contains no user name (`preferred_username`/UPN) but only the email address, accounts are only merged if the provider reports it as verified (`email_verified`). Email addresses from SSO are only taken over and merged with email contacts if the provider reports them as verified or if they equal the user name of the allowed domain (e.g. Entra ID: UPN = email address).
 
 ## Email
 
 *Administration → Email*
 
-- **Polling a mailbox (IMAP):** enter server, user and password of the help desk mailbox. New mails become tickets (including attachments up to 20 MB each and up to 30 attachments; anything not taken over is noted in the ticket; mails over 80 MB are skipped and flagged in the mailbox). Replies to mails from Helfi.Space and replies from participants with `[IT-123]` in the subject become comments, quoted history is cut off. If the reporter replies to a waiting or resolved ticket, it is reopened. Out-of-office notes and automatic mails are ignored. Processed mails are marked as read or moved to a folder.
+- **Polling a mailbox (IMAP):** enter server, user and password of the help desk mailbox. New mails become tickets (including attachments up to 20 MB each and up to 30 attachments; anything not taken over is noted in the ticket; mails over 80 MB are skipped and flagged in the mailbox). Replies to mails from Helfi.Space and replies from participants with `[IT-123]` in the subject become comments, quoted history is cut off. If the reporter replies to a waiting or resolved ticket, it is reopened. Out-of-office notes and automatic mails are ignored. Processed mails are marked as read or moved to a folder. Skipped mails (automatically generated, hourly limit, account disabled, no valid sender, own address, rule "Ignore") and delivery failure reports stay in the inbox, marked as read; they are not moved to the processed-mail folder and therefore not deleted automatically either.
 - **Sending (SMTP):** ideally use the same address as the mailbox as sender, so replies land back in the ticket.
 - **Internal notes** never go out by email.
-- Only participants (reporter, assignee, previous writers) may reply by ticket number in the subject. Anyone who merely guesses the number gets a new ticket of their own. Replies to mails from Helfi.Space are always matched correctly via the Message-ID.
+- Only people involved may reply by ticket number in the subject: the reporter, request participants and everyone who has already written in the ticket. The assignee does not automatically count. Anyone who merely guesses the number gets a new ticket of their own. Replies to mails from Helfi.Space are always matched correctly via the Message-ID.
+- If a reply is matched only by the number in the subject, its To/CC recipients do not become participants. That only happens for new tickets and for replies to mails from Helfi.Space (matched via the Message-ID).
 - Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the reporter. Agents reply through the web interface.
+- Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.
 - Preferably do not read the mailbox in parallel in Outlook or on a phone: Helfi.Space only fetches unread mails. A folder for processed mails is recommended.
 - Confirmations of receipt go out at most 60 times per hour (protection against abuse with forged senders).
 - Loop protection: more than 20 new tickets per hour from the same sender are ignored.
 - **Mail loop protection** (e.g. with monitoring systems, printers, backup software):
   - Delivery failure reports (Exchange, Postfix, …) and read receipts never become tickets or comments and are never answered.
   - If a report belongs to a mail from Helfi.Space, the ticket gets an internal note "delivery failed".
-  - The affected address gets no mail for 7 days. The list is under *Administration → Email → Blocked recipients*, where an address can also be released early.
+  - The affected address gets no mail for 7 days. Only addresses from real header lines of the report (`X-Failed-Recipients`) or from its `message/delivery-status` part are blocked, never addresses from the mail text. The list is under *Administration → Email → Blocked recipients*, where an address can also be released early.
   - **Sender rules** (address or pattern like `*@zabbix.firma.local`): "Create ticket, never reply", optionally into a separate project, or "Ignore". Automatically generated emails (header `Auto-Submitted`, `Precedence: bulk`, sender `noreply@…`), as sent by Proxmox, NAS systems or monitoring, are only accepted with the rule "Create ticket, never reply". Without a rule they are skipped. *Administration → Email* lists the recently skipped emails with sender and reason.
 - Senders without an account are kept as *email contacts*. If they later sign in via AD or SSO with the same address, their tickets are taken over.
 - **Look up senders in AD** (default: on, requires AD sign-in with a service account): Helfi.Space searches unknown senders in AD. It checks `mail`, `userPrincipalName` and the alias addresses in `proxyAddresses`, and skips disabled accounts. With exactly one match, the person is created as an AD user right away, with the role from their groups, as if they had signed in. An existing email contact is taken over. Not found, ambiguous or AD unreachable: they become an email contact as before. Unknown addresses are not looked up again for one hour. A mail still never grants agent rights.
@@ -176,6 +178,16 @@ Helfi.Space shows HTML emails **formatted** in descriptions and replies, with ta
 - **Replies:** the quoted history (Outlook, Gmail, Apple Mail, Thunderbird) is collapsed: "Show quoted text".
 - Applies to mails received after the update.
 
+## Search
+
+The search box at the top searches all tickets in full text: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (reporter, assignee, people who replied, also by email address and logon name). Users without the agent role find tickets only by title, description, public replies, attachment names and labels, never by internal notes or by names and addresses of people.
+
+- **Parts of words** are found: `printer` also finds "networkprinter". Upper and lower case do not matter.
+- **Several words** in any order must all occur, `"exact phrase"` in quotes, `-word` excludes.
+- **Best matches first:** title matches count most. Clicking a column sorts as usual, "Best matches first" switches back.
+- **Where it was found:** below each hit is an excerpt with highlighted words and where it comes from (description, reply from …, attachment).
+- A ticket key such as `HELP-123` jumps straight to the ticket. The search index is built once at the first start after the update (under a second for 7000 tickets) and kept up to date afterwards.
+
 ## Request participants
 
 Besides the reporter, other people can be involved in a ticket, e.g. colleagues with the same problem or a manager.
@@ -185,11 +197,11 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
   - **From AD:** from 3 characters on, agents also see people from AD (marked “AD”), searched by name, logon name and email addresses including aliases. The chosen person is created or updated as an AD user, with email address and role from AD; an existing email contact is taken over. A typed email address is looked up in AD as well. People whose groups do not allow them to use Helfi.Space are added as an email contact. If AD is unreachable, only existing people are shown. Can be turned off under *Administration → Active Directory → Suggest participants from AD*; requires the service account.
   - Reporters and participants can add colleagues who have an account, but no arbitrary addresses.
   - At most 20 per ticket.
-- **By email:** anyone in *To* or *CC* of a new mail or a reply automatically becomes a participant. This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email*.
+- **By email:** anyone in *To* or *CC* of a new mail or of a reply to a mail from Helfi.Space automatically becomes a participant (not when a reply is matched only by the number in the subject). This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email*.
 - **What participants can do:**
   - see the ticket, also under *My requests* with the filter "I am a participant"
   - comment and attach files on the web or by replying to a mail
-- **What participants cannot do:** see internal notes, change status, assignee or title.
+- **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter they only see the name, not the email address and logon name (the same applies to approvers without the agent role).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
@@ -286,7 +298,7 @@ A lean register of IT equipment and services (CI register), for agents only: *De
 - **In a ticket** you link affected devices and services in the *Devices & services* section. This works for all ticket types, including changes (affected services) and problems. A number on the entry shows that more open tickets exist for it.
 - **History per entry:** all tickets for a device or service at a glance, e.g. to spot recurring faults.
 - **CSV import** (administrators) from your inventory tool: first line = column names (including name/hostname, type, location, IP address, serial number, vendor, model, user, status). Separator `;`, `,` or tab. Existing entries with the same name are updated.
-- **Deleting** is only possible while no tickets are linked. After that, set the entry to “retired”; the history is kept.
+- **Deleting** is for administrators only, and only possible while no tickets are linked. After that, set the entry to “retired”; the history is kept.
 
 ## Satisfaction survey
 
@@ -371,6 +383,8 @@ For replies that are always the same (e.g. "Please restart your computer"):
 | | `o` / `Enter` | open selected ticket |
 | | `x` | select the highlighted ticket (multi-select) |
 
+`Enter` on a focused link or button activates it. `Enter` only opens the row highlighted with `j`/`k` when the focus is not on a control.
+
 ## Import from another ticket system
 
 *Administration → Import*
@@ -393,13 +407,14 @@ What is taken over:
 
 How numbers and people are handled:
 
-- **Numbers:** `SUP-123` stays `SUP-123`. If the number is already taken in the target project, the ticket gets the next free one. New tickets continue after the highest number.
+- **Numbers:** `SUP-123` stays `SUP-123`. If the number is already taken in the target project or belonged to a ticket that has since been moved to another project, the ticket gets the next free one. New tickets continue after the highest number.
 - **People** are matched by email address. Reporters without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they are already agents in Helfi.Space, otherwise their name appears in the history. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
 
 Also:
 
 - **No emails** are sent.
-- **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day.
+- Before every import starts, Helfi.Space creates a backup (`helfi-vor-import-….sqlite`).
+- **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins; the changed fields appear in the history). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day.
 
 ---
 
@@ -420,6 +435,10 @@ Also:
 
 `update.sh` remembers the running version and pulls the new one. If the bundled `docker-compose.yml` is newer, it replaces the old one and keeps it as `docker-compose.yml.alt-<date>-<time>`. Then it starts the container and waits for the health check. If the new version does not start, it asks and restarts the previous version with the matching database backup (automatically with `-y`). It does not unpack or build anything. It runs with `/bin/sh`, on a Synology too.
 
+- **`docker compose up` fails** (e.g. invalid `docker-compose.yml`): `update.sh` reports an error, restores `.env` and `docker-compose.yml` and exits with code 1. If there is a previous version, it first asks whether to start it again (automatically with `-y`).
+- **Still starting:** if the new version is still "starting" after `HELFI_UPDATE_WAIT` (e.g. database migration on large databases), `update.sh` asks whether to wait once more (automatically once with `-y`).
+- **Going back:** afterwards `.env` holds the previous version again. If `update.sh` does not restore the database, it says so explicitly, e.g. if the backups are not readable for this user (then `sudo ./update.sh -y`) or if there is no backup or only an incomplete one (then the database has not been migrated yet).
+
 ### Cleaning up
 
 Over time, older backup copies of `docker-compose.yml` and loaded image files from the release pile up in the folder. `./update.sh --cleanup` lists these files and only deletes them after confirmation (no prompt with `-y`). The newest `docker-compose.yml.alt-…` is kept.
@@ -427,7 +446,7 @@ Over time, older backup copies of `docker-compose.yml` and loaded image files fr
 Only files on this fixed list are deleted:
 
 - older `docker-compose.yml.alt-…`
-- `helfi-<version>-amd64/arm64.tar.gz`
+- `helfi-<version>[-amd64|-arm64].tar[.gz]`
 - temporary files of aborted runs older than one hour
 - a `docker-compose.yml.neu` that has already been taken over
 
@@ -453,11 +472,13 @@ Every release contains the image file (`helfi-<version>-amd64.tar.gz` or `-arm64
 ./update.sh --offline helfi-1.2.0-amd64.tar.gz 1.2.0
 ```
 
+A relative path to the image file is taken from the current folder. Without a version, `update.sh` takes the version from the image and records it in `.env`; if it cannot be determined, it aborts without changing anything.
+
 ### Your own changes to docker-compose.yml
 
 `update.sh` only replaces `docker-compose.yml` if it is unchanged. If you have customized it (e.g. a different data path), it stays as it is. The new version is then placed next to it as `docker-compose.yml.neu`. After a failed update, `update.sh` restores the previous version, its database backup and the old `docker-compose.yml`. It also records the old version in `.env`, so Watchtower or Dockhand do not immediately pull the broken one again.
 
-More variables for `update.sh`: `HELFI_UPDATE_WAIT` (time to wait for startup, default 120 seconds) and `HELFI_IMAGE_REPO` (your own registry).
+More variables for `update.sh`: `HELFI_UPDATE_WAIT` (time to wait for startup, default 120 seconds) and `HELFI_IMAGE_REPO` (your own registry). They are set on the command line, not in `.env`, e.g. `HELFI_UPDATE_WAIT=300 ./update.sh`. For your own registry, `image:` in `docker-compose.yml` must be changed too; the file then counts as customized and is no longer replaced automatically.
 
 ### Notice "docker-compose.yml is outdated"
 
@@ -467,11 +488,12 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 
 ## Backup
 
-- Automatic: daily and before every version change, in `data/backups/`
+- Automatic: daily, before every version change, before deleting a project and before every import starts, in `data/backups/`. If deleting a project is refused (e.g. last project), no backup is created.
+- Each backup is first written as `….sqlite.part` and only renamed once complete. A `.part` file left behind after a crash is never used and is removed by the next clean-up after one hour.
 - Manual: *Administration → System → Back up now*. That page also lists all backups with kind, date, size and the total space used; single backups can be deleted.
 - **Back up as well:** the whole `data/` folder, including `secret.key`. Without this file, stored passwords (service account, mailbox, SSO) and 2FA keys can no longer be decrypted. Helfi.Space then does not start and says so in the log. Alternatively set `HELFI_SECRET` (at least 16 characters) in `.env`, but right at setup: switching between `secret.key` and `HELFI_SECRET` later makes stored data unreadable.
 - The backups in `data/backups/` only contain the database. Attachments (`data/attachments/`) and `secret.key` live next to it. So always back up the whole `data/` folder to another drive.
-- **Retention:** *Administration → System → Backups to keep* (default 10, 1–100). The number applies per kind: daily, before version changes and manual (including the backups made before deleting a project). Older ones are deleted, the newest of each kind always stays. Cleanup runs when saving, at startup and after every backup. `HELFI_BACKUP_KEEP_DAYS` is no longer used.
+- **Retention:** *Administration → System → Backups to keep* (default 10, 1–100). The number applies per kind: daily, manual, before version change, before project deletion and before import. Older ones are deleted, at least the newest of each kind always stays. Cleanup runs when saving, at startup and after every backup. `HELFI_BACKUP_KEEP_DAYS` is no longer used.
 
 ## Security
 
@@ -482,7 +504,8 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 - Empty passwords are never passed to the AD, because an anonymous bind would otherwise count as a sign-in. Input in LDAP filters is escaped.
 - The container runs without root rights (`PUID`/`PGID`, 0 is not allowed), with a read-only program part, without extra Linux capabilities and with `no-new-privileges` (see `docker-compose.yml`). Files in `data/` are readable only by this user.
 - Attachments are served as downloads (only images are shown directly), so uploaded files never run in the context of Helfi.Space.
-- In connection tests, a stored password is only sent to the stored server. Anyone entering a different server must enter the password again.
+- Stored passwords stay bound to their connection: anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, weakens the certificate check (including “Fetched certificate” → “System certificate authorities”) or stores a different AD certificate, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server. Connection tests with a changed server or a weakened check do not send the stored password either.
+- Disabled accounts get the same message at sign-in as for a wrong password.
 
 ## Development
 

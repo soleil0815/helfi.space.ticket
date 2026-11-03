@@ -59,6 +59,9 @@ if [ -n "$VERSION" ] && ! valid_version "$VERSION"; then
   err "Ungültige Version: $VERSION (Beispiel: 1.2.0 oder latest)"; exit 2
 fi
 
+# Relativen Pfad der Image-Datei vor dem Ordnerwechsel festhalten (gilt ab dem Aufrufordner)
+case "$OFFLINE" in ''|/*) ;; *) OFFLINE="$(pwd)/$OFFLINE" ;; esac
+
 # Im Ordner des Skripts arbeiten (dort liegen docker-compose.yml und .env)
 cd "$(dirname "$0")" || exit 1
 
@@ -74,19 +77,29 @@ ask() {
 # --cleanup: Reste früherer Updates aufräumen. Gelöscht wird nur, was auf der festen Liste steht,
 # als normale Datei (kein Link) direkt in diesem Ordner liegt und nicht selbst in einen laufenden
 # Container eingebunden ist. Nie: Ordner (data/, Sicherungen, Mounts), .env, docker-compose.yml, Links.
+NL='
+'
+# Namen mit Zeilenumbruch nie anfassen: Die Liste wird zeilenweise gelesen, aus
+# ".env.tmp.1<Umbruch>secret.key" würde sonst "secret.key" (Audit)
+plain_name() { case "$1" in *"$NL"*) return 1 ;; esac; return 0; }
+
 cleanup_candidates() {
   # 1. Ältere Sicherheitskopien der docker-compose.yml (die neueste bleibt)
   for f in docker-compose.yml.alt-*; do
+    plain_name "$f" || continue
     printf '%s\n' "$f" | grep -Eq '^docker-compose\.yml\.alt-[0-9]{8}-[0-9]{6}$' && printf '%s\n' "$f"
   done | sort | sed '$d'
   # 2. Image-Dateien aus dem Release (für --offline; nach dem Laden nicht mehr nötig)
   for f in helfi-*.tar helfi-*.tar.gz; do
+    plain_name "$f" || continue
     printf '%s\n' "$f" | grep -Eq '^helfi-[0-9]+\.[0-9]+\.[0-9]+(-(amd64|arm64))?\.tar(\.gz)?$' && printf '%s\n' "$f"
   done
   # 3. Zwischendateien abgebrochener Läufe (älter als eine Stunde, damit kein laufendes Update gestört wird)
-  find . -maxdepth 1 -type f \( -name '.docker-compose.neu.*' -o -name '.docker-compose.hashes.*' \
-    -o -name '.env.tmp.*' -o -name '.update-start.*' -o -name 'docker-compose.yml.tmp' \) -mmin +60 2>/dev/null |
-    sed 's|^\./||'
+  for f in .docker-compose.neu.* .docker-compose.hashes.* .env.tmp.* .update-start.* docker-compose.yml.tmp; do
+    plain_name "$f" || continue
+    if [ ! -f "$f" ] || [ -L "$f" ]; then continue; fi
+    [ -n "$(find "./$f" -maxdepth 0 -type f -mmin +60 2>/dev/null)" ] && printf '%s\n' "$f"
+  done
   # 4. docker-compose.yml.neu, wenn sie schon übernommen wurde (inhaltsgleich)
   if [ -f docker-compose.yml.neu ] && cmp -s docker-compose.yml.neu docker-compose.yml; then
     echo docker-compose.yml.neu
@@ -207,6 +220,21 @@ if [ -n "$OFFLINE" ]; then
   say "Lade Image aus $OFFLINE ..."
   loaded="$(docker load -i "$OFFLINE" | sed -n 's/^Loaded image: //p' | head -n 1)"
   [ -n "$loaded" ] || { err "In $OFFLINE wurde kein Image gefunden."; exit 1; }
+  if [ -z "$VERSION" ]; then
+    # Ohne Angabe gilt die Version des geladenen Images – sonst bekäme das neue Image den Namen
+    # der alten Version aus .env, und ein späteres Holen wäre ein Rückschritt (Audit)
+    VERSION="$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.version"}}' "$loaded" 2>/dev/null || true)"
+    if [ "$VERSION" = latest ] || ! valid_version "$VERSION"; then
+      VERSION="${loaded##*:}"
+      case "$loaded" in *:*) ;; *) VERSION="" ;; esac
+    fi
+    if [ "$VERSION" = latest ] || ! valid_version "$VERSION"; then
+      err "Version des Images in $OFFLINE nicht erkennbar ($loaded) – nichts geändert."
+      err "Bitte die Version mit angeben, z. B.: ./update.sh --offline $(basename "$OFFLINE") 1.2.0"
+      exit 1
+    fi
+    TAG="$VERSION"; TARGET="$IMAGE_REPO:$TAG"
+  fi
   if [ "$loaded" != "$TARGET" ]; then docker tag "$loaded" "$TARGET" || exit 1; fi
   say "Geladen: $loaded"
 else
@@ -253,19 +281,32 @@ rm -f "$tmp_compose" "$tmp_hashes"
 MARKER=".update-start.$$"
 : > "$MARKER"
 sleep 1 # busybox-find vergleicht nur ganze Sekunden
-dc up -d "$SERVICE" || err "Start fehlgeschlagen."
+UP_FAILED=0
+if ! dc up -d "$SERVICE"; then
+  # z. B. Name belegt oder docker-compose.yml ungültig: Der alte Container kann noch laufen –
+  # ihn dann nicht als „neue Version läuft“ melden (Audit)
+  UP_FAILED=1
+  err "Start der neuen Version fehlgeschlagen (docker compose up)."
+fi
 
-# 6. Auf Gesundheitscheck warten
+# 6. Auf Gesundheitscheck warten. $1 = erwartetes Image (leer = nicht prüfen), $2 = Image, das NICHT
+#    zählt (der alte Container). Läuft noch ein Container mit einem anderen Image, zählt er nicht als gestartet.
+LAST_HEALTH=""
 wait_healthy() {
   waited=0
+  LAST_HEALTH=""
   while [ "$waited" -lt "$WAIT_SECONDS" ]; do
     cid="$(container_id)"
     if [ -n "$cid" ]; then
-      state="$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || true)"
-      health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$cid" 2>/dev/null || true)"
-      if [ "$health" = "healthy" ] || { [ -z "$health" ] && [ "$state" = "running" ]; }; then return 0; fi
-      case "$state" in exited|dead) return 1 ;; esac
-      [ "$health" = "unhealthy" ] && return 1
+      img="$(docker inspect -f '{{.Image}}' "$cid" 2>/dev/null || true)"
+      if { [ -z "${1:-}" ] || [ "$img" = "$1" ]; } && { [ -z "${2:-}" ] || [ "$img" != "$2" ]; }; then
+        state="$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || true)"
+        health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$cid" 2>/dev/null || true)"
+        LAST_HEALTH="$health"
+        if [ "$health" = "healthy" ] || { [ -z "$health" ] && [ "$state" = "running" ]; }; then return 0; fi
+        case "$state" in exited|dead) return 1 ;; esac
+        [ "$health" = "unhealthy" ] && return 1
+      fi
     fi
     sleep 3
     waited=$((waited + 3))
@@ -273,21 +314,54 @@ wait_healthy() {
   return 1
 }
 
-say "Warte auf den Start (höchstens ${WAIT_SECONDS}s) ..."
-if wait_healthy; then
-  say "Helfi.Space läuft (${NEW_VERSION:-$TAG})."
-  exit 0
-fi
+# .env und docker-compose.yml auf den Stand vor dem Update (die neue Version lief nie)
+restore_files() {
+  if [ "$COMPOSE_REPLACED" != 0 ]; then
+    cp docker-compose.yml docker-compose.yml.neu
+    cp "$COMPOSE_REPLACED" docker-compose.yml
+    COMPOSE_REPLACED=0
+    say "Vorherige docker-compose.yml wiederhergestellt (neue liegt als docker-compose.yml.neu daneben)."
+  fi
+  if [ -n "$VERSION" ]; then
+    env_set HELFI_VERSION "$OLD_TAG"
+    say "Version in .env wieder auf $OLD_TAG."
+  fi
+}
 
-err "Die neue Version ist nicht gesund gestartet. Letzte Protokollzeilen:"
-dc logs --tail 30 "$SERVICE" >&2 2>/dev/null || true
+# Erwartet wird „nicht mehr das alte Image“ statt genau NEW_ID: Zeigt image: in docker-compose.yml auf eine
+# eigene Registry, startet compose ein anderes Image als $TARGET – das ist trotzdem die neue Version.
+NOT_OLD=""
+[ -n "$PREV_ID" ] && [ "$NEW_ID" != "$PREV_ID" ] && NOT_OLD="$PREV_ID"
+if [ "$UP_FAILED" = 0 ]; then
+  say "Warte auf den Start (höchstens ${WAIT_SECONDS}s) ..."
+  if wait_healthy "" "$NOT_OLD"; then
+    say "Helfi.Space läuft (${NEW_VERSION:-$TAG})."
+    exit 0
+  fi
+  # Startet noch (z. B. Sicherung und Datenbank-Umstellung bei großen Datenbanken): nicht mittendrin abbrechen
+  if [ "$LAST_HEALTH" = starting ] && ask "Die neue Version startet noch (z. B. Datenbank-Umstellung). Noch einmal ${WAIT_SECONDS}s warten?"; then
+    say "Warte noch einmal (höchstens ${WAIT_SECONDS}s) ..."
+    if wait_healthy "" "$NOT_OLD"; then
+      say "Helfi.Space läuft (${NEW_VERSION:-$TAG})."
+      exit 0
+    fi
+  fi
+  err "Die neue Version ist nicht gesund gestartet. Letzte Protokollzeilen:"
+  dc logs --tail 30 "$SERVICE" >&2 2>/dev/null || true
+fi
 
 if [ -z "$PREV_ID" ]; then
   err "Es gibt keine vorherige Version zum Zurückgehen."
+  [ "$UP_FAILED" = 1 ] && restore_files
   exit 1
 fi
 
 if ! ask "Vorherige Version wieder starten?"; then
+  if [ "$UP_FAILED" = 1 ]; then
+    restore_files
+    say "Die neue Version wurde nicht gestartet. Bitte Meldung oben prüfen (z. B. docker compose config)."
+    exit 1
+  fi
   say "Die neue Version bleibt gestartet (sie hat die Datenbank evtl. schon umgestellt)."
   say "Zurück später mit: ./update.sh -y  nach Eintragen der alten Version in .env – die passende Sicherung"
   say "liegt im Datenordner unter backups/helfi-vor-${NEW_VERSION:-<Version>}-*.sqlite (siehe README)."
@@ -296,13 +370,44 @@ fi
 
 # Hat die neue Version die Datenbank schon umgestellt, braucht die alte die Sicherung von davor.
 if [ -n "$NEW_VERSION" ]; then
+  bdir="$DATA_DIR/backups"
   if [ -z "$DATA_DIR" ] || [ ! -d "$DATA_DIR" ]; then
     err "Datenordner des Containers nicht gefunden – die Datenbank wird NICHT zurückgespielt."
     err "Falls die alte Version nicht startet: Sicherung helfi-vor-$NEW_VERSION-*.sqlite von Hand zurückspielen (README)."
+  elif [ ! -r "$DATA_DIR" ] || [ ! -x "$DATA_DIR" ] || { [ -d "$bdir" ] && { [ ! -r "$bdir" ] || [ ! -x "$bdir" ]; }; }; then
+    err "Der Datenordner $DATA_DIR bzw. seine Sicherungen sind für diesen Benutzer nicht lesbar –"
+    err "die Datenbank wird NICHT zurückgespielt. Bitte mit sudo ausführen (sudo ./update.sh -y) oder"
+    err "die Sicherung helfi-vor-$NEW_VERSION-*.sqlite von Hand zurückspielen (README)."
   else
-    backup="$(find "$DATA_DIR/backups" -maxdepth 1 -name "helfi-vor-$NEW_VERSION-*.sqlite" -newer "$MARKER" 2>/dev/null | sort | tail -n 1)"
-    if [ -n "$backup" ] && [ -f "$DATA_DIR/helfi.sqlite" ]; then
-      dc stop "$SERVICE" >/dev/null 2>&1 || true
+    # Erst anhalten, dann suchen: Sonst könnte die neue Version während der Suche ihre Sicherung
+    # fertigstellen und die Datenbank umstellen (Audit). Die vorherige Version wird danach ohnehin neu gestartet.
+    dc stop "$SERVICE" >/dev/null 2>&1 || true
+    # Die ÄLTESTE vollständige Sicherung seit Beginn dieses Updates nehmen (bei Neustart-Schleifen sind
+    # spätere evtl. schon teilweise umgestellt). .part bzw. daneben -journal/-wal = nicht fertig.
+    backup=""; partial=""
+    found="$(find "$bdir" -maxdepth 1 \( -name "helfi-vor-$NEW_VERSION-*.sqlite" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.part" \) -newer "$MARKER" 2>/dev/null | sort)"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      if [ "${f%.part}" != "$f" ] || [ -e "$f-journal" ] || [ -e "$f-wal" ]; then
+        partial="$f"
+      elif [ -z "$backup" ]; then
+        backup="$f"
+      fi
+    done <<EOF_BACKUPS
+$found
+EOF_BACKUPS
+    if [ -z "$backup" ] && [ -z "$partial" ]; then
+      say "Keine Sicherung helfi-vor-$NEW_VERSION-*.sqlite aus diesem Update gefunden – die neue Version hat die"
+      say "Datenbank demnach nicht umgestellt. Datenbank bleibt unverändert."
+    elif [ -z "$backup" ]; then
+      # Abbruch mitten in der Sicherung: Die Umstellung beginnt erst danach, die Datenbank ist unverändert
+      err "Die Sicherung $partial ist unvollständig (Start wurde während der Sicherung abgebrochen)."
+      err "Sie wird NICHT zurückgespielt; die Datenbank wurde noch nicht umgestellt und bleibt unverändert."
+    elif [ ! -r "$backup" ]; then
+      err "Sicherung $backup ist nicht lesbar – Datenbank NICHT zurückgespielt. Bitte mit sudo ausführen."
+    elif [ ! -f "$DATA_DIR/helfi.sqlite" ]; then
+      err "$DATA_DIR/helfi.sqlite fehlt – nichts zurückgespielt. Sicherung: $backup"
+    else
       stamp="$(date +%Y%m%d-%H%M%S)"
       # Erst vollständig kopieren, dann austauschen – nie ohne Datenbank dastehen
       if cp "$backup" "$DATA_DIR/helfi.sqlite.zurueck" && sync; then
@@ -314,7 +419,7 @@ if [ -n "$NEW_VERSION" ]; then
         say "Achtung: Was seit dem Update eingegangen ist (z. B. Tickets aus E-Mails), steht nur im fehlgeschlagenen Stand."
       else
         rm -f "$DATA_DIR/helfi.sqlite.zurueck"
-        err "Sicherung konnte nicht kopiert werden (Platz?) – Datenbank unverändert."
+        err "Sicherung konnte nicht kopiert werden (Platz? Rechte?) – Datenbank unverändert."
       fi
     fi
   fi
@@ -329,14 +434,24 @@ fi
 
 # Alte Version festhalten, damit Watchtower/Dockhand die defekte nicht sofort wieder holen
 if [ -n "$PREV_VERSION" ]; then
-  docker tag "$IMAGE_REPO:previous" "$IMAGE_REPO:$PREV_VERSION" || exit 1
-  env_set HELFI_VERSION "$PREV_VERSION"
-  say "Version in .env auf $PREV_VERSION festgehalten."
+  RUN_TAG="$PREV_VERSION"
+  docker tag "$IMAGE_REPO:previous" "$IMAGE_REPO:$RUN_TAG" || exit 1
+  env_set HELFI_VERSION "$RUN_TAG"
+  say "Version in .env auf $RUN_TAG festgehalten."
 else
-  docker tag "$IMAGE_REPO:previous" "$TARGET" || exit 1
+  # Altes Image ohne Versionsangabe: .env auf den Stand vor dem Update zurück, nicht auf der
+  # defekten neuen Version lassen (Audit)
+  RUN_TAG="$OLD_TAG"
+  docker tag "$IMAGE_REPO:previous" "$IMAGE_REPO:$RUN_TAG" || exit 1
+  env_set HELFI_VERSION "$RUN_TAG"
+  say "WARNUNG: Die vorherige Version hat keine Versionsangabe im Image. .env steht wieder auf $RUN_TAG."
+  if [ "$RUN_TAG" = latest ]; then
+    say "         Watchtower/Dockhand oder das nächste Update holen damit wieder die neueste (fehlerhafte) Version –"
+    say "         bitte eine funktionierende Version in .env festhalten (HELFI_VERSION=1.2.3)."
+  fi
 fi
-HELFI_VERSION="${PREV_VERSION:-$TAG}" dc up -d --pull never "$SERVICE" 2>/dev/null || HELFI_VERSION="${PREV_VERSION:-$TAG}" dc up -d "$SERVICE"
-if wait_healthy; then
+HELFI_VERSION="$RUN_TAG" dc up -d --pull never "$SERVICE" 2>/dev/null || HELFI_VERSION="$RUN_TAG" dc up -d "$SERVICE"
+if wait_healthy "$PREV_ID"; then
   say "Vorherige Version läuft wieder."
   exit 1
 fi

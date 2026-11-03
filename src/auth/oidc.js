@@ -63,7 +63,12 @@ export async function finishLogin(cfg, currentUrl, pending) {
 }
 
 export function claimsToUser(claims, cfg) {
-  const rawName = String(claims[cfg.usernameClaim] || claims.preferred_username || claims.upn || claims.email || claims.sub);
+  // Aus welchem Claim stammt der Name? (E-Mail-Adresse braucht eine Bestätigung, s. u.)
+  const nameClaim = [cfg.usernameClaim, 'preferred_username', 'upn', 'email'].find((c) => c && claims[c]);
+  const rawName = String(nameClaim ? claims[nameClaim] : claims.sub);
+  // Nur eine vom Anbieter bestätigte Adresse ist vertrauenswürdig (manche Anbieter lassen die
+  // E-Mail-Adresse im Profil frei eintragen)
+  const emailVerified = claims.email_verified === true || claims.email_verified === 'true';
   let groups = claims[cfg.groupsClaim] || [];
   if (typeof groups === 'string') groups = groups.split(/[,;]/);
   const set = new Set(groups.map((g) => String(g).trim().toLowerCase()));
@@ -79,7 +84,11 @@ export function claimsToUser(claims, cfg) {
   let trustName = false;
   if (mergeDomain) {
     const at = rawName.lastIndexOf('@');
-    if (at > 0 && rawName.slice(at + 1).toLowerCase() === mergeDomain) { username = normalizeUsername(rawName); trustName = true; }
+    // Name aus dem E-Mail-Rückfall nur mit bestätigter Adresse übernehmen
+    const fromEmail = nameClaim === 'email';
+    if (at > 0 && rawName.slice(at + 1).toLowerCase() === mergeDomain && (!fromEmail || emailVerified)) {
+      username = normalizeUsername(rawName); trustName = true;
+    }
   }
 
   const email = String(claims.email || (trustName && rawName.includes('@') ? rawName : ''));
@@ -90,9 +99,9 @@ export function claimsToUser(claims, cfg) {
     externalId: `${claims.iss || ''}|${claims.sub}`,
     groups: { admin: has(cfg.adminGroup), agent: has(cfg.agentGroup) },
     trustName,
-    // Nur bestätigte Adressen (oder Adressen der freigegebenen Domäne) dürfen gespeichert
-    // und mit E-Mail-Kontakten (und deren Tickets) zusammengeführt werden
-    trustEmail: claims.email_verified === true || claims.email_verified === 'true'
-      || (!!mergeDomain && email.toLowerCase().endsWith(`@${mergeDomain}`)),
+    // Nur bestätigte Adressen dürfen gespeichert und mit E-Mail-Kontakten (und deren Tickets)
+    // zusammengeführt werden – oder die Adresse ist gleich dem vertrauenswürdigen Anmeldenamen
+    // der freigegebenen Domäne (z. B. Entra ID: UPN = Mail, ohne email_verified).
+    trustEmail: emailVerified || (trustName && !!email && email.toLowerCase() === rawName.toLowerCase()),
   };
 }

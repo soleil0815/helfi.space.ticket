@@ -103,6 +103,7 @@ const T = {
     'err.mfaExpired': 'Die Anmeldung ist abgelaufen. Bitte noch einmal mit Benutzername und Kennwort anmelden.',
     'err.mfaInvalid': 'Der Code stimmt nicht. Bitte den aktuellen Code aus der App eingeben.',
     'err.mfaAlreadyEnabled': 'Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Zum Wechseln des Handys zuerst abschalten (mit Code).',
+    'err.secretRebind': 'Server, Konto oder Zertifikatsprüfung wurden geändert. Bitte das Kennwort bzw. Geheimnis im selben Schritt neu eingeben – das gespeicherte wird aus Sicherheitsgründen nicht für die geänderte Verbindung verwendet.',
     // E-Mails
     'mail.created.subject': '[{key}] Ihr Ticket wurde angelegt: {title}',
     'mail.created.body': 'Hallo {name},\n\nvielen Dank für Ihre Nachricht. Wir haben dazu das Ticket {key} angelegt und kümmern uns darum.\n\nWenn Sie auf diese E-Mail antworten, landet Ihre Antwort automatisch im Ticket. Bitte lassen Sie die Ticketnummer [{key}] im Betreff stehen.\n\n{link}\n\nViele Grüße\n{app}',
@@ -224,6 +225,7 @@ const T = {
     'err.mfaExpired': 'The sign-in has expired. Please sign in again with username and password.',
     'err.mfaInvalid': 'The code is not correct. Please enter the current code from your app.',
     'err.mfaAlreadyEnabled': 'Two-factor authentication is already set up. To switch phones, turn it off first (with a code).',
+    'err.secretRebind': 'The server, account or certificate check was changed. Please enter the password or secret again in the same step – for security reasons the stored one is not used for the changed connection.',
     'mail.created.subject': '[{key}] Your ticket has been created: {title}',
     'mail.created.body': 'Hello {name},\n\nthank you for your message. We have created ticket {key} and will take care of it.\n\nIf you reply to this email, your answer is added to the ticket automatically. Please keep the ticket number [{key}] in the subject.\n\n{link}\n\nKind regards\n{app}',
     'mail.comment.subject': '[{key}] New reply: {title}',

@@ -87,7 +87,8 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
 
   /** SLA eines Tickets (Rohzeile) – null, wenn nicht anwendbar */
   function forRow(row, nowMs = Date.now()) {
-    if (!enabled() || !SLA_TYPES.includes(row.type) || row.source === 'import') return null;
+    // Importierte Tickets (Importer schreibt source='jira'; 'import' für ältere/andere Importe) ohne SLA
+    if (!enabled() || !SLA_TYPES.includes(row.type) || row.source === 'import' || row.source === 'jira') return null;
     // Eigene Tickets der Bearbeiter (interne Arbeit) zählen nicht
     if (row.reporter_id && ['agent', 'admin'].includes(reporterRole.get(row.reporter_id)?.role)) return null;
     const cal = calendar();

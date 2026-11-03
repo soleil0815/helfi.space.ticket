@@ -89,6 +89,29 @@ export function createUsers(db) {
     db.prepare(`INSERT OR IGNORE INTO ticket_participants(ticket_id,user_id,added_by,created_at)
       SELECT p.ticket_id, ?, p.added_by, p.created_at FROM ticket_participants p JOIN tickets t ON t.id=p.ticket_id
       WHERE p.user_id=? AND (t.reporter_id IS NULL OR t.reporter_id<>?)`).run(intoId, fromId, intoId);
+    // Alle übrigen Verweise umhängen, sonst würde das Löschen sie leeren (SET NULL) oder mitlöschen (CASCADE),
+    // z. B. offene Genehmigungen: die Anfrage bliebe sonst für immer „ausstehend“.
+    // Genehmigungen: war das Konto in derselben Runde schon angefragt, bleibt dessen Zeile (OR IGNORE).
+    db.prepare('UPDATE OR IGNORE approvals SET approver_id=? WHERE approver_id=?').run(intoId, fromId);
+    for (const [table, col] of [
+      ['tickets', 'assignee_id'], ['projects', 'lead_id'], ['ticket_participants', 'added_by'],
+      ['canned_responses', 'owner_id'], ['canned_responses', 'created_by'], ['ticket_links', 'created_by'],
+      ['config_items', 'owner_id'], ['ticket_ratings', 'assignee_id'],
+      ['kb_articles', 'created_by'], ['kb_articles', 'updated_by'], ['kb_images', 'created_by'], ['kb_versions', 'author_id'],
+      ['kb_templates', 'created_by'], ['kb_templates', 'updated_by'], ['kb_comments', 'author_id'], ['kb_comments', 'resolved_by'],
+    ]) db.prepare(`UPDATE ${table} SET ${col}=? WHERE ${col}=?`).run(intoId, fromId);
+    // Genehmiger-Listen als Text (Servicekatalog, Change-Genehmiger in den Einstellungen)
+    const swap = (list, sep) => [...new Set(String(list).split(sep).filter(Boolean).map((x) => (Number(x) === fromId ? String(intoId) : x.trim())))].join(',');
+    for (const it of db.prepare("SELECT id, approver_ids FROM catalog_items WHERE ','||approver_ids||',' LIKE ?").all(`%,${fromId},%`)) {
+      db.prepare('UPDATE catalog_items SET approver_ids=? WHERE id=?').run(swap(it.approver_ids, ','), it.id);
+    }
+    const cab = db.prepare("SELECT value FROM settings WHERE key='change.approvers' AND secret=0").get();
+    if (cab) {
+      const ids = String(JSON.parse(cab.value) || '');
+      if (ids.split(/[\s,;]+/).map(Number).includes(fromId)) {
+        db.prepare("UPDATE settings SET value=? WHERE key='change.approvers'").run(JSON.stringify(swap(ids, /[\s,;]+/)));
+      }
+    }
     db.prepare('DELETE FROM users WHERE id=?').run(fromId);
   }
 

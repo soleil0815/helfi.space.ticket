@@ -28,6 +28,8 @@ const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderTicket(content, key) {
   let tk = (await api.ticket(key)).ticket;
+  // Inzwischen weiternavigiert (route() hat neu aufgebaut): keine Kürzel, keinen Titel, keine Adresse mehr setzen
+  if (!content.isConnected) return;
   if (tk.key !== key) history.replaceState({}, '', `/browse/${tk.key}`);
   document.title = `[${tk.key}] ${tk.title} – Helfi.Space`;
   const agent = state.isAgent;
@@ -38,7 +40,7 @@ export async function renderTicket(content, key) {
     try {
       tk = { ...tk, ...(await api.updateTicket(tk.key, patch)).ticket };
       // Neuer Schlüssel nach Projektwechsel → Adresse anpassen
-      if (location.pathname !== `/browse/${tk.key}`) history.replaceState({}, '', `/browse/${tk.key}`);
+      if (content.isConnected && location.pathname !== `/browse/${tk.key}`) history.replaceState({}, '', `/browse/${tk.key}`);
       await refresh();
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -427,7 +429,7 @@ export async function renderTicket(content, key) {
       },
     });
   }
-  setPageShortcuts(keys);
+  if (content.isConnected) setPageShortcuts(keys);
 }
 
 // ---------- Ticket erstellen ----------

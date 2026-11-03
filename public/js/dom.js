@@ -51,7 +51,8 @@ export function richText(text) {
   // Eingefügte Bilder: nur Anhänge dieses Systems (/api/attachments/ID), nie fremde Adressen
   const img = /!\[([^\]\n]{0,200})\]\(\/api\/attachments\/(\d+)\)/g;
   // Links (http/https) und Mailadressen anklickbar, **fett** – alles als Text, nie als HTML
-  const mail = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/;
+  // Mailadresse nur am Wortanfang und mit begrenzter Länge – sonst quadratische Laufzeit bei langen Wörtern
+  const mail = /((?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}(?![A-Za-z]))/;
   const linksOnly = (p, part) => {
     let last = 0;
     for (const m of part.matchAll(new RegExp(`${re.source}|${mail.source}`, 'g'))) {

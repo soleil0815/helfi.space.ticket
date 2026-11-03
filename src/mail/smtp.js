@@ -47,14 +47,19 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
     return null;
   }
 
-  async function send({ to, subject, text, ticketId = null, inReplyTo = null }) {
+  const agentAccount = db.prepare("SELECT 1 FROM users WHERE lower(email)=? AND role IN ('agent','admin') LIMIT 1");
+
+  /** customer: Mail an Melder/Teilnehmer. Sonst (Zuweisung, SLA, Genehmigung …) und ist der Empfänger ein
+   *  Bearbeiter-Konto, erhält die Message-ID die Kennung „.agent“: Antworten darauf werden interne Notizen. */
+  async function send({ to, subject, text, ticketId = null, inReplyTo = null, customer = false }) {
     const tr = getTransport();
     if (!tr) return false;
     const why = blocked(to);
     if (why) { log.info(`Keine Mail an ${to}: ${why}`); return false; }
     const domain = tr.cfg.from.split('@')[1] || 'helfi.space';
+    const agentOnly = !customer && !!ticketId && !!agentAccount.get(String(to || '').toLowerCase());
     // Nicht erratbar: über diese ID werden Antworten Tickets zugeordnet
-    const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${crypto.randomBytes(16).toString('hex')}@${domain}>`;
+    const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${crypto.randomBytes(16).toString('hex')}${agentOnly ? '.agent' : ''}@${domain}>`;
     await tr.transport.sendMail({
       from: { name: tr.cfg.fromName || 'Helfi.Space', address: tr.cfg.from },
       to,
@@ -115,7 +120,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     if (!to) return;
     const lang = recipientLang(ticket.reporter.id);
     const vars = { key: ticket.key, title: ticket.title, name: ticket.reporter.displayName || t(lang, 'mail.greetingFallback'), link: link(ticket), app: appName() };
-    await mailer.send({ to, subject: t(lang, 'mail.created.subject', vars), text: t(lang, 'mail.created.body', vars), ticketId: ticket.id, inReplyTo: ticket.sourceMessageId });
+    await mailer.send({ to, subject: t(lang, 'mail.created.subject', vars), text: t(lang, 'mail.created.body', vars), ticketId: ticket.id, inReplyTo: ticket.sourceMessageId, customer: true });
   }));
 
   /** Je Empfänger (Melder und Anfrage-Teilnehmer) eine eigene Mail in seiner Sprache – keine
@@ -125,7 +130,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       if (actorId && r.id === actorId) continue;
       const lang = recipientLang(r.id);
       const { subject, text } = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
-      await mailer.send({ to: r.email, subject, text, ticketId: ticket.id });
+      await mailer.send({ to: r.email, subject, text, ticketId: ticket.id, customer: true });
     }
   }
 
@@ -159,7 +164,8 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       const agentName = user && ['agent', 'admin'].includes(user.role) ? (user.display_name || user.username) : null;
       const vars = {
         key: ticket.key, title: ticket.title, name, link: link(ticket), app: appName(), survey: surveyText,
-        contact: ticket.assignee?.displayName ? `${t(lang, 'mail.contact', { name: ticket.assignee.displayName })}\n` : '',
+        // wie bei Antworten: nur wenn jemand anderes zugewiesen ist als der, der erledigt
+        contact: ticket.assignee?.displayName && ticket.assignee.id !== user?.id ? `${t(lang, 'mail.contact', { name: ticket.assignee.displayName })}\n` : '',
         closing: agentName ? t(lang, 'mail.closing', { author: agentName, app: appName() }) : appName(),
       };
       return { subject: t(lang, 'mail.done.subject', vars), text: t(lang, 'mail.done.body', vars) };
@@ -170,7 +176,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     if (!settings.get('notify.participantAdded') || !participant.email || participant.id === user?.id) return;
     const lang = recipientLang(participant.id);
     const vars = { key: ticket.key, title: ticket.title, name: participant.display_name || t(lang, 'mail.greetingFallback'), author: user?.display_name || appName(), link: link(ticket), app: appName() };
-    await mailer.send({ to: participant.email, subject: t(lang, 'mail.participant.subject', vars), text: t(lang, 'mail.participant.body', vars), ticketId: ticket.id });
+    await mailer.send({ to: participant.email, subject: t(lang, 'mail.participant.subject', vars), text: t(lang, 'mail.participant.body', vars), ticketId: ticket.id, customer: true });
   }));
 
   tickets.events.on('assigned', safe(async ({ ticket, user }) => {

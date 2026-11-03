@@ -9,9 +9,11 @@ set -eu
 
 mode="${1:-}"
 
-is_version() { printf '%s\n' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; }
+# Ohne führende Nullen: "08" wäre in $((...)) eine (ungültige) Oktalzahl, "010" ergäbe 8 (Audit)
+VERSION_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+is_version() { printf '%s\n' "$1" | grep -Eq "$VERSION_RE"; }
 
-highest="$(git tag -l 'v*.*.*' | sed 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' |
+highest="$(git tag -l 'v*.*.*' | sed 's/^v//' | grep -E "$VERSION_RE" |
   sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1 || true)"
 
 case "$mode" in

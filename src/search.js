@@ -9,7 +9,8 @@ const SNIPPET = 160;
 /** Suchtext zerlegen: Wörter, "genaue Folge", -ausschließen */
 export function parseQuery(q) {
   const terms = [];
-  for (const m of String(q || '').matchAll(/(-?)"([^"]*)"|(-?)([^\s"]+)/g)) {
+  // Steuerzeichen (z. B. NUL) brechen die FTS-Abfrage ab → wie Leerraum behandeln
+  for (const m of String(q || '').replace(/[\u0000-\u001f\u007f]/g, ' ').matchAll(/(-?)"([^"]*)"|(-?)([^\s"]+)/g)) {
     const neg = !!(m[1] || m[3]);
     const text = (m[2] ?? m[4] ?? '').replace(/\s+/g, ' ').trim();
     if (!text || (text === '-' && !m[2])) continue;
@@ -62,7 +63,9 @@ export function createSearch(db) {
 
   /**
    * Treffer für einen Suchtext → { ids: [id …] nach Relevanz, terms: positive Suchbegriffe } oder null (nichts Suchbares).
-   * internal: interne Notizen mit durchsuchen (nur Bearbeiter).
+   * internal: interne Notizen und Personen (auch Adressen und Anmeldenamen) mit durchsuchen – nur Bearbeiter.
+   * Benutzer suchen nur in Titel und öffentlichem Text: die Spalte „people“ enthält auch E-Mail-Adresse
+   * und Anmeldenamen des Bearbeiters, die Benutzern nicht angezeigt werden.
    */
   function find(q, { internal = false } = {}) {
     const terms = parseQuery(q);
@@ -70,7 +73,7 @@ export function createSearch(db) {
     if (!pos.length) return null;
     flush();
     const long = (x) => x.text.length >= 3; // Trigramme brauchen mindestens drei Zeichen
-    const cols = internal ? 'title, public_text, internal_text, people' : 'title, public_text, people';
+    const cols = internal ? 'title, public_text, internal_text, people' : 'title, public_text';
     const all = `(${cols.split(', ').map((c) => `f.${c}`).join(" || ' ' || ")})`;
     const where = []; const args = [];
     const ftsPos = pos.filter(long).map((x) => ftsQuote(x.text));
@@ -79,14 +82,21 @@ export function createSearch(db) {
       let expr = ftsPos.join(' AND ');
       for (const n of ftsNeg) expr = `(${expr}) NOT ${n}`;
       where.push('ticket_fts MATCH ?');
-      args.push(internal ? expr : `{title public_text people} : (${expr})`);
+      args.push(internal ? expr : `{title public_text} : (${expr})`);
     } else {
       for (const n of ftsNeg) { where.push(`${all} NOT LIKE ? ESCAPE '\\'`); args.push(likeEsc(n.slice(1, -1).replace(/""/g, '"'))); }
     }
     // kurze Begriffe (z. B. „2“) als Teiltext
     for (const x of terms.filter((y) => !long(y))) { where.push(`${all} ${x.neg ? 'NOT ' : ''}LIKE ? ESCAPE '\\'`); args.push(likeEsc(x.text)); }
     const order = ftsPos.length ? `ORDER BY bm25(ticket_fts, 10.0, 2.0, ${internal ? '1.5' : '0.0'}, 3.0)` : 'ORDER BY f.rowid DESC';
-    const rows = db.prepare(`SELECT f.rowid id FROM ticket_fts f WHERE ${where.join(' AND ')} ${order} LIMIT ${MAX_HITS}`).all(...args);
+    let rows;
+    try {
+      rows = db.prepare(`SELECT f.rowid id FROM ticket_fts f WHERE ${where.join(' AND ')} ${order} LIMIT ${MAX_HITS}`).all(...args);
+    } catch (e) {
+      // Unerwartete Eingabe, die FTS5 nicht versteht: keine Treffer statt Serverfehler
+      if (e?.code?.startsWith?.('SQLITE_') || e?.name === 'SqliteError') rows = [];
+      else throw e;
+    }
     return { ids: rows.map((r) => r.id), terms: pos.map((x) => x.text) };
   }
 

@@ -47,7 +47,7 @@ test('Anzahl ändern räumt sofort auf, Werte werden begrenzt', async () => {
   await S.admin('PUT', '/api/admin/settings', { settings: { 'backup.keep': 2 } });
 });
 
-test('Manuelle Sicherungen werden mitgezählt, Versions-Sicherungen getrennt', async () => {
+test('Manuelle Sicherungen werden mitgezählt, Versions- und Vor-Löschen-Sicherungen getrennt', async () => {
   fake('helfi-vor-1.8.0-a.sqlite', 500);
   fake('helfi-vor-1.9.0-a.sqlite', 400);
   fake('helfi-vor-loeschen-HR-a.sqlite', 300);
@@ -57,8 +57,9 @@ test('Manuelle Sicherungen werden mitgezählt, Versions-Sicherungen getrennt', a
     await new Promise((res) => setTimeout(res, 1100)); // eigener Zeitstempel im Namen
   }
   const left = files();
-  assert.equal(left.filter((f) => f.startsWith('helfi-manuell-') || f.startsWith('helfi-vor-loeschen-')).length, 2);
-  assert.ok(!left.includes('helfi-vor-loeschen-HR-a.sqlite'), 'älteste manuelle weg');
+  assert.equal(left.filter((f) => f.startsWith('helfi-manuell-')).length, 2);
+  // Die Sicherung vor dem Löschen eines Projekts ist eine eigene Art und wird nicht von manuellen verdrängt (Audit 2026-11)
+  assert.ok(left.includes('helfi-vor-loeschen-HR-a.sqlite'), 'Sicherung vor Projekt-Löschen bleibt');
   // Sicherungen vor Versionswechsel (inkl. der beim Start angelegten) zählen getrennt
   assert.ok(left.includes('helfi-vor-1.9.0-a.sqlite'));
 });
