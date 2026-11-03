@@ -54,6 +54,8 @@ export function createApi(ctx) {
       sla: { enabled: ctx.sla.enabled() },
       pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
       adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // Personensuche im AD verfügbar
+      // Neuigkeiten der aktuellen Version, die dieses Konto noch nicht gesehen hat
+      news: req.user ? ctx.news.unseen(req.user) : null,
       hasCatalog: !!db.prepare('SELECT 1 FROM catalog_items WHERE active=1 LIMIT 1').get(),
       user: req.user ? publicUser(req.user) : null,
       auth: {
@@ -145,8 +147,12 @@ export function createApi(ctx) {
       }
       if (!info) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const role = roleFromGroups(info.groups, cfg);
-      if (!info.groups.user && role !== 'admin' && role !== 'agent') throw new HttpError(403, 'err.notInGroup');
-      const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, role });
+      if (!info.groups.user && role !== 'admin' && role !== 'agent') {
+        // Bewusst eigene Meldung (hilft dem Support); Admins sehen im Protokoll, wer abgewiesen wurde
+        log.warn(`AD-Anmeldung abgewiesen: ${info.username} ist nicht in der Gruppe „Zugelassene Benutzer“`);
+        throw new HttpError(403, 'err.notInGroup');
+      }
+      const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, sid: info.sid, role });
       if (!u.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r2 = mfa.afterPrimary(req, res, u, 'ldap');
       if (r2.done) limiter.success(req.ip, username);
@@ -305,7 +311,7 @@ export function createApi(ctx) {
       if (!mail) throw new HttpError(400, 'err.adNotAllowed');
       return users.byEmail(mail) || users.contactForEmail(mail, info.displayName);
     }
-    const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: mail, externalId: info.externalId, role });
+    const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: mail, externalId: info.externalId, sid: info.sid, role });
     log.info(`Teilnehmer aus dem AD übernommen: ${u.username}`);
     return u;
   }
@@ -496,6 +502,14 @@ export function createApi(ctx) {
   r.post('/canned', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ response: canned.create(req.user, req.body || {}) })));
   r.patch('/canned/:id', requireRole('agent'), wrap(async (req, res) => res.json({ response: canned.update(req.user, req.params.id, req.body || {}) })));
   r.delete('/canned/:id', requireRole('agent'), (req, res) => { canned.remove(req.user, req.params.id); res.json({ ok: true }); });
+
+  // ---------- Neuigkeiten ----------
+  r.get('/news', (req, res) => res.json({ entries: ctx.news.list(req.user), version: ctx.news.version }));
+  r.post('/news/seen', (req, res) => { ctx.news.markSeen(req.user); res.json({ ok: true }); });
+
+  r.get('/tickets/:key/description-versions/:id', (req, res) => {
+    res.json(tickets.descriptionVersion(req.user, req.params.key, req.params.id));
+  });
 
   // ---------- Anfrage-Teilnehmer ----------
   r.post('/tickets/:key/participants', wrap(async (req, res) => {

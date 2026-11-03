@@ -146,3 +146,27 @@ test('Personen suchen (Teilnehmer aus dem AD) und per objectGUID holen', { skip 
   assert.equal(await ldap.findByGuid(cfg, 'kein-guid'), null);
   await assert.rejects(ldap.searchPeople({ ...cfg, bindDn: '' }, 'Muster'), /Dienstkonto/);
 });
+
+test('Ohne Dienstkonto: Anmeldung prüft das Kennwort am gefundenen Konto', { skip }, async () => {
+  // Die eigentliche Kollision (UPN eines Kontos = sAMAccountName@Domäne eines anderen) lässt Samba gar nicht
+  // erst zu („implied by userPrincipalName“); hier wird der Weg über den zweiten Bind auf den DN geprüft.
+  const cfg = { ...base, bindDn: '', bindPassword: '' };
+  if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+  const ok = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
+  assert.equal(ok?.username, 'k.kunde');
+  assert.match(ok.sid, /^S-1-5-21-\d+-\d+-\d+-\d+$/, 'objectSid wird mitgeliefert');
+  assert.match(ok.externalId, /^[0-9a-f]{32}$/, 'objectGUID als Hex');
+  assert.equal(await ldap.authenticate(cfg, 'k.kunde', 'falsch'), null);
+  assert.equal(await ldap.authenticate(cfg, 'm.muster', 'Kunde!Pass2026'), null, 'fremdes Kennwort');
+});
+
+test('objectSid: Konto über die SID finden (SSO-Zusammenführung)', { skip }, async () => {
+  const cfg = { ...base };
+  if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
+  const max = await ldap.findByEmail(cfg, 'm.muster@firma.local');
+  assert.match(max.sid, /^S-1-5-21-/);
+  const bySid = await ldap.findBySid(cfg, max.sid);
+  assert.equal(bySid.username, 'm.muster');
+  assert.equal(bySid.externalId, max.externalId);
+  assert.equal(await ldap.findBySid(cfg, 'S-1-5-21-1-2-3-999999'), null);
+});

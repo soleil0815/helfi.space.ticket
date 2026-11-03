@@ -18,7 +18,8 @@ export function authFrame(...children) {
     h('div.auth-card',
       h('div.auth-brand', brandLogo(40), brandTitle()),
       ...children),
-    langSwitch());
+    langSwitch(),
+    h('a.auth-home', { href: 'https://helfi.space', target: '_blank', rel: 'noopener noreferrer' }, 'helfi.space'));
 }
 
 async function finishLogin(user) {

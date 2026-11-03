@@ -24,7 +24,7 @@ export function transportOptions(cfg) {
 export const MAX_CONFIRMATIONS_PER_HOUR = 60;
 
 export function createMailer(db, settings, { suppressions = null } = {}) {
-  const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'out')");
+  const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction,agent_only) VALUES(?,?,'out',?)");
   let transport = null;
   let transportKey = '';
 
@@ -50,7 +50,8 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
   const agentAccount = db.prepare("SELECT 1 FROM users WHERE lower(email)=? AND role IN ('agent','admin') LIMIT 1");
 
   /** customer: Mail an Melder/Teilnehmer. Sonst (Zuweisung, SLA, Genehmigung …) und ist der Empfänger ein
-   *  Bearbeiter-Konto, erhält die Message-ID die Kennung „.agent“: Antworten darauf werden interne Notizen. */
+   *  Bearbeiter-Konto, wird die Mail als „nur an Bearbeiter“ gemerkt (mail_messages.agent_only):
+   *  Antworten darauf werden interne Notizen. Die Message-ID verrät das nicht. */
   async function send({ to, subject, text, ticketId = null, inReplyTo = null, customer = false }) {
     const tr = getTransport();
     if (!tr) return false;
@@ -59,7 +60,7 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
     const domain = tr.cfg.from.split('@')[1] || 'helfi.space';
     const agentOnly = !customer && !!ticketId && !!agentAccount.get(String(to || '').toLowerCase());
     // Nicht erratbar: über diese ID werden Antworten Tickets zugeordnet
-    const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${crypto.randomBytes(16).toString('hex')}${agentOnly ? '.agent' : ''}@${domain}>`;
+    const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${crypto.randomBytes(16).toString('hex')}@${domain}>`;
     await tr.transport.sendMail({
       from: { name: tr.cfg.fromName || 'Helfi.Space', address: tr.cfg.from },
       to,
@@ -70,7 +71,7 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
       references: inReplyTo || undefined,
       headers: { 'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All', 'X-Helfi-Ticket': ticketId ? String(ticketId) : '' },
     });
-    if (ticketId) remember.run(messageId.replace(/[<>]/g, ''), ticketId);
+    if (ticketId) remember.run(messageId.replace(/[<>]/g, ''), ticketId, agentOnly ? 1 : 0);
     return true;
   }
 

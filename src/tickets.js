@@ -344,8 +344,9 @@ export function createTickets(db, users) {
         if (col === 'project_id') { moveToProject(row, c.target, user.id); continue; }
         db.prepare(`UPDATE tickets SET ${col}=? WHERE id=?`).run(c.new, row.id);
         const show = (v) => (col === 'assignee_id' ? (v ? users.byId(v)?.display_name : null) : v);
-        // Beschreibungstexte nicht doppelt im Verlauf speichern
-        if (col === 'description') logActivity(row.id, user.id, 'changed', 'description');
+        // Beschreibung: alte und neue Fassung im Verlauf aufbewahren (Nachweis bei Änderungen);
+        // ausgeliefert werden die Texte nur auf Anfrage (descriptionVersion), nicht mit jedem Ticket
+        if (col === 'description') logActivity(row.id, user.id, 'changed', 'description', c.old ?? '', c.new ?? '');
         else logActivity(row.id, user.id, 'changed', c.field, show(c.old), show(c.new));
       }
       if (changes.status) {
@@ -557,7 +558,25 @@ export function createTickets(db, users) {
 
   function activity(ticketId) {
     return db.prepare(`SELECT a.*, u.display_name u_name FROM activity a LEFT JOIN users u ON u.id=a.user_id WHERE ticket_id=? ORDER BY a.created_at, a.id`)
-      .all(ticketId).map((a) => ({ id: a.id, action: a.action, field: a.field, oldValue: a.old_value, newValue: a.new_value, createdAt: a.created_at, user: a.user_id ? { id: a.user_id, displayName: a.u_name } : null }));
+      .all(ticketId).map((a) => {
+        const desc = a.field === 'description' && a.action === 'changed';
+        return {
+          id: a.id, action: a.action, field: a.field,
+          oldValue: desc ? null : a.old_value, newValue: desc ? null : a.new_value,
+          hasText: desc && a.old_value !== null,
+          createdAt: a.created_at, user: a.user_id ? { id: a.user_id, displayName: a.u_name } : null,
+        };
+      });
+  }
+
+  /** Alte und neue Fassung der Beschreibung zu einem Verlaufseintrag (nur Bearbeiter, wie der Verlauf) */
+  function descriptionVersion(user, idOrKey, activityId) {
+    const row = load(user, idOrKey);
+    if (!isAgent(user)) throw forbidden();
+    const a = db.prepare("SELECT a.*, u.display_name u_name FROM activity a LEFT JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.ticket_id=? AND a.action='changed' AND a.field='description'")
+      .get(int(activityId) || 0, row.id);
+    if (!a || a.old_value === null) throw notFound();
+    return { old: a.old_value, new: a.new_value ?? '', createdAt: a.created_at, user: a.user_id ? { id: a.user_id, displayName: a.u_name } : null };
   }
 
   // ---------- HTML-Mails ----------
@@ -655,6 +674,6 @@ export function createTickets(db, users) {
     search,
     events, projects, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
-    participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
+    descriptionVersion, participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
 }

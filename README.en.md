@@ -2,7 +2,7 @@
 
 # Helfi.Space
 
-[Deutsch](README.md) · **English**
+[Deutsch](README.md) · **English** · [helfi.space](https://helfi.space)
 
 A lightweight ticket system for IT departments and institutes, in German and English. Helfi.Space runs as a single Docker container with SQLite.
 
@@ -18,6 +18,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Roles:** administrator, agent, user. Users only see their own requests.
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
+- **What's new:** after an update Helfi.Space shows everyone once what changed for them; all versions are listed in the user menu under *What's new*.
 - Automatic backups daily and before every update
 
 ![Ticket view with comments, internal note and details](docs/images/ticket-en.png)
@@ -93,7 +94,7 @@ helfi.firma.local {
 2. **Fetch certificate** retrieves the certificate directly from the DC and shows the SHA-256 fingerprint. Compare it with the one on the server, then click **Accept certificate**.
    - Windows: `certlm.msc` → Personal → Certificates → the DC's certificate → Details → Thumbprint (SHA-256 via PowerShell: `Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, @{n='SHA256';e={$_.GetCertHashString('SHA256')}}`)
    - Samba: `openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256`
-3. Enter a **service account**, e.g. `svc-helfi@firma.local` (a normal domain account, no special rights needed). Without a service account, Helfi.Space searches with the account that is signing in.
+3. Enter a **service account**, e.g. `svc-helfi@firma.local` (a normal domain account, no special rights needed). Without a service account, Helfi.Space searches with the account that is signing in and then checks the password once more against the found account (so another account's UPN never leads to the wrong sign-in).
 4. Enter the **groups** for administrators and agents, e.g. `Helfi-Admins` and `Helfi-Agents` (name or full DN). Nested groups are taken into account. Optionally, an "allowed users" group restricts who may sign in at all (admins and agents always may). If a group name is ambiguous (same name in several OUs), no role is assigned and the log says so – enter the full DN in that case.
 5. **Test connection**, ideally with a test sign-in. If the base DN is empty, it is taken from the AD. If there is a Microsoft certification authority (AD CS), the test finds it and offers to accept it too. Renewed DC certificates then stay valid automatically.
 6. **Enable AD sign-in** and save.
@@ -128,7 +129,10 @@ Example: reporters without a code, agents with a code from outside, administrato
 - **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Exception: after an SSO sign-in whose second factor was checked by the identity provider ("SSO sign-ins count as second factor"). Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Security* can allow "first-time setup from outside too".
 - **Sessions:** if you signed in at the office without a code and later use the same browser from home, you have to sign in again with a code there. A session ends after `HELFI_SESSION_HOURS` (default 12 hours) without use and at the latest 30 days after sign-in, even with constant use.
 - **Lost phone:** sign in with a recovery code. Alternatively, an admin resets 2FA under *Users → Reset 2FA*, and the person sets it up again at the office.
-- **Applies to** local accounts and Active Directory sign-ins. With **SSO**, the identity provider checks the second factor by default (e.g. MFA in Entra ID). This can be turned off, and Helfi.Space then asks for its own code as well.
+- **Applies to** local accounts and Active Directory sign-ins. For **SSO**, *Security → SSO sign-in as second factor* decides whether the sign-in at the identity provider is enough:
+  - **Only if the provider reports MFA** (default): the token must show a multi-factor sign-in, i.e. `amr` with e.g. `mfa`, `otp` or `hwk` (Entra ID: `mfa`), or one of the `acr` values entered under *Single sign-on → acr values for MFA* (e.g. Keycloak level `2`). Otherwise Helfi.Space asks for its own code.
+  - **Always** or **Never** (then always its own code as well).
+  - Installations with SSO enabled keep their previous behaviour (“Always”) on update; *Security* then shows a notice with the recommendation.
 - Docker note: with some Docker setups all requests seem to come from the Docker gateway, e.g. with rootless Docker or IPv6. That address therefore only counts as internal if it is listed on its own.
 
 ![Two-factor sign-in settings](docs/images/2fa-en.png)
@@ -146,6 +150,8 @@ Example: reporters without a code, agents with a code from outside, administrato
 
 **SSO and AD together:** if you enter your domain under "Merge with AD accounts for domain" (e.g. `firma.local`), `m.muster@firma.local` from SSO is the same account as the AD user `m.muster`. Only enter the domain if the provider really controls it, i.e. does not allow guest accounts from other organizations. Without it, SSO accounts stay separate, and a guest `m.muster@fremd.example` can never take over the account `m.muster`. If the token contains no user name (`preferred_username`/UPN) but only the email address, accounts are only merged if the provider reports it as verified (`email_verified`). Email addresses from SSO are only taken over and merged with email contacts if the provider reports them as verified or if they equal the user name of the allowed domain (e.g. Entra ID: UPN = email address).
 
+**Stable merge via the AD identifier (recommended):** with some providers (e.g. Keycloak, Authentik) the user name can be chosen freely. So enter under *Claim with AD identifier* the claim that holds the `objectSid` or `objectGUID` of the AD account: the optional claim `onprem_sid` for Entra ID, a custom mapping to `objectGUID` for Keycloak or Authentik (as text with dashes, hex or Base64). Then accounts are merged **only** this way, no longer by name and domain. With a service account, Helfi.Space checks the AD account on every SSO sign-in like a password sign-in: disabled or no longer in the “Allowed users” group means no access, the role follows the AD groups, and an AD account not known yet is created (unless “only existing accounts” is set). If the AD is unreachable at that moment, the SSO sign-in is cancelled instead of creating a separate account. A previously separate SSO account of the same person stays, from then on the AD account is signed in. If the claim is missing in the token or the person does not exist in AD, the SSO account stays separate.
+
 ## Email
 
 *Administration → Email*
@@ -157,7 +163,7 @@ Example: reporters without a code, agents with a code from outside, administrato
 - If a reply is matched only by the number in the subject, its To/CC recipients do not become participants. That only happens for new tickets and for replies to mails from Helfi.Space (matched via the Message-ID).
 - Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the reporter. Agents reply through the web interface.
 - Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.
-- Preferably do not read the mailbox in parallel in Outlook or on a phone: Helfi.Space only fetches unread mails. A folder for processed mails is recommended.
+- Helfi.Space marks processed mails with its own IMAP flag (`$HelfiDone`). If someone reads the mailbox in parallel in Outlook or on a phone, the mails are still processed. If the mail server cannot store custom flags, Helfi.Space fetches only unread mails as before – then do not read the mailbox in parallel. A folder for processed mails is recommended.
 - Confirmations of receipt go out at most 60 times per hour (protection against abuse with forged senders).
 - Loop protection: more than 20 new tickets per hour from the same sender are ignored.
 - **Mail loop protection** (e.g. with monitoring systems, printers, backup software):
@@ -180,7 +186,7 @@ Helfi.Space shows HTML emails **formatted** in descriptions and replies, with ta
 
 ## Search
 
-The search box at the top searches all tickets in full text: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (reporter, assignee, people who replied, also by email address and logon name). Users without the agent role find tickets only by title, description, public replies, attachment names and labels, never by internal notes or by names and addresses of people.
+The search box at the top searches all tickets in full text: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (reporter, assignee, people who replied, also by email address and logon name). Users without the agent role find tickets by title, description, public replies, attachment names, labels and the names they also see in the ticket (reporter, assignee, people who replied) – never by internal notes, email addresses or logon names.
 
 - **Parts of words** are found: `printer` also finds "networkprinter". Upper and lower case do not matter.
 - **Several words** in any order must all occur, `"exact phrase"` in quotes, `-word` excludes.
@@ -497,7 +503,7 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 
 ## Security
 
-- Two-factor sign-in per RFC 6238. Each code is valid only once; after 5 failed attempts sign-in starts over. The key is stored encrypted, recovery codes only as a hash.
+- Two-factor sign-in per RFC 6238. Each code is valid only once; after 5 failed attempts sign-in starts over. The key is stored encrypted, recovery codes only as a scrypt hash with its own salt per code.
 - Passwords of local accounts are stored with scrypt. Stored credentials (service account, mailbox, SSO) are encrypted with AES-256-GCM and never sent to the browser.
 - First-time setup is only possible with the setup code from the container log.
 - After several wrong passwords, sign-in is slowed down. Session cookies are `HttpOnly` and `SameSite`, plus CSRF protection and a strict Content Security Policy.
@@ -519,6 +525,8 @@ sudo scripts/test-samba-ad.sh && HELFI_TEST_LDAP_HOST=dc01.firma.local npm run t
 Rebuild the manual (after changes in `docs/manual/`): `npm install --no-save playwright && npx playwright install chromium && node scripts/build-manual.mjs`.
 
 Structure: `src/` server (Express, better-sqlite3), `public/` UI (plain JavaScript without a build step), `src/i18n.js` and `public/js/i18n.js` for the texts (de/en).
+
+What's new: `src/news.json`, per version items for `all`, `agent` or `admin` (de/en). New items go into the top entry with `"version": ""` – that is the next version, the build sets the number. Once that version is released and something new is added, put the number into that entry and add a new empty one on top. Users see the items once after the update, all versions are listed under *What's new*.
 
 Releases: *Actions → CI → Run workflow*, branch `main`, choose `patch`, `minor` or `major` under "Release". The version counts up by itself (highest tag + 1), no need to edit `package.json`. CI tests, builds the images for amd64 and arm64 natively, scans for vulnerabilities and only then creates the tag, images and GitHub release. This is the only way to a release: a manually pushed tag starts nothing. Only one release runs at a time; exactly the scanned image (same digest) is published, with a signed provenance attestation (`gh attestation verify oci://ghcr.io/soleil0815/helfi.space.ticket:<version> -R soleil0815/helfi.space.ticket`). The base image is pinned by digest; Dependabot proposes new digests weekly.
 

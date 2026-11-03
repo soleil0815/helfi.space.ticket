@@ -62,6 +62,40 @@ export async function finishLogin(cfg, currentUrl, pending) {
   return claimsToUser(claims, cfg);
 }
 
+// amr-Werte (RFC 8176), die eine Anmeldung mit mehreren Faktoren bzw. einem starken Faktor belegen
+const MFA_AMR = new Set(['mfa', 'mca', 'otp', 'hwk', 'sc', 'fido', 'face', 'fpt', 'iris', 'retina', 'vbm']);
+
+/** Hat der Identitätsanbieter eine MFA bestätigt? (amr, oder acr aus der eingestellten Liste) */
+export function mfaConfirmed(claims, cfg = {}) {
+  const amr = Array.isArray(claims.amr) ? claims.amr : (claims.amr ? [claims.amr] : []);
+  if (amr.some((v) => MFA_AMR.has(String(v).toLowerCase()))) return true;
+  const acrs = String(cfg.mfaAcr || '').split(/[,;\s]+/).map((v) => v.trim()).filter(Boolean);
+  return !!claims.acr && acrs.includes(String(claims.acr));
+}
+
+/**
+ * AD-Kennung aus einem Claim → { sid } oder { guid } (objectGUID als Hex in Byte-Reihenfolge, wie bei der AD-Anmeldung).
+ * Erkannt: SID „S-1-5-21-…“, GUID mit Bindestrichen (Textform, z. B. Keycloak), 32 Hex-Zeichen (Bytes),
+ * Base64 der 16 Bytes (z. B. onPremisesImmutableId bei Entra ID). Sonst null.
+ */
+export function parseAdId(value) {
+  const v = String(Array.isArray(value) ? value[0] ?? '' : value ?? '').trim();
+  if (!v) return null;
+  if (/^S-1-\d+(-\d+){1,15}$/i.test(v)) return { sid: v.toUpperCase() };
+  const dashed = /^\{?([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})\}?$/i.exec(v);
+  if (dashed) {
+    // Textform: die ersten drei Gruppen sind in den Bytes umgekehrt (little-endian)
+    const rev = (x) => x.match(/../g).reverse().join('');
+    return { guid: (rev(dashed[1]) + rev(dashed[2]) + rev(dashed[3]) + dashed[4] + dashed[5]).toLowerCase() };
+  }
+  if (/^[0-9a-f]{32}$/i.test(v)) return { guid: v.toLowerCase() };
+  if (/^[A-Za-z0-9+/]{22}==$/.test(v)) {
+    const b = Buffer.from(v, 'base64');
+    if (b.length === 16) return { guid: b.toString('hex') };
+  }
+  return null;
+}
+
 export function claimsToUser(claims, cfg) {
   // Aus welchem Claim stammt der Name? (E-Mail-Adresse braucht eine Bestätigung, s. u.)
   const nameClaim = [cfg.usernameClaim, 'preferred_username', 'upn', 'email'].find((c) => c && claims[c]);
@@ -77,12 +111,16 @@ export function claimsToUser(claims, cfg) {
   // Zusammenführen mit AD-Konten nur, wenn der Admin eine Domäne dafür freigegeben hat –
   // sonst könnte z. B. ein Gast "m.muster@fremd.example" das Konto "m.muster" übernehmen.
   const mergeDomain = String(cfg.mergeDomain || '').trim().toLowerCase().replace(/^@/, '');
+  // Mit eingestelltem Claim für die AD-Kennung wird NUR darüber zusammengeführt (siehe routes/oidc.js),
+  // nie über den Namen – der ist bei manchen Anbietern frei wählbar.
+  const adIdClaim = String(cfg.adIdClaim || '').trim();
+  const adId = adIdClaim ? parseAdId(claims[adIdClaim]) : null;
   // Nicht vertrauenswürdige Namen bekommen immer den Namensraum "oidc:" – so kann ein SSO-Konto
   // nie einen Namen belegen, den später ein AD-Konto braucht (und umgekehrt). Namen ohne "@"
   // gelten nie als vertrauenswürdig (bei manchen Anbietern frei wählbar).
   let username = `oidc:${rawName}`;
   let trustName = false;
-  if (mergeDomain) {
+  if (mergeDomain && !adIdClaim) {
     const at = rawName.lastIndexOf('@');
     // Name aus dem E-Mail-Rückfall nur mit bestätigter Adresse übernehmen
     const fromEmail = nameClaim === 'email';
@@ -103,5 +141,7 @@ export function claimsToUser(claims, cfg) {
     // zusammengeführt werden – oder die Adresse ist gleich dem vertrauenswürdigen Anmeldenamen
     // der freigegebenen Domäne (z. B. Entra ID: UPN = Mail, ohne email_verified).
     trustEmail: emailVerified || (trustName && !!email && email.toLowerCase() === rawName.toLowerCase()),
+    adId,
+    mfa: mfaConfirmed(claims, cfg),
   };
 }

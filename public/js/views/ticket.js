@@ -5,6 +5,7 @@ import {
   richText, toast, modal, dropdown, field, select,
 } from '../dom.js';
 import { peoplePicker } from '../peoplepicker.js';
+import { diffView, diffLegend } from '../diffview.js';
 import { t } from '../i18n.js';
 import { state, navigate, route } from '../app.js';
 import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.js';
@@ -151,6 +152,16 @@ export async function renderTicket(content, key) {
         c.hasHtml ? mailView(() => richText(c.body), `/api/tickets/${encodeURIComponent(tk.key)}/mail-html?comment=${c.id}`) : richText(c.body)));
   }
 
+  async function showDescriptionChange(a) {
+    try {
+      const v = await api.descriptionVersion(tk.key, a.id);
+      const diff = diffView(v.old, v.new);
+      const old = h('details.prev-version', h('summary', t('ticket.previousVersion')), h('div.prev-text', richText(v.old || '—')));
+      modal(t('ticket.descriptionChangeTitle', { who: v.user?.displayName || '—', when: fmtDate(v.createdAt) }),
+        h('div', diffLegend(), diff || h('p.muted', t('kb.ver.same')), old), { wide: true });
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
   function historyEl(a) {
     const fieldLabel = a.field && !a.field.includes(':') && a.action === 'changed' ? t(`field.${a.field}`) : '';
     const show = (v) => {
@@ -170,6 +181,7 @@ export async function renderTicket(content, key) {
         h('strong', a.user?.displayName || (a.action === 'sla' ? 'Helfi.Space' : 'E-Mail')), ' ',
         t(`act.${a.action}`, { field: fieldLabel }),
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
+        a.action === 'changed' && a.field === 'description' && a.hasText ? h('button.link.small', { type: 'button', onclick: () => showDescriptionChange(a) }, t('ticket.showChange')) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'rated' ? h('span.change', a.oldValue ? h('span.old', '★'.repeat(Number(a.oldValue))) : null, a.oldValue ? ' → ' : null, h('span.new', '★'.repeat(Number(a.newValue)))) : null,

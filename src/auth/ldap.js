@@ -238,18 +238,18 @@ export async function authenticate(cfg, rawUsername, password) {
     }
     cfg = await ensureBaseDn(client, cfg);
     const filter = buildUserFilter(cfg.userFilter, username);
-    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID'];
-    const { searchEntries } = await client.search(cfg.baseDn, { scope: 'sub', filter, attributes: attrs, sizeLimit: 2 });
+    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID', 'objectSid'];
+    const { searchEntries } = await client.search(cfg.baseDn, { scope: 'sub', filter, attributes: attrs, explicitBufferAttributes: ['objectGUID', 'objectSid'], sizeLimit: 2 });
     if (searchEntries.length !== 1) return null;
     const entry = searchEntries[0];
 
-    // Kennwort prüfen (eigene Verbindung, damit die Dienstkonto-Sitzung erhalten bleibt)
-    if (cfg.bindDn) {
-      const userClient = await connect(cfg);
-      try { await userClient.bind(entry.dn, password); }
-      catch { return null; }
-      finally { await userClient.unbind().catch(() => {}); }
-    }
+    // Kennwort IMMER mit dem gefundenen Konto prüfen (eigene Verbindung). Ohne Dienstkonto hat der erste
+    // Bind über „name@domäne“ geklappt – das kann der UPN eines ANDEREN Kontos sein als das, dessen
+    // sAMAccountName gleich „name“ ist. Erst der Bind auf den gefundenen DN beweist, dass es dieses Konto ist.
+    const userClient = await connect(cfg);
+    try { await userClient.bind(entry.dn, password); }
+    catch { return null; }
+    finally { await userClient.unbind().catch(() => {}); }
 
     return await entryToUser(client, cfg, entry, username);
   } finally {
@@ -271,6 +271,7 @@ async function entryToUser(client, cfg, entry, fallbackName) {
     email: String(first(entry[cfg.emailAttr]) || ''),
     dn: entry.dn,
     externalId: Buffer.isBuffer(guid) ? guid.toString('hex') : (guid ? String(guid) : entry.dn),
+    sid: sidToString(first(entry.objectSid)),
     groups,
   };
 }
@@ -293,14 +294,40 @@ export async function findByEmail(cfg, email) {
   try {
     await serviceBind(client, cfg);
     cfg = await ensureBaseDn(client, cfg);
-    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID'];
-    const { searchEntries } = await client.search(cfg.baseDn, { scope: 'sub', filter: buildEmailFilter(email), attributes: attrs, sizeLimit: 2 });
+    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID', 'objectSid'];
+    const { searchEntries } = await client.search(cfg.baseDn, { scope: 'sub', filter: buildEmailFilter(email), attributes: attrs, explicitBufferAttributes: ['objectGUID', 'objectSid'], sizeLimit: 2 });
     if (searchEntries.length === 0) return null;
     if (searchEntries.length > 1) return { ambiguous: true };
     return await entryToUser(client, cfg, searchEntries[0], String(email).split('@')[0]);
   } finally {
     await client.unbind().catch(() => {});
   }
+}
+
+// ---------- objectSid ----------
+/** objectSid (Bytes) → „S-1-5-21-…“; sonst '' */
+export function sidToString(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 8) return '';
+  const count = buf[1];
+  if (buf.length !== 8 + count * 4) return '';
+  const auth = buf.readUIntBE(2, 6);
+  const subs = [];
+  for (let i = 0; i < count; i++) subs.push(buf.readUInt32LE(8 + i * 4));
+  return `S-${buf[0]}-${auth}${subs.map((x) => `-${x}`).join('')}`;
+}
+
+/** „S-1-5-21-…“ → Bytes (für LDAP-Filter); sonst null */
+export function sidToBuffer(sid) {
+  const m = /^S-(\d+)-(\d+)((?:-\d+){1,15})$/i.exec(String(sid || '').trim());
+  if (!m) return null;
+  const subs = m[3].slice(1).split('-').map(Number);
+  const auth = Number(m[2]);
+  if (Number(m[1]) > 255 || !Number.isSafeInteger(auth) || auth > 0xffffffffffff || subs.some((x) => x > 0xffffffff)) return null;
+  const buf = Buffer.alloc(8 + subs.length * 4);
+  buf[0] = Number(m[1]); buf[1] = subs.length;
+  buf.writeUIntBE(auth, 2, 6);
+  subs.forEach((x, i) => buf.writeUInt32LE(x, 8 + i * 4));
+  return buf;
 }
 
 // ---------- Personen suchen (Teilnehmer aus dem AD) ----------
@@ -326,8 +353,18 @@ export function buildPeopleFilter(cfg, q) {
  */
 export function guidFilter(hex) {
   if (!/^[0-9a-f]{32}$/i.test(String(hex || ''))) return null;
+  return binaryFilter('objectGUID', Buffer.from(String(hex), 'hex'));
+}
+
+/** Filter „aktiver Benutzer mit dieser objectSid“ (Textform S-1-5-…) */
+export function sidFilter(sid) {
+  const b = sidToBuffer(sid);
+  return b ? binaryFilter('objectSid', b) : null;
+}
+
+function binaryFilter(attribute, value) {
   const f = FilterParser.parseString(`(&${ACTIVE_PERSON})`);
-  f.filters.push(new EqualityFilter({ attribute: 'objectGUID', value: Buffer.from(String(hex), 'hex') }));
+  f.filters.push(new EqualityFilter({ attribute, value }));
   return f;
 }
 
@@ -370,16 +407,24 @@ export async function searchPeople(cfg, q, { limit = 10 } = {}) {
 
 /** Einen AD-Benutzer über seine objectGUID holen, mit Gruppen (wie bei der Anmeldung). null = nicht (mehr) da oder deaktiviert. */
 export async function findByGuid(cfg, hex) {
+  return findOne(cfg, guidFilter(hex));
+}
+
+/** Einen AD-Benutzer über seine objectSid (S-1-5-…) holen, mit Gruppen. null = nicht (mehr) da oder deaktiviert. */
+export async function findBySid(cfg, sid) {
+  return findOne(cfg, sidFilter(sid));
+}
+
+async function findOne(cfg, filter) {
   if (!cfg.bindDn) throw new Error('Kein Dienstkonto (Bind-DN) eingetragen.');
-  const filter = guidFilter(hex);
   if (!filter) return null;
   const client = await connect(cfg);
   try {
     await serviceBind(client, cfg);
     cfg = await ensureBaseDn(client, cfg);
-    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID'];
+    const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'memberOf', 'objectGUID', 'objectSid'];
     const { searchEntries } = await client.search(cfg.baseDn, {
-      scope: 'sub', filter, attributes: attrs, explicitBufferAttributes: ['objectGUID'], sizeLimit: 2,
+      scope: 'sub', filter, attributes: attrs, explicitBufferAttributes: ['objectGUID', 'objectSid'], sizeLimit: 2,
     });
     if (searchEntries.length !== 1) return null;
     const entry = searchEntries[0];

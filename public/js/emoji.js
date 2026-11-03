@@ -140,12 +140,26 @@ export const EMOTICONS = {
 };
 const EMOTICON_LIST = Object.keys(EMOTICONS).sort((a, b) => b.length - a.length);
 
-/** Smiley, der genau bei end endet und allein steht → { start, original, char } */
-export function emoticonBefore(text, end) {
+/** Steht pos in Code (```-Block oder `inline`)? Dort wird nichts umgewandelt. */
+export function inCode(text, pos) {
+  const before = text.slice(0, pos);
+  if (((before.match(/^\s*```/gm) || []).length % 2) === 1) return true;
+  const line = before.slice(before.lastIndexOf('\n') + 1);
+  return ((line.match(/`/g) || []).length % 2) === 1;
+}
+
+/**
+ * Smiley, der genau bei end endet und allein steht → { start, original, char }.
+ * next: das Zeichen danach ('' = Textende, z. B. vor dem Absenden). „<3“ ist in technischen Texten oft
+ * „kleiner als 3“ („Antwortzeit <3 s“) – es wird nur am Zeilen- oder Textende umgewandelt.
+ */
+export function emoticonBefore(text, end, next = '') {
+  if (inCode(text, end)) return null;
   for (const e of EMOTICON_LIST) {
     const start = end - e.length;
     if (start < 0 || text.slice(start, end) !== e) continue;
     if (start > 0 && !/\s/.test(text[start - 1])) continue;
+    if (e === '<3' && next !== '' && next !== '\n') return null;
     return { start, original: e, char: EMOTICONS[e] };
   }
   return null;
@@ -179,8 +193,8 @@ export function enableEmojiShortcodes(ta) {
   // Letzte automatische Umwandlung – Strg+Z macht sie rückgängig
   let last = null;
   let converting = false;
-  const convertAt = (end, caretAfter) => {
-    const hit = emoticonBefore(ta.value, end);
+  const convertAt = (end, caretAfter, next) => {
+    const hit = emoticonBefore(ta.value, end, next);
     if (!hit) return false;
     converting = true;
     ta.setRangeText(hit.char, hit.start, end, 'preserve');
@@ -193,8 +207,8 @@ export function enableEmojiShortcodes(ta) {
   /** Smiley ganz am Ende (vor dem Absenden / beim Verlassen des Felds) */
   const convertTrailing = () => {
     const trimmed = ta.value.replace(/\s+$/, '');
-    if (!emoticonBefore(trimmed, trimmed.length)) return;
-    convertAt(trimmed.length, ta.selectionStart);
+    if (!emoticonBefore(trimmed, trimmed.length, '')) return;
+    convertAt(trimmed.length, ta.selectionStart, '');
     // andere (z. B. Entwurfsspeicher) sollen den neuen Text sehen – die eigene Auswertung überspringen
     converting = true;
     try { ta.dispatchEvent(new Event('input')); } finally { converting = false; }
@@ -205,7 +219,7 @@ export function enableEmojiShortcodes(ta) {
     if (caret !== ta.selectionEnd) { close(); return; }
     last = null;
     // gerade Leerzeichen/Zeilenumbruch getippt → Smiley davor umwandeln
-    if (ev.inputType !== 'insertFromPaste' && caret > 0 && /\s/.test(ta.value[caret - 1]) && convertAt(caret - 1, caret)) { close(); return; }
+    if (ev.inputType !== 'insertFromPaste' && caret > 0 && /\s/.test(ta.value[caret - 1]) && convertAt(caret - 1, caret, ta.value[caret - 1])) { close(); return; }
     const done = completedShortcode(ta.value, caret);
     if (done) {
       close();

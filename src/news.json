@@ -1,0 +1,75 @@
+{
+  "_hinweis": "Neuigkeiten je Version, neueste zuerst. version \"\" = kommende Version (wird beim Release automatisch zur neuen Nummer). Beim nächsten neuen Eintrag die vorige Version eintragen. audience: all | agent | admin.",
+  "entries": [
+    {
+      "version": "",
+      "date": "",
+      "items": [
+        { "audience": "all", "de": "Neuigkeiten: Nach einem Update zeigt Helfi.Space einmal, was neu ist. Alle Versionen stehen im Benutzermenü unter „Neuigkeiten“.", "en": "What's new: after an update Helfi.Space shows once what has changed. All versions are listed in the user menu under “What's new”." },
+        { "audience": "all", "de": "Die Suche findet für alle wieder Tickets über die Namen von Melder, Bearbeiter und Antwortenden – ohne Mailadressen.", "en": "Search again finds tickets by the names of reporter, assignee and repliers for everyone – without email addresses." },
+        { "audience": "agent", "de": "Änderungen an der Beschreibung bleiben im Verlauf erhalten: „Änderung anzeigen“ zeigt frühere Fassung und Unterschiede.", "en": "Changes to the description are kept in the history: “Show change” shows the previous version and the differences." },
+        { "audience": "agent", "de": "E-Mail-Abruf: Mails werden auch dann verarbeitet, wenn jemand sie im Postfach schon gelesen hat (eigenes Kennzeichen, wenn der Mailserver es kann).", "en": "Mail fetching: mails are processed even if someone already read them in the mailbox (own flag, if the mail server supports it)." },
+        { "audience": "admin", "de": "SSO als zweiter Faktor in drei Stufen: nie, nur wenn der Anbieter MFA meldet (amr/acr, neuer Standard) oder immer. Bestehende Installationen behalten ihre Einstellung.", "en": "SSO as second factor in three levels: never, only if the provider reports MFA (amr/acr, new default) or always. Existing installations keep their setting." },
+        { "audience": "admin", "de": "SSO-Konten lassen sich über eine stabile AD-Kennung (objectSid/objectGUID, z. B. Claim onprem_sid) mit AD-Konten zusammenführen; das AD-Konto wird dabei bei jeder Anmeldung geprüft (Gruppe, Rolle, deaktiviert).", "en": "SSO accounts can be merged with AD accounts via a stable AD identifier (objectSid/objectGUID, e.g. claim onprem_sid); the AD account is checked on every sign-in (group, role, disabled)." },
+        { "audience": "admin", "de": "AD-Anmeldung ohne Dienstkonto prüft das Kennwort jetzt immer am gefundenen Konto; abgewiesene Anmeldungen außerhalb der Gruppe stehen im Protokoll.", "en": "AD sign-in without a service account now always checks the password against the found account; rejected sign-ins outside the group are logged." },
+        { "audience": "admin", "de": "Wiederherstellungscodes werden mit scrypt gespeichert; bisherige Codes gelten weiter.", "en": "Recovery codes are stored with scrypt; existing codes stay valid." }
+      ]
+    },
+    {
+      "version": "1.12.0",
+      "date": "2026-11-03",
+      "items": [
+        { "audience": "all", "de": "Viele Verbesserungen aus dem Code-Audit: sicherere Anmeldung, robusterer E-Mail-Abruf, schnellere Darstellung langer Texte.", "en": "Many improvements from the code audit: safer sign-in, more robust mail fetching, faster rendering of long texts." },
+        { "audience": "all", "de": "Anmeldungen gelten höchstens 30 Tage, danach bitte neu anmelden.", "en": "Sign-ins last at most 30 days, then please sign in again." },
+        { "audience": "admin", "de": "Wer Server, Konto oder Zertifikat bei AD, IMAP, SMTP oder SSO ändert, muss das Kennwort im selben Schritt neu eingeben.", "en": "Changing server, account or certificate for AD, IMAP, SMTP or SSO requires entering the password again in the same step." },
+        { "audience": "admin", "de": "update.sh: sicherer Rückweg bei einem fehlgeschlagenen Update.", "en": "update.sh: safer rollback after a failed update." }
+      ]
+    },
+    {
+      "version": "1.11.0",
+      "date": "2026-11-03",
+      "items": [
+        { "audience": "agent", "de": "Personenauswahl: Der Cursor bleibt beim Tippen im Feld, Auswahl mit ↑/↓ und Enter, AD-Treffer laden nach.", "en": "People picker: the cursor stays in the field while typing, pick with ↑/↓ and Enter, AD results load afterwards." }
+      ]
+    },
+    {
+      "version": "1.10.0",
+      "date": "2026-11-02",
+      "items": [
+        { "audience": "all", "de": "Volltextsuche: findet auch Wortteile, mehrere Wörter, „genaue Folge“ und -Ausschluss; beste Treffer zuerst mit Fundstelle.", "en": "Full-text search: finds word parts, several words, “exact phrase” and -exclusion; best matches first with the matching passage." },
+        { "audience": "agent", "de": "Teilnehmer direkt aus dem Active Directory hinzufügen – mit Mailadresse aus dem AD.", "en": "Add participants directly from Active Directory – with the email address from AD." },
+        { "audience": "admin", "de": "Anzahl der Sicherungen einstellbar (Standard 10 je Art), einzelne Sicherungen löschen.", "en": "Number of backups to keep is configurable (default 10 per kind), single backups can be deleted." }
+      ]
+    },
+    {
+      "version": "1.9.0",
+      "date": "2026-11-02",
+      "items": [
+        { "audience": "agent", "de": "Wissensartikel verschieben und in Ordnern ordnen (auch per Ziehen im Baum).", "en": "Move knowledge articles and organize them in folders (also by dragging in the tree)." },
+        { "audience": "all", "de": "In Antwort-Mails steht, wer das Anliegen betreut („Ihr Ansprechpartner“). Absender bleibt immer das Ticketsystem.", "en": "Reply mails show who handles the request (“Your contact”). The sender is always the ticket system." }
+      ]
+    },
+    {
+      "version": "1.8.0",
+      "date": "2026-11-02",
+      "items": [
+        { "audience": "agent", "de": "Wissensdatenbank: Versionen mit Vergleich, Vorlagen, Seitenbaum, Druckansicht und Kommentare.", "en": "Knowledge base: versions with comparison, templates, page tree, print view and comments." }
+      ]
+    },
+    {
+      "version": "1.7.0",
+      "date": "2026-11-02",
+      "items": [
+        { "audience": "agent", "de": "Neuer Editor für Wissensartikel mit Tabellen, Hinweisboxen und eingefügten Bildern.", "en": "New editor for knowledge articles with tables, info panels and pasted images." },
+        { "audience": "all", "de": "Auf dem Smartphone gut bedienbar: Menü, Listen als Karten, Filter und Ticketansicht.", "en": "Easy to use on a smartphone: menu, lists as cards, filters and ticket view." }
+      ]
+    },
+    {
+      "version": "1.6.0",
+      "date": "2026-11-02",
+      "items": [
+        { "audience": "agent", "de": "IT-Service-Management: Verknüpfungen, SLA, Probleme, Changes, Servicekatalog, Geräte & Dienste, Zufriedenheitsumfrage und Berichte.", "en": "IT service management: links, SLA, problems, changes, service catalog, devices & services, satisfaction survey and reports." }
+      ]
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import { state, navigate, setLeaveGuard } from '../app.js';
 import { renderDoc, headings } from '../kbdoc.js';
 import { createKbEditor } from '../kbeditor.js';
 import { builtinTemplates } from '../kbtemplates.js';
-import { diffLines } from '../diff.js';
+import { diffView, diffLegend } from '../diffview.js';
 
 const visBadge = (v) => h(`span.badge.kb-${v}`, t(`kb.vis.${v}`));
 
@@ -494,29 +494,14 @@ async function compare(content, id, va, vb) {
   if (x.title !== y.title) meta.push([t('kb.f.title'), x.title, y.title]);
   if (x.category !== y.category) meta.push([t('kb.f.category'), x.category || '—', y.category || '—']);
   if (x.visibility !== y.visibility) meta.push([t('kb.f.visibility'), t(`kb.vis.${x.visibility}`), t(`kb.vis.${y.visibility}`)]);
-  const lines = diffLines(x.body, y.body);
-  const changes = lines.filter((l) => l.op !== '=').length;
-  // unveränderte Abschnitte zusammenklappen (3 Zeilen Umgebung)
-  const keep = new Set();
-  lines.forEach((l, i) => { if (l.op !== '=') for (let k = i - 3; k <= i + 3; k++) keep.add(k); });
-  const rows = [];
-  let skipped = 0;
-  lines.forEach((l, i) => {
-    if (l.op === '=' && !keep.has(i)) { skipped++; return; }
-    if (skipped) { rows.push(h('div.diff-skip', t('kb.ver.unchanged', { n: skipped }))); skipped = 0; }
-    if (l.op === '=') rows.push(h('div.diff-line', l.a || ' '));
-    else if (l.op === '-') rows.push(h('div.diff-line.del', h('del', l.a || ' ')));
-    else if (l.op === '+') rows.push(h('div.diff-line.ins', h('ins', l.b || ' ')));
-    else rows.push(h('div.diff-line.chg', l.words.map((w) => (w.op === '=' ? w.text : h(w.op === '-' ? 'del' : 'ins', w.text)))));
-  });
-  if (skipped) rows.push(h('div.diff-skip', t('kb.ver.unchanged', { n: skipped })));
+  const diff = diffView(x.body, y.body);
   mount(content,
     h('div.breadcrumbs', h('a', { href: '/kb', 'data-link': '' }, t('kb.title')), ' / ', h('a', { href: `/kb/${id}`, 'data-link': '' }, a.title), ' / ', h('a', { href: `/kb/${id}/history`, 'data-link': '' }, t('kb.ver.title'))),
     h('div.page-head', h('h1', t('kb.ver.compareTitle', { a: x.version, b: y.version }))),
     h('p.muted', t('kb.ver.compareMeta', { a: x.version, aw: fmtDate(x.createdAt), au: x.author || '—', b: y.version, bw: fmtDate(y.createdAt), bu: y.author || '—' })),
-    h('div.diff-legend', h('del', t('kb.ver.removed')), ' ', h('ins', t('kb.ver.added'))),
+    diffLegend(),
     meta.length ? h('table.data.diff-meta', h('tbody', meta.map(([k, o, n]) => h('tr', h('th', k), h('td', h('del', o)), h('td', h('ins', n)))))) : null,
-    changes || meta.length ? h('div.diff', rows) : h('p.muted', t('kb.ver.same')));
+    diff || meta.length ? (diff || null) : h('p.muted', t('kb.ver.same')));
 }
 
 /** Vorschläge beim Melden eines Problems (Dialog „Ticket erstellen“) */

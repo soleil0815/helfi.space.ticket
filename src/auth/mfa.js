@@ -146,7 +146,8 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
         network: { ip: net.ip, internal: net.internal, reason: net.reason },
         required: policy.mfaRequired(req, u),
         canSetup: canEnrollHere(req) || !!u.session_mfa,
-        sso: u.source === 'oidc' && settings.get('mfa.trustSso'),
+        // SSO-Konten: zählt die Anmeldung beim Anbieter als zweiter Faktor? (always | confirmed | never)
+        sso: u.source === 'oidc' ? settings.get('mfa.ssoSecondFactor') : null,
       };
     },
 

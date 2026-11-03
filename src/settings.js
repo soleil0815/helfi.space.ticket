@@ -46,7 +46,9 @@ export const DEFAULTS = {
   'mfa.external': '', // Pflicht von außen: all | agents | admins | none (leer = aus mfa.mode abgeleitet)
   'mfa.internal': '', // Pflicht im internen Netz: none | admins | agents | all (leer = aus mfa.mode abgeleitet)
   'mfa.ownAddresses': '', // eigener Internetanschluss: öffentliche IPs/DynDNS-Namen, gelten als intern
-  'mfa.trustSso': true, // SSO-Anmeldungen gelten als zweiter Faktor (MFA beim Identitätsanbieter)
+  'mfa.trustSso': true, // veraltet (bis 1.12): ersetzt durch mfa.ssoSecondFactor, Migration 24 übernimmt den Wert
+  // Gilt eine SSO-Anmeldung als zweiter Faktor? never | confirmed (nur wenn der Anbieter MFA meldet: amr/acr) | always
+  'mfa.ssoSecondFactor': 'confirmed',
   'general.defaultLanguage': 'de', // de | en – für E-Mails an Absender ohne Konto
 
   // Active Directory / LDAP
@@ -86,6 +88,8 @@ export const DEFAULTS = {
   'oidc.agentGroup': '',
   'oidc.autoRedirect': false,
   'oidc.allowCreate': true,
+  'oidc.mfaAcr': '', // acr-Werte, die als MFA gelten (Komma-getrennt), zusätzlich zu amr
+  'oidc.adIdClaim': '', // Claim mit der AD-Kennung (objectSid oder objectGUID), z. B. onprem_sid – dann Zusammenführung nur darüber
 
   // E-Mail-Abruf (IMAP)
   // Sicherung
@@ -105,6 +109,7 @@ export const DEFAULTS = {
   'imap.ccParticipants': true, // An/CC-Empfänger neuer Mails werden Anfrage-Teilnehmer
   'imap.adLookup': true, // unbekannte Absender im AD suchen (nur mit aktiver AD-Anmeldung und Dienstkonto)
   'imap.intervalSec': 60,
+  'imap.keywordSince': '', // intern: seit wann verarbeitete Mails ein eigenes Kennzeichen bekommen
   'imap.project': '',
   'imap.maxAttachmentMb': 20,
 

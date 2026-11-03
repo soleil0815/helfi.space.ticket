@@ -21,7 +21,6 @@ const SKIP_REASONS = {
   'no-sender': 'kein gültiger Absender',
 };
 export const MAX_ATTACHMENTS = 30;
-const AGENT_MSGID = /^helfi\.\d+\.\d+\.[0-9a-f]+\.agent@/i;
 const MAX_BODY = 100000; // wie tickets.js (Beschreibung/Kommentar)
 export const MAX_CC_PARTICIPANTS = 10; // so viele Empfänger (An/CC) je Mail werden höchstens Teilnehmer
 const MAX_MESSAGE_BYTES = 80 * 1024 * 1024; // größere Mails nicht laden (Speicher)
@@ -52,7 +51,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
   const seen = db.prepare('SELECT ticket_id FROM mail_messages WHERE message_id=?');
   // Zuordnung über Referenzen NUR über eigene, ausgehende Message-IDs (zufällig, nicht erratbar).
   // Eingehende Message-IDs kennt jeder Empfänger der Ursprungsmail (z. B. in CC).
-  const seenOut = db.prepare("SELECT ticket_id FROM mail_messages WHERE message_id=? AND direction='out'");
+  const seenOut = db.prepare("SELECT ticket_id, agent_only FROM mail_messages WHERE message_id=? AND direction='out'");
   const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'in')");
 
   /** Ticket zu einer Antwort finden: über unsere Message-ID (nicht erratbar) oder [KEY-123] im Betreff. */
@@ -61,8 +60,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       .filter(Boolean).map((r) => String(r).replace(/[<>]/g, '').trim());
     for (const r of refs) {
       const row = seenOut.get(r);
-      // „.agent“: Mail ging nur an einen Bearbeiter (Zuweisung, SLA-Warnung, Genehmigung) – siehe smtp.js send()
-      if (row?.ticket_id) return { id: row.ticket_id, via: 'reference', agentMail: AGENT_MSGID.test(r) };
+      // agent_only: Mail ging nur an einen Bearbeiter (Zuweisung, SLA-Warnung, Genehmigung) – siehe smtp.js send()
+      if (row?.ticket_id) return { id: row.ticket_id, via: 'reference', agentMail: row.agent_only === 1 };
     }
     const k = ticketKeyFromSubject(parsed.subject);
     if (k) {
@@ -165,7 +164,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     if (!info.groups.user && role !== 'admin' && role !== 'agent') return miss(AD_MISS_TTL_MS); // nicht zugelassen
     const u = users.upsertExternal({
       source: 'ldap', username: info.username, displayName: info.displayName,
-      email: info.email || addr, externalId: info.externalId, role,
+      email: info.email || addr, externalId: info.externalId, sid: info.sid, role,
     });
     log.info(`E-Mail-Absender im AD gefunden: ${u.username}`);
     return u;
@@ -338,6 +337,26 @@ export function movesToProcessed(r) {
   return r?.action === 'skipped' && r.reason === 'receipt';
 }
 
+// Eigenes Kennzeichen für verarbeitete Mails: unabhängig davon, ob jemand die Mail im Postfach liest
+export const DONE_KEYWORD = '$HelfiDone';
+
+/** Kann der Server eigene Kennzeichen dauerhaft speichern? (PERMANENTFLAGS enthält \\*) */
+export function supportsKeywords(mailbox) {
+  const pf = mailbox?.permanentFlags;
+  return !!pf && (typeof pf.has === 'function' ? pf.has('\\*') : Array.from(pf).includes('\\*'));
+}
+
+/**
+ * Suche nach noch nicht verarbeiteten Mails.
+ * Mit Kennzeichen: alles ohne $HelfiDone, das ungelesen ist ODER seit Einführung des Kennzeichens kam
+ * (ältere, schon gelesene Mails stammen aus der Zeit davor und wurden damals verarbeitet).
+ * Ohne Kennzeichen (Server kann es nicht): wie bisher alle ungelesenen.
+ */
+export function pendingQuery(keywords, since) {
+  if (!keywords) return { seen: false };
+  return { unKeyword: DONE_KEYWORD, or: [{ seen: false }, { since }] };
+}
+
 export function createImapPoller({ settings, processor, ImapClient = ImapFlow }) {
   // recentSkipped: die letzten übersprungenen Mails (nur im Speicher), damit Admins den Grund sehen
   const status = { running: false, lastRun: null, lastError: null, lastResult: null, processedTotal: 0, lastPurge: null, recentSkipped: [] };
@@ -360,14 +379,23 @@ export function createImapPoller({ settings, processor, ImapClient = ImapFlow })
       }
       const lock = await client.getMailboxLock(cfg.folder || 'INBOX');
       try {
-        const uids = (await client.search({ seen: false }, { uid: true })) || [];
+        const keywords = supportsKeywords(client.mailbox);
+        let since = null;
+        if (keywords) {
+          // Beim ersten Mal festhalten, ab wann das Kennzeichen gesetzt wird
+          let k = settings.get('imap.keywordSince');
+          if (!k || Number.isNaN(Date.parse(k))) { k = new Date().toISOString(); settings.set('imap.keywordSince', k); }
+          since = new Date(k);
+        }
+        const done = keywords ? ['\\Seen', DONE_KEYWORD] : ['\\Seen'];
+        const uids = (await client.search(pendingQuery(keywords, since), { uid: true })) || [];
         for (const uid of uids.slice(0, 200)) {
           try {
             // Erst die Größe prüfen – riesige Mails nicht in den Speicher laden
             const meta = await client.fetchOne(String(uid), { size: true }, { uid: true });
             if (meta?.size > MAX_MESSAGE_BYTES) {
               log.warn(`E-Mail UID ${uid} ist zu groß (${Math.round(meta.size / 1048576)} MB) – übersprungen und markiert`);
-              await client.messageFlagsAdd(String(uid), ['\\Seen', '\\Flagged'], { uid: true });
+              await client.messageFlagsAdd(String(uid), [...done, '\\Flagged'], { uid: true });
               result.skipped++;
               continue;
             }
@@ -387,7 +415,7 @@ export function createImapPoller({ settings, processor, ImapClient = ImapFlow })
               status.recentSkipped = [{ at: new Date().toISOString(), from: r.from || '', subject: String(parsed.subject || '').slice(0, 120), reason: r.reason },
                 ...status.recentSkipped].slice(0, 20);
             } else result.skipped++;
-            await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });
+            await client.messageFlagsAdd(String(uid), done, { uid: true });
             // Übersprungene Mails und Unzustellbarkeitsberichte bleiben (gelesen) im Posteingang – im Ordner für
             // verarbeitete Mails würden sie nach der Aufbewahrungszeit gelöscht, ohne dass ein Ticket existiert
             if (cfg.processedFolder && movesToProcessed(r)) await client.messageMove(String(uid), cfg.processedFolder, { uid: true });
@@ -399,7 +427,7 @@ export function createImapPoller({ settings, processor, ImapClient = ImapFlow })
             log.error(`E-Mail UID ${uid} konnte nicht verarbeitet werden (Versuch ${n})`, { error: e.message });
             if (n >= 3) {
               // Nach 3 Fehlversuchen als gelesen markieren und markieren, damit sie nicht endlos blockiert
-              await client.messageFlagsAdd(String(uid), ['\\Seen', '\\Flagged'], { uid: true }).catch(() => {});
+              await client.messageFlagsAdd(String(uid), [...done, '\\Flagged'], { uid: true }).catch(() => {});
               failures.delete(uid);
             }
           }

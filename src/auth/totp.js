@@ -75,9 +75,34 @@ export async function qrDataUrl(text) {
 }
 
 // ---------- Wiederherstellungscodes ----------
-const hashCode = (c) => crypto.createHash('sha256').update(String(c).toLowerCase().replace(/[^a-z0-9]/g, '')).digest('hex');
+const normCode = (c) => String(c).toLowerCase().replace(/[^a-z0-9]/g, '');
+// Früheres Format (bis 1.12): SHA-256 ohne Salz – wird weiter angenommen, neue Codes nur noch mit scrypt
+const legacyHash = (c) => crypto.createHash('sha256').update(normCode(c)).digest('hex');
+// scrypt mit eigenem Salz je Code. Kleineres N als bei Kennwörtern: bis zu 10 Codes werden je Versuch geprüft,
+// die Codes selbst sind zufällig (~40 Bit) – offline durchprobieren bleibt trotzdem aussichtslos.
+const RC = { N: 4096, r: 8, p: 1, maxmem: 32 * 1024 * 1024 };
+const RC_LEN = 8;
 
-/** 10 Einmal-Codes wie "k7m2-q9xd"; gespeichert werden nur die Hashes */
+function hashCode(c) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(normCode(c), salt, 32, RC);
+  return `r1$${RC.N}$${salt.toString('base64')}$${hash.toString('base64')}`;
+}
+
+function matches(stored, code) {
+  const s = String(stored || '');
+  if (s.startsWith('r1$')) {
+    const [, n, salt, hash] = s.split('$');
+    const expected = Buffer.from(hash || '', 'base64');
+    const N = Number(n);
+    if (!expected.length || !Number.isInteger(N) || N < 1024 || N > 1 << 16) return false;
+    const actual = crypto.scryptSync(normCode(code), Buffer.from(salt || '', 'base64'), expected.length, { ...RC, N });
+    return crypto.timingSafeEqual(expected, actual);
+  }
+  if (/^[0-9a-f]{64}$/.test(s)) return crypto.timingSafeEqual(Buffer.from(s), Buffer.from(legacyHash(code)));
+  return false;
+}
+
 export function generateRecoveryCodes(n = 10) {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
   const codes = [];
@@ -91,9 +116,10 @@ export function generateRecoveryCodes(n = 10) {
 
 /** Prüft einen Wiederherstellungscode; liefert die verbleibenden Hashes oder null */
 export function useRecoveryCode(hashes, code) {
-  const h = hashCode(code);
+  // Nur Eingaben in Code-Form prüfen (spart scrypt bei TOTP-Codes und Unsinn)
+  if (normCode(code).length !== RC_LEN) return null;
   const list = Array.isArray(hashes) ? hashes : [];
-  const idx = list.findIndex((x) => crypto.timingSafeEqual(Buffer.from(x), Buffer.from(h)));
+  const idx = list.findIndex((x) => matches(x, code));
   if (idx < 0) return null;
   return [...list.slice(0, idx), ...list.slice(idx + 1)];
 }

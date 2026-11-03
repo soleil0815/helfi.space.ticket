@@ -1,6 +1,7 @@
 // Volltextsuche für Tickets (SQLite FTS5, Trigramme: findet auch Wortteile).
 // Spalten: title · public_text (Beschreibung, öffentliche Antworten, Anhänge, Stichwörter)
-//          internal_text (interne Notizen – nur für Bearbeiter) · people (Melder, Bearbeiter, Antwortende)
+//          internal_text (interne Notizen – nur für Bearbeiter) · people (Melder, Bearbeiter, Antwortende mit
+//          Adressen und Anmeldenamen – nur für Bearbeiter) · people_public (nur die Namen, die auch Benutzer sehen)
 // Änderungen markieren Trigger in search_dirty; vor jeder Suche wird nachgezogen.
 
 const MAX_HITS = 5000;
@@ -32,7 +33,7 @@ export function createSearch(db) {
   const getFiles = db.prepare(`SELECT a.filename, COALESCE(c.internal, 0) internal FROM attachments a LEFT JOIN comments c ON c.id=a.comment_id
     WHERE a.ticket_id=? AND a.draft=0`);
   const del = db.prepare('DELETE FROM ticket_fts WHERE rowid=?');
-  const ins = db.prepare('INSERT INTO ticket_fts(rowid, title, public_text, internal_text, people) VALUES(?,?,?,?,?)');
+  const ins = db.prepare('INSERT INTO ticket_fts(rowid, title, public_text, internal_text, people, people_public) VALUES(?,?,?,?,?,?)');
   const dirty = db.prepare('SELECT ticket_id FROM search_dirty LIMIT 2000');
   const clean = db.prepare('DELETE FROM search_dirty WHERE ticket_id=?');
   const join = (xs) => xs.filter(Boolean).join('\n');
@@ -47,7 +48,10 @@ export function createSearch(db) {
       join([t.description, ...comments.filter((c) => !c.internal).map((c) => c.body), ...files.filter((f) => !f.internal).map((f) => f.filename), t.labels.replace(/,/g, ' ')]),
       join([...comments.filter((c) => c.internal).map((c) => c.body), ...files.filter((f) => f.internal).map((f) => f.filename)]),
       join([t.r_name, t.r_email, t.r_user, t.reporter_name, t.reporter_email, t.a_name, t.a_email, t.a_user,
-        ...new Set(comments.filter((c) => !c.internal).flatMap((c) => [c.u_name, c.author_name, c.author_email]))]));
+        ...new Set(comments.filter((c) => !c.internal).flatMap((c) => [c.u_name, c.author_name, c.author_email]))]),
+      // Was Benutzer im Ticket sehen: Anzeigenamen von Melder, Bearbeiter und Antwortenden – keine Adressen
+      join([...new Set([t.r_name || t.reporter_name, t.a_name, ...comments.filter((c) => !c.internal).map((c) => c.u_name || c.author_name)])]
+        .filter((n) => n && !String(n).includes('@'))));
   }
 
   /** ausstehende Änderungen in den Index übernehmen (beim Start: alle Tickets) */
@@ -64,8 +68,8 @@ export function createSearch(db) {
   /**
    * Treffer für einen Suchtext → { ids: [id …] nach Relevanz, terms: positive Suchbegriffe } oder null (nichts Suchbares).
    * internal: interne Notizen und Personen (auch Adressen und Anmeldenamen) mit durchsuchen – nur Bearbeiter.
-   * Benutzer suchen nur in Titel und öffentlichem Text: die Spalte „people“ enthält auch E-Mail-Adresse
-   * und Anmeldenamen des Bearbeiters, die Benutzern nicht angezeigt werden.
+   * Benutzer suchen in Titel, öffentlichem Text und den sichtbaren Namen (people_public); die Spalte „people“
+   * enthält auch E-Mail-Adressen und Anmeldenamen, die Benutzern nicht angezeigt werden.
    */
   function find(q, { internal = false } = {}) {
     const terms = parseQuery(q);
@@ -73,7 +77,7 @@ export function createSearch(db) {
     if (!pos.length) return null;
     flush();
     const long = (x) => x.text.length >= 3; // Trigramme brauchen mindestens drei Zeichen
-    const cols = internal ? 'title, public_text, internal_text, people' : 'title, public_text';
+    const cols = internal ? 'title, public_text, internal_text, people, people_public' : 'title, public_text, people_public';
     const all = `(${cols.split(', ').map((c) => `f.${c}`).join(" || ' ' || ")})`;
     const where = []; const args = [];
     const ftsPos = pos.filter(long).map((x) => ftsQuote(x.text));
@@ -82,13 +86,13 @@ export function createSearch(db) {
       let expr = ftsPos.join(' AND ');
       for (const n of ftsNeg) expr = `(${expr}) NOT ${n}`;
       where.push('ticket_fts MATCH ?');
-      args.push(internal ? expr : `{title public_text} : (${expr})`);
+      args.push(internal ? expr : `{title public_text people_public} : (${expr})`);
     } else {
       for (const n of ftsNeg) { where.push(`${all} NOT LIKE ? ESCAPE '\\'`); args.push(likeEsc(n.slice(1, -1).replace(/""/g, '"'))); }
     }
     // kurze Begriffe (z. B. „2“) als Teiltext
     for (const x of terms.filter((y) => !long(y))) { where.push(`${all} ${x.neg ? 'NOT ' : ''}LIKE ? ESCAPE '\\'`); args.push(likeEsc(x.text)); }
-    const order = ftsPos.length ? `ORDER BY bm25(ticket_fts, 10.0, 2.0, ${internal ? '1.5' : '0.0'}, 3.0)` : 'ORDER BY f.rowid DESC';
+    const order = ftsPos.length ? `ORDER BY bm25(ticket_fts, 10.0, 2.0, ${internal ? '1.5, 3.0' : '0.0, 0.0'}, 3.0)` : 'ORDER BY f.rowid DESC';
     let rows;
     try {
       rows = db.prepare(`SELECT f.rowid id FROM ticket_fts f WHERE ${where.join(' AND ')} ${order} LIMIT ${MAX_HITS}`).all(...args);
