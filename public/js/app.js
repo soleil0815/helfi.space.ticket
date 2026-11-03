@@ -93,7 +93,11 @@ async function start() {
   window.addEventListener('helfi:unauthorized', () => { state.user = null; navigate('/login', { replace: true }); });
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');
-    if (a && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); navigate(a.getAttribute('href')); }
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    // Nur Pfade dieser Anwendung selbst routen (nie „//…“ oder „/\…“ – das wäre eine fremde Adresse)
+    const href = a.getAttribute('href') || '';
+    if (!/^\/(?![/\\])/.test(href) || new URL(href, location.href).origin !== location.origin) { e.preventDefault(); return; }
+    e.preventDefault(); navigate(href);
   });
   installShortcuts({
     isActive: () => !!state.user,

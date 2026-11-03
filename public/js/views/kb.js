@@ -261,7 +261,7 @@ function commentsSection(a) {
       done.length ? h('button.btn.btn-subtle.small.kb-cm-toggle', { type: 'button', onclick: () => { showDone = !showDone; load(); } }, showDone ? t('kb.cm.hideDone') : t('kb.cm.showDone', { n: done.length })) : null,
       showDone ? done.map(item) : null,
       composer);
-    if (location.hash === '#comments') { box.scrollIntoView({ block: 'start' }); history.replaceState({}, '', location.pathname); }
+    if (box.isConnected && location.hash === '#comments') { box.scrollIntoView({ block: 'start' }); history.replaceState({}, '', location.pathname); }
   }
   load().catch((e) => mount(box, h('p.error-text', e.message)));
   return box;

@@ -20,7 +20,8 @@ export function safeHref(url) {
   const u = String(url || '').trim();
   if (/^https?:\/\/[^\s<>"]+$/i.test(u)) return u;
   if (/^mailto:[^\s<>"]+@[^\s<>"]+$/i.test(u)) return u;
-  if (/^\/(?!\/)[^\s<>"]*$/.test(u)) return u;
+  // Pfad dieser Anwendung: nie „//…“ oder „/\…“ (Browser lesen beides als fremde Adresse), kein Backslash
+  if (/^\/(?![/\\])[^\s<>"\\]*$/.test(u)) return u;
   return null;
 }
 export const safeImg = (src) => (IMG_SRC.test(String(src || '')) ? src : null);
@@ -36,6 +37,14 @@ export function linkTarget(input) {
 }
 
 // ---------------------------------------------------------------- Lesen (Text → Blöcke)
+
+/** „Titel ##  “ → „Titel“: Leerzeichen, dann #, dann Leerzeichen am Ende entfernen */
+function trimHeading(s) {
+  let t = s.trimEnd();
+  let n = t.length;
+  while (n > 0 && t[n - 1] === '#') n--;
+  return t.slice(0, n).trimEnd();
+}
 
 const RE_LIST = /^(\s*)([-*+]|\d{1,9}[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/;
 const RE_IMGLINE = /^!\[([^\]\n]*)\]\(([^)\s]+)\)\s*$/;
@@ -84,8 +93,9 @@ function parseBlocks(lines) {
       out.push({ type: 'panel', kind: panel[1], children: parseBlocks(inner) });
       continue;
     }
-    const hd = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
-    if (hd) { out.push({ type: 'heading', level: Math.min(hd[1].length, 3), text: hd[2] }); i++; continue; }
+    // Überschrift: schließende # und Leerzeichen ohne Regex abschneiden (das alte Muster brauchte bei langen Zeilen Minuten)
+    const hd = /^(#{1,6})\s+([\s\S]*)$/.exec(line);
+    if (hd) { out.push({ type: 'heading', level: Math.min(hd[1].length, 3), text: trimHeading(hd[2]) }); i++; continue; }
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push({ type: 'hr' }); i++; continue; }
     // Tabelle
     if (line.trim().startsWith('|') && isTableSep(lines[i + 1])) {
@@ -156,7 +166,8 @@ function buildList(items) {
 
 const INLINE = [
   { re: /\\([\\`*[\]~+|#>\-.:!_()])/y, make: (m) => document.createTextNode(m[1]) },
-  { re: /(`+)([\s\S]*?[^`])\1(?!`)/y, make: (m) => h('code', m[2].replace(/^ (.*) $/, '$1')) },
+  // (?=(`+))\1: ganze Backtick-Folge als Öffner, ohne sie Zeichen für Zeichen zurückzunehmen (sonst kubische Laufzeit)
+  { re: /(?=(`+))\1([\s\S]*?[^`])\1(?!`)/y, make: (m) => h('code', m[2].replace(/^ (.*) $/, '$1')) },
   { re: /!\[([^\]\n]*)\]\(([^)\s]+)\)/y, make: (m) => (safeImg(m[2]) ? h('img', { src: m[2], alt: m[1].split('|')[0], loading: 'lazy' }) : document.createTextNode(m[0])) },
   { re: /\[((?:\\.|[^\]\\])+)\]\(([^)\s]+)\)/y, make: (m, o) => { const href = safeHref(m[2]); if (!href) return inline(m[1], o); const a = h('a', linkAttrs(href, o)); a.append(inline(m[1], { ...o, noAuto: true })); return a; } },
   { re: /\*\*((?:\\.|[^*\\]|\*(?!\*))+?)\*\*/y, make: (m, o) => wrap('strong', m[1], o) },
@@ -164,9 +175,9 @@ const INLINE = [
   { re: /~~((?:\\.|[^~\\]|~(?!~))+?)~~/y, make: (m, o) => wrap('s', m[1], o) },
   { re: /\*((?:\\.|[^*\\\s])(?:(?:\\.|[^*\\])*?(?:\\.|[^*\\\s]))?)\*/y, make: (m, o) => wrap('em', m[1], o) },
   { re: /(https?:\/\/[^\s<>"')\]]+[^\s<>"')\].,;:!?])/y, make: (m, o) => h('a', linkAttrs(m[1], o), m[1]) },
-  { re: /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/y, make: (m) => h('a', { href: `mailto:${m[1]}` }, m[1]) },
+  { re: /([A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}(?![A-Za-z]))/y, make: (m) => h('a', { href: `mailto:${m[1]}` }, m[1]) },
 ];
-const linkAttrs = (href, o) => (/^\//.test(href) && !o.edit ? { href, 'data-link': '' } : /^https?:/.test(href) ? { href, target: '_blank', rel: 'noopener noreferrer' } : { href });
+const linkAttrs = (href, o) => (/^\/(?![/\\])/.test(href) && !o.edit ? { href, 'data-link': '' } : /^https?:/.test(href) ? { href, target: '_blank', rel: 'noopener noreferrer' } : { href });
 function wrap(tag, text, o) { const el = h(tag); el.append(inline(text, o)); return el; }
 
 /** Inline-Text → DocumentFragment */
@@ -188,6 +199,8 @@ export function inline(text, o = {}) {
         const m = tk.re.exec(s);
         if (m) { flush(); frag.append(tk.make(m, o)); i += m[0].length; continue outer; }
       }
+      // Backtick-Folge ohne passendes Ende: ganz als Text übernehmen (nicht an jeder Stelle neu suchen)
+      if (c === '`') { let j = i; while (s[j] === '`') j++; buf += s.slice(i, j); i = j; continue; }
     }
     buf += c; i++;
   }
