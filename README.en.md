@@ -489,7 +489,7 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 ## Backup
 
 - Automatic: daily, before every version change, before deleting a project and before every import starts, in `data/backups/`. If deleting a project is refused (e.g. last project), no backup is created.
-- Each backup is first written as `….sqlite.part` and only renamed once complete. A `.part` file left behind after a crash is never used and may be deleted by hand.
+- Each backup is first written as `….sqlite.part` and only renamed once complete. A `.part` file left behind after a crash is never used and is removed by the next clean-up after one hour.
 - Manual: *Administration → System → Back up now*. That page also lists all backups with kind, date, size and the total space used; single backups can be deleted.
 - **Back up as well:** the whole `data/` folder, including `secret.key`. Without this file, stored passwords (service account, mailbox, SSO) and 2FA keys can no longer be decrypted. Helfi.Space then does not start and says so in the log. Alternatively set `HELFI_SECRET` (at least 16 characters) in `.env`, but right at setup: switching between `secret.key` and `HELFI_SECRET` later makes stored data unreadable.
 - The backups in `data/backups/` only contain the database. Attachments (`data/attachments/`) and `secret.key` live next to it. So always back up the whole `data/` folder to another drive.
@@ -504,7 +504,7 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 - Empty passwords are never passed to the AD, because an anonymous bind would otherwise count as a sign-in. Input in LDAP filters is escaped.
 - The container runs without root rights (`PUID`/`PGID`, 0 is not allowed), with a read-only program part, without extra Linux capabilities and with `no-new-privileges` (see `docker-compose.yml`). Files in `data/` are readable only by this user.
 - Attachments are served as downloads (only images are shown directly), so uploaded files never run in the context of Helfi.Space.
-- Stored passwords stay bound to their connection: anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, or weakens the certificate check, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server. Connection tests with a changed server or a weakened check do not send the stored password either.
+- Stored passwords stay bound to their connection: anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, weakens the certificate check (including “Fetched certificate” → “System certificate authorities”) or stores a different AD certificate, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server. Connection tests with a changed server or a weakened check do not send the stored password either.
 - Disabled accounts get the same message at sign-in as for a wrong password.
 
 ## Development

@@ -634,6 +634,19 @@ export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
     try { fs.unlinkSync(path.join(dir, b.name)); deleted++; freed += b.size; }
     catch (e) { log.warn(`Sicherung ließ sich nicht löschen: ${b.name}`, { error: e.message }); }
   }
+  // Liegengebliebene Teil-Sicherungen (Abbruch während des Schreibens) nach einer Stunde entfernen
+  const PART = /^helfi-[A-Za-z0-9._-]+\.sqlite\.part(-journal)?$/;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { /* Ordner fehlt */ }
+  for (const name of names) {
+    if (!PART.test(name)) continue;
+    const file = path.join(dir, name);
+    try {
+      const st = fs.lstatSync(file);
+      if (!st.isFile() || Date.now() - st.mtimeMs < 3600_000) continue;
+      fs.unlinkSync(file); deleted++; freed += st.size;
+    } catch (e) { log.warn(`Teil-Sicherung ließ sich nicht löschen: ${name}`, { error: e.message }); }
+  }
   if (deleted) log.info(`Alte Sicherungen gelöscht: ${deleted} (${Math.round(freed / 1048576)} MB frei)`);
   return { deleted, freed };
 }

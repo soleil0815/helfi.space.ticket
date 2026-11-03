@@ -3,6 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
+import { spawnSync } from 'node:child_process';
 import { startServer } from './helpers/server.js';
 
 let S;
@@ -27,7 +28,15 @@ function jarClient() {
   };
 }
 
-test('Geheimnis bleibt beim Server-Wechsel nicht erhalten (LDAP, SSO, IMAP, SMTP)', async () => {
+// Zwei unterschiedliche, selbst signierte Beispiel-Zertifikate (nur für den Vergleich, keine echten Schlüssel)
+const mkCert = (cn) => {
+  const r = spawnSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', '/dev/null', '-subj', `/CN=${cn}`, '-days', '1'], { encoding: 'utf8' });
+  return r.stdout;
+};
+const CA1 = mkCert('ca.firma.local');
+const CA2 = mkCert('fremd.example');
+
+test('Geheimnis bleibt beim Server-Wechsel nicht erhalten (LDAP, SSO, IMAP, SMTP)', { skip: !CA1 && 'openssl fehlt' }, async () => {
   const { admin, ctx } = S;
   const put = (settings) => admin('PUT', '/api/admin/settings', { settings });
   assert.equal((await put({ 'ldap.host': 'dc01.firma.local', 'ldap.bindDn': 'CN=svc,DC=firma,DC=local', 'ldap.bindPassword': 'Dienst!Pass1' })).status, 200);
@@ -44,8 +53,15 @@ test('Geheimnis bleibt beim Server-Wechsel nicht erhalten (LDAP, SSO, IMAP, SMTP
   // Zertifikatsprüfung abschwächen bindet ebenfalls
   assert.equal((await put({ 'ldap.tlsMode': 'insecure', 'ldap.bindPassword': PH })).status, 400);
   assert.equal((await put({ 'ldap.verifyHostname': false, 'ldap.bindPassword': PH })).status, 400);
-  // strenger/gleichwertig stellen und gleicher Server: erlaubt
-  assert.equal((await put({ 'ldap.tlsMode': 'system', 'ldap.bindPassword': PH, 'ldap.host': 'dc01.firma.local', 'ldap.baseDn': 'DC=firma,DC=local' })).status, 200);
+  // gepinntes Zertifikat → Systemzertifikate ist ebenfalls schwächer (jede öffentliche CA würde reichen)
+  assert.equal((await put({ 'ldap.tlsMode': 'system', 'ldap.bindPassword': PH })).status, 400);
+  // anderes hinterlegtes Zertifikat (eigene CA unterschieben) bindet ebenfalls, das erste nicht
+  assert.equal((await put({ 'ldap.caPem': CA1, 'ldap.bindPassword': PH })).status, 200);
+  assert.equal((await put({ 'ldap.caPem': CA1, 'ldap.bindPassword': PH })).status, 200, 'gleiches Zertifikat erneut speichern');
+  assert.equal((await put({ 'ldap.caPem': CA2, 'ldap.bindPassword': PH })).status, 400);
+  assert.equal(ctx.settings.get('ldap.bindPassword'), 'Dienst!Pass1');
+  // gleicher Server, andere Felder: erlaubt
+  assert.equal((await put({ 'ldap.bindPassword': PH, 'ldap.host': 'dc01.firma.local', 'ldap.baseDn': 'DC=firma,DC=local' })).status, 200);
   assert.equal(ctx.settings.get('ldap.bindPassword'), 'Dienst!Pass1');
   // mit neu eingegebenem Kennwort: erlaubt
   assert.equal((await put({ 'ldap.host': 'dc02.firma.local', 'ldap.tlsMode': 'insecure', 'ldap.bindPassword': 'Neu!Pass2' })).status, 200);

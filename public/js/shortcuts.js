@@ -34,6 +34,8 @@ export function installShortcuts({ isActive, global, isAgent }) {
     if (!fn) return;
     // Enter nur abfangen, wenn tatsächlich etwas geöffnet wurde (sonst bleibt die Taste beim Browser)
     if (key === 'Enter') { if (fn(e) === true) e.preventDefault(); return; }
+    // Nach j/k gehört Enter der markierten Zeile – einen zuvor angeklickten Knopf daher loslassen
+    if ((key === 'j' || key === 'k') && interactive(document.activeElement)) document.activeElement.blur?.();
     e.preventDefault(); fn(e);
   });
 }

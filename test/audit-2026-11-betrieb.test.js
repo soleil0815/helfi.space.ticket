@@ -283,3 +283,35 @@ test('trivy-check.sh: gefundene Geheimnisse lassen die Prüfung scheitern (Audit
   r = check('schema', { SchemaVersion: 2 });
   assert.equal(r.status, 0, r.stdout);
 });
+
+// --- Nachprüfung der eigenen Änderungen (zweiter Prüfer) ------------------------------------
+
+test('Rückweg: die älteste vollständige Sicherung dieses Updates wird zurückgespielt, nicht die neueste (Audit)', () => {
+  const ctx = setup();
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_BACKUP_OLDER: '1' });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-alt', 'spätere Sicherungen können schon teilweise umgestellt sein');
+});
+
+test('Rückweg: neueste nur als .part, ältere vollständig → die vollständige wird zurückgespielt (Audit)', () => {
+  const ctx = setup();
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_BACKUP_OLDER: '1', FAKE_BACKUP_PART: '1' });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-alt');
+});
+
+test('Rückweg: neue Version wird angehalten, bevor nach Sicherungen gesucht wird (Audit)', () => {
+  const ctx = setup();
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_NO_BACKUP: '1' });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /Keine Sicherung .*gefunden/);
+  assert.match(r.calls, /compose.* stop /, 'sonst könnte sie während der Suche die Datenbank umstellen');
+});
+
+test('Eigene Registry in docker-compose.yml: neues Image mit anderer ID gilt als gestartet (Audit)', () => {
+  const ctx = setup();
+  const r = run(ctx, ['-y'], { FAKE_NEW_IMAGE: 'sha256:spiegel', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /läuft \(1\.2\.0\)/);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'migriert', 'kein Rückweg');
+});

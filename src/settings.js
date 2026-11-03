@@ -139,9 +139,16 @@ const SECRET_BOUND = {
 
 // Schwächere Zertifikatsprüfung bindet das Geheimnis ebenfalls (sonst ließe es sich per
 // Umleitung/Zwischenstelle abgreifen). Nur der Wechsel zur schwächeren Prüfung zählt –
-// strenger stellen oder ein neues Zertifikat hinterlegen (Erneuerung) braucht kein neues Kennwort.
+// Strenger stellen braucht kein neues Kennwort.
+const TLS_RANK = { insecure: 0, system: 1, pinned: 2 };
 const SECRET_WEAKER = {
-  ldap: { tlsMode: (o, n) => o !== 'insecure' && n === 'insecure', verifyHostname: (o, n) => !!o && !n },
+  // pinned → system/insecure und system → insecure sind schwächer; ein anderes hinterlegtes
+  // Zertifikat ebenso (damit ließe sich eine eigene CA unterschieben) – dann Kennwort neu eingeben.
+  ldap: {
+    tlsMode: (o, n) => TLS_RANK[n ?? 'pinned'] < TLS_RANK[o ?? 'pinned'],
+    verifyHostname: (o, n) => !!o && !n,
+    caPem: (o, n) => String(o ?? '').trim() !== '' && String(o ?? '').trim() !== String(n ?? '').trim(),
+  },
   imap: { verifyTls: (o, n) => !!o && !n },
   smtp: { verifyTls: (o, n) => !!o && !n },
 };

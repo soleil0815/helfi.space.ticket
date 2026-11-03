@@ -13,6 +13,9 @@
 #   FAKE_HEALTH_NEW=starting, FAKE_HEALTHY_AFTER=N  neue Version meldet "starting", ab der N-ten Abfrage "healthy"
 #   FAKE_BACKUP_JOURNAL=1                        neue Version hinterlässt eine halbfertige Sicherung (mit -journal)
 #   FAKE_BACKUP_PART=1                           … bzw. nur unter dem Zwischennamen .sqlite.part
+#   FAKE_BACKUP_OLDER=1                          zusätzlich eine ältere vollständige Sicherung (Neustart-Schleife)
+#   FAKE_NO_BACKUP=1                             neue Version legt keine Sicherung an
+#   FAKE_NEW_IMAGE                               Image-ID des neuen Containers (Standard sha256:neu; z. B. eigene Registry)
 #   FAKE_LOAD_REF                                Name, den "docker load" meldet (Standard: …:9.9.9)
 echo "$* [HELFI_VERSION=${HELFI_VERSION:-}]" >> "$FAKE_LOG"
 phase_file="$FAKE_DIR/.fake-phase"
@@ -37,7 +40,8 @@ case "$1" in
         else
           echo new > "$phase_file"
           # neue Version sichert die Datenbank beim Start (wie das echte Programm)
-          if [ -n "${FAKE_NEW_VERSION:-}" ] && [ -d "$data/backups" ]; then
+          if [ -n "${FAKE_NEW_VERSION:-}" ] && [ -d "$data/backups" ] && [ -z "${FAKE_NO_BACKUP:-}" ]; then
+            [ -n "${FAKE_BACKUP_OLDER:-}" ] && printf sicherung-alt > "$data/backups/helfi-vor-$FAKE_NEW_VERSION-2026-10-31T11-00-00.sqlite"
             b="$data/backups/helfi-vor-$FAKE_NEW_VERSION-2026-10-31T12-00-00.sqlite"
             [ -n "${FAKE_BACKUP_PART:-}" ] && b="$b.part"
             printf sicherung-neu > "$b"
@@ -55,7 +59,7 @@ case "$1" in
       *'.Id'*) [ -n "${FAKE_NO_CONTAINER:-}" ] && exit 1; echo "cid1" ;;
       *'println'*) echo "$data"; [ -n "${FAKE_MOUNTS:-}" ] && printf '%s\n' "$FAKE_MOUNTS" ;;
       *'.Mounts'*) echo "$data" ;;
-      *'.Image'*) if [ "$(cat "$phase_file" 2>/dev/null)" = "new" ]; then echo "sha256:neu"; else echo "sha256:alt"; fi ;;
+      *'.Image'*) if [ "$(cat "$phase_file" 2>/dev/null)" = "new" ]; then echo "${FAKE_NEW_IMAGE:-sha256:neu}"; else echo "sha256:alt"; fi ;;
       *'.State.Health'*)
         if [ "$(cat "$phase_file" 2>/dev/null)" = "new" ]; then
           n=$(( $(cat "$FAKE_DIR/.fake-health-n" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$FAKE_DIR/.fake-health-n"

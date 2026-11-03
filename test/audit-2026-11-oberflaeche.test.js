@@ -64,6 +64,14 @@ test('Enter auf einem fokussierten Link folgt dem Link (Listen-Kürzel fangen ih
   const key = await p.$eval('tr.kbd-focus', (r) => r.dataset.key);
   await p.keyboard.press('Enter');
   await p.waitForURL(new RegExp(`/browse/${key}$`), { timeout: 5000 });
+  // Fokus auf einem Bedienelement, DANACH j → Enter gehört der markierten Zeile
+  await go(p, '/issues');
+  await p.waitForSelector('table.issues tbody tr[data-key]');
+  await p.focus('a.nav-item[href="/board"]');
+  await p.keyboard.press('j');
+  const key2 = await p.$eval('tr.kbd-focus', (r) => r.dataset.key);
+  await p.keyboard.press('Enter');
+  await p.waitForURL(new RegExp(`/browse/${key2}$`), { timeout: 5000 });
   assert.deepEqual(errors, []);
   await p.context().close();
 });

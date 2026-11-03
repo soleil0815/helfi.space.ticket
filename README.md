@@ -489,7 +489,7 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 ## Sicherung
 
 - Automatisch: täglich, vor jedem Versionswechsel, vor dem Löschen eines Projekts und vor jedem Import-Start, in `data/backups/`. Wird das Löschen eines Projekts abgelehnt (z. B. letztes Projekt), entsteht keine Sicherung.
-- Jede Sicherung entsteht zuerst als `….sqlite.part` und wird erst fertig umbenannt. Eine nach einem Absturz liegengebliebene `.part`-Datei wird nie verwendet und darf von Hand gelöscht werden.
+- Jede Sicherung entsteht zuerst als `….sqlite.part` und wird erst fertig umbenannt. Eine nach einem Absturz liegengebliebene `.part`-Datei wird nie verwendet und nach einer Stunde beim nächsten Aufräumen entfernt.
 - Von Hand: *Administration → System → Jetzt sichern*. Dort stehen auch alle Sicherungen mit Art, Datum, Größe und dem belegten Platz insgesamt; einzelne lassen sich löschen.
 - **Mitsichern:** den ganzen Ordner `data/`, einschließlich `secret.key`. Ohne diese Datei lassen sich gespeicherte Kennwörter (Dienstkonto, Postfach, SSO) und 2FA-Schlüssel nicht mehr entschlüsseln. Helfi.Space startet dann nicht und meldet das im Protokoll. Alternativ `HELFI_SECRET` (mindestens 16 Zeichen) in der `.env` setzen, aber gleich bei der Einrichtung: Ein späterer Wechsel zwischen `secret.key` und `HELFI_SECRET` macht gespeicherte Daten unlesbar.
 - Die Sicherungen in `data/backups/` enthalten nur die Datenbank. Anhänge (`data/attachments/`) und `secret.key` liegen daneben. Deshalb immer den ganzen Ordner `data/` auf ein anderes Laufwerk sichern.
@@ -504,7 +504,7 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 - Leere Kennwörter werden nie ans AD weitergegeben, denn ein anonymer Bind würde sonst als Anmeldung durchgehen. Eingaben in LDAP-Filtern werden maskiert.
 - Der Container läuft ohne root-Rechte (`PUID`/`PGID`, 0 ist nicht erlaubt), mit schreibgeschütztem Programmteil, ohne zusätzliche Linux-Rechte und mit `no-new-privileges` (siehe `docker-compose.yml`). Dateien in `data/` sind nur für diesen Benutzer lesbar.
 - Anhänge werden zum Herunterladen ausgeliefert (nur Bilder werden direkt angezeigt), damit hochgeladene Dateien nie im Kontext von Helfi.Space ausgeführt werden.
-- Gespeicherte Kennwörter bleiben an ihre Verbindung gebunden: Wer bei AD, IMAP, SMTP oder SSO Server, Port, Verschlüsselung, Dienstkonto bzw. Benutzer, Issuer oder Client-ID ändert oder die Zertifikatsprüfung abschwächt, muss das Kennwort bzw. Geheimnis im selben Schritt neu eingeben, sonst wird nicht gespeichert. So geht ein gespeichertes Geheimnis nie an einen anderen Server. Verbindungstests mit geändertem Server oder abgeschwächter Prüfung senden das gespeicherte Kennwort ebenfalls nicht.
+- Gespeicherte Kennwörter bleiben an ihre Verbindung gebunden: Wer bei AD, IMAP, SMTP oder SSO Server, Port, Verschlüsselung, Dienstkonto bzw. Benutzer, Issuer oder Client-ID ändert die Zertifikatsprüfung abschwächt (auch „Abgerufenes Zertifikat“ → „System-Zertifizierungsstellen“) oder ein anderes AD-Zertifikat hinterlegt, muss das Kennwort bzw. Geheimnis im selben Schritt neu eingeben, sonst wird nicht gespeichert. So geht ein gespeichertes Geheimnis nie an einen anderen Server. Verbindungstests mit geändertem Server oder abgeschwächter Prüfung senden das gespeicherte Kennwort ebenfalls nicht.
 - Deaktivierte Konten bekommen bei der Anmeldung dieselbe Meldung wie bei einem falschen Kennwort.
 
 ## Entwicklung

@@ -289,8 +289,8 @@ if ! dc up -d "$SERVICE"; then
   err "Start der neuen Version fehlgeschlagen (docker compose up)."
 fi
 
-# 6. Auf Gesundheitscheck warten. $1 = erwartetes Image (leer = nicht prüfen): Läuft noch ein
-#    Container mit einem anderen Image, zählt er nicht als gestartet.
+# 6. Auf Gesundheitscheck warten. $1 = erwartetes Image (leer = nicht prüfen), $2 = Image, das NICHT
+#    zählt (der alte Container). Läuft noch ein Container mit einem anderen Image, zählt er nicht als gestartet.
 LAST_HEALTH=""
 wait_healthy() {
   waited=0
@@ -299,7 +299,7 @@ wait_healthy() {
     cid="$(container_id)"
     if [ -n "$cid" ]; then
       img="$(docker inspect -f '{{.Image}}' "$cid" 2>/dev/null || true)"
-      if [ -z "${1:-}" ] || [ "$img" = "$1" ]; then
+      if { [ -z "${1:-}" ] || [ "$img" = "$1" ]; } && { [ -z "${2:-}" ] || [ "$img" != "$2" ]; }; then
         state="$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || true)"
         health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$cid" 2>/dev/null || true)"
         LAST_HEALTH="$health"
@@ -328,16 +328,20 @@ restore_files() {
   fi
 }
 
+# Erwartet wird „nicht mehr das alte Image“ statt genau NEW_ID: Zeigt image: in docker-compose.yml auf eine
+# eigene Registry, startet compose ein anderes Image als $TARGET – das ist trotzdem die neue Version.
+NOT_OLD=""
+[ -n "$PREV_ID" ] && [ "$NEW_ID" != "$PREV_ID" ] && NOT_OLD="$PREV_ID"
 if [ "$UP_FAILED" = 0 ]; then
   say "Warte auf den Start (höchstens ${WAIT_SECONDS}s) ..."
-  if wait_healthy "$NEW_ID"; then
+  if wait_healthy "" "$NOT_OLD"; then
     say "Helfi.Space läuft (${NEW_VERSION:-$TAG})."
     exit 0
   fi
   # Startet noch (z. B. Sicherung und Datenbank-Umstellung bei großen Datenbanken): nicht mittendrin abbrechen
   if [ "$LAST_HEALTH" = starting ] && ask "Die neue Version startet noch (z. B. Datenbank-Umstellung). Noch einmal ${WAIT_SECONDS}s warten?"; then
     say "Warte noch einmal (höchstens ${WAIT_SECONDS}s) ..."
-    if wait_healthy "$NEW_ID"; then
+    if wait_healthy "" "$NOT_OLD"; then
       say "Helfi.Space läuft (${NEW_VERSION:-$TAG})."
       exit 0
     fi
@@ -375,21 +379,35 @@ if [ -n "$NEW_VERSION" ]; then
     err "die Datenbank wird NICHT zurückgespielt. Bitte mit sudo ausführen (sudo ./update.sh -y) oder"
     err "die Sicherung helfi-vor-$NEW_VERSION-*.sqlite von Hand zurückspielen (README)."
   else
-    # .part = Sicherung noch nicht fertig (neue Fassungen schreiben erst unter Zwischennamen)
-    backup="$(find "$bdir" -maxdepth 1 \( -name "helfi-vor-$NEW_VERSION-*.sqlite" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.part" \) -newer "$MARKER" 2>/dev/null | sort | tail -n 1)"
-    if [ -z "$backup" ]; then
+    # Erst anhalten, dann suchen: Sonst könnte die neue Version während der Suche ihre Sicherung
+    # fertigstellen und die Datenbank umstellen (Audit). Die vorherige Version wird danach ohnehin neu gestartet.
+    dc stop "$SERVICE" >/dev/null 2>&1 || true
+    # Die ÄLTESTE vollständige Sicherung seit Beginn dieses Updates nehmen (bei Neustart-Schleifen sind
+    # spätere evtl. schon teilweise umgestellt). .part bzw. daneben -journal/-wal = nicht fertig.
+    backup=""; partial=""
+    found="$(find "$bdir" -maxdepth 1 \( -name "helfi-vor-$NEW_VERSION-*.sqlite" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.part" \) -newer "$MARKER" 2>/dev/null | sort)"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      if [ "${f%.part}" != "$f" ] || [ -e "$f-journal" ] || [ -e "$f-wal" ]; then
+        partial="$f"
+      elif [ -z "$backup" ]; then
+        backup="$f"
+      fi
+    done <<EOF_BACKUPS
+$found
+EOF_BACKUPS
+    if [ -z "$backup" ] && [ -z "$partial" ]; then
       say "Keine Sicherung helfi-vor-$NEW_VERSION-*.sqlite aus diesem Update gefunden – die neue Version hat die"
       say "Datenbank demnach nicht umgestellt. Datenbank bleibt unverändert."
-    elif [ "${backup%.part}" != "$backup" ] || [ -e "$backup-journal" ] || [ -e "$backup-wal" ]; then
+    elif [ -z "$backup" ]; then
       # Abbruch mitten in der Sicherung: Die Umstellung beginnt erst danach, die Datenbank ist unverändert
-      err "Die Sicherung $backup ist unvollständig (Start wurde während der Sicherung abgebrochen)."
+      err "Die Sicherung $partial ist unvollständig (Start wurde während der Sicherung abgebrochen)."
       err "Sie wird NICHT zurückgespielt; die Datenbank wurde noch nicht umgestellt und bleibt unverändert."
     elif [ ! -r "$backup" ]; then
       err "Sicherung $backup ist nicht lesbar – Datenbank NICHT zurückgespielt. Bitte mit sudo ausführen."
     elif [ ! -f "$DATA_DIR/helfi.sqlite" ]; then
       err "$DATA_DIR/helfi.sqlite fehlt – nichts zurückgespielt. Sicherung: $backup"
     else
-      dc stop "$SERVICE" >/dev/null 2>&1 || true
       stamp="$(date +%Y%m%d-%H%M%S)"
       # Erst vollständig kopieren, dann austauschen – nie ohne Datenbank dastehen
       if cp "$backup" "$DATA_DIR/helfi.sqlite.zurueck" && sync; then
