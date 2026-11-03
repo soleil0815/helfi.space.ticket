@@ -51,8 +51,17 @@ test('Erledigt: Ansprechpartner und Gruß; interne Notizen gehen nicht raus', as
   await wait();
   const mails = sent.filter((m) => m.to === 'karl@firma.local');
   assert.equal(mails.length, 1, 'nur die Erledigt-Mail');
-  assert.match(mails[0].text, /Ihr Ansprechpartner: Anna Berger\nhttps?:\/\//);
+  assert.doesNotMatch(mails[0].text, /Ansprechpartner/, 'erledigt selbst – kein Hinweis auf sich selbst');
   assert.match(mails[0].text, /Viele Grüße\nAnna Berger\nIT-Helpdesk$/);
+  // Erledigt jemand anderes, steht die zugewiesene Person als Ansprechpartner dabei
+  const tk2 = (await karl('POST', '/api/tickets', { title: 'WLAN' })).body.ticket;
+  await anna('PATCH', `/api/tickets/${tk2.key}`, { assigneeId: S.ids.anna });
+  sent.length = 0;
+  await tom('PATCH', `/api/tickets/${tk2.key}`, { status: 'done' });
+  await wait();
+  const m2 = sent.find((m) => m.to === 'karl@firma.local');
+  assert.match(m2.text, /Ihr Ansprechpartner: Anna Berger\nhttps?:\/\//);
+  assert.match(m2.text, /Viele Grüße\nTom Schulz\nIT-Helpdesk$/);
 });
 
 test('Englisch', async () => {

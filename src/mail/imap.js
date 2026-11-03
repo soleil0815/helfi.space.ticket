@@ -21,6 +21,8 @@ const SKIP_REASONS = {
   'no-sender': 'kein gültiger Absender',
 };
 export const MAX_ATTACHMENTS = 30;
+const AGENT_MSGID = /^helfi\.\d+\.\d+\.[0-9a-f]+\.agent@/i;
+const MAX_BODY = 100000; // wie tickets.js (Beschreibung/Kommentar)
 export const MAX_CC_PARTICIPANTS = 10; // so viele Empfänger (An/CC) je Mail werden höchstens Teilnehmer
 const MAX_MESSAGE_BYTES = 80 * 1024 * 1024; // größere Mails nicht laden (Speicher)
 export const MIN_KEEP_DAYS = 7; // Aufbewahrung: kleinere Werte (außer 0) gelten als 7
@@ -59,7 +61,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       .filter(Boolean).map((r) => String(r).replace(/[<>]/g, '').trim());
     for (const r of refs) {
       const row = seenOut.get(r);
-      if (row?.ticket_id) return { id: row.ticket_id, via: 'reference' };
+      // „.agent“: Mail ging nur an einen Bearbeiter (Zuweisung, SLA-Warnung, Genehmigung) – siehe smtp.js send()
+      if (row?.ticket_id) return { id: row.ticket_id, via: 'reference', agentMail: AGENT_MSGID.test(r) };
     }
     const k = ticketKeyFromSubject(parsed.subject);
     if (k) {
@@ -107,20 +110,22 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     return [settings.get('smtp.from'), settings.get('imap.user')].filter(Boolean).map((x) => x.toLowerCase());
   }
 
-  /** An- und CC-Adressen ohne eigene Adressen und Absender, höchstens MAX_CC_PARTICIPANTS. */
+  /** An- und CC-Adressen ohne eigene Adressen, Absender und Bearbeiter, höchstens MAX_CC_PARTICIPANTS. */
   function recipientAddresses(parsed) {
     const own = ownAddresses();
+    // Bearbeiter zählen nicht zur Höchstzahl (werden ohnehin nie Teilnehmer)
+    const isAgent = (a) => { const u = users.byEmail(a); return !!u && (u.role === 'agent' || u.role === 'admin'); };
     const from = String(parsed.from?.value?.[0]?.address || '').toLowerCase();
     const list = [];
     for (const field of [parsed.to, parsed.cc]) {
       for (const group of Array.isArray(field) ? field : [field]) {
         for (const v of group?.value || []) {
           const a = String(v.address || '').toLowerCase();
-          if (isEmail(a) && a !== from && !own.includes(a) && !list.some((x) => x.address === a)) list.push({ address: a, name: v.name || '' });
+          if (list.length < MAX_CC_PARTICIPANTS && isEmail(a) && a !== from && !own.includes(a) && !list.some((x) => x.address === a) && !isAgent(a)) list.push({ address: a, name: v.name || '' });
         }
       }
     }
-    return list.slice(0, MAX_CC_PARTICIPANTS).map((x) => x.address);
+    return list.map((x) => x.address);
   }
 
   function recipientNames(parsed) {
@@ -176,7 +181,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const messageId = String(parsed.messageId || '').replace(/[<>]/g, '').trim()
       || 'nomsgid-' + crypto.createHash('sha256').update(`${fromAddr}|${parsed.subject}|${parsed.date}|${parsed.text?.slice(0, 500)}`).digest('hex');
 
-    if (seen.get(messageId)) return { action: 'duplicate', messageId };
+    const prev = seen.get(messageId);
+    if (prev) return { action: 'duplicate', ticketId: prev.ticket_id || null, messageId };
 
     // Unzustellbarkeitsberichte und Lesebestätigungen: nie Ticket/Kommentar, nie eine Antwort (kein Ping-Pong)
     const report = deliveryReport(parsed, parsed.raw);
@@ -227,9 +233,12 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const files = all.filter((a) => a.size <= maxBytes).slice(0, MAX_ATTACHMENTS);
     const dropped = all.filter((a) => !files.includes(a));
     // Nicht übernommene Anhänge im Text vermerken, damit niemand etwas übersieht
-    const droppedNote = dropped.length
+    let droppedNote = dropped.length
       ? `\n\n[${dropped.map((a) => `Anhang nicht übernommen / attachment not imported: ${a.filename || 'ohne Namen'} (${Math.round(a.size / 1048576)} MB)`).join(']\n[')}]`
       : '';
+    // Erst den Text kürzen, dann den Hinweis anhängen – sonst schneidet die Längengrenze ihn bei langen Mails ab
+    droppedNote = droppedNote.slice(0, 20000);
+    const withNote = (body) => body.slice(0, MAX_BODY - droppedNote.length) + droppedNote;
     if (dropped.length) log.warn(`E-Mail ${messageId}: ${dropped.length} Anhang/Anhänge nicht übernommen (zu groß oder zu viele)`);
 
     // Bearbeiter-Konten werden per E-Mail nicht als Bearbeiter behandelt (Absender fälschbar):
@@ -239,6 +248,9 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const found = findTicket(parsed);
     // Wer nur die (fortlaufende) Ticketnummer kennt, aber nicht beteiligt ist, bekommt ein neues Ticket
     const existingId = found && (found.via === 'reference' || isParticipant(found.id, sender, fromAddr)) ? found.id : null;
+    // Antwort auf eine reine Bearbeiter-Mail: nur als interne Notiz (für Benutzer unsichtbar), öffnet nichts wieder.
+    // Gibt keine Rechte: Verfasser bleibt die Absenderadresse, die Message-ID kennt nur der Bearbeiter.
+    const agentReply = !!existingId && !!found.agentMail;
 
     // Schutz vor Mail-Schleifen mit Autorespondern ohne Kennzeichnung
     if (!existingId) {
@@ -279,11 +291,16 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
 
     return db.transaction(() => {
       if (existingId) {
-        const comment = tickets.addComment(privileged ? null : sender, existingId, { body: (stripQuotedReply(text) || '(leer)') + droppedNote }, {
+        const asUser = privileged || agentReply ? null : sender;
+        const comment = tickets.addComment(asUser, existingId, { body: withNote(stripQuotedReply(text) || '(leer)') }, {
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
+          // system: immer intern, öffnet nicht wieder, keine Rechte des Kontos
+          ...(agentReply ? { system: true } : {}),
         });
-        storeFiles(existingId, privileged ? null : sender.id, comment.id);
-        if (!privileged) addCcParticipants(existingId);
+        storeFiles(existingId, asUser ? asUser.id : null, comment.id);
+        // CC-Empfänger nur bei Zuordnung über unsere (nicht erratbare) Message-ID übernehmen –
+        // nie bei Zuordnung nur über die Nummer im Betreff (Absender fälschbar)
+        if (!privileged && !agentReply && found.via === 'reference') addCcParticipants(existingId);
         remember.run(messageId, existingId);
         return { action: 'comment', ticketId: existingId, messageId };
       }
@@ -291,7 +308,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       const project = projectKey ? tickets.projects.get(projectKey) : null;
       const ticket = tickets.create(sender, {
         title: cleanSubject(parsed.subject) || '(ohne Betreff / no subject)',
-        description: text + droppedNote,
+        description: withNote(text),
         projectId: project?.id,
         type: 'request',
       }, { source: 'email', reporterEmail: fromAddr, reporterName: from?.name || null, reporterId: sender.id, messageId });
@@ -314,7 +331,14 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
   return { process, lookupSender, lookupParticipants, parse };
 }
 
-export function createImapPoller({ settings, processor }) {
+/** In den Ordner für verarbeitete Mails: nur, was ein Ticket/Kommentar ergab (auch als Duplikat) und Lesebestätigungen. */
+export function movesToProcessed(r) {
+  if (r?.action === 'ticket' || r?.action === 'comment') return true;
+  if (r?.action === 'duplicate') return !!r.ticketId;
+  return r?.action === 'skipped' && r.reason === 'receipt';
+}
+
+export function createImapPoller({ settings, processor, ImapClient = ImapFlow }) {
   // recentSkipped: die letzten übersprungenen Mails (nur im Speicher), damit Admins den Grund sehen
   const status = { running: false, lastRun: null, lastError: null, lastResult: null, processedTotal: 0, lastPurge: null, recentSkipped: [] };
   const failures = new Map();
@@ -327,7 +351,7 @@ export function createImapPoller({ settings, processor }) {
     if (status.running) return { busy: true };
     status.running = true;
     const result = { tickets: 0, comments: 0, skipped: 0, errors: 0, skippedReasons: {} };
-    const client = new ImapFlow(imapOptions(cfg));
+    const client = new ImapClient(imapOptions(cfg));
     client.on('error', (e) => log.warn('IMAP-Fehler', { error: e.message }));
     try {
       await client.connect();
@@ -364,7 +388,9 @@ export function createImapPoller({ settings, processor }) {
                 ...status.recentSkipped].slice(0, 20);
             } else result.skipped++;
             await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });
-            if (cfg.processedFolder) await client.messageMove(String(uid), cfg.processedFolder, { uid: true });
+            // Übersprungene Mails und Unzustellbarkeitsberichte bleiben (gelesen) im Posteingang – im Ordner für
+            // verarbeitete Mails würden sie nach der Aufbewahrungszeit gelöscht, ohne dass ein Ticket existiert
+            if (cfg.processedFolder && movesToProcessed(r)) await client.messageMove(String(uid), cfg.processedFolder, { uid: true });
             failures.delete(uid);
           } catch (e) {
             result.errors++;

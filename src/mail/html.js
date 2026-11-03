@@ -18,7 +18,7 @@ const BOX = [/^(-?\d+(\.\d+)?(px|pt|em|rem|%|cm|mm)?\s*){1,4}$/i, /^auto$/i];
 const BORDER = [/^[\w\s.#%(),-]{1,80}$/];
 const STYLES = {
   color: COLOR, 'background-color': COLOR, background: [/^(#[0-9a-f]{3,8}|rgba?\([\d.%\s,]+\)|[a-z]{3,20})$/i],
-  'font-family': [/^[\w\s"',.-]{1,120}$/], 'font-size': [...LENGTH, /^(xx-|x-)?(small|large)|medium|smaller|larger$/i],
+  'font-family': [/^[\w\s"',.-]{1,120}$/], 'font-size': [...LENGTH, /^((xx-|x-)?(small|large)|medium|smaller|larger)$/i],
   'font-weight': [/^(normal|bold|bolder|lighter|\d{3})$/i], 'font-style': [/^(normal|italic|oblique)$/i],
   'text-decoration': [/^[a-z\s-]{1,40}$/i], 'text-align': [/^(left|right|center|justify|start|end)$/i],
   'vertical-align': [/^(top|middle|bottom|baseline|text-top|text-bottom|sub|super)$/i], 'line-height': LENGTH,
@@ -36,10 +36,11 @@ const STYLES = {
  * Liefert den Index im Roh-HTML oder -1.
  */
 export function quoteStart(html) {
+  // Begrenzt und nie über das nächste „<“ hinaus: sonst braucht z. B. „<div <div <div …“ quadratisch viel Zeit (Server hängt)
   const markers = [
-    /<div[^>]+id=["']?(appendonsend|divRplyFwdMsg|mail-editor-reference-message-container)\b/i,
-    /<div[^>]+class=["'][^"']*\b(gmail_quote|moz-cite-prefix|yahoo_quoted|protonmail_quote)\b/i,
-    /<blockquote[^>]+type=["']?cite\b/i,
+    /<div\s[^<>]{0,1000}?id=["']?(appendonsend|divRplyFwdMsg|mail-editor-reference-message-container)\b/i,
+    /<div\s[^<>]{0,1000}?class=["'][^"'<>]{0,1000}?\b(gmail_quote|moz-cite-prefix|yahoo_quoted|protonmail_quote)\b/i,
+    /<blockquote\s[^<>]{0,1000}?type=["']?cite\b/i,
     /-----\s*(Original Message|Ursprüngliche Nachricht|Originalnachricht)\s*-----/i,
   ];
   const hits = markers.map((re) => { const m = re.exec(html); return m ? m.index : -1; }).filter((i) => i > 0);
