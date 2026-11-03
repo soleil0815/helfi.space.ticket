@@ -191,7 +191,7 @@ Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antw
 Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem oder die Vorgesetzte.
 
 - **Hinzufügen:** in der Ticketansicht unter *Anfrage-Teilnehmer → Hinzufügen*.
-  - Bearbeiter suchen nach Name oder tragen eine beliebige E-Mail-Adresse ein.
+  - Bearbeiter suchen nach Name oder tragen eine beliebige E-Mail-Adresse ein. Die Vorschläge erscheinen beim Tippen, der Cursor bleibt im Feld; auswählen mit Klick oder ↑/↓ und Enter, Esc bricht ab.
   - **Aus dem AD:** Bearbeiter sehen ab 3 Zeichen auch Personen aus dem AD (markiert mit „AD“), gesucht in Name, Anmeldename und Mailadressen samt Zweitadressen. Wer gewählt wird, wird als AD-Benutzer angelegt bzw. aktualisiert, mit Mailadresse und Rolle aus dem AD; ein vorhandener E-Mail-Kontakt wird übernommen. Auch eine eingetippte Mailadresse wird im AD nachgeschlagen. Personen, die laut Gruppen Helfi.Space nicht nutzen dürfen, kommen als E-Mail-Kontakt dazu. Ist das AD nicht erreichbar, erscheinen nur die vorhandenen Personen. Abschaltbar unter *Administration → Active Directory → Teilnehmer aus dem AD vorschlagen*, braucht das Dienstkonto.
   - Melder und Teilnehmer können Kollegen mit eigenem Konto hinzufügen, aber keine freien Adressen.
   - Höchstens 20 je Ticket.

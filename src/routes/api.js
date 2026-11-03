@@ -53,6 +53,7 @@ export function createApi(ctx) {
       majorIncidents: req.user && isAgent(req.user) ? ctx.major.open() : [],
       sla: { enabled: ctx.sla.enabled() },
       pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
+      adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // Personensuche im AD verfügbar
       hasCatalog: !!db.prepare('SELECT 1 FROM catalog_items WHERE active=1 LIMIT 1').get(),
       user: req.user ? publicUser(req.user) : null,
       auth: {
@@ -257,7 +258,7 @@ export function createApi(ctx) {
     const out = { people: [] };
     const ad = [];
     // Bearbeiter: zusätzlich im AD suchen (nur Lesen; angelegt wird erst beim Hinzufügen)
-    if (agent && q.length >= 3 && adPeopleOn()) {
+    if (agent && q.length >= 3 && req.query.ad !== '0' && adPeopleOn()) {
       try {
         const hits = await withTimeout(ctx.directory.search(settings.group('ldap'), q, { limit: 10 }));
         const byGuid = db.prepare("SELECT * FROM users WHERE source='ldap' AND external_id=?");
