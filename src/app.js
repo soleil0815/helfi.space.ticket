@@ -38,6 +38,26 @@ import { t, langFromHeader, normalizeLang, hasKey } from './i18n.js';
 import { log } from './lib/log.js';
 import { randomToken } from './lib/crypto.js';
 
+/**
+ * HELFI_TRUST_PROXY übernehmen: Liste von Adressen/Netzen bzw. loopback/linklocal/uniquelocal.
+ * "true"/"false"/reine Zahlen (Hop-Anzahl) und ungültige Werte werden NICHT übernommen
+ * ("true" hieße: jedem X-Forwarded-For glauben) – Warnung im Protokoll und Standard "loopback".
+ * Liefert den tatsächlich verwendeten Wert.
+ */
+export function applyTrustProxy(app, raw) {
+  const value = String(raw ?? '').trim();
+  const fallback = (why) => {
+    log.warn(`HELFI_TRUST_PROXY="${value}" ${why} – es gilt "loopback". Bitte die Adresse(n) des Proxys angeben, z. B. "loopback, 10.0.10.5".`);
+    app.set('trust proxy', 'loopback');
+    return 'loopback';
+  };
+  if (!value) { app.set('trust proxy', 'loopback'); return 'loopback'; }
+  if (/^(true|false|yes|no|ja|nein|on|off)$/i.test(value)) return fallback('ist kein gültiger Wert (Ja/Nein wird nicht unterstützt)');
+  if (/^\d+$/.test(value)) return fallback('ist kein gültiger Wert (Anzahl der Proxys wird nicht unterstützt)');
+  try { app.set('trust proxy', value); } catch (e) { return fallback(`ist ungültig (${e.message})`); }
+  return value;
+}
+
 export function createApp(db) {
   fs.mkdirSync(paths.attachments, { recursive: true });
   const settings = createSettings(db);
@@ -85,7 +105,7 @@ export function createApp(db) {
 
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', config.trustProxy);
+  config.trustProxy = applyTrustProxy(app, config.trustProxy);
 
   app.use(helmet({
     contentSecurityPolicy: {

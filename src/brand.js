@@ -70,8 +70,18 @@ export function checkSvg(buf) {
     /\son[a-z]+\s*=/i, /javascript:/i, /data:text\/html/i,
     /(?:xlink:)?href\s*=\s*["']\s*(?!#|data:image\/(?:png|jpeg|gif|webp);)/i,
     /url\(\s*["']?\s*(?!#)/i, /@import/i,
+    // dieselben Elemente mit Namensraum-Präfix (<h:script xmlns:h="…/xhtml">)
+    /<[\w.-]+:(?:script|foreignObject|iframe|embed|object)/i,
+    // Zeichenreferenzen in Attributwerten (jav&#x61;script:, &colon;) – nur die fünf XML-Grundformen
+    /=\s*"[^"]*&(?!(?:amp|lt|gt|quot|apos);)/i, /=\s*'[^']*&(?!(?:amp|lt|gt|quot|apos);)/i,
+    // CSS-Escapes im style-Attribut (style="fill:u\72l(…)")
+    /\sstyle\s*=\s*"[^"]*\\/i, /\sstyle\s*=\s*'[^']*\\/i,
   ];
-  return bad.some((re) => re.test(text)) ? 'err.brandUnsafeSvg' : null;
+  if (bad.some((re) => re.test(text))) return 'err.brandUnsafeSvg';
+  // CSS: keine Escapes/Zeichenreferenzen (u\72l( ergibt url( und umginge die Prüfung oben)
+  const css = [...text.matchAll(/<style[\s>][\s\S]*?(?:<\/style\s*>|$)/gi)].map((m) => m[0]);
+  if (css.some((c) => /\\|&#/.test(c))) return 'err.brandUnsafeSvg';
+  return null;
 }
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

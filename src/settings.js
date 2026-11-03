@@ -2,6 +2,7 @@
 // damit die docker-compose.yml stabil bleibt.
 import { encrypt, decrypt } from './lib/crypto.js';
 import { log } from './lib/log.js';
+import { HttpError } from './lib/http.js';
 
 export const DEFAULTS = {
   // Allgemein
@@ -136,6 +137,21 @@ const SECRET_BOUND = {
   oidc: ['issuer', 'clientId'],
 };
 
+// Schwächere Zertifikatsprüfung bindet das Geheimnis ebenfalls (sonst ließe es sich per
+// Umleitung/Zwischenstelle abgreifen). Nur der Wechsel zur schwächeren Prüfung zählt –
+// strenger stellen oder ein neues Zertifikat hinterlegen (Erneuerung) braucht kein neues Kennwort.
+const SECRET_WEAKER = {
+  ldap: { tlsMode: (o, n) => o !== 'insecure' && n === 'insecure', verifyHostname: (o, n) => !!o && !n },
+  imap: { verifyTls: (o, n) => !!o && !n },
+  smtp: { verifyTls: (o, n) => !!o && !n },
+};
+
+/** Ändert sich ein Feld, an das das gespeicherte Geheimnis eines Bereichs gebunden ist? */
+function secretBindingChanged(prefix, stored, next) {
+  if ((SECRET_BOUND[prefix] || []).some((f) => String(next[f] ?? '') !== String(stored[f] ?? ''))) return true;
+  return Object.entries(SECRET_WEAKER[prefix] || {}).some(([f, weaker]) => weaker(stored[f], next[f]));
+}
+
 export function createSettings(db) {
   const getStmt = db.prepare('SELECT value, secret FROM settings WHERE key=?');
   const setStmt = db.prepare(
@@ -195,6 +211,22 @@ export function createSettings(db) {
   }
 
   function setMany(obj) {
+    // Wird Server/Konto geändert (oder die Prüfung abgeschwächt), gilt das gespeicherte Geheimnis
+    // nicht mehr: es muss im selben Speichervorgang neu eingegeben werden – sonst würde es beim
+    // nächsten Verbindungsaufbau an den neuen (womöglich fremden) Server geschickt.
+    for (const prefix of Object.keys(SECRET_BOUND)) {
+      const keys = Object.keys(obj).filter((k) => k.startsWith(prefix + '.') && k in DEFAULTS);
+      if (!keys.length) continue;
+      const stored = group(prefix);
+      const next = { ...stored };
+      for (const k of keys) if (!SECRET_KEYS.has(k)) next[k.slice(prefix.length + 1)] = coerce(k, obj[k]);
+      if (!secretBindingChanged(prefix, stored, next)) continue;
+      for (const k of SECRET_KEYS) {
+        if (!k.startsWith(prefix + '.')) continue;
+        const typed = obj[k] !== undefined && obj[k] !== SECRET_PLACEHOLDER;
+        if (stored[k.slice(prefix.length + 1)] && !typed) throw new HttpError(400, 'err.secretRebind', k);
+      }
+    }
     db.transaction(() => {
       for (const [k, v] of Object.entries(obj)) if (k in DEFAULTS) set(k, v);
     })();
@@ -218,8 +250,7 @@ export function createSettings(db) {
       }
       cfg[short] = coerce(k, v);
     }
-    const changed = (SECRET_BOUND[prefix] || []).some((f) => String(cfg[f] ?? '') !== String(stored[f] ?? ''));
-    if (changed) {
+    if (secretBindingChanged(prefix, stored, cfg)) {
       for (const k of SECRET_KEYS) {
         const short = k.slice(prefix.length + 1);
         if (k.startsWith(prefix + '.') && !typedSecret.has(short)) cfg[short] = '';

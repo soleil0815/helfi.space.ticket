@@ -5,10 +5,12 @@ import { HttpError } from '../lib/http.js';
 import { normalizeUsername } from './ldap.js';
 
 export const COOKIE = 'helfi_sid';
+// Höchstdauer einer Sitzung ab Anmeldung – auch bei ständiger Nutzung danach neu anmelden
+export const SESSION_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 
 export function createSessions(db, { policy } = {}) {
   const insert = db.prepare('INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa) VALUES(?,?,?,?,?,?,?)');
-  const find = db.prepare(`SELECT s.id sid, s.expires_at, s.auth_method, s.mfa session_mfa, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`);
+  const find = db.prepare(`SELECT s.id sid, s.expires_at, s.created_at session_created, s.auth_method, s.mfa session_mfa, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`);
   const del = db.prepare('DELETE FROM sessions WHERE id=?');
   const touch = db.prepare('UPDATE sessions SET expires_at=? WHERE id=?');
   const purge = db.prepare('DELETE FROM sessions WHERE expires_at < ?');
@@ -37,7 +39,9 @@ export function createSessions(db, { policy } = {}) {
     middleware(req, res, next) {
       const id = req.cookies?.[COOKIE];
       if (id) {
-        const row = find.get(id);
+        let row = find.get(id);
+        // Älter als die Höchstdauer: ungültig (wird unten gelöscht)
+        if (row && !(Date.now() - Number(row.session_created) < SESSION_MAX_AGE_MS)) row = { ...row, expires_at: 0 };
         if (row && row.expires_at > Date.now() && row.active && !row.session_mfa && policy?.mfaRequired(req, row)) {
           // Sitzung ohne zweiten Faktor (z. B. im Büro angemeldet), jetzt aber von außen → neu anmelden
           req.mfaBlocked = true;
@@ -45,9 +49,11 @@ export function createSessions(db, { policy } = {}) {
           req.user = row;
           req.sessionId = id;
           // gleitend verlängern, höchstens einmal pro Minute schreiben
-          if (row.expires_at - Date.now() < ttl() - 60000) {
-            touch.run(Date.now() + ttl(), id);
-            res.cookie(COOKIE, id, cookieOpts());
+          // (aber nie über die Höchstdauer ab Anmeldung hinaus)
+          const until = Math.min(Date.now() + ttl(), Number(row.session_created) + SESSION_MAX_AGE_MS);
+          if (until - row.expires_at > 60000) {
+            touch.run(until, id);
+            res.cookie(COOKIE, id, { ...cookieOpts(), maxAge: until - Date.now() });
           }
         } else if (row) {
           del.run(id);

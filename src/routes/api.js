@@ -125,7 +125,8 @@ export function createApi(ctx) {
     if (!(local && local.source === 'local' && local.password_hash)) verifyPassword(password, DUMMY_HASH);
     if (local && local.source === 'local' && local.password_hash) {
       if (!verifyPassword(password, local.password_hash)) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
-      if (!local.active) throw new HttpError(403, 'err.accountDisabled');
+      // Deaktiviert: dieselbe Antwort wie bei falschem Kennwort (sonst verrät sie, dass es stimmt)
+      if (!local.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r1 = mfa.afterPrimary(req, res, local, 'local');
       if (r1.done) limiter.success(req.ip, username);
       return res.json(r1.done ? { user: publicUser(local) } : { mfa: r1.step });
@@ -146,7 +147,7 @@ export function createApi(ctx) {
       const role = roleFromGroups(info.groups, cfg);
       if (!info.groups.user && role !== 'admin' && role !== 'agent') throw new HttpError(403, 'err.notInGroup');
       const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, role });
-      if (!u.active) throw new HttpError(403, 'err.accountDisabled');
+      if (!u.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r2 = mfa.afterPrimary(req, res, u, 'ldap');
       if (r2.done) limiter.success(req.ip, username);
       return res.json(r2.done ? { user: publicUser(u) } : { mfa: r2.step });

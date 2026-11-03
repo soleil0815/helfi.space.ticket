@@ -1,6 +1,6 @@
 // ITIL-Erweiterungen: Verknüpfungen, (später) SLA, Problem, Change, Wissen, Katalog …
 import express from 'express';
-import { requireRole } from '../auth/session.js';
+import { requireRole, isAgent } from '../auth/session.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
@@ -61,7 +61,7 @@ export function createItilRoutes(ctx) {
   });
   r.get('/changes/templates', requireRole('agent'), (req, res) => res.json({ templates: changes.standardTemplates() }));
   r.get('/approvals/mine', (req, res) => {
-    res.json({ tickets: approvals.pendingFor(req.user.id).map((id) => tickets.ticketOut(tickets.rawById(id))) });
+    res.json({ tickets: approvals.pendingFor(req.user.id).map((id) => tickets.ticketOut(tickets.rawById(id), isAgent(req.user), req.user.id)) });
   });
 
   // ---------- Wissensdatenbank (Lesen: alle Angemeldeten, öffentliche Artikel; Schreiben: Bearbeiter) ----------

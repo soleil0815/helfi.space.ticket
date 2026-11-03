@@ -58,7 +58,9 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
   // mit erbeutetem Kennwort vorab einen eigenen Faktor hinterlegen, der nach dem Umstellen gilt
   const canEnrollHere = (req) => policy.isInternal(req) || settings.get('mfa.enrollExternal');
   // Eigener Zähler für den zweiten Faktor – wird durch ein richtiges Kennwort NICHT zurückgesetzt
-  const mfaKey = (u) => `mfa~${u.username}`;
+  // Über die Benutzer-ID: der Name würde normalisiert ("max@firma.local" = "max") und könnte mit
+  // einem anderen Konto zusammenfallen
+  const mfaKey = (u) => `mfa~#${u.id}`;
 
   return {
     /**
@@ -107,6 +109,12 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       limiter.check(req.ip, mfaKey(u));
       let recoveryCodes;
       let ok;
+      if (p.enroll && u.totp_enabled) {
+        // Inzwischen (andere Anmeldung/Profil) eingerichtet: diesen Faktor nie überschreiben –
+        // neu anmelden, dann wird der eingerichtete Code abgefragt
+        pending.delete(id); res.clearCookie(PENDING_COOKIE, { path: '/' });
+        throw new HttpError(401, 'err.mfaExpired');
+      }
       if (p.enroll) {
         const step = p.secret ? verifyTotp(p.secret, code) : null;
         ok = step !== null;

@@ -119,7 +119,10 @@ export function createTickets(db, users) {
     LEFT JOIN users a ON a.id=t.assignee_id
     LEFT JOIN users r ON r.id=t.reporter_id`;
 
-  function ticketOut(t, agent = true) {
+  /** agent=false: Sicht von Melder/Teilnehmer/Genehmigenden; viewerId = wer schaut (eigene Angaben sichtbar) */
+  function ticketOut(t, agent = true, viewerId = null) {
+    // Adresse/Anmeldename des Melders nur für Bearbeiter und den Melder selbst
+    const own = agent || (viewerId != null && t.reporter_id === viewerId);
     return {
       id: t.id,
       key: `${t.project_key}-${t.number}`,
@@ -141,8 +144,8 @@ export function createTickets(db, users) {
       rank: t.rank,
       assignee: t.assignee_id ? { id: t.assignee_id, displayName: t.a_name, username: agent ? t.a_username : undefined, email: agent ? (t.a_email || '') : undefined } : null,
       reporter: t.reporter_id
-        ? { id: t.reporter_id, displayName: t.r_name, username: t.r_username, email: t.r_email || t.reporter_email || '' }
-        : (t.reporter_email || t.reporter_name ? { id: null, displayName: t.reporter_name || t.reporter_email, email: t.reporter_email || '' } : null),
+        ? { id: t.reporter_id, displayName: t.r_name, username: own ? t.r_username : undefined, email: own ? (t.r_email || t.reporter_email || '') : undefined }
+        : (t.reporter_email || t.reporter_name ? { id: null, displayName: t.reporter_name || (agent ? t.reporter_email : '—'), email: agent ? (t.reporter_email || '') : undefined } : null),
       commentCount: agent ? t.comment_count : t.public_comment_count,
       createdAt: t.created_at,
       updatedAt: t.updated_at,
@@ -235,7 +238,7 @@ export function createTickets(db, users) {
       const pos = new Map(hits.ids.map((id, i) => [id, i]));
       rows = rows.sort((a, b) => pos.get(a.id) - pos.get(b.id)).slice(0, limit);
     }
-    const out = rows.map((r) => ticketOut(r, isAgent(user)));
+    const out = rows.map((r) => ticketOut(r, isAgent(user), user.id));
     if (hits) {
       // Fundstelle für die ersten Treffer (Beschreibung, Antwort, Anhang)
       out.slice(0, 100).forEach((tk) => { const m = search.snippet(tk.id, hits.terms, { internal: isAgent(user) }); if (m) tk.match = m; });
@@ -334,7 +337,7 @@ export function createTickets(db, users) {
     }
 
     const rankChanged = agent && typeof data.rank === 'number' && Number.isFinite(data.rank) && Math.abs(data.rank) < 1e12 && data.rank !== row.rank;
-    if (!Object.keys(changes).length && !rankChanged) return ticketOut(row, agent);
+    if (!Object.keys(changes).length && !rankChanged) return ticketOut(row, agent, user.id);
 
     db.transaction(() => {
       for (const [col, c] of Object.entries(changes)) {
@@ -358,7 +361,7 @@ export function createTickets(db, users) {
     })();
 
     const t = ticketOut(rawById(row.id));
-    const result = agent ? t : ticketOut(rawById(row.id), false);
+    const result = agent ? t : ticketOut(rawById(row.id), false, user.id);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
     if (changes.status && changes.status.new === 'done' && !opts.quietResolved) emitLater('resolved', { ticket: t, user });
     if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
@@ -583,7 +586,7 @@ export function createTickets(db, users) {
     const extra = Object.assign({}, ...detailExtras.map((fn) => fn(user, row) || {}));
     const htmlFor = new Set(db.prepare('SELECT comment_id FROM mail_html WHERE ticket_id=?').all(row.id).map((r) => r.comment_id ?? 0));
     return {
-      ...ticketOut(row, isAgent(user)),
+      ...ticketOut(row, isAgent(user), user.id),
       descriptionHtml: htmlFor.has(0),
       participants: participants(row.id, user),
       canManageParticipants: isAgent(user) || row.reporter_id === user.id || isParticipant(row.id, user.id),
@@ -635,7 +638,7 @@ export function createTickets(db, users) {
       byStatus: { ...Object.fromEntries(STATUSES.map((x) => [x, 0])), ...group('status', '1=1') },
       byType: { ...Object.fromEntries(TYPES.map((x) => [x, 0])), ...group('type', "t.status<>'done'") },
       byPriority: { ...Object.fromEntries(PRIORITIES.map((x) => [x, 0])), ...group('priority', "t.status<>'done'") },
-      urgent: urgent.map((r) => ticketOut(r, isAgent(user))),
+      urgent: urgent.map((r) => ticketOut(r, isAgent(user), user.id)),
     };
   }
 
