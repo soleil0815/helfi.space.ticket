@@ -104,7 +104,7 @@
 <p>Besides the reporter, further people can take part in a ticket, e.g. colleagues with the same problem. Under <em>Request participants → Add</em> you add colleagues who have an account (up to 20 per ticket): type a name and the suggestions appear below; pick with a click or <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>, <kbd>Esc</kbd> cancels.</p>
 <ul>
   <li>Participants see the ticket, can comment and attach files and receive the same emails as the reporter.</li>
-  <li>They do not see internal notes and cannot change status, assignee or title.</li>
+  <li>They do not see internal notes and cannot change status, assignee or title. Of the reporter they only see the name, not the email address and logon name.</li>
   <li>Participants can remove themselves; the reporter and agents can remove them too.</li>
   <li><strong>Agents</strong> can also enter any email address and find people directly in <strong>Active Directory</strong> (marked “AD”), by email address too. The person is taken over with name and email address from AD – they do not need to have signed in before.</li>
 </ul>
@@ -135,7 +135,7 @@
   <li>Enter the 6-digit code shown and click <strong>Activate</strong>.</li>
   <li>Keep the <strong>10 recovery codes</strong> safe (print them or store them in a password manager). Each works exactly once if your phone is not at hand.</li>
 </ol>
-<div class="note"><p>For security reasons, first-time setup normally only works <strong>inside the company network</strong>. This way nobody with a stolen password can register their own second factor from outside. <strong>Lost your phone?</strong> Sign in with a recovery code or ask IT to reset your 2FA.</p></div>
+<div class="note"><p>For security reasons, first-time setup normally only works <strong>inside the company network</strong> (except after an SSO sign-in whose second factor was checked by the identity provider). This way nobody with a stolen password can register their own second factor from outside. <strong>Lost your phone?</strong> Sign in with a recovery code or ask IT to reset your 2FA.</p></div>
 
 <h2 id="catalog">Requesting a service</h2>
 <p>For frequent requests there are ready-made forms, e.g. “New employee” or “Software request”: <em>Request a service</em> in the sidebar. Clicking a tile opens the form; required fields are marked with *. After sending you land in the new ticket.</p>
@@ -144,7 +144,7 @@
 <p>If an offer says “requires approval”, someone has to agree first, e.g. your manager. You can see the status at the top of the ticket.</p>
 
 <h2 id="approving">Approving</h2>
-<p>Approvers get an email and see <em>My approvals</em> in the sidebar. In the ticket one click on <strong>Approve</strong> or <strong>Reject</strong> is enough, optionally with a comment. The decision is sent to the reporter as a reply; a rejection closes the request. Approvers without the agent role only see the requests they decide on.</p>
+<p>Approvers get an email and see <em>My approvals</em> in the sidebar. In the ticket one click on <strong>Approve</strong> or <strong>Reject</strong> is enough, optionally with a comment. The decision is sent to the reporter as a reply; a rejection closes the request. Approvers without the agent role only see the requests they decide on, and only the reporter’s name.</p>
 <figure><img src="img/en/itil-catalog-approval.jpg" alt=""><figcaption>Approval in the ticket as the manager sees it</figcaption></figure>
 
 <h2 id="help-knowledge">Help &amp; knowledge</h2>
@@ -184,7 +184,7 @@
 <p><em>All tickets</em> shows a sortable list. Filters for project, status, type, priority and assignee can be combined; clicking a column header sorts. The page address contains the filters – bookmark or share it.</p>
 <figure><img src="img/en/list.jpg" alt=""><figcaption>Ticket list with filters</figcaption></figure>
 <h3>Search</h3>
-<p>The search box at the top searches the full text of all tickets: title, description, replies, labels, attachment names and the people involved. Agents also find internal notes.</p>
+<p>The search box at the top searches the full text of all tickets: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (also by email address and logon name). Users without the agent role find tickets only by title, description, public replies, attachment names and labels, not by names or addresses of people.</p>
 <ul>
   <li><strong>Word parts</strong> match: “printer” also finds “networkprinter”.</li>
   <li><strong>Several words</strong> must all appear, in any order. <code>"exact phrase"</code> in quotes, <code>-word</code> excludes.</li>
@@ -209,7 +209,7 @@
   <li><strong>Replies</strong> are emailed to the reporter and all participants, each in their own language.</li>
   <li><strong>Internal notes</strong> (yellow background) are only visible to agents. They are never sent by email, and pasted images stay internal as well.</li>
 </ul>
-<div class="warn"><p>Emails coming from an agent’s address never count as agent replies (sender addresses can be forged). Agents therefore always reply via the web interface.</p></div>
+<div class="warn"><p>Emails coming from an agent’s address never count as agent replies (sender addresses can be forged). Agents therefore always reply via the web interface. Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.</p></div>
 
 <h2 id="html-mails">HTML emails</h2>
 <p>When a ticket or a reply arrives as an HTML email, Helfi.Space shows it <strong>formatted</strong> – with tables, bold text, colours, signature and embedded images. The <strong>Formatted | Text</strong> switch changes to the text version; the browser remembers the choice.</p>
@@ -257,6 +257,7 @@
   <tr><td></td><td><kbd>o</kbd> / <kbd>Enter</kbd></td><td>open highlighted ticket</td></tr>
   <tr><td></td><td><kbd>x</kbd></td><td>select highlighted ticket</td></tr>
 </table>
+<p><kbd>Enter</kbd> on a focused link or button activates it. <kbd>Enter</kbd> only opens the row highlighted with <kbd>j</kbd>/<kbd>k</kbd> when the focus is not on a control.</p>
 
 <h2 id="never-delete">Tickets are never deleted</h2>
 <p>Tickets are records: who reported what and when, and what was done? That is why they <strong>cannot be deleted</strong>, not even by administrators. Finished work is set to “Done”. Against spam, use a sender rule “Ignore” (<a href="#email">5.7</a>) – then no ticket is created in the first place.</p>
@@ -271,7 +272,7 @@
 
 <h2 id="major">Impact, urgency and major incident</h2>
 <p>In the details you set <strong>impact</strong> (how many are affected?) and <strong>urgency</strong> (how fast must it be fixed?). When both are set, the priority follows the ITIL matrix, e.g. high/high = Highest.</p>
-<p>Mark a severe incident affecting many people as a <strong>major incident</strong>. All agents then see a red bar at the top. Link individual reports with “causes”. <strong>Inform everyone affected</strong> sends a message to the reporters of all linked tickets; with “resolve” they are resolved together.</p>
+<p>Mark a severe incident affecting many people as a <strong>major incident</strong>. All agents then see a red bar at the top. Link individual reports with “causes”. <strong>Inform everyone affected</strong> sends a message to the reporters and participants of all open linked tickets; with “resolve” they are resolved together.</p>
 <figure><img src="img/en/itil-major.jpg" alt=""><figcaption>Major incident with subtasks, affected tickets and device</figcaption></figure>
 
 <h2 id="sla">Service levels (SLA)</h2>
@@ -351,7 +352,7 @@
 <p>A lean register of IT equipment and services (CI register). Each entry has a kind, status (in operation, in maintenance, retired), location, user, IP address, serial number, vendor and model. In a ticket you link affected devices and services in the <em>Devices &amp; services</em> section. For changes these are the affected services. An entry’s detail page lists all its tickets, so recurring faults stand out.</p>
 <figure><img src="img/en/itil-cis.jpg" alt=""><figcaption>Devices &amp; services with open tickets per entry</figcaption></figure>
 <figure><img src="img/en/itil-ci.jpg" alt=""><figcaption>A device with its ticket history</figcaption></figure>
-<p><span class="role role-admin">admin</span> <strong>CSV import</strong> from your inventory tool: the first line contains the column names (name/hostname, type, location, IP address, serial number, vendor, model, user, status – German or English). Values like “Notebook” or “Switch” are mapped to the matching kind. Existing names are updated. An entry can only be deleted while no tickets are linked; otherwise set it to “retired”.</p>
+<p><span class="role role-admin">admin</span> <strong>CSV import</strong> from your inventory tool: the first line contains the column names (name/hostname, type, location, IP address, serial number, vendor, model, user, status – German or English). Values like “Notebook” or “Switch” are mapped to the matching kind. Existing names are updated. Only administrators can delete an entry, and only while no tickets are linked; otherwise set it to “retired”.</p>
 
 <h2 id="satisfaction">Satisfaction survey <span class="role role-admin">admin</span></h2>
 <p>Switch it on under <em>Administration → Email → Satisfaction survey</em>. The “Resolved” email to the reporter then contains the rating links (<a href="#rating">2.12</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
@@ -402,7 +403,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <pre><code>helfi.firma.local {
     reverse_proxy 10.0.10.20:8080
 }</code></pre>
-<div class="warn"><p>Enter the proxy’s address in <code>HELFI_TRUST_PROXY</code>, e.g. <code>10.0.10.5</code>. Without it Helfi.Space only sees the proxy: the brake against password guessing then hits everyone together, and every request counts as “from outside” to be safe.</p></div>
+<div class="warn"><p>Enter the proxy’s address in <code>HELFI_TRUST_PROXY</code>, e.g. <code>10.0.10.5</code> (several separated by commas: <code>loopback, 10.0.10.5</code>). Without it Helfi.Space only trusts <code>X-Forwarded-For</code> from its own host (<code>loopback</code>); values such as <code>true</code> or a number are ignored with a warning in the log. If the proxy runs on another host, Helfi.Space then only sees the proxy: the brake against password guessing then hits everyone together, and every request counts as “from outside” to be safe.</p></div>
 
 <h2 id="initial">Initial setup</h2>
 <p>On the first visit to <code>HELFI_BASE_URL</code> the setup wizard starts. It asks for the <strong>setup code</strong> from the container log (<code>docker compose logs helfi</code>) and creates the <strong>local administrator</strong> and the first project. It then continues straight to the AD setup.</p>
@@ -429,7 +430,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li>Enter the admin and agent groups (group IDs for Entra ID).</li>
   <li>Optionally “redirect straight to SSO”. The normal sign-in remains available at <code>/login?local=1</code>.</li>
 </ol>
-<p><strong>SSO and AD together:</strong> with “Merge with AD accounts for domain” (e.g. <code>firma.local</code>), <code>m.muster@firma.local</code> from SSO is the same account as the AD user <code>m.muster</code>. Only enter it if the provider does not allow guest accounts from other organisations.</p>
+<p><strong>SSO and AD together:</strong> with “Merge with AD accounts for domain” (e.g. <code>firma.local</code>), <code>m.muster@firma.local</code> from SSO is the same account as the AD user <code>m.muster</code>. Only enter it if the provider does not allow guest accounts from other organisations. If the token contains only the email address (no <code>preferred_username</code>/UPN), accounts are only merged if the provider reports it as verified (<code>email_verified</code>). Email addresses from SSO are only taken over if they are verified or equal the user name of the allowed domain.</p>
 
 <h2 id="2fa">Two-factor authentication and networks</h2>
 <p><em>Administration → Security</em></p>
@@ -452,17 +453,18 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p><em>Administration → Email</em></p>
 <figure><img src="img/en/admin-mail-1.jpg" alt=""><figcaption>Fetching a mailbox (IMAP)</figcaption></figure>
 <ul>
-  <li><strong>Fetch mailbox (IMAP):</strong> server, user and password of the help desk mailbox. New emails become tickets, replies become comments. Processed emails are marked as read or moved to a folder – a separate folder is recommended. Better not read the mailbox in Outlook in parallel.</li>
+  <li><strong>Fetch mailbox (IMAP):</strong> server, user and password of the help desk mailbox. New emails become tickets, replies become comments. Processed emails are marked as read or moved to a folder – a separate folder is recommended. Skipped emails and delivery failure reports stay in the inbox, marked as read, and are not deleted automatically. Better not read the mailbox in Outlook in parallel.</li>
+  <li><strong>Replies by ticket key</strong> in the subject are only accepted from the reporter, request participants and everyone who has already written in the ticket; anyone who merely guesses the key gets a new ticket. Replies to mails from Helfi.Space are matched via the Message-ID.</li>
   <li><strong>Sending (SMTP):</strong> ideally use the mailbox address as sender, so replies come back into the ticket.</li>
   <li><strong>The sender is always the ticket system</strong> – never an agent’s address, no personal signatures. So the reporter knows who looks after them, reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added. In the browser, users see the field as “Your contact”.</li>
   <li><strong>Look up senders in Active Directory:</strong> unknown senders are searched in AD and created as AD users right away. Otherwise they become <em>email contacts</em>; when they sign in later, their tickets are theirs.</li>
-  <li><strong>Recipients in To/CC become participants</strong> (can be turned off).</li>
+  <li><strong>Recipients in To/CC become participants</strong> (can be turned off) – for new tickets and replies to mails from Helfi.Space, not when a reply is matched only by the key in the subject.</li>
   <li><strong>Retention:</strong> “Delete processed emails after … days” (default: never). Only the folder for processed emails is cleaned, never the inbox.</li>
 </ul>
 <h3>Mail loop protection and sender rules</h3>
 <figure><img src="img/en/admin-mail-3.jpg" alt=""><figcaption>Sender rules and blocked recipients</figcaption></figure>
 <ul>
-  <li>Delivery failure reports and read receipts never become tickets and are never answered. The affected address gets no emails for 7 days (<em>Blocked recipients</em>, can be released early there).</li>
+  <li>Delivery failure reports and read receipts never become tickets and are never answered. The affected address gets no emails for 7 days (<em>Blocked recipients</em>, can be released early there). Only addresses from real header lines of the report or from its <code>message/delivery-status</code> part are blocked.</li>
   <li><strong>Sender rules</strong> (address or pattern like <code>*@pve.firma.local</code>): “Create ticket, never reply” – optionally into a separate project – or “Ignore”.</li>
   <li><strong>Automatically generated emails</strong> (Proxmox, NAS, monitoring; recognised by <code>Auto-Submitted</code>, <code>Precedence: bulk</code> or <code>noreply@</code>) are <strong>only accepted with the rule “Create ticket, never reply”</strong>. <em>Recently skipped emails</em> lists sender and reason.</li>
   <li>More than 20 new tickets per hour from the same sender are ignored.</li>
@@ -497,7 +499,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Map statuses and types</strong> (suggestions are pre-filled).</li>
   <li><strong>Import</strong> – with progress, can be cancelled.</li>
 </ol>
-<p>Ticket keys are kept (<code>SUP-123</code> stays <code>SUP-123</code>), people are matched by email address, and no emails are sent. A second run only updates what changed and never creates duplicates – so you can import once as a trial and again on the cut-over day.</p>
+<p>Ticket keys are kept (<code>SUP-123</code> stays <code>SUP-123</code>), people are matched by email address, and no emails are sent. Before every import starts, Helfi.Space creates a backup. A second run only updates what changed and never creates duplicates – so you can import once as a trial and again on the cut-over day.</p>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="operation">For administrators: operation <span class="role role-admin">admin</span></h1>
@@ -511,7 +513,14 @@ docker compose logs helfi # shows the setup code</code></pre>
 ./update.sh -y          # without questions
 ./update.sh --cleanup   # show leftovers of earlier updates and delete them after confirmation
 ./update.sh --offline helfi-1.5.0-amd64.tar.gz 1.5.0   # without internet</code></pre>
-<p><code>update.sh</code> fetches the new version, takes over a newer <code>docker-compose.yml</code> (the old one is kept as <code>docker-compose.yml.alt-…</code>), starts the container and waits for the health check. If the new version does not start, it restores the previous version together with its database backup. It runs with <code>/bin/sh</code>, also on a Synology. <code>--cleanup</code> never touches <code>data/</code>, backups, <code>.env</code> or the current <code>docker-compose.yml</code>.</p>
+<p><code>update.sh</code> fetches the new version, takes over a newer <code>docker-compose.yml</code> (the old one is kept as <code>docker-compose.yml.alt-…</code>), starts the container and waits for the health check. If the new version does not start, it restores the previous version together with its database backup; <code>.env</code> then holds the previous version again. It runs with <code>/bin/sh</code>, also on a Synology. <code>--cleanup</code> never touches <code>data/</code>, backups, <code>.env</code> or the current <code>docker-compose.yml</code>.</p>
+<ul>
+  <li><strong><code>docker compose up</code> fails:</strong> error message, exit code 1, <code>.env</code> and <code>docker-compose.yml</code> are restored. If there is a previous version, <code>update.sh</code> first asks whether to start it again (automatically with <code>-y</code>).</li>
+  <li><strong>Still starting:</strong> if the new version is still “starting” after <code>HELFI_UPDATE_WAIT</code>, <code>update.sh</code> asks whether to wait once more (automatically once with <code>-y</code>).</li>
+  <li><strong>Database not restored:</strong> <code>update.sh</code> says so explicitly, e.g. if the backups are not readable (then <code>sudo ./update.sh -y</code>) or there is no backup or only an incomplete one.</li>
+  <li><strong><code>--offline</code> without a version:</strong> the version is taken from the image and recorded in <code>.env</code>, otherwise <code>update.sh</code> aborts. A relative path is taken from the current folder.</li>
+  <li><code>HELFI_UPDATE_WAIT</code> (time to wait, default 120 seconds) and <code>HELFI_IMAGE_REPO</code> are set on the command line, not in <code>.env</code>, e.g. <code>HELFI_UPDATE_WAIT=300 ./update.sh</code>. For your own registry, also change <code>image:</code> in <code>docker-compose.yml</code>; it then counts as customized and is no longer replaced automatically.</li>
+</ul>
 <div class="note"><p>After an update the browser loads the new interface immediately (from version 1.5.0). If an older version still shows the old interface, press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> once.</p></div>
 
 <h2 id="rollback">Pinning a version and going back</h2>
@@ -527,8 +536,9 @@ docker compose up -d</code></pre></li>
 
 <h2 id="backup">Backup and restore</h2>
 <ul>
-  <li><strong>Automatic:</strong> daily and before every version change, in <code>data/backups/</code>. <strong>Manual:</strong> <em>Administration → System → Back up now</em>.</li>
-  <li><strong>Backups to keep</strong> (default 10): this many of the newest backups are kept per kind – daily, before updates and manual. Older ones are deleted when saving and from then on, the newest of each kind always stays. The list below shows kind, date, size and the total space used; 🗑 deletes a single backup.</li>
+  <li><strong>Automatic:</strong> daily, before every version change, before deleting a project and before every import starts, in <code>data/backups/</code>. A refused project deletion creates no backup. <strong>Manual:</strong> <em>Administration → System → Back up now</em>.</li>
+  <li><strong>Backups to keep</strong> (default 10): this many of the newest backups are kept per kind – daily, manual, before update, before project deletion and before import. Older ones are deleted when saving and from then on, at least the newest of each kind always stays. The list below shows kind, date, size and the total space used; 🗑 deletes a single backup.</li>
+  <li>Each backup is first written as a <code>.part</code> file and only renamed once complete. A <code>.part</code> file left behind after a crash is never used and may be deleted by hand.</li>
   <li>The backups contain only the database. <strong>Always back up the whole <code>data/</code> folder</strong> to another drive – including attachments, logo and <code>secret.key</code>.</li>
   <li>Without <code>secret.key</code> (or the <code>HELFI_SECRET</code> you set) stored passwords and 2FA keys can no longer be decrypted.</li>
 </ul>
@@ -537,6 +547,8 @@ docker compose up -d</code></pre></li>
 <h2 id="security">Security</h2>
 <ul>
   <li>Passwords of local accounts are stored with scrypt, stored credentials (service account, mailbox, SSO) are encrypted with AES-256-GCM and never sent to the browser.</li>
+  <li>Anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, or weakens the certificate check, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server; connection tests with a weakened check do not send it either.</li>
+  <li>Sessions end after <code>HELFI_SESSION_HOURS</code> (default 12 hours) without use and at the latest 30 days after sign-in. Disabled accounts get the same message at sign-in as for a wrong password.</li>
   <li>Two-factor authentication per RFC 6238, each code works once, recovery codes are stored only as hashes.</li>
   <li>Brake on wrong passwords, cookies <code>HttpOnly</code>/<code>SameSite</code>, CSRF protection, strict Content Security Policy. The interface loads nothing from the internet.</li>
   <li>HTML emails are cleaned and shown in an isolated frame without scripts.</li>

@@ -104,7 +104,7 @@
 <p>Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem. Unter <em>Anfrage-Teilnehmer → Hinzufügen</em> fügst du Kollegen mit eigenem Konto hinzu (höchstens 20 je Ticket): Namen eintippen, die Vorschläge erscheinen darunter; mit Klick oder <kbd>↑</kbd>/<kbd>↓</kbd> und <kbd>Enter</kbd> auswählen, <kbd>Esc</kbd> bricht ab.</p>
 <ul>
   <li>Teilnehmer sehen das Ticket, können kommentieren und Dateien anhängen und bekommen dieselben Mails wie der Melder.</li>
-  <li>Sie sehen keine internen Notizen und können Status, Zuweisung oder Titel nicht ändern.</li>
+  <li>Sie sehen keine internen Notizen und können Status, Zuweisung oder Titel nicht ändern. Vom Melder sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen.</li>
   <li>Entfernen können sich Teilnehmer selbst; außerdem der Melder und die Bearbeiter.</li>
   <li><strong>Bearbeiter</strong> können auch eine beliebige Mailadresse eintragen und finden Personen direkt aus dem <strong>Active Directory</strong> (markiert mit „AD“), auch über die Mailadresse. Die Person wird dabei mit Name und Mailadresse aus dem AD übernommen – sie muss sich vorher nicht angemeldet haben.</li>
 </ul>
@@ -135,7 +135,7 @@
   <li>Den angezeigten 6-stelligen Code eingeben und <strong>Aktivieren</strong>.</li>
   <li>Die <strong>10 Wiederherstellungscodes</strong> sicher aufbewahren (ausdrucken oder im Passwortmanager). Jeder gilt genau einmal, falls das Handy nicht zur Hand ist.</li>
 </ol>
-<div class="note"><p>Die Ersteinrichtung geht aus Sicherheitsgründen normalerweise nur im <strong>Firmennetz</strong>. So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. <strong>Handy verloren?</strong> Mit einem Wiederherstellungscode anmelden oder die IT bitten, die 2FA zurückzusetzen.</p></div>
+<div class="note"><p>Die Ersteinrichtung geht aus Sicherheitsgründen normalerweise nur im <strong>Firmennetz</strong> (außer nach einer SSO-Anmeldung, deren zweiten Faktor der Identitätsanbieter geprüft hat). So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. <strong>Handy verloren?</strong> Mit einem Wiederherstellungscode anmelden oder die IT bitten, die 2FA zurückzusetzen.</p></div>
 
 <h2 id="katalog">Service anfordern</h2>
 <p>Für häufige Wünsche gibt es fertige Formulare, z. B. „Neuer Mitarbeiter“ oder „Software-Wunsch“: <em>Service anfordern</em> in der Seitenleiste. Ein Klick auf eine Kachel öffnet das Formular; Pflichtfelder sind mit * markiert. Nach dem Absenden landest du im neuen Ticket.</p>
@@ -144,7 +144,7 @@
 <p>Steht bei einem Angebot „mit Genehmigung“, muss erst jemand zustimmen, z. B. deine Vorgesetzte. Den Stand siehst du oben im Ticket.</p>
 
 <h2 id="genehmigen">Genehmigen</h2>
-<p>Wer als Genehmiger eingetragen ist, bekommt eine Mail und sieht in der Seitenleiste <em>Meine Genehmigungen</em>. Im Ticket genügt ein Klick auf <strong>Genehmigen</strong> oder <strong>Ablehnen</strong>, auf Wunsch mit Kommentar. Die Entscheidung geht als Antwort an den Melder; eine Ablehnung schließt die Anfrage. Genehmiger ohne Bearbeiter-Rolle sehen nur die Anfragen, über die sie entscheiden.</p>
+<p>Wer als Genehmiger eingetragen ist, bekommt eine Mail und sieht in der Seitenleiste <em>Meine Genehmigungen</em>. Im Ticket genügt ein Klick auf <strong>Genehmigen</strong> oder <strong>Ablehnen</strong>, auf Wunsch mit Kommentar. Die Entscheidung geht als Antwort an den Melder; eine Ablehnung schließt die Anfrage. Genehmiger ohne Bearbeiter-Rolle sehen nur die Anfragen, über die sie entscheiden, und vom Melder nur den Namen.</p>
 <figure><img src="img/de/itil-catalog-approval.jpg" alt=""><figcaption>Genehmigung im Ticket aus Sicht der Vorgesetzten</figcaption></figure>
 
 <h2 id="hilfe-wissen">Hilfe &amp; Wissen</h2>
@@ -184,7 +184,7 @@
 <p><em>Alle Tickets</em> zeigt eine sortierbare Liste. Filter für Projekt, Status, Typ, Priorität und Bearbeiter lassen sich kombinieren; ein Klick auf eine Spaltenüberschrift sortiert. Die Adresse der Seite enthält die Filter – du kannst sie als Lesezeichen speichern oder weitergeben.</p>
 <figure><img src="img/de/list.jpg" alt=""><figcaption>Ticketliste mit Filtern</figcaption></figure>
 <h3>Suche</h3>
-<p>Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter, Namen der Anhänge und beteiligte Personen. Bearbeiter finden zusätzlich interne Notizen.</p>
+<p>Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und beteiligte Personen (auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets nur über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge und Stichwörter, nicht über Namen oder Adressen von Personen.</p>
 <ul>
   <li><strong>Wortteile</strong> werden gefunden: „drucker“ findet auch „Netzwerkdrucker“.</li>
   <li><strong>Mehrere Wörter</strong> müssen alle vorkommen, egal in welcher Reihenfolge. <code>"genaue Folge"</code> in Anführungszeichen, <code>-wort</code> schließt aus.</li>
@@ -209,7 +209,7 @@
   <li><strong>Antworten</strong> gehen per E-Mail an den Melder und alle Teilnehmer, jeweils in deren Sprache.</li>
   <li><strong>Interne Notizen</strong> (gelb hinterlegt) sehen nur Bearbeiter. Sie gehen nie per E-Mail hinaus, auch eingefügte Bilder bleiben intern.</li>
 </ul>
-<div class="warn"><p>Mails, die von der Adresse eines Bearbeiters kommen, gelten nie als Bearbeiter-Antwort (Absender lassen sich fälschen). Bearbeiter antworten deshalb immer über die Weboberfläche.</p></div>
+<div class="warn"><p>Mails, die von der Adresse eines Bearbeiters kommen, gelten nie als Bearbeiter-Antwort (Absender lassen sich fälschen). Bearbeiter antworten deshalb immer über die Weboberfläche. Antworten per Mail auf Zuweisungs-, SLA- oder Genehmigungsmails an Bearbeiter werden interne Notizen und öffnen das Ticket nicht wieder.</p></div>
 
 <h2 id="html-mails">HTML-Mails</h2>
 <p>Kommt ein Ticket oder eine Antwort als HTML-Mail, zeigt Helfi.Space sie <strong>formatiert</strong> an – mit Tabellen, Fettdruck, Farben, Signatur und eingebetteten Bildern. Der Umschalter <strong>Formatiert | Text</strong> wechselt zur Textfassung; der Browser merkt sich die Wahl.</p>
@@ -257,6 +257,7 @@
   <tr><td></td><td><kbd>o</kbd> / <kbd>Enter</kbd></td><td>markiertes Ticket öffnen</td></tr>
   <tr><td></td><td><kbd>x</kbd></td><td>markiertes Ticket auswählen</td></tr>
 </table>
+<p><kbd>Enter</kbd> auf einem Link oder Knopf, der den Fokus hat, löst diesen aus. Die mit <kbd>j</kbd>/<kbd>k</kbd> markierte Zeile öffnet <kbd>Enter</kbd> nur, wenn der Fokus nicht auf einem Bedienelement liegt.</p>
 
 <h2 id="nie-loeschen">Tickets werden nie gelöscht</h2>
 <p>Tickets sind Nachweise: Wer hat wann was gemeldet, was wurde getan? Deshalb lassen sie sich <strong>nicht löschen</strong>, auch nicht von Administratoren. Erledigtes wird auf „Erledigt“ gesetzt. Gegen Spam hilft eine Absender-Regel „Ignorieren“ (<a href="#email">5.7</a>) – dann entsteht gar nicht erst ein Ticket.</p>
@@ -271,7 +272,7 @@
 
 <h2 id="major">Auswirkung, Dringlichkeit und Major Incident</h2>
 <p>In den Details setzt du <strong>Auswirkung</strong> (wie viele sind betroffen?) und <strong>Dringlichkeit</strong> (wie schnell muss es gehen?). Sind beide gesetzt, ergibt sich die Priorität aus der ITIL-Matrix, z. B. hoch/hoch = Sehr hoch.</p>
-<p>Eine schwere Störung mit vielen Betroffenen markierst du als <strong>Major Incident</strong>. Dann erscheint für alle Bearbeiter oben ein roter Balken. Einzelne Meldungen verknüpfst du mit „verursacht“. <strong>Info an alle Betroffenen</strong> schickt eine Nachricht an die Melder aller verknüpften Tickets; mit „lösen“ werden sie zusammen erledigt.</p>
+<p>Eine schwere Störung mit vielen Betroffenen markierst du als <strong>Major Incident</strong>. Dann erscheint für alle Bearbeiter oben ein roter Balken. Einzelne Meldungen verknüpfst du mit „verursacht“. <strong>Info an alle Betroffenen</strong> schickt eine Nachricht an die Melder und Teilnehmer aller offenen verknüpften Tickets; mit „lösen“ werden sie zusammen erledigt.</p>
 <figure><img src="img/de/itil-major.jpg" alt=""><figcaption>Major Incident mit Unteraufgaben, betroffenen Tickets und Gerät</figcaption></figure>
 
 <h2 id="sla">Service Level (SLA)</h2>
@@ -351,7 +352,7 @@
 <p>Ein schlankes Verzeichnis der IT-Ausstattung und Dienste (CI-Verzeichnis). Jeder Eintrag hat Art, Status (in Betrieb, in Wartung, ausgemustert), Standort, Benutzer, IP-Adresse, Seriennummer, Hersteller und Modell. Im Ticket verknüpfst du betroffene Geräte und Dienste im Abschnitt <em>Geräte &amp; Dienste</em>. Bei Changes sind das die betroffenen Dienste. Die Detailseite eines Eintrags zeigt alle Tickets dazu, so fallen wiederkehrende Störungen auf.</p>
 <figure><img src="img/de/itil-cis.jpg" alt=""><figcaption>Geräte &amp; Dienste mit offenen Tickets je Eintrag</figcaption></figure>
 <figure><img src="img/de/itil-ci.jpg" alt=""><figcaption>Ein Gerät mit seiner Ticket-Geschichte</figcaption></figure>
-<p><span class="role role-admin">Admin</span> <strong>CSV-Import</strong> aus der Inventarisierung: Die erste Zeile enthält die Spaltennamen (Name/Hostname, Typ, Standort, IP-Adresse, Seriennummer, Hersteller, Modell, Benutzer, Status – deutsch oder englisch). Werte wie „Notebook“ oder „Switch“ werden der passenden Art zugeordnet. Vorhandene Namen werden aktualisiert. Gelöscht werden kann ein Eintrag nur, solange keine Tickets verknüpft sind; sonst „ausgemustert“ setzen.</p>
+<p><span class="role role-admin">Admin</span> <strong>CSV-Import</strong> aus der Inventarisierung: Die erste Zeile enthält die Spaltennamen (Name/Hostname, Typ, Standort, IP-Adresse, Seriennummer, Hersteller, Modell, Benutzer, Status – deutsch oder englisch). Werte wie „Notebook“ oder „Switch“ werden der passenden Art zugeordnet. Vorhandene Namen werden aktualisiert. Löschen können nur Administratoren, und nur, solange keine Tickets verknüpft sind; sonst „ausgemustert“ setzen.</p>
 
 <h2 id="zufriedenheit">Zufriedenheitsumfrage <span class="role role-admin">Admin</span></h2>
 <p>Einschalten unter <em>Administration → E-Mail → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Melder die Bewertungslinks (<a href="#bewerten">2.12</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
@@ -402,7 +403,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <pre><code>helfi.firma.local {
     reverse_proxy 10.0.10.20:8080
 }</code></pre>
-<div class="warn"><p>Trage die Adresse des Proxys in <code>HELFI_TRUST_PROXY</code> ein, z. B. <code>10.0.10.5</code>. Ohne diesen Eintrag sieht Helfi.Space nur den Proxy: Die Bremse gegen Kennwort-Raten trifft dann alle gemeinsam, und jeder Zugriff gilt sicherheitshalber als „von außen“.</p></div>
+<div class="warn"><p>Trage die Adresse des Proxys in <code>HELFI_TRUST_PROXY</code> ein, z. B. <code>10.0.10.5</code> (mehrere mit Komma: <code>loopback, 10.0.10.5</code>). Ohne diesen Eintrag glaubt Helfi.Space <code>X-Forwarded-For</code> nur vom eigenen Rechner (<code>loopback</code>); Werte wie <code>true</code> oder eine Zahl werden mit einer Warnung im Protokoll ignoriert. Steht der Proxy auf einem anderen Rechner, sieht Helfi.Space ohne Eintrag nur ihn: Die Bremse gegen Kennwort-Raten trifft dann alle gemeinsam, und jeder Zugriff gilt sicherheitshalber als „von außen“.</p></div>
 
 <h2 id="ersteinrichtung">Ersteinrichtung</h2>
 <p>Beim ersten Aufruf von <code>HELFI_BASE_URL</code> startet der Einrichtungsassistent. Er fragt nach dem <strong>Einrichtungscode</strong> aus dem Container-Protokoll (<code>docker compose logs helfi</code>) und legt den <strong>lokalen Administrator</strong> und das erste Projekt an. Danach geht es direkt zur AD-Einrichtung.</p>
@@ -429,7 +430,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li>Admin- und Bearbeiter-Gruppe eintragen (bei Entra ID die Gruppen-IDs).</li>
   <li>Optional „direkt zu SSO weiterleiten“. Die normale Anmeldung bleibt unter <code>/login?local=1</code> erreichbar.</li>
 </ol>
-<p><strong>SSO und AD zusammen:</strong> Mit „Mit AD-Konten zusammenführen für Domäne“ (z. B. <code>firma.local</code>) ist <code>m.muster@firma.local</code> aus dem SSO dasselbe Konto wie der AD-Benutzer <code>m.muster</code>. Nur eintragen, wenn der Anbieter keine Gastkonten anderer Organisationen zulässt.</p>
+<p><strong>SSO und AD zusammen:</strong> Mit „Mit AD-Konten zusammenführen für Domäne“ (z. B. <code>firma.local</code>) ist <code>m.muster@firma.local</code> aus dem SSO dasselbe Konto wie der AD-Benutzer <code>m.muster</code>. Nur eintragen, wenn der Anbieter keine Gastkonten anderer Organisationen zulässt. Steht im Token nur die E-Mail-Adresse (kein <code>preferred_username</code>/UPN), wird nur zusammengeführt, wenn der Anbieter sie als bestätigt meldet (<code>email_verified</code>). E-Mail-Adressen aus dem SSO werden nur übernommen, wenn sie bestätigt oder gleich dem Anmeldenamen der freigegebenen Domäne sind.</p>
 
 <h2 id="2fa">Zwei-Faktor-Anmeldung und Netze</h2>
 <p><em>Administration → Sicherheit</em></p>
@@ -452,17 +453,18 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <p><em>Administration → E-Mail</em></p>
 <figure><img src="img/de/admin-mail-1.jpg" alt=""><figcaption>Postfach abrufen (IMAP)</figcaption></figure>
 <ul>
-  <li><strong>Postfach abrufen (IMAP):</strong> Server, Benutzer und Kennwort des Helpdesk-Postfachs. Neue Mails werden Tickets, Antworten werden Kommentare. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben – empfohlen ist ein eigener Ordner. Das Postfach am besten nicht parallel in Outlook lesen.</li>
+  <li><strong>Postfach abrufen (IMAP):</strong> Server, Benutzer und Kennwort des Helpdesk-Postfachs. Neue Mails werden Tickets, Antworten werden Kommentare. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben – empfohlen ist ein eigener Ordner. Übersprungene Mails und Unzustellbarkeitsberichte bleiben gelesen im Posteingang und werden nicht automatisch gelöscht. Das Postfach am besten nicht parallel in Outlook lesen.</li>
+  <li><strong>Antworten per Ticketnummer</strong> im Betreff dürfen nur der Melder, Anfrage-Teilnehmer und alle, die schon im Ticket geschrieben haben; wer die Nummer nur errät, bekommt ein neues Ticket. Antworten auf Mails von Helfi.Space werden über die Message-ID zugeordnet.</li>
   <li><strong>Versand (SMTP):</strong> als Absender am besten dieselbe Adresse wie das Postfach, dann landen Antworten wieder im Ticket.</li>
   <li><strong>Absender ist immer das Ticketsystem</strong> – nie die Adresse eines Bearbeiters, keine persönlichen Signaturen. Damit der Melder weiß, wer ihn betreut, enden Antwort- und Erledigt-Mails mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei. Im Browser heißt das Feld für Benutzer ebenfalls „Ihr Ansprechpartner“.</li>
   <li><strong>Absender im Active Directory nachschlagen:</strong> Unbekannte Absender werden im AD gesucht und gleich als AD-Benutzer angelegt. Sonst werden sie <em>E-Mail-Kontakte</em>; melden sie sich später an, gehören ihnen ihre Tickets.</li>
-  <li><strong>Empfänger in An/CC werden Teilnehmer</strong> (abschaltbar).</li>
+  <li><strong>Empfänger in An/CC werden Teilnehmer</strong> (abschaltbar) – bei neuen Tickets und bei Antworten auf Mails von Helfi.Space, nicht bei Zuordnung nur über die Nummer im Betreff.</li>
   <li><strong>Aufbewahrung:</strong> „Verarbeitete Mails löschen nach … Tagen“ (Standard: nie). Gelöscht wird nur im Ordner für verarbeitete Mails, nie im Posteingang.</li>
 </ul>
 <h3>Schutz vor Mail-Schleifen und Absender-Regeln</h3>
 <figure><img src="img/de/admin-mail-3.jpg" alt=""><figcaption>Absender-Regeln und gesperrte Empfänger</figcaption></figure>
 <ul>
-  <li>Unzustellbarkeitsberichte und Lesebestätigungen werden nie zu Tickets und nie beantwortet. Die betroffene Adresse bekommt 7 Tage lang keine Mails (<em>Gesperrte Empfänger</em>, dort vorzeitig freigebbar).</li>
+  <li>Unzustellbarkeitsberichte und Lesebestätigungen werden nie zu Tickets und nie beantwortet. Die betroffene Adresse bekommt 7 Tage lang keine Mails (<em>Gesperrte Empfänger</em>, dort vorzeitig freigebbar). Gesperrt werden nur Adressen aus echten Kopfzeilen des Berichts bzw. aus seinem Teil <code>message/delivery-status</code>.</li>
   <li><strong>Absender-Regeln</strong> (Adresse oder Muster wie <code>*@pve.firma.local</code>): „Ticket anlegen, nie antworten“ – wahlweise in ein eigenes Projekt – oder „Ignorieren“.</li>
   <li><strong>Automatisch erzeugte Mails</strong> (Proxmox, NAS, Monitoring; erkennbar an <code>Auto-Submitted</code>, <code>Precedence: bulk</code> oder <code>noreply@</code>) werden <strong>nur mit der Regel „Ticket anlegen, nie antworten“</strong> angenommen. Unter <em>Zuletzt übersprungene E-Mails</em> stehen Absender und Grund.</li>
   <li>Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.</li>
@@ -497,7 +499,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Status und Typen zuordnen</strong> (Vorschläge sind eingetragen).</li>
   <li><strong>Importieren</strong> – mit Fortschritt, abbrechbar.</li>
 </ol>
-<p>Ticketnummern bleiben erhalten (<code>SUP-123</code> bleibt <code>SUP-123</code>), Personen werden über die E-Mail-Adresse zugeordnet, es werden keine Mails verschickt. Ein zweiter Lauf aktualisiert nur Geändertes und legt nichts doppelt an – so lässt sich vorab probehalber und am Stichtag noch einmal importieren.</p>
+<p>Ticketnummern bleiben erhalten (<code>SUP-123</code> bleibt <code>SUP-123</code>), Personen werden über die E-Mail-Adresse zugeordnet, es werden keine Mails verschickt. Vor jedem Import-Start legt Helfi.Space eine Sicherung an. Ein zweiter Lauf aktualisiert nur Geändertes und legt nichts doppelt an – so lässt sich vorab probehalber und am Stichtag noch einmal importieren.</p>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="betrieb">Für Administratoren: Betrieb <span class="role role-admin">Admin</span></h1>
@@ -511,7 +513,14 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 ./update.sh -y          # ohne Rückfragen
 ./update.sh --cleanup   # Reste früherer Updates anzeigen und nach Rückfrage löschen
 ./update.sh --offline helfi-1.5.0-amd64.tar.gz 1.5.0   # ohne Internet</code></pre>
-<p><code>update.sh</code> holt die neue Version, übernimmt eine neuere <code>docker-compose.yml</code> (die alte bleibt als <code>docker-compose.yml.alt-…</code>), startet den Container und wartet auf den Gesundheitscheck. Startet die neue Version nicht, stellt es die vorherige Version samt Datenbanksicherung wieder her. Es läuft mit <code>/bin/sh</code>, auch auf einer Synology. <code>--cleanup</code> fasst <code>data/</code>, Sicherungen, <code>.env</code> und die aktuelle <code>docker-compose.yml</code> nie an.</p>
+<p><code>update.sh</code> holt die neue Version, übernimmt eine neuere <code>docker-compose.yml</code> (die alte bleibt als <code>docker-compose.yml.alt-…</code>), startet den Container und wartet auf den Gesundheitscheck. Startet die neue Version nicht, stellt es die vorherige Version samt Datenbanksicherung wieder her; die <code>.env</code> steht danach wieder auf der vorherigen Version. Es läuft mit <code>/bin/sh</code>, auch auf einer Synology. <code>--cleanup</code> fasst <code>data/</code>, Sicherungen, <code>.env</code> und die aktuelle <code>docker-compose.yml</code> nie an.</p>
+<ul>
+  <li><strong><code>docker compose up</code> schlägt fehl:</strong> Fehlermeldung, Exit-Code 1, <code>.env</code> und <code>docker-compose.yml</code> werden zurückgestellt. Gibt es eine vorherige Version, fragt <code>update.sh</code> vorher, ob sie wieder gestartet werden soll (mit <code>-y</code> automatisch).</li>
+  <li><strong>Startet noch:</strong> Ist die neue Version nach <code>HELFI_UPDATE_WAIT</code> noch „starting“, fragt <code>update.sh</code>, ob es noch einmal warten soll (mit <code>-y</code> automatisch einmal).</li>
+  <li><strong>Datenbank nicht zurückgespielt:</strong> Das sagt <code>update.sh</code> ausdrücklich, z. B. wenn die Sicherungen nicht lesbar sind (dann <code>sudo ./update.sh -y</code>) oder es keine bzw. nur eine unvollständige Sicherung gibt.</li>
+  <li><strong><code>--offline</code> ohne Version:</strong> Die Version wird aus dem Image übernommen und in der <code>.env</code> festgehalten, sonst bricht <code>update.sh</code> ab. Ein relativer Pfad gilt ab dem aktuellen Ordner.</li>
+  <li><code>HELFI_UPDATE_WAIT</code> (Wartezeit, Standard 120 Sekunden) und <code>HELFI_IMAGE_REPO</code> werden beim Aufruf gesetzt, nicht in der <code>.env</code>, z. B. <code>HELFI_UPDATE_WAIT=300 ./update.sh</code>. Für eine eigene Registry auch <code>image:</code> in der <code>docker-compose.yml</code> anpassen; sie gilt dann als angepasst und wird nicht mehr automatisch ersetzt.</li>
+</ul>
 <div class="note"><p>Nach einem Update lädt der Browser die neue Oberfläche sofort (ab Version 1.5.0). Erscheint bei älteren Versionen noch die alte Oberfläche, hilft einmal <kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>R</kbd>.</p></div>
 
 <h2 id="zurueck">Version festhalten und zurückgehen</h2>
@@ -527,8 +536,9 @@ docker compose up -d</code></pre></li>
 
 <h2 id="sicherung">Sicherung und Wiederherstellung</h2>
 <ul>
-  <li><strong>Automatisch:</strong> täglich und vor jedem Versionswechsel in <code>data/backups/</code>. <strong>Von Hand:</strong> <em>Administration → System → Jetzt sichern</em>.</li>
-  <li><strong>Sicherungen aufbewahren</strong> (Standard 10): So viele der neuesten Sicherungen bleiben je Art – täglich, vor Updates und von Hand. Ältere werden beim Speichern und danach laufend gelöscht, die neueste jeder Art bleibt immer. Die Liste darunter zeigt Art, Datum, Größe und den belegten Platz insgesamt; mit 🗑 löschst du eine einzelne Sicherung.</li>
+  <li><strong>Automatisch:</strong> täglich, vor jedem Versionswechsel, vor dem Löschen eines Projekts und vor jedem Import-Start in <code>data/backups/</code>. Ein abgelehntes Projekt-Löschen legt keine Sicherung an. <strong>Von Hand:</strong> <em>Administration → System → Jetzt sichern</em>.</li>
+  <li><strong>Sicherungen aufbewahren</strong> (Standard 10): So viele der neuesten Sicherungen bleiben je Art – täglich, von Hand, vor Update, vor Projekt-Löschen und vor Import. Ältere werden beim Speichern und danach laufend gelöscht, mindestens die neueste jeder Art bleibt immer. Die Liste darunter zeigt Art, Datum, Größe und den belegten Platz insgesamt; mit 🗑 löschst du eine einzelne Sicherung.</li>
+  <li>Jede Sicherung entsteht zuerst als <code>.part</code>-Datei und wird erst fertig umbenannt. Eine nach einem Absturz liegengebliebene <code>.part</code>-Datei wird nie verwendet und darf von Hand gelöscht werden.</li>
   <li>Die Sicherungen enthalten nur die Datenbank. <strong>Immer den ganzen Ordner <code>data/</code></strong> auf ein anderes Laufwerk sichern – mit Anhängen, Logo und <code>secret.key</code>.</li>
   <li>Ohne <code>secret.key</code> (oder das gesetzte <code>HELFI_SECRET</code>) lassen sich gespeicherte Kennwörter und 2FA-Schlüssel nicht mehr entschlüsseln.</li>
 </ul>
@@ -537,6 +547,8 @@ docker compose up -d</code></pre></li>
 <h2 id="sicherheit">Sicherheit</h2>
 <ul>
   <li>Kennwörter lokaler Konten mit scrypt, hinterlegte Zugangsdaten (Dienstkonto, Postfach, SSO) mit AES-256-GCM verschlüsselt; sie werden nie an den Browser geschickt.</li>
+  <li>Wer bei AD, IMAP, SMTP oder SSO Server, Port, Verschlüsselung, Dienstkonto bzw. Benutzer, Issuer oder Client-ID ändert oder die Zertifikatsprüfung abschwächt, muss das Kennwort bzw. Geheimnis im selben Schritt neu eingeben, sonst wird nicht gespeichert. So geht ein gespeichertes Geheimnis nie an einen anderen Server; auch Verbindungstests mit abgeschwächter Prüfung senden es nicht.</li>
+  <li>Sitzungen enden nach <code>HELFI_SESSION_HOURS</code> (Standard 12 Stunden) ohne Nutzung und spätestens 30 Tage nach der Anmeldung. Deaktivierte Konten bekommen bei der Anmeldung dieselbe Meldung wie bei falschem Kennwort.</li>
   <li>Zwei-Faktor-Anmeldung nach RFC 6238, jeder Code nur einmal, Wiederherstellungscodes nur als Hash.</li>
   <li>Bremse bei falschen Kennwörtern, Cookies <code>HttpOnly</code>/<code>SameSite</code>, CSRF-Schutz, strenge Content-Security-Policy. Die Oberfläche lädt nichts aus dem Internet.</li>
   <li>HTML-Mails werden bereinigt und in einem abgeschotteten Rahmen ohne Skripte angezeigt.</li>
