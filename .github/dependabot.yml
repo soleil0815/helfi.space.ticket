@@ -15,6 +15,7 @@ updates:
       # Neue Node-Hauptversionen nicht automatisch vorschlagen: Ungerade Versionen bis 25
       # bekommen keine Langzeitpflege. Der Wechsel auf die nächste LTS-Version (z. B. 26)
       # erfolgt bewusst, zusammen mit node-version in .github/workflows/ci.yml.
-      # Sicherheitskorrekturen kommen trotzdem: node:24-alpine zieht bei jedem Build die neueste 24.x.
+      # Sicherheitskorrekturen kommen trotzdem: Das Basis-Image ist per Digest festgelegt, Dependabot
+      # schlägt jede Woche den neuen Digest von node:24-alpine als Pull Request vor.
       - dependency-name: node
         update-types: ['version-update:semver-major']

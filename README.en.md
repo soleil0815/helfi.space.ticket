@@ -520,7 +520,7 @@ Rebuild the manual (after changes in `docs/manual/`): `npm install --no-save pla
 
 Structure: `src/` server (Express, better-sqlite3), `public/` UI (plain JavaScript without a build step), `src/i18n.js` and `public/js/i18n.js` for the texts (de/en).
 
-Releases: *Actions → CI → Run workflow*, branch `main`, choose `patch`, `minor` or `major` under "Release". The version counts up by itself (highest tag + 1), no need to edit `package.json`. CI tests, builds the images for amd64 and arm64 natively, scans for vulnerabilities and only then creates the tag, images and GitHub release.
+Releases: *Actions → CI → Run workflow*, branch `main`, choose `patch`, `minor` or `major` under "Release". The version counts up by itself (highest tag + 1), no need to edit `package.json`. CI tests, builds the images for amd64 and arm64 natively, scans for vulnerabilities and only then creates the tag, images and GitHub release. This is the only way to a release: a manually pushed tag starts nothing. Only one release runs at a time; exactly the scanned image (same digest) is published, with a signed provenance attestation (`gh attestation verify oci://ghcr.io/soleil0815/helfi.space.ticket:<version> -R soleil0815/helfi.space.ticket`). The base image is pinned by digest; Dependabot proposes new digests weekly.
 
 ## License
 

@@ -237,7 +237,7 @@ test('env.example: auskommentierte Einstellungen haben keinen Erklärtext im Wer
 
 // --- Fund 9: Release-Bedingungen der CI -----------------------------------------------------
 
-test('CI: Release nur per Tag-Push oder per Knopf von main – nicht „Run workflow“ von einem Tag (Audit)', () => {
+test('CI: Release nur per Knopf von main – nicht „Run workflow“ von einem Tag, kein Tag-Push (Audit)', () => {
   const yml = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   const m = yml.match(/\n {2}release-check:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/);
   assert.ok(m, 'Bedingung von release-check nicht gefunden');
@@ -254,12 +254,28 @@ test('CI: Release nur per Tag-Push oder per Knopf von main – nicht „Run work
   assert.equal(on('workflow_dispatch', 'refs/heads/feature', 'patch'), false);
   assert.equal(on('workflow_dispatch', 'refs/heads/main', 'nein'), false);
   assert.equal(on('workflow_dispatch', 'refs/heads/main', 'patch'), true);
-  assert.equal(on('push', 'refs/tags/v1.2.3'), true, 'Tag-Push bleibt möglich');
+  assert.equal(on('push', 'refs/tags/v1.2.3'), false, 'ein gepushter Tag veröffentlicht nichts');
   assert.equal(on('push', 'refs/heads/main'), false);
   assert.equal(on('pull_request', 'refs/tags/v1.2.3'), false);
   // Im Job: per Knopf nur der aktuelle Stand von main
   const job = yml.slice(yml.indexOf('\n  release-check:'), yml.indexOf('\n  release-build:'));
-  assert.match(job, /"\$GITHUB_SHA" = "\$\(git rev-parse origin\/main\)"/);
+  assert.match(job, /"\$GITHUB_SHA" = "\$\(git rev-parse origin\/main\)"/);  // Tag-Push startet den Workflow gar nicht erst
+  const on_ = yml.slice(yml.indexOf('\non:'), yml.indexOf('\npermissions:'));
+  assert.doesNotMatch(on_, /tags:/, 'kein Tag-Auslöser');
+  // Veröffentlichen: eindeutiger Kandidat je Lauf, Freigabe per Digest, Environment, Herkunftsnachweis
+  const pub = yml.slice(yml.indexOf('\n  publish:'));
+  assert.match(pub, /environment: release/);
+  assert.match(pub, /attest-build-provenance@[0-9a-f]{40}/);
+  assert.match(pub, /imagetools create \$tags "\$IMAGE@\$DIGEST"/);
+  assert.match(yml, /kandidat-\$\{\{ github\.run_id \}\}/);
+  assert.match(yml, /\nconcurrency:\n {2}group: \$\{\{ github\.event_name == 'workflow_dispatch' && 'release'/);
+});
+
+test('Dockerfile: Basis-Image per Digest festgelegt (Audit)', () => {
+  const df = fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+  const froms = df.match(/^FROM .*$/gm);
+  assert.ok(froms.length >= 2);
+  for (const f of froms) assert.match(f, /^FROM node:\d+-alpine@sha256:[0-9a-f]{64}( AS \w+)?$/, f);
 });
 
 // --- Fund 11: trivy-check.sh zählt auch Geheimnisse -----------------------------------------
