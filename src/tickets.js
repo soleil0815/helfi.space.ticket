@@ -597,9 +597,9 @@ export function createTickets(db, users) {
     };
   }
 
-  /** Zahlen für die Warteschlangen der Seitenleiste (eine Abfrage, nur aktive Projekte). */
+  /** Zahlen für die Warteschlangen der Seitenleiste (eine Abfrage, nur aktive Projekte; unbekanntes Projekt → 0). */
   function queueCounts(user, projectKey = null) {
-    const p = projectKey ? projects.get(projectKey) : null;
+    const p = projectKey ? (projects.get(projectKey) || { id: 0 }) : null;
     const r = db.prepare(`SELECT
         SUM(t.status<>'done') open,
         SUM(t.status<>'done' AND t.assignee_id=?) mine,
@@ -614,16 +614,16 @@ export function createTickets(db, users) {
     return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v || 0]));
   }
 
-  /** Zusammenfassung eines Projekts (oder aller aktiven). */
+  /** Zusammenfassung eines Projekts (auch eines archivierten, wenn ausdrücklich gewählt) oder aller aktiven. */
   function summary(user, projectKey = null) {
     const p = projectKey ? projects.get(projectKey) : null;
     if (projectKey && !p) throw notFound();
-    const where = p ? 'AND t.project_id=?' : '';
+    const where = p ? 't.project_id=?' : 'pr.archived=0';
     const a = p ? [p.id] : [];
-    const one = (sql) => db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id WHERE pr.archived=0 ${where} AND ${sql}`).get(...a).n;
+    const one = (sql) => db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id WHERE ${where} AND ${sql}`).get(...a).n;
     const group = (col, cond) => Object.fromEntries(db.prepare(`SELECT t.${col} k, COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id
-      WHERE pr.archived=0 ${where} AND ${cond} GROUP BY t.${col}`).all(...a).map((x) => [x.k, x.n]));
-    const urgent = db.prepare(`${SELECT} WHERE p.archived=0 ${p ? 'AND t.project_id=?' : ''} AND t.status<>'done'
+      WHERE ${where} AND ${cond} GROUP BY t.${col}`).all(...a).map((x) => [x.k, x.n]));
+    const urgent = db.prepare(`${SELECT} WHERE ${p ? 't.project_id=?' : 'p.archived=0'} AND t.status<>'done'
       ORDER BY CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
         CASE WHEN t.due_date IS NOT NULL AND t.due_date < date('now') THEN 0 ELSE 1 END, t.created_at LIMIT 8`).all(...a);
     return {
@@ -643,7 +643,8 @@ export function createTickets(db, users) {
   }
 
   function stats(user) {
-    const mine = db.prepare("SELECT COUNT(*) n FROM tickets WHERE assignee_id=? AND status<>'done'").get(user.id).n;
+    // wie die Warteschlangen: nur aktive Projekte
+    const mine = db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND assignee_id=? AND status<>'done'").get(user.id).n;
     const unassigned = db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND assignee_id IS NULL AND status<>'done'").get().n;
     const byStatus = Object.fromEntries(STATUSES.map((s) => [s, 0]));
     for (const r of db.prepare('SELECT status, COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 GROUP BY status').all()) byStatus[r.status] = r.n;

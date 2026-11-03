@@ -377,8 +377,16 @@ export function createApi(ctx) {
     if (!p) throw notFound();
     const body = req.body || {};
     // Tickets werden nie gelöscht: mit Tickets nur zusammen mit dem Verschieben (sonst archivieren)
-    if (!body.moveTo && db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) throw new HttpError(400, 'err.projectHasTickets');
+    // Erst prüfen, ob das Löschen erlaubt ist (wie projects.remove), dann sichern – sonst bliebe bei jeder Ablehnung eine Kopie liegen
+    if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
+    if (db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) {
+      if (!body.moveTo) throw new HttpError(400, 'err.projectHasTickets');
+      const target = tickets.projects.get(body.moveTo);
+      if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
+      if (target.archived) throw new HttpError(400, 'err.projectArchived');
+    }
     await backupDatabase(db, `vor-loeschen-${p.key}`);
+    pruneBackups(settings.get('backup.keep'));
     const out = tickets.projects.remove(req.user, p.id, { moveTo: body.moveTo || null });
     // Einstellungen, die auf das Projekt zeigen, umstellen (auf das Zielprojekt bzw. „Standard“)
     for (const k of ['general.defaultProject', 'imap.project']) {
@@ -730,7 +738,13 @@ export function createApi(ctx) {
     try { res.json({ ok: true, ...(await jiraImporter.inspect(jiraConn(req.body), keys)) }); } catch (e) { jiraFail(res, e); }
   }));
   admin.post('/import/jira/start', wrap(async (req, res) => {
-    const job = jiraImporter.start(jiraConn(req.body), {
+    const conn = jiraConn(req.body);
+    // Ein erneuter Import überschreibt geänderte Tickets → vorher sichern (erst prüfen, ob er überhaupt startet)
+    if (jiraImporter.status()?.state === 'running') throw new HttpError(409, 'err.importRunning');
+    if (!Array.isArray(req.body.projects) || !req.body.projects.length) throw new HttpError(400, 'err.badRequest', 'projects');
+    await backupDatabase(db, 'vor-import');
+    pruneBackups(settings.get('backup.keep'));
+    const job = jiraImporter.start(conn, {
       projects: req.body.projects, statusMap: req.body.statusMap || {}, typeMap: req.body.typeMap || {}, options: req.body.options || {},
     }, req.user.id);
     log.info(`Jira-Import gestartet von ${req.user.username}`, { projects: job.projects.map((p) => p.key) });

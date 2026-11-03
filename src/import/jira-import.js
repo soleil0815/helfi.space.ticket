@@ -102,6 +102,18 @@ export function createJiraImporter({ db, tickets, users }) {
     return id;
   }
 
+  /** Nummern, die Tickets dieses Projekts früher hatten und beim Verschieben abgegeben haben (je Import einmal ermittelt) */
+  const movedCache = new Map();
+  function movedAway(project) {
+    if (!movedCache.has(project.id)) {
+      const prefix = `${project.key}-`;
+      const nums = db.prepare("SELECT old_value v FROM activity WHERE field='project' AND substr(old_value, 1, ?)=?").all(prefix.length, prefix)
+        .map((r) => Number(r.v.slice(prefix.length))).filter((n) => Number.isInteger(n) && n > 0);
+      movedCache.set(project.id, new Set(nums));
+    }
+    return movedCache.get(project.id);
+  }
+
   async function importIssue(issue, project, cfg) {
     const { client, statusMap, typeMap, options } = cfg;
     const f = issue.fields || {};
@@ -141,14 +153,28 @@ export function createJiraImporter({ db, tickets, users }) {
     db.transaction(() => {
       if (unchanged) return;
       if (ticketId) {
+        // Geänderte Felder im Verlauf festhalten (wie bei einer Änderung von Hand), damit nichts spurlos überschrieben wird
+        const old = db.prepare('SELECT title, description, type, status, priority, labels, due_date, assignee_id FROM tickets WHERE id=?').get(ticketId);
+        const next = { title: values.title, description: values.description, type: values.type, status: values.status, priority: values.priority,
+          labels: values.labels, due_date: values.due, assignee_id: assigneeId ?? old.assignee_id };
+        const field = { due_date: 'dueDate', assignee_id: 'assignee' };
+        const show = (col, v) => (col === 'assignee_id' ? (v ? db.prepare('SELECT display_name n FROM users WHERE id=?').get(v)?.n ?? null : null) : v);
+        for (const col of Object.keys(next)) {
+          if (String(old[col] ?? '') === String(next[col] ?? '')) continue;
+          const [o, n] = col === 'description' ? [null, null] : [show(col, old[col]), show(col, next[col])];
+          db.prepare("INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value) VALUES(?,?,'changed',?,?,?)")
+            .run(ticketId, cfg.userId, field[col] || col, o === null ? null : String(o), n === null ? null : String(n));
+        }
         db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
           updated_at=MAX(updated_at, ?), resolved_at=? WHERE id=?`).run(
           values.title, values.description, values.type, values.status, values.priority, values.labels, values.due,
           assigneeId, values.updated, values.resolved, ticketId);
       } else {
-        // Nummer aus Jira übernehmen, wenn im Zielprojekt frei
+        // Nummer aus Jira übernehmen, wenn im Zielprojekt frei und nie vergeben: Nummern verschobener
+        // Tickets (Verlauf „IT-11 → OPS-3“) nicht neu vergeben, sonst zeigten alte Verweise auf ein anderes Ticket
         const wanted = Number(String(issue.key).split('-').pop());
-        let number = Number.isInteger(wanted) && wanted > 0 && !db.prepare('SELECT 1 FROM tickets WHERE project_id=? AND number=?').get(project.id, wanted) ? wanted : null;
+        let number = Number.isInteger(wanted) && wanted > 0 && !movedAway(project).has(wanted)
+          && !db.prepare('SELECT 1 FROM tickets WHERE project_id=? AND number=?').get(project.id, wanted) ? wanted : null;
         if (number === null) number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(project.id).n;
         db.prepare('UPDATE projects SET next_number=MAX(next_number, ?) WHERE id=?').run(number + 1, project.id);
         const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,
@@ -287,6 +313,7 @@ export function createJiraImporter({ db, tickets, users }) {
       const sMap = Object.fromEntries(Object.entries(statusMap).filter(([, v]) => STATUS_TARGETS.includes(v)));
       const tMap = Object.fromEntries(Object.entries(typeMap).filter(([, v]) => TYPE_TARGETS.includes(v)));
       agentCache.clear();
+      movedCache.clear();
       job = {
         id: Date.now().toString(36),
         state: 'running',

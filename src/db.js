@@ -517,6 +517,18 @@ export const MIGRATIONS = [
     INSERT INTO search_dirty SELECT id FROM tickets;
     `,
   },
+  {
+    id: 23,
+    name: 'Tickets nie löschen (Schutz in der Datenbank)',
+    // Tickets sind Nachweis: auch ein versehentliches DELETE (oder ON DELETE CASCADE über das Projekt) bricht ab.
+    // Hinweis: DROP TABLE löst keine Trigger aus – ein späterer Umbau der Tabelle „tickets“ muss
+    // tickets_no_delete danach neu anlegen.
+    sql: `
+    CREATE TRIGGER tickets_no_delete BEFORE DELETE ON tickets BEGIN SELECT RAISE(ABORT, 'Tickets werden nie gelöscht'); END;
+    CREATE TRIGGER projects_no_delete_with_tickets BEFORE DELETE ON projects
+      WHEN EXISTS (SELECT 1 FROM tickets WHERE project_id=OLD.id) BEGIN SELECT RAISE(ABORT, 'Projekt hat Tickets'); END;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
@@ -577,11 +589,16 @@ export function clampBackupKeep(n) {
 
 const BACKUP_NAME = /^helfi-[A-Za-z0-9._-]+\.sqlite$/;
 
-/** Art einer Sicherung: daily (täglich), version (vor Versionswechsel), manual (von Hand, vor dem Löschen eines Projekts). */
+/**
+ * Art einer Sicherung: daily (täglich), version (vor Versionswechsel), manual (von Hand),
+ * predelete (vor dem Löschen eines Projekts), preimport (vor einem Import). Je Art bleiben die neuesten.
+ */
 export function backupKind(name) {
   if (!BACKUP_NAME.test(name)) return null;
   if (name.startsWith('helfi-taeglich-')) return 'daily';
-  if (name.startsWith('helfi-manuell-') || name.startsWith('helfi-vor-loeschen-')) return 'manual';
+  if (name.startsWith('helfi-manuell-')) return 'manual';
+  if (name.startsWith('helfi-vor-loeschen-')) return 'predelete';
+  if (name.startsWith('helfi-vor-import-')) return 'preimport';
   if (name.startsWith('helfi-vor-')) return 'version';
   return null;
 }
@@ -595,7 +612,7 @@ export function listBackups(dir = paths.backups) {
 }
 
 /**
- * Räumt Sicherungen auf: je Art (täglich, vor Versionswechsel, manuell) bleiben die neuesten `keep`.
+ * Räumt Sicherungen auf: je Art (täglich, vor Versionswechsel, manuell, vor Löschen, vor Import) bleiben die neuesten `keep`.
  * Mindestens eine je Art bleibt immer. Liefert die Anzahl gelöschter Dateien und den frei gewordenen Platz.
  */
 export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
