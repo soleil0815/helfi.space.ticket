@@ -1,6 +1,6 @@
 #!/bin/sh
-# Startet ein Test-Active-Directory (Samba AD DC) für die Integrationstests.
-# Nur für Testrechner/CI (braucht root und die Pakete samba, samba-ad-dc, samba-ad-provision).
+# Starts a test Active Directory (Samba AD DC) for the integration tests.
+# Only for test machines/CI (needs root and the packages samba, samba-ad-dc, samba-ad-provision).
 #
 #   sudo scripts/test-samba-ad.sh
 #   HELFI_TEST_LDAP_HOST=dc01.firma.local npm run test:integration
@@ -23,28 +23,28 @@ ad user create svc-helfi 'Dienst!Pass2026' --given-name=Helfi --surname=Dienst
 ad user create m.muster 'Muster!Pass2026' --given-name=Max --surname=Muster --mail-address=m.muster@firma.local
 ad user create e.beispiel 'Beispiel!Pass2026' --given-name=Erika --surname=Beispiel --mail-address=e.beispiel@firma.local
 ad user create k.kunde 'Kunde!Pass2026' --given-name=Karl --surname=Kunde --mail-address=k.kunde@firma.local
-# deaktiviertes Konto (Absender-Suche per E-Mail darf es nicht finden)
+# disabled account (sender lookup by email must not find it)
 ad user create d.alt 'Alt!Pass2026' --given-name=Dora --surname=Alt --mail-address=d.alt@firma.local
 ad user disable d.alt
 ad group add Helfi-Admins
 ad group add Helfi-Bearbeiter
 ad group add IT-Team
-# verschachtelt: e.beispiel → IT-Team → Helfi-Admins
+# nested: e.beispiel → IT-Team → Helfi-Admins
 ad group addmembers IT-Team e.beispiel
 ad group addmembers Helfi-Admins IT-Team
 ad group addmembers Helfi-Bearbeiter m.muster
 
 samba -D -s "$DIR/etc/smb.conf"
 
-# Warten, bis LDAPS antwortet
+# Wait until LDAPS responds
 i=0
 while [ "$i" -lt 60 ]; do
   if (echo | openssl s_client -connect 127.0.0.1:636 >/dev/null 2>&1); then
-    echo "Samba AD läuft (dc01.firma.local, LDAPS 636)"
+    echo "Samba AD is running (dc01.firma.local, LDAPS 636)"
     exit 0
   fi
   sleep 1
   i=$((i + 1))
 done
-echo "Samba AD ist nicht gestartet" >&2
+echo "Samba AD did not start" >&2
 exit 1

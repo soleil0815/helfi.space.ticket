@@ -439,7 +439,7 @@ Außerdem gilt:
 ./update.sh --cleanup  # Reste früherer Updates anzeigen und nach Rückfrage löschen
 ```
 
-`update.sh` merkt sich die laufende Version und holt die neue. Ist die mitgelieferte `docker-compose.yml` neuer, ersetzt es die alte und behält sie als `docker-compose.yml.alt-<Datum>-<Uhrzeit>`. Danach startet es den Container und wartet auf den Gesundheitscheck. Startet die neue Version nicht, fragt es nach und startet die vorherige Version mit der passenden Datenbanksicherung wieder (mit `-y` automatisch). Es entpackt nichts und baut nichts. Es läuft mit `/bin/sh`, auch auf einer Synology.
+`update.sh` merkt sich die laufende Version und holt die neue. Ist die mitgelieferte `docker-compose.yml` neuer, ersetzt es die alte und behält sie als `docker-compose.yml.alt-<Datum>-<Uhrzeit>`. Danach startet es den Container und wartet auf den Gesundheitscheck. Startet die neue Version nicht, fragt es nach und startet die vorherige Version mit der passenden Datenbanksicherung wieder (mit `-y` automatisch). Es entpackt nichts und baut nichts. Es läuft mit `/bin/sh`, auch auf einer Synology. Die Meldungen erscheinen auf Deutsch, wenn die Spracheinstellung deutsch ist (z. B. `LANG=de_DE.UTF-8`), sonst auf Englisch.
 
 - **`docker compose up` schlägt fehl** (z. B. ungültige `docker-compose.yml`): `update.sh` meldet einen Fehler, stellt `.env` und `docker-compose.yml` wieder her und endet mit Exit-Code 1. Gibt es eine vorherige Version, fragt es vorher, ob sie wieder gestartet werden soll (mit `-y` automatisch).
 - **Startet noch:** Ist die neue Version nach `HELFI_UPDATE_WAIT` noch „starting“ (z. B. Datenbank-Umstellung bei großen Datenbanken), fragt `update.sh`, ob es noch einmal warten soll (mit `-y` automatisch einmal).

@@ -38,7 +38,7 @@ function run(ctx, args = [], env = {}, { cwd = ctx.dir, prefix = [] } = {}) {
     env: {
       PATH: `${ctx.bin}:${BASE_PATH}`, FAKE_LOG: ctx.log, FAKE_DIR: ctx.dir,
       FAKE_IMAGE_COMPOSE: path.join(ctx.dir, 'image-compose.yml'), FAKE_IMAGE_HASHES: path.join(ctx.dir, 'image-hashes.txt'),
-      HELFI_UPDATE_WAIT: '3', ...env,
+      HELFI_UPDATE_WAIT: '3', LANG: 'de_DE.UTF-8', ...env,
     },
   });
   const calls = fs.existsSync(ctx.log) ? fs.readFileSync(ctx.log, 'utf8') : '';
@@ -268,8 +268,8 @@ test('CI: Release nur per Knopf von main – nicht „Run workflow“ von einem 
   // Herkunftsnachweis gibt es für private Repositories von Einzelkonten nicht (Release brach daran ab)
   assert.doesNotMatch(pub, /attest-build-provenance/);
   // Tags erst nach den Release-Dateien setzen (sonst bleibt bei einem Fehler ein halbes Release in der Registry)
-  assert.ok(pub.indexOf('Geprüftes Image freigeben') > pub.indexOf('Release-Dateien'), 'Freigabe nach den Release-Dateien');
-  assert.ok(pub.indexOf('Geprüftes Image freigeben') < pub.indexOf('GitHub-Release'));
+  assert.ok(pub.indexOf('Publish the checked image') > pub.indexOf('Release files'), 'Freigabe nach den Release-Dateien');
+  assert.ok(pub.indexOf('Publish the checked image') < pub.indexOf('GitHub release'));
   assert.match(pub, /imagetools create \$tags "\$IMAGE@\$DIGEST"/);
   assert.match(yml, /kandidat-\$\{\{ github\.run_id \}\}/);
   assert.match(yml, /\nconcurrency:\n {2}group: \$\{\{ github\.event_name == 'workflow_dispatch' && 'release'/);
@@ -294,10 +294,10 @@ test('trivy-check.sh: gefundene Geheimnisse lassen die Prüfung scheitern (Audit
   };
   let r = check('secret', { Results: [{ Target: '/app/.env', Class: 'secret', Secrets: [{ RuleID: 'aws-access-key-id', Severity: 'CRITICAL', Title: 'AWS Access Key ID', StartLine: 3 }] }] });
   assert.equal(r.status, 1, r.stdout);
-  assert.match(r.stdout, /::error::Geheimnis im Image: CRITICAL aws-access-key-id \(AWS Access Key ID\) in \/app\/\.env:3/);
+  assert.match(r.stdout, /::error::Secret in image: CRITICAL aws-access-key-id \(AWS Access Key ID\) in \/app\/\.env:3/);
   r = check('vuln', { Results: [{ Target: 'a', Vulnerabilities: [{ Severity: 'HIGH', VulnerabilityID: 'CVE-1', PkgName: 'x', InstalledVersion: '1', FixedVersion: '2' }] }] });
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /1 behebbare Schwachstellen/);
+  assert.match(r.stdout, /1 fixable vulnerabilities/);
   r = check('none', { Results: [{ Target: 'a' }] });
   assert.equal(r.status, 0, r.stdout);
   r = check('schema', { SchemaVersion: 2 });
