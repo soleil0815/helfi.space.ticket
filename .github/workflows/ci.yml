@@ -1,15 +1,15 @@
-# Tests, Image prüfen und (nur von main) veröffentlichen.
-# - Pull Requests und main: Tests, AD-Integrationstest, Image bauen, Rauchtest (gehärtet), Schwachstellenprüfung
-# - Release per Knopf: Actions → CI → Run workflow (Branch main) → Release: patch/minor/major.
-#   Die Version zählt sich selbst hoch (höchster Tag + 1), Tag und GitHub-Release legt die CI an.
-#   Das ist der EINZIGE Weg zu einem Release – ein von Hand gepushter Tag startet nichts.
-# - Ablauf: Image für amd64/arm64 nativ bauen (ohne QEMU), je Architektur testen, als Kandidat
-#   (eindeutig je Lauf) zusammenführen, GENAU DIESEN Digest auf Schwachstellen prüfen, erst dann als
-#   1.2.3 (+ latest, wenn höchste Version) freigeben, GitHub-Release mit Offline-Images und Prüfsummen.
-#   (Kein Herkunftsnachweis per actions/attest-build-provenance: GitHub bietet ihn für private
-#   Repositories von Einzelkonten nicht an.) Veröffentlicht wird im Environment „release“
-#   (nur Branch main). Es läuft immer nur ein Release zur selben Zeit.
-# Actions sind auf Commit-SHAs festgelegt (Dependabot hält sie aktuell).
+# Tests, image checks and (from main only) publishing.
+# - Pull requests and main: tests, AD integration test, image build, smoke test (hardened), vulnerability scan
+# - Release by button: Actions → CI → Run workflow (branch main) → Release: patch/minor/major.
+#   The version increments itself (highest tag + 1); the CI creates the tag and the GitHub release.
+#   This is the ONLY way to a release – a manually pushed tag triggers nothing.
+# - Flow: build the image natively for amd64/arm64 (no QEMU), test per architecture, merge into a
+#   candidate (unique per run), scan EXACTLY THIS digest for vulnerabilities, only then publish as
+#   1.2.3 (+ latest if highest version), GitHub release with offline images and checksums.
+#   (No provenance attestation via actions/attest-build-provenance: GitHub does not offer it for
+#   private repositories of personal accounts.) Publishing happens in the environment "release"
+#   (branch main only). Only one release runs at a time.
+# Actions are pinned to commit SHAs (Dependabot keeps them current).
 name: CI
 
 on:
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: 'Neue Version veröffentlichen? (nur auf main)'
+        description: 'Publish a new version? (main only; nein = no)'
         type: choice
         options: [nein, patch, minor, major]
         default: nein
@@ -27,7 +27,7 @@ on:
 permissions:
   contents: read
 
-# Releases nie gleichzeitig (zweiter Knopfdruck wartet); andere Läufe je Branch/PR
+# Never run releases concurrently (a second button press waits); other runs per branch/PR
 concurrency:
   group: ${{ github.event_name == 'workflow_dispatch' && 'release' || format('ci-{0}', github.ref) }}
   cancel-in-progress: false
@@ -47,13 +47,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Werkzeuge für Shell-Tests
+      - name: Tools for shell tests
         run: sudo apt-get update -q && sudo apt-get install -y -q shellcheck dash >/dev/null
-      - name: Tests (inkl. update.sh mit dash, entrypoint.sh als root)
+      - name: Tests (incl. update.sh with dash, entrypoint.sh as root)
         run: npm test && sudo -E env "PATH=$PATH" node --test test/entrypoint.test.js
-      - name: Abhängigkeiten auf bekannte Lücken prüfen
+      - name: Check dependencies for known vulnerabilities
         run: npm audit --omit=dev --audit-level=high
-      - name: Shell-Skripte prüfen
+      - name: Lint shell scripts
         run: |
           shellcheck -s sh update.sh docker/entrypoint.sh scripts/*.sh .github/scripts/*.sh
           dash -n update.sh && dash -n docker/entrypoint.sh
@@ -69,18 +69,18 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Samba AD installieren und starten
+      - name: Install and start Samba AD
         run: |
           sudo apt-get update -q
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends samba samba-ad-dc samba-ad-provision winbind >/dev/null
           sudo systemctl stop samba-ad-dc smbd nmbd winbind 2>/dev/null || true
           sudo sh scripts/test-samba-ad.sh
-      - name: Integrationstest LDAPS/StartTLS/Gruppen
+      - name: Integration test LDAPS/StartTLS/groups
         run: npm run test:integration
         env:
           HELFI_TEST_LDAP_HOST: dc01.firma.local
 
-  # Image bauen und prüfen (ohne Schreibrechte, ohne Veröffentlichung)
+  # Build and check the image (no write permissions, no publishing)
   image:
     needs: [test, ad-integration]
     runs-on: ubuntu-24.04
@@ -89,7 +89,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Image bauen (amd64)
+      - name: Build image (amd64)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -97,11 +97,11 @@ jobs:
           tags: helfi-test:ci
           build-args: VERSION=0.0.0-ci
           cache-from: type=gha
-          # Cache nur von main schreiben (PRs können ihn nicht vergiften)
+          # Write the cache from main only (PRs cannot poison it)
           cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
-      - name: Rauchtest (gehärtet wie in docker-compose.yml)
+      - name: Smoke test (hardened as in docker-compose.yml)
         run: sh .github/scripts/smoke-test.sh helfi-test:ci
-      - name: Schwachstellenprüfung
+      - name: Vulnerability scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: helfi-test:ci
@@ -110,10 +110,10 @@ jobs:
           format: json
           output: trivy.json
           exit-code: '0'
-      - name: Schwachstellen auswerten
+      - name: Evaluate vulnerabilities
         run: sh .github/scripts/trivy-check.sh trivy.json
 
-  # Veröffentlichen: nur per Knopf, nur vom aktuellen Stand von main, nur nach erfolgreichen Prüfungen.
+  # Publishing: only by button, only from the current state of main, only after successful checks.
   release-check:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.release != 'nein' && github.ref == 'refs/heads/main'
@@ -127,22 +127,22 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Herkunft prüfen und Version bestimmen
+      - name: Check origin and determine version
         id: v
         env:
           MODE: ${{ inputs.release }}
         run: |
-          [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || { echo "::error::Release nur per Knopf ($GITHUB_EVENT_NAME)"; exit 1; }
-          # nur vom Branch main und nur dessen aktueller Stand
-          [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::Release per Knopf nur vom Branch main ($GITHUB_REF)"; exit 1; }
-          [ "$GITHUB_SHA" = "$(git rev-parse origin/main)" ] || { echo "::error::$GITHUB_SHA ist nicht der aktuelle Stand von main"; exit 1; }
-          case "$MODE" in patch|minor|major) ;; *) echo "::error::Unbekannte Release-Art ($MODE)"; exit 1 ;; esac
-          out="$(sh .github/scripts/next-version.sh "$MODE")" || { echo "::error::Version nicht bestimmbar ($MODE)"; exit 1; }
+          [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || { echo "::error::Release only by button ($GITHUB_EVENT_NAME)"; exit 1; }
+          # only from branch main and only its current state
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::Release by button only from branch main ($GITHUB_REF)"; exit 1; }
+          [ "$GITHUB_SHA" = "$(git rev-parse origin/main)" ] || { echo "::error::$GITHUB_SHA is not the current state of main"; exit 1; }
+          case "$MODE" in patch|minor|major) ;; *) echo "::error::Unknown release type ($MODE)"; exit 1 ;; esac
+          out="$(sh .github/scripts/next-version.sh "$MODE")" || { echo "::error::Cannot determine version ($MODE)"; exit 1; }
           echo "$out"
           echo "$out" >> "$GITHUB_OUTPUT"
 
-  # Jede Architektur nativ bauen und auf ihrer eigenen Hardware testen.
-  # Kein QEMU: Node bricht unter Emulation mit „Illegal instruction“ (Exit 132) ab.
+  # Build each architecture natively and test it on its own hardware.
+  # No QEMU: Node aborts under emulation with "Illegal instruction" (exit 132).
   release-build:
     needs: [release-check]
     strategy:
@@ -167,13 +167,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Version ins Image übernehmen
+      - name: Set version for the image
         env:
           V: ${{ needs.release-check.outputs.version }}
         run: |
           sed -i "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$V\"/" package.json
-          grep -q "^  \"version\": \"$V\"," package.json || { echo "::error::Version nicht gesetzt"; exit 1; }
-      - name: Kandidat bauen und pushen (${{ matrix.arch }}, ohne Cache)
+          grep -q "^  \"version\": \"$V\"," package.json || { echo "::error::Version not set"; exit 1; }
+      - name: Build and push candidate (${{ matrix.arch }}, no cache)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -183,7 +183,7 @@ jobs:
           provenance: false
           build-args: VERSION=${{ needs.release-check.outputs.version }}
           tags: ${{ env.IMAGE }}:${{ needs.release-check.outputs.version }}-kandidat-${{ github.run_id }}-${{ matrix.arch }}
-      - name: Kandidat testen (${{ matrix.arch }})
+      - name: Test candidate (${{ matrix.arch }})
         run: |
           img="$IMAGE:${{ needs.release-check.outputs.version }}-kandidat-${{ github.run_id }}-${{ matrix.arch }}"
           docker pull "$img"
@@ -192,7 +192,7 @@ jobs:
   publish:
     needs: [release-check, release-build]
     runs-on: ubuntu-24.04
-    # Environment „release“: nur vom Branch main zulässig (Einstellung im Repository)
+    # Environment "release": only allowed from branch main (repository setting)
     environment: release
     permissions:
       contents: write
@@ -207,28 +207,28 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Version übernehmen
+      - name: Set version outputs
         id: v
         run: |
           echo "version=${{ needs.release-check.outputs.version }}" >> "$GITHUB_OUTPUT"
           echo "latest=${{ needs.release-check.outputs.latest }}" >> "$GITHUB_OUTPUT"
-      - name: Tag darf noch nicht existieren
+      - name: Tag must not exist yet
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
-            echo "::error::Tag v${{ steps.v.outputs.version }} gibt es schon (zwei Releases gleichzeitig?)"; exit 1
+            echo "::error::Tag v${{ steps.v.outputs.version }} already exists (two releases at once?)"; exit 1
           fi
-      - name: Kandidat aus beiden Architekturen zusammenführen (Digest festhalten)
+      - name: Merge candidate from both architectures (record digest)
         id: cand
         run: |
           k="$IMAGE:${{ steps.v.outputs.version }}-kandidat-$GITHUB_RUN_ID"
           docker buildx imagetools create -t "$k" "$k-amd64" "$k-arm64"
           digest="$(docker buildx imagetools inspect "$k" --format '{{json .Manifest.Digest}}' | tr -d '"')"
-          case "$digest" in sha256:*) ;; *) echo "::error::Digest des Kandidaten nicht lesbar ($digest)"; exit 1 ;; esac
+          case "$digest" in sha256:*) ;; *) echo "::error::Cannot read the candidate digest ($digest)"; exit 1 ;; esac
           docker buildx imagetools inspect "$IMAGE@$digest"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-      - name: Kandidat auf Schwachstellen prüfen (amd64)
+      - name: Scan candidate for vulnerabilities (amd64)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.IMAGE }}@${{ steps.cand.outputs.digest }}
@@ -238,7 +238,7 @@ jobs:
           output: trivy-amd64.json
           exit-code: '0'
       - run: sh .github/scripts/trivy-check.sh trivy-amd64.json
-      - name: Kandidat auf Schwachstellen prüfen (arm64)
+      - name: Scan candidate for vulnerabilities (arm64)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_PLATFORM: linux/arm64
@@ -250,7 +250,7 @@ jobs:
           output: trivy-arm64.json
           exit-code: '0'
       - run: sh .github/scripts/trivy-check.sh trivy-arm64.json
-      - name: Release-Dateien (Offline-Images + Prüfsummen)
+      - name: Release files (offline images + checksums)
         env:
           DIGEST: ${{ steps.cand.outputs.digest }}
         run: |
@@ -259,9 +259,9 @@ jobs:
           for arch in amd64 arm64; do
             docker pull --platform "linux/$arch" "$IMAGE@$DIGEST"
             docker tag "$IMAGE@$DIGEST" "$IMAGE:$v"
-            # Sicherstellen, dass wirklich die gewünschte Architektur gespeichert wird
+            # Make sure the requested architecture is really saved
             got="$(docker image inspect --format '{{.Architecture}}' "$IMAGE:$v")"
-            [ "$got" = "$arch" ] || { echo "::error::Offline-Image $arch hat Architektur $got"; exit 1; }
+            [ "$got" = "$arch" ] || { echo "::error::Offline image $arch has architecture $got"; exit 1; }
             if docker save --help 2>/dev/null | grep -q -- '--platform'; then
               docker save --platform "linux/$arch" "$IMAGE:$v" | gzip > "release/helfi-$v-$arch.tar.gz"
             else
@@ -271,8 +271,8 @@ jobs:
           done
           cp docker-compose.yml env.example update.sh release/
           (cd release && sha256sum -- * > SHA256SUMS)
-      # Erst ganz am Ende freigeben: scheitert vorher etwas, bleibt kein halbes Release in der Registry
-      - name: Geprüftes Image freigeben (gleicher Digest)
+      # Publish only at the very end: if anything fails before, no half release is left in the registry
+      - name: Publish the checked image (same digest)
         env:
           DIGEST: ${{ steps.cand.outputs.digest }}
         run: |
@@ -282,8 +282,8 @@ jobs:
           # shellcheck disable=SC2086
           docker buildx imagetools create $tags "$IMAGE@$DIGEST"
           now="$(docker buildx imagetools inspect "$IMAGE:$v" --format '{{json .Manifest.Digest}}' | tr -d '"')"
-          [ "$now" = "$DIGEST" ] || { echo "::error::Freigegebenes Image ($now) ist nicht der geprüfte Kandidat ($DIGEST)"; exit 1; }
-      - name: GitHub-Release
+          [ "$now" = "$DIGEST" ] || { echo "::error::Published image ($now) is not the checked candidate ($DIGEST)"; exit 1; }
+      - name: GitHub release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: v${{ steps.v.outputs.version }}

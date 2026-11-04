@@ -1,6 +1,6 @@
-# SHA-256 aller ausgelieferten docker-compose.yml-Fassungen.
-# update.sh ersetzt die Datei nur, wenn sie einer davon entspricht (also nicht angepasst wurde).
-# Bei jeder Änderung an docker-compose.yml die neue Prüfsumme UNTEN ANHÄNGEN (alte nie löschen).
+# SHA-256 of every shipped version of docker-compose.yml.
+# update.sh only replaces the file if it matches one of these (i.e. it has not been customized).
+# On every change to docker-compose.yml, APPEND the new checksum AT THE BOTTOM (never delete old ones).
 62a6b053de7c4dafc066a36ab8d4be53bb8145310e60f68abbbdf4d4f075a5f7
 b15192b4965c43a66ffcdbbc01306da2a376902c925f2d8679a2098691fe1f34
 b89b6c214c31041882ea83b5e4012578c3c4b977fad0af8810f42efde0216daf
