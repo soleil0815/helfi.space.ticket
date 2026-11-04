@@ -1,11 +1,11 @@
-// Tests zum Audit 2026-11, Bereich E-Mail: ReDoS, Bounce-Erkennung, CC-Übernahme, Antworten auf
-// Bearbeiter-Mails, übersprungene Mails im Postfach, font-size, Anhang-Hinweis, Ansprechpartner, CC-Höchstzahl
+// Tests for audit 2026-11, email: ReDoS, bounce detection, CC takeover, replies to
+// agent mails, skipped mails in the mailbox, font-size, attachment notice, contact person, CC limit
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import nodemailer from 'nodemailer';
 import { startServer } from './helpers/server.js';
 
-// Module erst nach startServer laden (Datenordner kommt aus der Umgebung)
+// Load modules only after startServer (data folder comes from the environment)
 let quoteStart; let sanitizeMailHtml; let stripQuotedReply; let deliveryReport; let createImapPoller; let MAX_CC_PARTICIPANTS;
 let S; let ctx; let db;
 const outbox = [];
@@ -29,31 +29,31 @@ before(async () => {
 after(() => S.stop());
 
 // ---------- 1. ReDoS ----------
-test('Zitaterkennung: 200 KB bösartiges HTML/Text in unter 1 s', async () => {
+test('Quote detection: 200 KB of malicious HTML/text in under 1 s', async () => {
   const html = '<p>x</p>' + '<div '.repeat(40000);
   let t = Date.now();
   assert.equal(quoteStart(html), -1);
   sanitizeMailHtml(html, { collapseQuote: true });
-  assert.ok(Date.now() - t < 1000, `HTML dauerte ${Date.now() - t} ms`);
+  assert.ok(Date.now() - t < 1000, `HTML took ${Date.now() - t} ms`);
   for (const h of ['<p>x</p>' + '<div class="'.repeat(20000), '<p>x</p>' + '<blockquote '.repeat(20000)]) {
     t = Date.now(); quoteStart(h);
-    assert.ok(Date.now() - t < 1000, `HTML dauerte ${Date.now() - t} ms`);
+    assert.ok(Date.now() - t < 1000, `HTML took ${Date.now() - t} ms`);
   }
   const text = 'Am ' + 'wrote:x '.repeat(20000);
   t = Date.now();
   stripQuotedReply(text);
   stripQuotedReply(('Am ' + 'wrote:x '.repeat(120) + '\n').repeat(160));
-  assert.ok(Date.now() - t < 1000, `Text dauerte ${Date.now() - t} ms`);
-  // Ganze Antwort-Mail mit solchem HTML
+  assert.ok(Date.now() - t < 1000, `text took ${Date.now() - t} ms`);
+  // Whole reply mail with such HTML
   const first = await run(['From: fremd@extern.example', 'To: helpdesk@firma.local', 'Subject: Hallo', 'Message-ID: <redos1@extern.example>', '', 'Text']);
   t = Date.now();
   const r = await run(['From: fremd@extern.example', 'To: helpdesk@firma.local', `Subject: Re: [${first.key}] Hallo`, 'Message-ID: <redos2@extern.example>',
     'Content-Type: text/html; charset=utf-8', '', html]);
   assert.equal(r.action, 'comment');
-  assert.ok(Date.now() - t < 3000, `Verarbeitung dauerte ${Date.now() - t} ms`);
+  assert.ok(Date.now() - t < 3000, `processing took ${Date.now() - t} ms`);
 });
 
-test('Zitaterkennung bleibt korrekt', () => {
+test('Quote detection stays correct', () => {
   assert.ok(quoteStart('<p>Danke</p><div style="border:none;border-top:solid #E1E1E1 1.0pt" id="divRplyFwdMsg">Von: x</div>') > 0);
   assert.ok(quoteStart('<p>Danke</p><div dir="ltr" class="gmail_quote">Am Mo. schrieb x:</div>') > 0);
   assert.ok(quoteStart('<p>Danke</p><blockquote type="cite">alt</blockquote>') > 0);
@@ -61,11 +61,11 @@ test('Zitaterkennung bleibt korrekt', () => {
   assert.equal(stripQuotedReply('Danke!\n\nAm 01.01.2026 um 10:00 schrieb Max <max@firma.local>:\n> alt'), 'Danke!');
   assert.equal(stripQuotedReply('Thanks\nOn Mon, Jan 1, 2026 at 10:00 AM Max <max@firma.local> wrote:\n> old'), 'Thanks');
   assert.equal(stripQuotedReply('Danke\nAm Mo., 1. Jan. 2026 um 10:00 Uhr schrieb Max\n<max@firma.local>:\n> alt'), 'Danke');
-  assert.equal(stripQuotedReply('Am Montag geht es wieder.\nGruß'), 'Am Montag geht es wieder.\nGruß', 'kein Doppelpunkt am Ende');
+  assert.equal(stripQuotedReply('Am Montag geht es wieder.\nGruß'), 'Am Montag geht es wieder.\nGruß', 'no colon at the end');
 });
 
-// ---------- 2. Bounce nur aus Kopfzeilen / delivery-status ----------
-test('Normale Mail mit NDR-Zeilen im Text: Ticket, keine Sperre', async () => {
+// ---------- 2. Bounce only from headers / delivery-status ----------
+test('Normal mail with NDR lines in the body: ticket, no block', async () => {
   const r = await run(['From: kunde@extern.example', 'To: helpdesk@firma.local', 'Subject: Meine Mail kam zurück', 'Message-ID: <ndrtext1@extern.example>', '',
     'Hallo, siehe unten:', 'X-Failed-Recipients: chef@firma.local', 'X-MS-Exchange-Message-Is-Ndr:', 'Final-Recipient: rfc822; anna@firma.local', 'Bitte helfen!']);
   assert.equal(r.action, 'ticket');
@@ -73,7 +73,7 @@ test('Normale Mail mit NDR-Zeilen im Text: Ticket, keine Sperre', async () => {
   assert.equal(ctx.suppressions.isBlocked('anna@firma.local'), false);
 });
 
-test('Bounce: Final-Recipient nur aus dem Teil message/delivery-status', async () => {
+test('Bounce: Final-Recipient only from the message/delivery-status part', async () => {
   const p = ctx.processor;
   const x = await p.parse(eml([
     'From: MAILER-DAEMON@mail.firma.local', 'To: helpdesk@firma.local', 'Subject: Undelivered', 'Message-ID: <ndr9@mail.firma.local>',
@@ -86,8 +86,8 @@ test('Bounce: Final-Recipient nur aus dem Teil message/delivery-status', async (
   assert.deepEqual(rep.failed, ['drucker@firma.local']);
 });
 
-// ---------- 3. CC nur bei neuem Ticket oder Zuordnung über eigene Message-ID ----------
-test('Zuordnung über Betreff: CC wird nicht Teilnehmer; über Message-ID schon', async () => {
+// ---------- 3. CC only for a new ticket or matching via our own Message-ID ----------
+test('Matching via subject: CC does not become a participant; via Message-ID it does', async () => {
   const first = await run(['From: Chefin <chefin@firma.local>', 'To: helpdesk@firma.local', 'Subject: Gehaltsliste', 'Message-ID: <cc-a1@firma.local>', '', 'vertraulich']);
   const r = await run(['From: Chefin <chefin@firma.local>', 'To: helpdesk@firma.local', 'Cc: spion@evil.example', `Subject: Re: [${first.key}]`, 'Message-ID: <cc-a2@evil.example>', '', 'ok']);
   assert.equal(r.action, 'comment');
@@ -102,8 +102,8 @@ test('Zuordnung über Betreff: CC wird nicht Teilnehmer; über Message-ID schon'
   assert.deepEqual(ctx.tickets.participants(first.ticketId).map((x) => x.email), ['kollegin@firma.local']);
 });
 
-// ---------- 4. Antwort auf eine reine Bearbeiter-Mail ----------
-test('Antwort auf Bearbeiter-Mail (Zuweisung): interne Notiz, kein Wiederöffnen', async () => {
+// ---------- 4. Reply to an agent-only mail ----------
+test('Reply to agent mail (assignment): internal note, no reopening', async () => {
   const realCreate = nodemailer.createTransport;
   nodemailer.createTransport = () => ({ sendMail: async (m) => { outbox.push(m); return {}; }, verify: async () => true });
   try {
@@ -113,14 +113,14 @@ test('Antwort auf Bearbeiter-Mail (Zuweisung): interne Notiz, kein Wiederöffnen
     const first = await run(['From: kunde@extern.example', 'To: helpdesk@firma.local', 'Subject: Problem', 'Message-ID: <ag1@extern.example>', '', 'Text']);
     await wait();
     const confirm = outbox.find((m) => m.to === 'kunde@extern.example');
-    assert.ok(confirm && !/\.agent@/.test(confirm.messageId), 'Mail an Kunden ohne Kennung');
+    assert.ok(confirm && !/\.agent@/.test(confirm.messageId), 'mail to customer without marker');
     assert.equal(db.prepare('SELECT agent_only FROM mail_messages WHERE message_id=?').get(confirm.messageId.replace(/[<>]/g, '')).agent_only, 0);
     outbox.length = 0;
     ctx.tickets.update({ id: 1, role: 'admin' }, first.ticketId, { assigneeId: S.ids.anna, status: 'waiting' });
     await wait();
     const assigned = outbox.find((m) => m.to === 'anna@firma.local');
-    assert.ok(assigned, 'Zuweisungs-Mail');
-    // Kennung steht in der Datenbank, nicht in der Message-ID (die sehen auch Dritte, z. B. bei Weiterleitung)
+    assert.ok(assigned, 'assignment mail');
+    // The marker is stored in the database, not in the Message-ID (third parties see that too, e.g. when forwarded)
     assert.doesNotMatch(assigned.messageId, /\.agent@/);
     assert.equal(db.prepare('SELECT agent_only FROM mail_messages WHERE message_id=?').get(assigned.messageId.replace(/[<>]/g, '')).agent_only, 1);
 
@@ -128,19 +128,19 @@ test('Antwort auf Bearbeiter-Mail (Zuweisung): interne Notiz, kein Wiederöffnen
       'Message-ID: <ag2@firma.local>', `In-Reply-To: ${assigned.messageId}`, '', 'Intern: Kunde nervt, Ticket liegen lassen']);
     assert.equal(r.action, 'comment');
     const c = db.prepare('SELECT * FROM comments WHERE ticket_id=? ORDER BY id DESC LIMIT 1').get(first.ticketId);
-    assert.equal(c.internal, 1, 'nur intern');
-    assert.equal(c.author_id, null, 'keine Rechte des Kontos');
-    assert.equal(publicComments(first.ticketId).length, 0, 'Benutzer sehen nichts');
-    assert.equal(ctx.tickets.rawById(first.ticketId).status, 'waiting', 'nicht wieder geöffnet');
-    assert.deepEqual(ctx.tickets.participants(first.ticketId), [], 'kein CC aus interner Antwort');
+    assert.equal(c.internal, 1, 'internal only');
+    assert.equal(c.author_id, null, 'no permissions of the account');
+    assert.equal(publicComments(first.ticketId).length, 0, 'users see nothing');
+    assert.equal(ctx.tickets.rawById(first.ticketId).status, 'waiting', 'not reopened');
+    assert.deepEqual(ctx.tickets.participants(first.ticketId), [], 'no CC from an internal reply');
 
-    // Antwort des Kunden auf seine Bestätigung bleibt öffentlich und öffnet wieder
+    // The customer's reply to their confirmation stays public and reopens
     const r2 = await run(['From: kunde@extern.example', 'To: helpdesk@firma.local', 'Subject: Re: Problem', 'Message-ID: <ag3@extern.example>',
       `In-Reply-To: ${confirm.messageId}`, '', 'Geht immer noch nicht']);
     assert.equal(r2.action, 'comment');
     assert.equal(publicComments(first.ticketId).length, 1);
     assert.equal(ctx.tickets.rawById(first.ticketId).status, 'open');
-    // Bounce-Erkennung findet auch Message-IDs mit Kennung
+    // Bounce detection also finds Message-IDs with a marker
     const x = await ctx.processor.parse(eml(['Return-Path: <>', 'From: MAILER-DAEMON@mail.firma.local', 'Subject: Undelivered', `X-Failed-Recipients: anna@firma.local`,
       'Message-ID: <ag4@mail.firma.local>', '', `Message-ID: ${assigned.messageId}`]));
     assert.ok(deliveryReport(x, x.raw).refs.includes(assigned.messageId.replace(/[<>]/g, '')));
@@ -150,8 +150,8 @@ test('Antwort auf Bearbeiter-Mail (Zuweisung): interne Notiz, kein Wiederöffnen
   }
 });
 
-// ---------- 5. Übersprungene Mails bleiben im Posteingang ----------
-test('Postfach: nur verarbeitete Mails in den Ordner verschieben; übersprungene/Bounces bleiben gelesen im Posteingang', async () => {
+// ---------- 5. Skipped mails stay in the inbox ----------
+test('Mailbox: only move processed mails to the folder; skipped ones/bounces stay read in the inbox', async () => {
   const mails = {
     1: eml(['From: neu@extern.example', 'To: helpdesk@firma.local', 'Subject: Neue Anfrage', 'Message-ID: <imap1@extern.example>', '', 'Hilfe']),
     2: eml(['From: liste@extern.example', 'To: helpdesk@firma.local', 'Precedence: list', 'Subject: Echte Anfrage über Verteiler', 'Message-ID: <imap2@extern.example>', '', 'Hilfe']),
@@ -183,8 +183,8 @@ test('Postfach: nur verarbeitete Mails in den Ordner verschieben; übersprungene
     const poller = createImapPoller({ settings: ctx.settings, processor: ctx.processor, ImapClient: FakeImap });
     const res = await poller.pollOnce();
     assert.equal(res.tickets, 1);
-    assert.deepEqual(moved, [1, 4], 'nur Ticket und Lesebestätigung verschoben');
-    assert.deepEqual(seenFlags.sort(), [1, 2, 3, 4], 'alle als gelesen markiert (keine erneute Verarbeitung)');
+    assert.deepEqual(moved, [1, 4], 'only ticket and read receipt moved');
+    assert.deepEqual(seenFlags.sort(), [1, 2, 3, 4], 'all marked as read (no reprocessing)');
   } finally {
     ctx.settings.set('imap.enabled', false);
     ctx.settings.set('imap.processedFolder', '');
@@ -192,7 +192,7 @@ test('Postfach: nur verarbeitete Mails in den Ordner verschieben; übersprungene
 });
 
 // ---------- 6. font-size ----------
-test('font-size: Muster gilt für den ganzen Wert', () => {
+test('font-size: pattern applies to the whole value', () => {
   assert.doesNotMatch(sanitizeMailHtml('<p style="font-size:largeXXX">a</p>').html, /font-size/);
   assert.doesNotMatch(sanitizeMailHtml('<p style="font-size:mediumfoo(x)">a</p>').html, /font-size/);
   assert.match(sanitizeMailHtml('<p style="font-size:x-large">a</p>').html, /font-size:x-large/);
@@ -200,8 +200,8 @@ test('font-size: Muster gilt für den ganzen Wert', () => {
   assert.match(sanitizeMailHtml('<p style="font-size:12pt">a</p>').html, /font-size:12pt/);
 });
 
-// ---------- 7. Hinweis auf nicht übernommene Anhänge bei langem Text ----------
-test('Hinweis auf nicht übernommene Anhänge bleibt bei langem Text erhalten', async () => {
+// ---------- 7. Notice about attachments not imported with long text ----------
+test('Notice about attachments not imported is kept with long text', async () => {
   const parts = [];
   for (let i = 0; i < 31; i++) parts.push('--A7', 'Content-Type: text/plain', `Content-Disposition: attachment; filename="datei${i}.txt"`, '', `Inhalt ${i}`);
   const long = 'x'.repeat(120000);
@@ -218,12 +218,12 @@ test('Hinweis auf nicht übernommene Anhänge bleibt bei langem Text erhalten', 
   assert.match(c, /attachment not imported: datei30\.txt \(0 MB\)\]$/);
 });
 
-// ---------- 9. Bearbeiter zählen nicht zur Höchstzahl der CC-Teilnehmer ----------
-test('CC-Höchstzahl: Bearbeiter zählen nicht mit', async () => {
+// ---------- 9. Agents do not count towards the CC participant limit ----------
+test('CC limit: agents do not count', async () => {
   const agents = [];
   for (let i = 0; i < MAX_CC_PARTICIPANTS; i++) {
     const res = await S.admin('POST', '/api/users', { username: `ag${i}`, displayName: `ag${i}`, email: `ag${i}@firma.local`, role: 'agent', password: 'Sehrgeheim123' });
-    assert.ok(res.status < 300, `Konto ag${i}: ${res.status}`);
+    assert.ok(res.status < 300, `account ag${i}: ${res.status}`);
     agents.push(`ag${i}@firma.local`);
   }
   const r = await run(['From: viele@extern.example', `To: helpdesk@firma.local, ${agents.join(', ')}`, 'Cc: k1@extern.example, k2@extern.example',

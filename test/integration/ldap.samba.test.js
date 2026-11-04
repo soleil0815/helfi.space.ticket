@@ -1,6 +1,6 @@
-// Integrationstest gegen ein echtes Samba-AD (nur wenn HELFI_TEST_LDAP_HOST gesetzt ist).
+// Integration test against a real Samba AD (only if HELFI_TEST_LDAP_HOST is set).
 //   HELFI_TEST_LDAP_HOST=dc01.firma.local HELFI_TEST_LDAP_BINDPW=... node --test test/integration/
-// Erwartet die Benutzer/Gruppen aus scripts/test-samba-ad.sh.
+// Expects the users/groups from scripts/test-samba-ad.sh.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import * as ldap from '../../src/auth/ldap.js';
 
 const host = process.env.HELFI_TEST_LDAP_HOST;
-const skip = !host && 'HELFI_TEST_LDAP_HOST nicht gesetzt';
+const skip = !host && 'HELFI_TEST_LDAP_HOST not set';
 
 const base = {
   host, port: 636, security: 'ldaps', tlsMode: 'pinned', verifyHostname: true, caPem: '',
@@ -20,7 +20,7 @@ const base = {
   nestedGroups: true, adminGroup: 'Helfi-Admins', agentGroup: 'Helfi-Bearbeiter', userGroup: '', timeoutMs: 8000,
 };
 
-test('LDAPS: Zertifikat abrufen und damit vertrauen', { skip }, async () => {
+test('LDAPS: fetch certificate and trust it', { skip }, async () => {
   const r = await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' });
   assert.ok(r.chain.length >= 1);
   assert.match(r.chain[0].fingerprint256, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
@@ -30,15 +30,15 @@ test('LDAPS: Zertifikat abrufen und damit vertrauen', { skip }, async () => {
   assert.equal(res.rootDse.defaultNamingContext.toLowerCase(), 'dc=firma,dc=local');
 });
 
-test('StartTLS: Zertifikat abrufen', { skip }, async () => {
+test('StartTLS: fetch certificate', { skip }, async () => {
   const r = await ldap.fetchCertificateChain({ host, port: 389, security: 'starttls' });
   assert.ok(r.chain.length >= 1);
   const res = await ldap.testConnection({ ...base, port: 389, security: 'starttls', caPem: r.pem });
   assert.equal(res.ok, true, JSON.stringify(res.steps));
 });
 
-test('LDAPS: fremdes Zertifikat wird abgelehnt', { skip }, async () => {
-  // Echtes, aber fremdes Zertifikat erzeugen (openssl)
+test('LDAPS: foreign certificate is rejected', { skip }, async () => {
+  // Create a real but foreign certificate (openssl)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-cert-'));
   execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-days', '1',
     '-subj', '/CN=dc01.firma.local', '-keyout', path.join(dir, 'k.pem'), '-out', path.join(dir, 'c.pem')], { stdio: 'ignore' });
@@ -46,10 +46,10 @@ test('LDAPS: fremdes Zertifikat wird abgelehnt', { skip }, async () => {
   fs.rmSync(dir, { recursive: true, force: true });
   const res = await ldap.testConnection({ ...base, caPem: other });
   assert.equal(res.ok, false);
-  assert.equal(res.steps.find((st) => st.key === 'bind'), undefined, 'darf nicht bis zur Anmeldung kommen');
+  assert.equal(res.steps.find((st) => st.key === 'bind'), undefined, 'must not get as far as the bind');
 });
 
-test('Anmeldung, Rollen aus (verschachtelten) Gruppen', { skip }, async () => {
+test('Login, roles from (nested) groups', { skip }, async () => {
   const cfg = { ...base };
   if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
 
@@ -59,18 +59,18 @@ test('Anmeldung, Rollen aus (verschachtelten) Gruppen', { skip }, async () => {
   assert.deepEqual(max.groups, { admin: false, agent: true, user: true });
 
   const erika = await ldap.authenticate(cfg, 'e.beispiel@firma.local', 'Beispiel!Pass2026');
-  assert.equal(erika.groups.admin, true, 'verschachtelte Gruppe IT-Team → Helfi-Admins');
+  assert.equal(erika.groups.admin, true, 'nested group IT-Team → Helfi-Admins');
 
   const flat = await ldap.authenticate({ ...cfg, nestedGroups: false }, 'e.beispiel', 'Beispiel!Pass2026');
-  assert.equal(flat.groups.admin, false, 'ohne Verschachtelung kein Admin');
+  assert.equal(flat.groups.admin, false, 'no admin without nesting');
 
   assert.equal(await ldap.authenticate(cfg, 'm.muster', 'falsch'), null);
-  assert.equal(await ldap.authenticate(cfg, 'm.muster', ''), null, 'leeres Kennwort = nie anonym');
+  assert.equal(await ldap.authenticate(cfg, 'm.muster', ''), null, 'empty password = never anonymous');
   assert.equal(await ldap.authenticate(cfg, 'gibtsnicht', 'x'), null);
   assert.equal(await ldap.authenticate(cfg, 'm.muster)(|(sAMAccountName=*', 'x'), null, 'Filter-Injection');
 });
 
-test('Ohne Dienstkonto: Suche als anmeldender Benutzer', { skip }, async () => {
+test('Without service account: search as the user logging in', { skip }, async () => {
   const cfg = { ...base, bindDn: '', bindPassword: '' };
   cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
   const u = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
@@ -79,7 +79,7 @@ test('Ohne Dienstkonto: Suche als anmeldender Benutzer', { skip }, async () => {
   assert.equal(await ldap.authenticate(cfg, 'k.kunde', 'falsch'), null);
 });
 
-test('Hostname-Prüfung: per IP ohne Namen im Zertifikat schlägt fehl, abschaltbar', { skip }, async () => {
+test('Hostname check: via IP without name in the certificate fails, can be disabled', { skip }, async () => {
   const pem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
   const strict = await ldap.testConnection({ ...base, host: '127.0.0.1', caPem: pem, verifyHostname: true });
   assert.equal(strict.ok, false);
@@ -87,11 +87,11 @@ test('Hostname-Prüfung: per IP ohne Namen im Zertifikat schlägt fehl, abschalt
   assert.equal(relaxed.ok, true, JSON.stringify(relaxed.steps));
 });
 
-test('Absender per E-Mail finden: Hauptadresse, UPN, Zweitadresse, nicht deaktiviert, nicht mehrdeutig', { skip }, async () => {
+test('Find sender by email: primary address, UPN, secondary address, not disabled, not ambiguous', { skip }, async () => {
   const cfg = { ...base };
   if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
 
-  // Testvorbereitung als Domänen-Admin: Zweitadresse für Erika
+  // Test setup as domain admin: secondary address for Erika
   const { Change, Attribute } = await import('ldapts');
   const adm = await ldap.connect(cfg);
   try {
@@ -112,15 +112,15 @@ test('Absender per E-Mail finden: Hauptadresse, UPN, Zweitadresse, nicht deaktiv
   const alias = await ldap.findByEmail(cfg, 'erika.alt@firma.de');
   assert.equal(alias.username, 'e.beispiel');
   assert.equal(alias.email, 'e.beispiel@firma.local');
-  assert.equal(alias.groups.admin, true, 'verschachtelte Gruppe auch bei der Absender-Suche');
+  assert.equal(alias.groups.admin, true, 'nested group also in the sender lookup');
 
-  assert.equal(await ldap.findByEmail(cfg, 'd.alt@firma.local'), null, 'deaktiviertes Konto');
+  assert.equal(await ldap.findByEmail(cfg, 'd.alt@firma.local'), null, 'disabled account');
   assert.equal(await ldap.findByEmail(cfg, 'niemand@firma.local'), null);
-  assert.equal(await ldap.findByEmail(cfg, '*@firma.local'), null, 'Platzhalter wird maskiert');
+  assert.equal(await ldap.findByEmail(cfg, '*@firma.local'), null, 'wildcard is escaped');
   await assert.rejects(ldap.findByEmail({ ...cfg, bindDn: '' }, 'm.muster@firma.local'), /Dienstkonto/);
 });
 
-test('Personen suchen (Teilnehmer aus dem AD) und per objectGUID holen', { skip }, async () => {
+test('Search people (participants from AD) and fetch by objectGUID', { skip }, async () => {
   const cfg = { ...base };
   if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
 
@@ -129,38 +129,38 @@ test('Personen suchen (Teilnehmer aus dem AD) und per objectGUID holen', { skip 
   assert.equal(byName[0].email, 'm.muster@firma.local');
   assert.match(byName[0].externalId, /^[0-9a-f]{32}$/);
 
-  assert.deepEqual((await ldap.searchPeople(cfg, 'max mus')).map((p) => p.username), ['m.muster'], 'mehrere Wortteile');
-  assert.deepEqual((await ldap.searchPeople(cfg, 'k.kunde@firma')).map((p) => p.username), ['k.kunde'], 'Teil der Mailadresse');
-  assert.deepEqual((await ldap.searchPeople(cfg, 'erika.alt@firma.de')).map((p) => p.username), ['e.beispiel'], 'Zweitadresse');
-  assert.deepEqual(await ldap.searchPeople(cfg, 'Dora'), [], 'deaktiviertes Konto nicht');
-  assert.deepEqual(await ldap.searchPeople(cfg, '*'), [], 'Platzhalter wird maskiert');
-  assert.ok((await ldap.searchPeople(cfg, 'firma.local', { limit: 2 })).length <= 2, 'Begrenzung');
+  assert.deepEqual((await ldap.searchPeople(cfg, 'max mus')).map((p) => p.username), ['m.muster'], 'several word parts');
+  assert.deepEqual((await ldap.searchPeople(cfg, 'k.kunde@firma')).map((p) => p.username), ['k.kunde'], 'part of the email address');
+  assert.deepEqual((await ldap.searchPeople(cfg, 'erika.alt@firma.de')).map((p) => p.username), ['e.beispiel'], 'secondary address');
+  assert.deepEqual(await ldap.searchPeople(cfg, 'Dora'), [], 'disabled account not found');
+  assert.deepEqual(await ldap.searchPeople(cfg, '*'), [], 'wildcard is escaped');
+  assert.ok((await ldap.searchPeople(cfg, 'firma.local', { limit: 2 })).length <= 2, 'limit');
 
-  // GUID aus der Suche muss dieselbe Person liefern wie die Anmeldung (externalId)
+  // The GUID from the search must return the same person as the login (externalId)
   const got = await ldap.findByGuid(cfg, byName[0].externalId);
   assert.equal(got.username, 'm.muster');
   assert.equal(got.groups.agent, true);
   const login = await ldap.authenticate(cfg, 'm.muster', 'Muster!Pass2026');
-  assert.equal(login.externalId, byName[0].externalId, 'gleiche Kennung wie bei der Anmeldung');
+  assert.equal(login.externalId, byName[0].externalId, 'same ID as at login');
   assert.equal(await ldap.findByGuid(cfg, '00'.repeat(16)), null);
   assert.equal(await ldap.findByGuid(cfg, 'kein-guid'), null);
   await assert.rejects(ldap.searchPeople({ ...cfg, bindDn: '' }, 'Muster'), /Dienstkonto/);
 });
 
-test('Ohne Dienstkonto: Anmeldung prüft das Kennwort am gefundenen Konto', { skip }, async () => {
-  // Die eigentliche Kollision (UPN eines Kontos = sAMAccountName@Domäne eines anderen) lässt Samba gar nicht
-  // erst zu („implied by userPrincipalName“); hier wird der Weg über den zweiten Bind auf den DN geprüft.
+test('Without service account: login checks the password on the account found', { skip }, async () => {
+  // Samba does not even allow the actual collision (UPN of one account = sAMAccountName@domain of another)
+  // ("implied by userPrincipalName"); here the path via the second bind to the DN is tested.
   const cfg = { ...base, bindDn: '', bindPassword: '' };
   if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
   const ok = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
   assert.equal(ok?.username, 'k.kunde');
-  assert.match(ok.sid, /^S-1-5-21-\d+-\d+-\d+-\d+$/, 'objectSid wird mitgeliefert');
-  assert.match(ok.externalId, /^[0-9a-f]{32}$/, 'objectGUID als Hex');
+  assert.match(ok.sid, /^S-1-5-21-\d+-\d+-\d+-\d+$/, 'objectSid is included');
+  assert.match(ok.externalId, /^[0-9a-f]{32}$/, 'objectGUID as hex');
   assert.equal(await ldap.authenticate(cfg, 'k.kunde', 'falsch'), null);
-  assert.equal(await ldap.authenticate(cfg, 'm.muster', 'Kunde!Pass2026'), null, 'fremdes Kennwort');
+  assert.equal(await ldap.authenticate(cfg, 'm.muster', 'Kunde!Pass2026'), null, 'someone else\'s password');
 });
 
-test('objectSid: Konto über die SID finden (SSO-Zusammenführung)', { skip }, async () => {
+test('objectSid: find account by SID (SSO merging)', { skip }, async () => {
   const cfg = { ...base };
   if (!cfg.caPem) cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
   const max = await ldap.findByEmail(cfg, 'm.muster@firma.local');

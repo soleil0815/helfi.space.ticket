@@ -1,4 +1,4 @@
-// Zwei-Faktor-Anmeldung: intern ohne, extern Pflicht
+// Two-factor login: not needed internally, required externally
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,7 +9,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-mfa-'));
 process.env.HELFI_DATA_DIR = dataDir;
 process.env.HELFI_SETUP_TOKEN = 'code';
 process.env.HELFI_LOG_LEVEL = 'error';
-// Testserver läuft auf 127.0.0.1 = vertrauter Proxy → X-Forwarded-For bestimmt die Client-IP
+// Test server runs on 127.0.0.1 = trusted proxy → X-Forwarded-For determines the client IP
 
 const { openDatabase } = await import('../src/db.js');
 const { initMasterKey } = await import('../src/lib/crypto.js');
@@ -51,20 +51,20 @@ function client(ip) {
 }
 const code = (secret) => totpAt(secret, currentStep());
 
-test('TOTP nach RFC 6238 (Testvektor) und Base32', () => {
-  // RFC 6238, SHA1, Zeit 59 s → 94287082 (8 Stellen) → letzte 6: 287082
+test('TOTP per RFC 6238 (test vector) and Base32', () => {
+  // RFC 6238, SHA1, time 59 s → 94287082 (8 digits) → last 6: 287082
   const secret = base32Encode(Buffer.from('12345678901234567890'));
   assert.equal(totpAt(secret, Math.floor(59 / 30)), '287082');
   assert.equal(totpAt(secret, Math.floor(1111111109 / 30)), '081804');
   assert.deepEqual(base32Decode(base32Encode(Buffer.from('hallo welt'))), Buffer.from('hallo welt'));
   const now = 1111111109 * 1000;
   assert.equal(verifyTotp(secret, '081804', { now }), Math.floor(1111111109 / 30));
-  assert.equal(verifyTotp(secret, '081804', { now, lastStep: Math.floor(1111111109 / 30) }), null, 'nicht zweimal');
+  assert.equal(verifyTotp(secret, '081804', { now, lastStep: Math.floor(1111111109 / 30) }), null, 'not twice');
   assert.equal(verifyTotp(secret, '000000', { now }), null);
   assert.equal(verifyTotp(secret, 'abc', { now }), null);
 });
 
-test('Wiederherstellungscodes: einmalig', () => {
+test('Recovery codes: single use', () => {
   const { codes, hashes } = generateRecoveryCodes();
   assert.equal(codes.length, 10);
   assert.match(codes[0], /^[a-z2-9]{4}-[a-z2-9]{4}$/);
@@ -73,7 +73,7 @@ test('Wiederherstellungscodes: einmalig', () => {
   assert.equal(useRecoveryCode(rest, codes[3]), null);
 });
 
-test('Netze erkennen, Proxy- und Docker-Gateway-Regeln', () => {
+test('Network detection, proxy and Docker gateway rules', () => {
   const { list, invalid } = parseNetworks('10.0.0.0/8, 192.168.1.5, fd00::/8, quatsch, 10.0.0.0/40');
   assert.deepEqual(invalid, ['quatsch', '10.0.0.0/40']);
   assert.equal(list.check('10.9.9.9', 'ipv4'), true);
@@ -87,16 +87,16 @@ test('Netze erkennen, Proxy- und Docker-Gateway-Regeln', () => {
   assert.equal(p.isInternal(req('10.0.0.5')), true);
   assert.equal(p.isInternal(req('8.8.8.8')), false);
   assert.equal(p.isInternal(req('::ffff:10.0.0.5')), true);
-  assert.equal(p.isInternal(req('172.17.0.1')), false, 'Docker-Gateway zählt nicht automatisch als intern');
-  assert.equal(p.isInternal(req('10.0.0.9', '10.0.0.9', '8.8.8.8')), false, 'X-Forwarded-For von nicht vertrautem Proxy → extern');
+  assert.equal(p.isInternal(req('172.17.0.1')), false, 'Docker gateway does not automatically count as internal');
+  assert.equal(p.isInternal(req('10.0.0.9', '10.0.0.9', '8.8.8.8')), false, 'X-Forwarded-For from an untrusted proxy → external');
   assert.equal(p.mfaRequired(req('8.8.8.8')), true);
   assert.equal(p.mfaRequired(req('10.0.0.5')), false);
   const explicit = createNetworkPolicy({ get: (k) => ({ 'mfa.internalNetworks': '172.17.0.1', 'mfa.mode': 'external' }[k]) }, { gateway: '172.17.0.1' });
-  assert.equal(explicit.isInternal(req('172.17.0.1')), true, 'einzeln eingetragen = intern');
+  assert.equal(explicit.isInternal(req('172.17.0.1')), true, 'listed individually = internal');
   assert.equal(readDefaultGateway('/gibts/nicht'), null);
 });
 
-test('Einrichtung und interne Anmeldung ohne zweiten Faktor', async () => {
+test('Setup and internal login without second factor', async () => {
   const intern = client(INTERN);
   let r = await intern('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' });
   assert.equal(r.status, 200);
@@ -104,24 +104,24 @@ test('Einrichtung und interne Anmeldung ohne zweiten Faktor', async () => {
   const max = client(INTERN);
   r = await max('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   assert.equal(r.status, 200);
-  assert.ok(r.body.user, 'intern: direkt angemeldet');
+  assert.ok(r.body.user, 'internal: logged in directly');
   assert.equal((await max('GET', '/api/me')).status, 200);
 });
 
-test('Extern ohne eingerichtete 2FA: kein Zugang, kein Einrichten von außen', async () => {
+test('External without 2FA set up: no access, no setup from outside', async () => {
   const ext = client(EXTERN);
   const r = await ext('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   assert.equal(r.status, 403);
   assert.equal(r.body.error.code, 'err.mfaEnrollInternal');
-  // Profil-Einrichtung von außen geht auch nicht (keine Sitzung)
+  // Profile setup from outside does not work either (no session)
   assert.equal((await ext('POST', '/api/me/mfa/setup')).status, 401);
 });
 
-test('Interne Sitzung gilt nicht, wenn sie von außen benutzt wird', async () => {
+test('Internal session is not valid when used from outside', async () => {
   const s = client(INTERN);
   await s('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   assert.equal((await s('GET', '/api/me')).status, 200);
-  // Gleiches Cookie, andere Herkunft (Laptop zu Hause)
+  // Same cookie, different origin (laptop at home)
   const moved = client(EXTERN);
   Object.assign(moved.jar, s.jar);
   const r = await moved('GET', '/api/me');
@@ -131,7 +131,7 @@ test('Interne Sitzung gilt nicht, wenn sie von außen benutzt wird', async () =>
 });
 
 let secret; let recovery;
-test('2FA im Profil einrichten (intern), dann extern mit Code anmelden', async () => {
+test('Set up 2FA in the profile (internally), then log in externally with a code', async () => {
   const s = client(INTERN);
   await s('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   let st = (await s('GET', '/api/me/mfa')).body;
@@ -150,27 +150,27 @@ test('2FA im Profil einrichten (intern), dann extern mit Code anmelden', async (
   st = (await s('GET', '/api/me/mfa')).body;
   assert.equal(st.enabled, true);
   const raw = db.prepare("SELECT totp_secret, recovery_codes FROM users WHERE username='max'").get();
-  assert.ok(raw.totp_secret.startsWith('v1:') && !raw.totp_secret.includes(secret), 'Schlüssel verschlüsselt');
-  assert.ok(!raw.recovery_codes.includes(recovery[0]), 'nur Hashes gespeichert');
+  assert.ok(raw.totp_secret.startsWith('v1:') && !raw.totp_secret.includes(secret), 'secret encrypted');
+  assert.ok(!raw.recovery_codes.includes(recovery[0]), 'only hashes stored');
 
-  // Extern: Kennwort → Code verlangt
+  // External: password → code required
   const ext = client(EXTERN);
   let r = await ext('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   assert.deepEqual(r.body, { mfa: 'code' });
-  assert.equal((await ext('GET', '/api/me')).status, 401, 'noch keine Sitzung');
+  assert.equal((await ext('GET', '/api/me')).status, 401, 'no session yet');
   r = await ext('POST', '/api/auth/mfa', { code: '123456' });
   assert.equal(r.status, 401);
   assert.equal(r.body.error.code, 'err.mfaInvalid');
-  // Der Code von eben (Einrichtung) ist verbraucht → Code des nächsten Zeitschritts simulieren geht nicht; nimm Wiederherstellungscode
+  // The code just used (setup) is consumed → simulating the next time step's code is not possible; use a recovery code
   r = await ext('POST', '/api/auth/mfa', { code: recovery[0] });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.usedRecovery, true);
-  assert.equal((await ext('GET', '/api/me')).status, 200, 'extern angemeldet');
+  assert.equal((await ext('GET', '/api/me')).status, 200, 'logged in externally');
   assert.equal(JSON.parse(db.prepare("SELECT recovery_codes FROM users WHERE username='max'").get().recovery_codes).length, 9);
 });
 
-test('Extern mit App-Code; Code nur einmal; Halb-Anmeldung läuft nach Fehlversuchen ab', async () => {
-  // Zeitschritt zurücksetzen, damit der aktuelle Code wieder gilt
+test('External with app code; code only once; half-login expires after failed attempts', async () => {
+  // Reset the time step so the current code is valid again
   db.prepare("UPDATE users SET totp_last_step=0 WHERE username='max'").run();
   const ext = client(EXTERN);
   await ext('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
@@ -179,11 +179,11 @@ test('Extern mit App-Code; Code nur einmal; Halb-Anmeldung läuft nach Fehlversu
   const ext2 = client(EXTERN);
   await ext2('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   r = await ext2('POST', '/api/auth/mfa', { code: code(secret) });
-  assert.equal(r.status, 401, 'derselbe Code kein zweites Mal');
-  // Ohne vorherige Kennwort-Anmeldung gibt es keinen Code-Schritt
+  assert.equal(r.status, 401, 'the same code not a second time');
+  // Without a prior password login there is no code step
   const anon = client(EXTERN);
   assert.equal((await anon('POST', '/api/auth/mfa', { code: '123456' })).body.error.code, 'err.mfaExpired');
-  // 5 Fehlversuche → abgelaufen
+  // 5 failed attempts → expired
   ctx.limiter.success(EXTERN, 'max');
   const b = client(EXTERN);
   await b('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
@@ -194,7 +194,7 @@ test('Extern mit App-Code; Code nur einmal; Halb-Anmeldung läuft nach Fehlversu
   ctx.limiter.success(EXTERN, 'max');
 });
 
-test('Admin setzt 2FA zurück; Ersteinrichtung bei der Anmeldung (intern, Modus "immer")', async () => {
+test('Admin resets 2FA; enrollment at login (internal, mode "always")', async () => {
   const adm = client(INTERN);
   await adm('POST', '/api/auth/login', { username: 'admin', password: 'Sehrgeheim123' });
   const maxId = db.prepare("SELECT id FROM users WHERE username='max'").get().id;
@@ -211,13 +211,13 @@ test('Admin setzt 2FA zurück; Ersteinrichtung bei der Anmeldung (intern, Modus 
   secret = info.secret;
   assert.equal(r.body.recoveryCodes.length, 10);
   assert.equal((await s('GET', '/api/me')).status, 200);
-  // Admin-Sitzung stammt aus Anmeldung ohne Faktor → bei "immer" nicht mehr gültig
+  // Admin session comes from a login without factor → no longer valid with "always"
   assert.equal((await adm('GET', '/api/me')).status, 401);
-  // zurück auf den Standard
+  // back to the default
   ctx.settings.set('mfa.mode', 'external');
 });
 
-test('Einrichtung von außen nur, wenn ausdrücklich erlaubt', async () => {
+test('Setup from outside only if explicitly allowed', async () => {
   ctx.settings.set('mfa.enrollExternal', true);
   const ext = client(EXTERN);
   const r = await ext('POST', '/api/auth/login', { username: 'agentlos', password: 'x' });
@@ -230,7 +230,7 @@ test('Einrichtung von außen nur, wenn ausdrücklich erlaubt', async () => {
   ctx.settings.set('mfa.enrollExternal', false);
 });
 
-test('2FA abschalten braucht einen gültigen Code', async () => {
+test('Disabling 2FA needs a valid code', async () => {
   const s = client(INTERN);
   await s('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   assert.equal((await s('POST', '/api/me/mfa/disable', { code: '000000' })).status, 400);
@@ -239,7 +239,7 @@ test('2FA abschalten braucht einen gültigen Code', async () => {
   assert.equal(ctx.users.byName('max').totp_enabled, 0);
 });
 
-test('SSO-Anmeldung zählt als zweiter Faktor (Standard)', () => {
+test('SSO login counts as second factor (default)', () => {
   const res = { cookie() {}, clearCookie() {} };
   const u = ctx.users.byName('max');
   const out = ctx.mfa.afterPrimary({ ip: EXTERN, socket: { remoteAddress: EXTERN }, headers: {} }, res, u, 'oidc', { trustedSecondFactor: true });
@@ -247,7 +247,7 @@ test('SSO-Anmeldung zählt als zweiter Faktor (Standard)', () => {
   assert.equal(db.prepare("SELECT mfa FROM sessions WHERE auth_method='oidc' ORDER BY created_at DESC").get().mfa, 1);
 });
 
-test('Pflicht je Rolle: Benutzer von außen ohne Code, Bearbeiter mit; ungültige Stufe abgelehnt', async () => {
+test('Requirement per role: users from outside without code, agents with; invalid level rejected', async () => {
   const adm = client(INTERN);
   await adm('POST', '/api/auth/login', { username: 'admin', password: 'Sehrgeheim123' });
   assert.equal((await adm('PUT', '/api/admin/settings', { settings: { 'mfa.external': 'alle' } })).status, 400);
@@ -262,7 +262,7 @@ test('Pflicht je Rolle: Benutzer von außen ohne Code, Bearbeiter mit; ungültig
   assert.ok(r.body.user);
   assert.equal((await k('GET', '/api/bootstrap')).body.mfa.mode, 'off');
   const rem = client(EXTERN);
-  // Bearbeiter ohne eingerichteten Faktor: von außen gesperrt (Einrichtung nur intern)
+  // Agents without a factor set up: locked out from outside (setup only internally)
   assert.equal((await rem('POST', '/api/auth/login', { username: 'remote', password: 'Sehrgeheim123' })).body.error.code, 'err.mfaEnrollInternal');
   ctx.settings.set('mfa.external', '');
   ctx.settings.set('mfa.internal', '');

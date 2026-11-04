@@ -1,5 +1,5 @@
-// Regressionstests Audit 2026-11, Bereich Anmeldung/Rechte/Einstellungen
-// (jeder Test scheitert am Stand vor der Behebung)
+// Regression tests audit 2026-11: login/permissions/settings
+// (each test fails on the code before the fix)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
@@ -12,7 +12,7 @@ after(async () => { await S.stop(); });
 
 const PH = '••••••••';
 
-/** Client mit Cookie-Dose (mehrere Cookies, z. B. helfi_mfa + helfi_sid) */
+/** Client with a cookie jar (several cookies, e.g. helfi_mfa + helfi_sid) */
 function jarClient() {
   const jar = {};
   return async (method, url, body) => {
@@ -28,7 +28,7 @@ function jarClient() {
   };
 }
 
-// Zwei unterschiedliche, selbst signierte Beispiel-Zertifikate (nur für den Vergleich, keine echten Schlüssel)
+// Two different self-signed sample certificates (only for comparison, no real keys)
 const mkCert = (cn) => {
   const r = spawnSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', '/dev/null', '-subj', `/CN=${cn}`, '-days', '1'], { encoding: 'utf8' });
   return r.stdout;
@@ -36,41 +36,41 @@ const mkCert = (cn) => {
 const CA1 = mkCert('ca.firma.local');
 const CA2 = mkCert('fremd.example');
 
-test('Geheimnis bleibt beim Server-Wechsel nicht erhalten (LDAP, SSO, IMAP, SMTP)', { skip: !CA1 && 'openssl fehlt' }, async () => {
+test('Secret is not kept when the server changes (LDAP, SSO, IMAP, SMTP)', { skip: !CA1 && 'openssl missing' }, async () => {
   const { admin, ctx } = S;
   const put = (settings) => admin('PUT', '/api/admin/settings', { settings });
   assert.equal((await put({ 'ldap.host': 'dc01.firma.local', 'ldap.bindDn': 'CN=svc,DC=firma,DC=local', 'ldap.bindPassword': 'Dienst!Pass1' })).status, 200);
 
-  // anderer Server, Platzhalter zurückgeschickt → abgelehnt, nichts gespeichert
+  // different server, placeholder sent back → rejected, nothing saved
   let r = await put({ 'ldap.host': 'fremd.example', 'ldap.bindPassword': PH });
   assert.equal(r.status, 400);
   assert.equal(r.body.error.code, 'err.secretRebind');
   assert.match(r.body.error.message, /Kennwort/);
   assert.equal(ctx.settings.get('ldap.host'), 'dc01.firma.local');
   assert.equal(ctx.settings.get('ldap.bindPassword'), 'Dienst!Pass1');
-  // ohne Kennwortfeld ebenso
+  // likewise without a password field
   assert.equal((await put({ 'ldap.port': 389 })).status, 400);
-  // Zertifikatsprüfung abschwächen bindet ebenfalls
+  // weakening certificate validation also requires the secret
   assert.equal((await put({ 'ldap.tlsMode': 'insecure', 'ldap.bindPassword': PH })).status, 400);
   assert.equal((await put({ 'ldap.verifyHostname': false, 'ldap.bindPassword': PH })).status, 400);
-  // gepinntes Zertifikat → Systemzertifikate ist ebenfalls schwächer (jede öffentliche CA würde reichen)
+  // pinned certificate → system certificates is also weaker (any public CA would do)
   assert.equal((await put({ 'ldap.tlsMode': 'system', 'ldap.bindPassword': PH })).status, 400);
-  // anderes hinterlegtes Zertifikat (eigene CA unterschieben) bindet ebenfalls, das erste nicht
+  // a different stored certificate (slipping in one's own CA) also requires it, the first one does not
   assert.equal((await put({ 'ldap.caPem': CA1, 'ldap.bindPassword': PH })).status, 200);
-  assert.equal((await put({ 'ldap.caPem': CA1, 'ldap.bindPassword': PH })).status, 200, 'gleiches Zertifikat erneut speichern');
+  assert.equal((await put({ 'ldap.caPem': CA1, 'ldap.bindPassword': PH })).status, 200, 'saving the same certificate again');
   assert.equal((await put({ 'ldap.caPem': CA2, 'ldap.bindPassword': PH })).status, 400);
   assert.equal(ctx.settings.get('ldap.bindPassword'), 'Dienst!Pass1');
-  // gleicher Server, andere Felder: erlaubt
+  // same server, other fields: allowed
   assert.equal((await put({ 'ldap.bindPassword': PH, 'ldap.host': 'dc01.firma.local', 'ldap.baseDn': 'DC=firma,DC=local' })).status, 200);
   assert.equal(ctx.settings.get('ldap.bindPassword'), 'Dienst!Pass1');
-  // mit neu eingegebenem Kennwort: erlaubt
+  // with a newly entered password: allowed
   assert.equal((await put({ 'ldap.host': 'dc02.firma.local', 'ldap.tlsMode': 'insecure', 'ldap.bindPassword': 'Neu!Pass2' })).status, 200);
   assert.equal(ctx.settings.get('ldap.host'), 'dc02.firma.local');
   assert.equal(ctx.settings.get('ldap.bindPassword'), 'Neu!Pass2');
-  // von insecure zurück auf system: strenger, erlaubt
+  // from insecure back to system: stricter, allowed
   assert.equal((await put({ 'ldap.tlsMode': 'system', 'ldap.bindPassword': PH })).status, 200);
 
-  // Verbindungstest: abgeschwächte Prüfung schickt das gespeicherte Kennwort nicht mit
+  // Connection test: weakened validation does not send the stored password
   assert.equal(ctx.settings.mergedGroup('ldap', { 'ldap.tlsMode': 'insecure', 'ldap.bindPassword': PH }).bindPassword, '');
   assert.equal(ctx.settings.mergedGroup('ldap', { 'ldap.tlsMode': 'system', 'ldap.bindPassword': PH }).bindPassword, 'Neu!Pass2');
 
@@ -89,12 +89,12 @@ test('Geheimnis bleibt beim Server-Wechsel nicht erhalten (LDAP, SSO, IMAP, SMTP
   assert.equal((await put({ 'smtp.user': 'jemand', 'smtp.password': PH })).status, 400);
   assert.equal(ctx.settings.get('smtp.user'), 'helpdesk');
 
-  // ohne gespeichertes Geheimnis gibt es nichts zu schützen
+  // without a stored secret there is nothing to protect
   ctx.settings.set('smtp.password', '');
   assert.equal((await put({ 'smtp.host': 'neu.firma.local', 'smtp.password': '' })).status, 200);
 });
 
-test('SSO: Name/E-Mail aus unbestätigter Adresse führen nicht mit dem AD-Konto zusammen', async () => {
+test('SSO: name/email from an unverified address are not merged with the AD account', async () => {
   const { ctx } = S;
   const { claimsToUser } = await import('../src/auth/oidc.js');
   const { roleFromGroups } = await import('../src/users.js');
@@ -109,41 +109,41 @@ test('SSO: Name/E-Mail aus unbestätigter Adresse führen nicht mit dem AD-Konto
   assert.notEqual(got.id, chef.id);
   assert.equal(got.role, 'user');
   assert.equal(got.email, null);
-  // ohne email_verified ebenso; auch wenn der Admin "email" als Namens-Claim gewählt hat
+  // likewise without email_verified; even if the admin chose "email" as the name claim
   assert.equal(claimsToUser({ sub: 'x', email: 'chef@firma.local' }, cfg).trustName, false);
   assert.equal(claimsToUser({ sub: 'x', email: 'chef@firma.local' }, { ...cfg, usernameClaim: 'email' }).trustName, false);
 
-  // bestätigte Adresse: wie bisher
+  // verified address: as before
   const ok = claimsToUser({ sub: 'x', email: 'chef@firma.local', email_verified: true }, cfg);
   assert.deepEqual([ok.username, ok.trustName, ok.trustEmail], ['chef', true, true]);
-  // preferred_username/UPN-Weg unverändert; gleiche Adresse wie der Name gilt als bestätigt (Entra ID)
+  // preferred_username/UPN path unchanged; same address as the name counts as verified (Entra ID)
   const upn = claimsToUser({ sub: 'x', preferred_username: 'chef@firma.local', email: 'chef@firma.local' }, cfg);
   assert.deepEqual([upn.username, upn.trustName, upn.trustEmail], ['chef', true, true]);
   const noMail = claimsToUser({ sub: 'x', preferred_username: 'chef@firma.local' }, cfg);
   assert.deepEqual([noMail.email, noMail.trustEmail], ['chef@firma.local', true]);
-  // abweichende, unbestätigte Adresse wird nicht übernommen
+  // a different, unverified address is not taken over
   assert.equal(claimsToUser({ sub: 'x', preferred_username: 'chef@firma.local', email: 'kontakt@firma.local' }, cfg).trustEmail, false);
 });
 
-test('Sitzung: absolute Höchstdauer 30 Tage ab Anmeldung', async () => {
+test('Session: absolute maximum lifetime of 30 days from login', async () => {
   const { db } = S;
   const SESSION_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
   const u = await S.user('sitz', 'user');
   const sid = db.prepare('SELECT id FROM sessions WHERE user_id=? ORDER BY created_at DESC').get(S.ids.sitz).id;
-  // knapp unter der Höchstdauer: gültig, Verlängerung höchstens bis zur Höchstdauer
+  // just under the maximum lifetime: valid, extended at most up to the maximum lifetime
   const created = Date.now() - SESSION_MAX_AGE_MS + 3600e3;
   db.prepare('UPDATE sessions SET created_at=?, expires_at=? WHERE id=?').run(created, Date.now() + 120e3, sid);
   assert.equal((await u('GET', '/api/me')).status, 200);
   const exp = db.prepare('SELECT expires_at FROM sessions WHERE id=?').get(sid).expires_at;
-  assert.ok(exp <= created + SESSION_MAX_AGE_MS, 'nicht über die Höchstdauer verlängert');
-  // älter als 30 Tage: ungültig und gelöscht, auch wenn expires_at noch in der Zukunft liegt
+  assert.ok(exp <= created + SESSION_MAX_AGE_MS, 'not extended beyond the maximum lifetime');
+  // older than 30 days: invalid and deleted, even if expires_at is still in the future
   db.prepare('UPDATE sessions SET created_at=?, expires_at=? WHERE id=?').run(Date.now() - SESSION_MAX_AGE_MS - 1000, Date.now() + 3600e3, sid);
   assert.equal((await u('GET', '/api/me')).status, 401);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM sessions WHERE id=?').get(sid).n, 0);
   assert.equal((await import('../src/auth/session.js')).SESSION_MAX_AGE_MS, SESSION_MAX_AGE_MS);
 });
 
-test('2FA-Ersteinrichtung bei der Anmeldung überschreibt keinen inzwischen eingerichteten Faktor', async () => {
+test('2FA enrollment at login does not overwrite a factor set up in the meantime', async () => {
   const { admin, db, ctx } = S;
   const { totpAt, currentStep } = await import('../src/auth/totp.js');
   const code = (secret) => totpAt(secret, currentStep());
@@ -165,7 +165,7 @@ test('2FA-Ersteinrichtung bei der Anmeldung überschreibt keinen inzwischen eing
   } finally { ctx.settings.set('mfa.internal', ''); }
 });
 
-test('2FA-Fehlversuche zählen je Konto, nicht je normalisiertem Namen', async () => {
+test('2FA failed attempts count per account, not per normalized name', async () => {
   const { admin, ctx } = S;
   for (const username of ['maxi', 'maxi@firma.local']) {
     const r = await admin('POST', '/api/users', { username, displayName: username, email: `${username.replace('@firma.local', '2')}@firma.local`, role: 'user', password: 'Sehrgeheim123' });
@@ -173,7 +173,7 @@ test('2FA-Fehlversuche zählen je Konto, nicht je normalisiertem Namen', async (
   }
   ctx.settings.set('mfa.internal', 'all');
   try {
-    // "maxi": 8 falsche Codes (zwei Anmeldungen, je höchstens 5 Versuche)
+    // "maxi": 8 wrong codes (two logins, at most 5 attempts each)
     let left = 8;
     while (left > 0) {
       const c = jarClient();
@@ -181,7 +181,7 @@ test('2FA-Fehlversuche zählen je Konto, nicht je normalisiertem Namen', async (
       await c('POST', '/api/auth/mfa/enroll');
       for (let i = 0; i < 4 && left > 0; i++, left--) await c('POST', '/api/auth/mfa', { code: '000000' });
     }
-    // "maxi@firma.local" ist davon nicht gesperrt
+    // "maxi@firma.local" is not locked by this
     const d = jarClient();
     assert.deepEqual((await d('POST', '/api/auth/login', { username: 'maxi@firma.local', password: 'Sehrgeheim123' })).body, { mfa: 'enroll' });
     await d('POST', '/api/auth/mfa/enroll');
@@ -190,7 +190,7 @@ test('2FA-Fehlversuche zählen je Konto, nicht je normalisiertem Namen', async (
   } finally { ctx.settings.set('mfa.internal', ''); }
 });
 
-test('Deaktiviertes lokales Konto: gleiche Antwort wie bei falschem Kennwort', async () => {
+test('Disabled local account: same response as for a wrong password', async () => {
   const { admin } = S;
   const r = await admin('POST', '/api/users', { username: 'weg', displayName: 'Weg', email: 'weg@firma.local', role: 'user', password: 'Sehrgeheim123' });
   assert.equal((await admin('PATCH', `/api/users/${r.body.user.id}`, { active: false })).status, 200);
@@ -201,7 +201,7 @@ test('Deaktiviertes lokales Konto: gleiche Antwort wie bei falschem Kennwort', a
   assert.deepEqual(right.body, wrong.body);
 });
 
-test('Melder-Adresse/-Anmeldename nur für Bearbeiter und den Melder selbst', async () => {
+test('Reporter address/login name only for agents and the reporter themselves', async () => {
   const mel = await S.user('melder', 'user');
   const teil = await S.user('teilnehm', 'user');
   const ag = await S.user('bearb', 'agent');
@@ -218,14 +218,14 @@ test('Melder-Adresse/-Anmeldename nur für Bearbeiter und den Melder selbst', as
   assert.deepEqual([asAgent.email, asAgent.username], ['melder@firma.local', 'melder']);
 });
 
-test('HELFI_TRUST_PROXY: true/Zahl/ungültig → Warnung und „loopback“, kein Absturz', async () => {
+test('HELFI_TRUST_PROXY: true/number/invalid → warning and "loopback", no crash', async () => {
   const { applyTrustProxy } = await import('../src/app.js');
   for (const raw of ['true', 'TRUE', 'false', '1', '2', 'kein-proxy', '', undefined]) {
     const app = express();
     assert.equal(applyTrustProxy(app, raw), 'loopback', String(raw));
     const fn = app.get('trust proxy fn');
-    assert.equal(fn('203.0.113.9', 0), false, `${raw}: fremde Adresse nicht vertraut`);
-    assert.equal(fn('0.0.0.1', 0), false, `${raw}: "1" ist keine Adresse`);
+    assert.equal(fn('203.0.113.9', 0), false, `${raw}: foreign address not trusted`);
+    assert.equal(fn('0.0.0.1', 0), false, `${raw}: "1" is not an address`);
     assert.equal(fn('127.0.0.1', 0), true);
   }
   const app = express();
@@ -233,7 +233,7 @@ test('HELFI_TRUST_PROXY: true/Zahl/ungültig → Warnung und „loopback“, kei
   assert.equal(app.get('trust proxy fn')('10.0.10.5', 0), true);
 });
 
-test('SVG-Logo: Namensraum-Präfix, CSS-Escapes und Zeichenreferenzen werden abgelehnt', async () => {
+test('SVG logo: namespace prefix, CSS escapes and character references are rejected', async () => {
   const { checkSvg } = await import('../src/brand.js');
   for (const bad of [
     '<svg xmlns:h="http://www.w3.org/1999/xhtml"><h:script>alert(1)</h:script></svg>',
@@ -244,7 +244,7 @@ test('SVG-Logo: Namensraum-Präfix, CSS-Escapes und Zeichenreferenzen werden abg
     "<svg><a href='javascript&colon;alert(1)'><rect/></a></svg>",
     '<svg><style>rect{fill:u&#x72;l(https://example.com/a)}</style></svg>',
   ]) assert.equal(checkSvg(Buffer.from(bad)), 'err.brandUnsafeSvg', bad);
-  // Übliche Logos bleiben erlaubt
+  // Common logos stay allowed
   const ok = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10"><title>Firma &amp; Co</title><style>.a{fill:#0052CC}</style><defs><linearGradient id="g"/></defs><rect class="a" fill="url(#g)" width="10" height="10"/><text>A &amp; B</text><use xlink:href="#g"/></svg>';
   assert.equal(checkSvg(Buffer.from(ok)), null);
 });

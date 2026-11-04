@@ -1,16 +1,16 @@
-// Personenauswahl beim Hinzufügen von Teilnehmern: Fokus bleibt im Feld, Tastatur, AD-Treffer kommen nach.
-// Braucht Playwright mit Chromium (nicht Teil der Abhängigkeiten) – fehlt es, wird der Test übersprungen.
+// People picker when adding participants: focus stays in the field, keyboard, AD results arrive later.
+// Needs Playwright with Chromium (not part of the dependencies) – if missing, the test is skipped.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { startServer } from './helpers/server.js';
 
 let chromium = null;
-try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* nicht installiert */ }
+try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* not installed */ }
 if (!chromium && process.env.NODE_PATH) {
-  try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* auch dort nicht */ }
+  try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* not there either */ }
 }
-const skip = !chromium && 'Playwright fehlt';
+const skip = !chromium && 'Playwright missing';
 
 let S; let browser;
 let adDelay = 0;
@@ -50,7 +50,7 @@ async function page(username) {
 const focused = (p) => p.evaluate(() => document.activeElement?.matches('.participants input') || false);
 const items = (p) => p.$$eval('.picker-menu [role=option]', (x) => x.map((i) => i.textContent));
 
-test('Tippen Buchstabe für Buchstabe: Fokus bleibt, AD-Treffer kommen nach', { skip }, async () => {
+test('Typing letter by letter: focus stays, AD results arrive later', { skip }, async () => {
   const { p, errors } = await page('anna');
   await p.goto(`${S.base}/browse/IT-1`);
   await p.click('.participants button.link');
@@ -58,16 +58,16 @@ test('Tippen Buchstabe für Buchstabe: Fokus bleibt, AD-Treffer kommen nach', { 
   for (const ch of 'e.be') {
     await p.keyboard.type(ch);
     await p.waitForTimeout(350);
-    assert.ok(await focused(p), `Fokus nach „${ch}“`);
+    assert.ok(await focused(p), `focus after "${ch}"`);
   }
-  // Lokale Treffer sofort, AD noch in Arbeit
+  // Local results immediately, AD still in progress
   await p.waitForSelector('.picker-loading');
   await p.waitForSelector('.picker-menu .badge-ad');
-  assert.ok(await focused(p), 'Fokus nach dem Nachladen');
-  assert.ok(!(await p.$('.picker-loading')), 'Ladehinweis weg');
+  assert.ok(await focused(p), 'focus after loading more');
+  assert.ok(!(await p.$('.picker-loading')), 'loading indicator gone');
   const list = await items(p);
   assert.ok(list.some((x) => x.includes('Erika Beispiel')) && list.some((x) => x.includes('Emil Beck')), list.join('|'));
-  // Tastatur: ↓ und Enter
+  // Keyboard: ↓ and Enter
   await p.keyboard.press('ArrowDown');
   const chosen = await p.$eval('.picker-menu .menu-item.active .person-name', (e) => e.textContent);
   await p.keyboard.press('Enter');
@@ -76,7 +76,7 @@ test('Tippen Buchstabe für Buchstabe: Fokus bleibt, AD-Treffer kommen nach', { 
   adDelay = 0;
 });
 
-test('Zwei Zeichen: Hinweis auf AD ab 3 Zeichen; Esc schließt; veraltete Antwort überschreibt nichts', { skip }, async () => {
+test('Two characters: hint that AD needs 3 characters; Esc closes; stale response overwrites nothing', { skip }, async () => {
   const { p } = await page('anna');
   await p.goto(`${S.base}/browse/IT-2`);
   await p.click('.participants button.link');
@@ -84,9 +84,9 @@ test('Zwei Zeichen: Hinweis auf AD ab 3 Zeichen; Esc schließt; veraltete Antwor
   await p.waitForSelector('.picker-menu');
   assert.ok(await focused(p));
   assert.match(await p.$eval('.picker-menu', (m) => m.textContent), /mindestens 3 Zeichen|at least 3 characters/);
-  assert.ok((await items(p)).some((x) => x.includes('ebert')), 'lokale Person bei 2 Zeichen');
+  assert.ok((await items(p)).some((x) => x.includes('ebert')), 'local person at 2 characters');
 
-  // langsame AD-Antwort für „emi“, dann schnell weiter auf „erika“
+  // slow AD response for "emi", then quickly on to "erika"
   adDelay = 800;
   await p.fill('.participants input', 'emi');
   await p.waitForTimeout(300);
@@ -95,14 +95,14 @@ test('Zwei Zeichen: Hinweis auf AD ab 3 Zeichen; Esc schließt; veraltete Antwor
   await p.waitForSelector('.picker-menu .badge-ad');
   await p.waitForTimeout(900);
   const list = await items(p);
-  assert.ok(list.every((x) => !x.includes('Emil')), `veraltete Treffer: ${list.join('|')}`);
+  assert.ok(list.every((x) => !x.includes('Emil')), `stale results: ${list.join('|')}`);
 
   await p.keyboard.press('Escape');
   assert.equal(await p.$('.picker-menu'), null);
-  assert.ok(await p.$('.participants button.link'), 'zurück zum Knopf');
+  assert.ok(await p.$('.participants button.link'), 'back to the button');
 });
 
-test('Benutzer: keine AD-Suche, kein AD-Hinweis', { skip }, async () => {
+test('Users: no AD search, no AD hint', { skip }, async () => {
   const { p } = await page('karl');
   await p.goto(`${S.base}/browse/IT-2`);
   await p.click('.participants button.link');

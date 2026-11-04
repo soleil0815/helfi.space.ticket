@@ -1,4 +1,4 @@
-// Problem-Management und Zusatzfelder
+// Problem management and extra fields
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -11,12 +11,12 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Benutzer können keine Probleme anlegen', async () => {
+test('Users cannot create problems', async () => {
   const r = await karl('POST', '/api/tickets', { title: 'x', type: 'problem' });
   assert.equal(r.body.ticket.type, 'request');
 });
 
-test('Problem aus Störung, Felder, bekannter Fehler, Hinweis und Info an Betroffene', async () => {
+test('Problem from incident, fields, known error, banner and notice to affected tickets', async () => {
   const inc = (await karl('POST', '/api/tickets', { title: 'Drucker druckt nicht', type: 'incident' })).body.ticket.key;
   assert.equal((await karl('POST', `/api/tickets/${inc}/problem`, {})).status, 403);
   const p = (await anna('POST', `/api/tickets/${inc}/problem`, {})).body.ticket;
@@ -28,23 +28,23 @@ test('Problem aus Störung, Felder, bekannter Fehler, Hinweis und Info an Betrof
   const r = await anna('PATCH', `/api/tickets/${p.key}/fields`, { rootCause: 'Treiber 3.2', workaround: 'Treiber 3.1 verwenden', knownError: true, unbekannt: 'x' });
   assert.deepEqual(r.body.fields, { rootCause: 'Treiber 3.2', workaround: 'Treiber 3.1 verwenden', knownError: true });
   tk = (await anna('GET', `/api/tickets/${p.key}`)).body.ticket;
-  assert.ok(tk.activity.some((a) => a.field === 'rootCause' && a.newValue === null), 'Text ohne Inhalt im Verlauf');
+  assert.ok(tk.activity.some((a) => a.field === 'rootCause' && a.newValue === null), 'text without content in the activity log');
   assert.ok(tk.activity.some((a) => a.field === 'knownError' && a.newValue === '1'));
   const i = (await anna('GET', `/api/tickets/${inc}`)).body.ticket;
   assert.deepEqual(i.problems, [{ key: p.key, title: 'Drucker druckt nicht', status: 'open', workaround: 'Treiber 3.1 verwenden', knownError: true }]);
-  assert.equal((await karl('GET', `/api/tickets/${inc}`)).body.ticket.problems, undefined, 'Benutzer sehen den Hinweis nicht');
+  assert.equal((await karl('GET', `/api/tickets/${inc}`)).body.ticket.problems, undefined, 'users do not see the banner');
   assert.equal((await karl('PATCH', `/api/tickets/${p.key}/fields`, { rootCause: 'x' })).status, 403);
   assert.deepEqual((await anna('GET', '/api/known-errors')).body.knownErrors.map((k) => k.key), [p.key]);
-  // Info an alle betroffenen Störungen
+  // Notice to all affected incidents
   const b = await anna('POST', `/api/tickets/${p.key}/broadcast`, { body: 'Bitte Treiber 3.1 verwenden.' });
   assert.deepEqual(b.body, { notified: 2, resolved: 0 });
   assert.equal((await karl('GET', `/api/tickets/${inc}`)).body.ticket.comments.at(-1).body, 'Bitte Treiber 3.1 verwenden.');
-  // Felder gibt es nur für passende Typen
+  // Fields only exist for matching types
   assert.equal((await anna('PATCH', `/api/tickets/${inc}/fields`, { rootCause: 'x' })).status, 400);
   assert.equal((await anna('GET', '/api/queues')).body.counts.problems, 1);
 });
 
-test('Migration 12 baut tickets um, ohne Kommentare, Verknüpfungen oder Anhänge zu verlieren', async () => {
+test('Migration 12 rebuilds tickets without losing comments, links or attachments', async () => {
   const fs = await import('node:fs');
   const os = await import('node:os');
   const path = await import('node:path');
@@ -52,7 +52,7 @@ test('Migration 12 baut tickets um, ohne Kommentare, Verknüpfungen oder Anhäng
   const { MIGRATIONS, openDatabase } = await import('../src/db.js');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-mig12-'));
   const file = path.join(dir, 'h.sqlite');
-  // Stand vor Migration 12 mit Daten erzeugen
+  // Create the state before migration 12 with data
   const d = new Database(file);
   d.pragma('foreign_keys = ON');
   for (const m of MIGRATIONS.filter((x) => x.id < 12)) d.exec(m.sql);
@@ -68,9 +68,9 @@ test('Migration 12 baut tickets um, ohne Kommentare, Verknüpfungen oder Anhäng
   assert.equal(db.prepare('SELECT COUNT(*) n FROM ticket_links').get().n, 1);
   assert.deepEqual({ ...db.prepare('SELECT impact, major FROM tickets WHERE id=1').get() }, { impact: 'high', major: 1 });
   db.prepare("INSERT INTO tickets(project_id,number,title,type) VALUES(1,3,'C','problem')").run();
-  assert.equal(db.pragma('foreign_keys', { simple: true }), 1, 'Fremdschlüssel wieder an');
+  assert.equal(db.pragma('foreign_keys', { simple: true }), 1, 'foreign keys back on');
   assert.deepEqual(db.pragma('foreign_key_check'), []);
-  // Fremdschlüssel wirken noch: Kommentar zu unbekanntem Ticket wird abgelehnt
+  // Foreign keys still work: a comment on an unknown ticket is rejected
   assert.throws(() => db.prepare("INSERT INTO comments(ticket_id,body) VALUES(999,'x')").run(), /FOREIGN KEY/);
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });

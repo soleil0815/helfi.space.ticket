@@ -1,4 +1,4 @@
-// Tests: Projekte löschen (leer, mit Verschieben, mit Mitlöschen, Schutzregeln)
+// Tests: deleting projects (empty, with moving, with deleting tickets, protection rules)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -43,7 +43,7 @@ const admin = client();
 const anna = client();
 const pid = {};
 
-test('Vorbereitung', async () => {
+test('Setup', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   await admin('POST', '/api/users', { username: 'anna', displayName: 'Anna', email: 'anna@firma.local', role: 'agent', password: 'Sehrgeheim123' });
   assert.equal((await anna('POST', '/api/auth/login', { username: 'anna', password: 'Sehrgeheim123' })).status, 200);
@@ -53,7 +53,7 @@ test('Vorbereitung', async () => {
   await admin('POST', '/api/tickets', { title: 'HR-Ticket', projectId: pid.HR });
 });
 
-test('Leeres Projekt löschen; nur Admins', async () => {
+test('Delete empty project; admins only', async () => {
   assert.equal((await anna('DELETE', `/api/projects/${pid.LEER}`, {})).status, 403);
   const r = await admin('DELETE', `/api/projects/${pid.LEER}`, {});
   assert.equal(r.status, 200);
@@ -62,15 +62,15 @@ test('Leeres Projekt löschen; nur Admins', async () => {
   assert.equal((await admin('DELETE', `/api/projects/${pid.LEER}`, {})).status, 404);
 });
 
-test('Projekt mit Tickets: ohne Ziel abgelehnt, Mitlöschen gibt es nicht', async () => {
+test('Project with tickets: rejected without target, deleting tickets along does not exist', async () => {
   assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, {})).status, 400);
   assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { deleteTickets: true, confirmKey: 'ALT' })).status, 400);
-  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'ALT' })).status, 400, 'nicht in sich selbst');
+  assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'ALT' })).status, 400, 'not into itself');
   assert.equal((await admin('DELETE', `/api/projects/${pid.ALT}`, { moveTo: 'GIBTSNICHT' })).status, 400);
-  assert.ok(ctx.tickets.projects.get('ALT'), 'nichts gelöscht');
+  assert.ok(ctx.tickets.projects.get('ALT'), 'nothing deleted');
 });
 
-test('Verschieben: neue Nummern im Ziel, alte im Verlauf, Einstellungen umgestellt, Sicherung angelegt', async () => {
+test('Moving: new numbers in the target, old ones in the activity log, settings switched, backup created', async () => {
   ctx.settings.set('imap.project', 'ALT');
   ctx.settings.set('general.defaultProject', 'ALT');
   const itBefore = (await admin('GET', '/api/tickets?project=IT')).body.tickets.length;
@@ -86,10 +86,10 @@ test('Verschieben: neue Nummern im Ziel, alte im Verlauf, Einstellungen umgestel
   assert.equal(hist.newValue, eins.key);
   assert.equal(ctx.settings.get('imap.project'), 'IT');
   assert.equal(ctx.settings.get('general.defaultProject'), 'IT');
-  assert.ok(fs.readdirSync(paths.backups).some((f) => f.includes('vor-loeschen-ALT')), 'Sicherung vorher');
+  assert.ok(fs.readdirSync(paths.backups).some((f) => f.includes('vor-loeschen-ALT')), 'backup beforehand');
 });
 
-test('Tickets mit Anhängen werden nie mitgelöscht', async () => {
+test('Tickets with attachments are never deleted along', async () => {
   const hr = (await admin('GET', '/api/tickets?project=HR')).body.tickets[0];
   const r = await admin('DELETE', `/api/projects/${pid.HR}`, { deleteTickets: true, confirmKey: 'HR' });
   assert.equal(r.status, 400);
@@ -98,13 +98,13 @@ test('Tickets mit Anhängen werden nie mitgelöscht', async () => {
   assert.ok(ctx.tickets.projects.get('HR'));
 });
 
-test('Das letzte Projekt bleibt; nicht in archivierte Projekte verschieben', async () => {
+test('The last project stays; no moving into archived projects', async () => {
   await admin('POST', '/api/projects', { key: 'ARCH', name: 'Archiv' });
   const arch = (await admin('GET', '/api/projects?all=1')).body.projects.find((p) => p.key === 'ARCH')
     || ctx.tickets.projects.get('ARCH');
   await admin('PATCH', `/api/projects/${arch.id}`, { archived: true });
   assert.equal((await admin('DELETE', `/api/projects/${pid.IT}`, { moveTo: 'ARCH' })).status, 400);
   assert.equal((await admin('DELETE', `/api/projects/${arch.id}`, {})).status, 200);
-  assert.equal((await admin('DELETE', `/api/projects/${pid.IT}`, { deleteTickets: true, confirmKey: 'IT' })).status, 400, 'letztes Projekt');
+  assert.equal((await admin('DELETE', `/api/projects/${pid.IT}`, { deleteTickets: true, confirmKey: 'IT' })).status, 400, 'last project');
   assert.ok(ctx.tickets.projects.get('IT'));
 });

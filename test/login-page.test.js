@@ -1,4 +1,4 @@
-// Tests: eigene Texte der Anmeldeseite
+// Tests: custom texts on the login page
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -26,12 +26,12 @@ before(async () => {
 });
 after(() => { server?.close(); db?.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
-test('Ohne Anmeldung: Texte der Anmeldeseite (leer als Standard)', async () => {
+test('Without login: login page texts (empty by default)', async () => {
   const b = await (await fetch(`${base}/api/bootstrap`)).json();
   assert.deepEqual(b.login, { title: '', text: { de: '', en: '' }, userLabel: { de: '', en: '' } });
 });
 
-test('Eigene Texte werden ausgeliefert und begrenzt', async () => {
+test('Custom texts are delivered and truncated', async () => {
   ctx.settings.set('login.title', 'HELFI Hilfecenter');
   ctx.settings.set('login.textDe', '**IT-Hilfe erhalten**\nSchreiben Sie an helpdesk@firma.local');
   ctx.settings.set('login.textEn', 'x'.repeat(5000));

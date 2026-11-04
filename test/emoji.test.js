@@ -1,4 +1,4 @@
-// Emojis: Suche, Kurznamen beim Tippen und unverfälschte Speicherung
+// Emojis: search, shortcodes while typing and unaltered storage
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,7 +13,7 @@ process.env.HELFI_LOG_LEVEL = 'error';
 const { EMOJIS } = await import('../public/js/emoji-data.js');
 const { searchEmojis, shortcodeAt, completedShortcode, emoticonBefore, EMOTICONS } = await import('../public/js/emoji.js');
 
-test('Liste: eindeutige Kurznamen und Zeichen, jedes mit Suchwörtern', () => {
+test('List: unique shortcodes and characters, each with search words', () => {
   assert.ok(EMOJIS.length > 200);
   assert.equal(new Set(EMOJIS.map((e) => e.code)).size, EMOJIS.length);
   assert.equal(new Set(EMOJIS.map((e) => e.char)).size, EMOJIS.length);
@@ -23,7 +23,7 @@ test('Liste: eindeutige Kurznamen und Zeichen, jedes mit Suchwörtern', () => {
   }
 });
 
-test('Suche deutsch und englisch, Kurzname zuerst', () => {
+test('Search in German and English, shortcode first', () => {
   assert.equal(searchEmojis('daumen')[0].char, '👍');
   assert.equal(searchEmojis('thumbsup')[0].char, '👍');
   assert.equal(searchEmojis(':drucker')[0].char, '🖨️');
@@ -32,40 +32,40 @@ test('Suche deutsch und englisch, Kurzname zuerst', () => {
   assert.equal(searchEmojis('a', 5).length, 5);
 });
 
-test('Kurznamen beim Tippen erkennen, Uhrzeiten und Adressen nicht', () => {
+test('Detect shortcodes while typing, but not times and addresses', () => {
   assert.deepEqual(shortcodeAt('Danke :dau', 10), { start: 6, query: 'dau' });
   assert.deepEqual(shortcodeAt(':ok', 3), { start: 0, query: 'ok' });
   assert.equal(shortcodeAt('Treffen 12:30', 13), null);
   assert.equal(shortcodeAt('https://helfi.firma.local', 25), null);
   assert.equal(shortcodeAt('Hinweis: x', 10), null);
-  assert.equal(shortcodeAt('nur :a', 6), null, 'mindestens zwei Zeichen');
+  assert.equal(shortcodeAt('nur :a', 6), null, 'at least two characters');
   const done = completedShortcode('Super :tada:', 12);
   assert.equal(done.emoji.char, '🎉');
   assert.equal(done.start, 6);
   assert.equal(completedShortcode('Zeit 10:15:', 11), null);
 });
 
-test('Klassische Smileys: nur wenn sie allein stehen', () => {
+test('Classic smileys: only when standing alone', () => {
   assert.deepEqual(emoticonBefore('Danke :)', 8), { start: 6, original: ':)', char: '🙂' });
-  assert.equal(emoticonBefore(':-)', 3).char, '🙂', 'längste Form zuerst');
+  assert.equal(emoticonBefore(':-)', 3).char, '🙂', 'longest form first');
   assert.equal(emoticonBefore(';)', 2).char, '😉');
   assert.equal(emoticonBefore('Gut :D', 6).char, '😄');
-  assert.equal(emoticonBefore('x <3', 4).char, '❤️', 'am Textende');
-  assert.equal(emoticonBefore('x <3', 4, '\n').char, '❤️', 'am Zeilenende');
-  assert.equal(emoticonBefore('Antwortzeit <3', 14, ' '), null, '„kleiner als 3“ mitten im Satz');
-  assert.equal(emoticonBefore('Danke :)', 8, ' ').char, '🙂', 'andere Smileys auch vor Leerzeichen');
-  assert.equal(emoticonBefore('Wert `a :)', 10), null, 'in Inline-Code nicht');
-  assert.equal(emoticonBefore('```\nif (x) :)', 13), null, 'im Code-Block nicht');
-  assert.equal(emoticonBefore('```\ncode\n```\nDanke :)', 21).char, '🙂', 'nach dem Code-Block wieder');
+  assert.equal(emoticonBefore('x <3', 4).char, '❤️', 'at end of text');
+  assert.equal(emoticonBefore('x <3', 4, '\n').char, '❤️', 'at end of line');
+  assert.equal(emoticonBefore('Antwortzeit <3', 14, ' '), null, '"less than 3" in the middle of a sentence');
+  assert.equal(emoticonBefore('Danke :)', 8, ' ').char, '🙂', 'other smileys also before a space');
+  assert.equal(emoticonBefore('Wert `a :)', 10), null, 'not in inline code');
+  assert.equal(emoticonBefore('```\nif (x) :)', 13), null, 'not in a code block');
+  assert.equal(emoticonBefore('```\ncode\n```\nDanke :)', 21).char, '🙂', 'again after the code block');
   assert.equal(emoticonBefore('(y)', 3).char, '👍');
-  assert.equal(emoticonBefore('Laufwerk C:)', 12), null, 'direkt angehängt → nicht');
+  assert.equal(emoticonBefore('Laufwerk C:)', 12), null, 'directly attached → no');
   assert.equal(emoticonBefore('https://x', 7), null);
   assert.equal(emoticonBefore('(siehe Liste:)', 14), null);
-  assert.equal(emoticonBefore('a :d', 4), null, 'Kleinschreibung bei D nicht');
+  assert.equal(emoticonBefore('a :d', 4), null, 'not for lowercase d');
   for (const [k, v] of Object.entries(EMOTICONS)) assert.equal(emoticonBefore(k, k.length).char, v, k);
 });
 
-test('Emojis bleiben in Ticket und Kommentar erhalten', async () => {
+test('Emojis are preserved in ticket and comment', async () => {
   const { openDatabase } = await import('../src/db.js');
   const { initMasterKey } = await import('../src/lib/crypto.js');
   const { createApp } = await import('../src/app.js');
@@ -92,12 +92,12 @@ test('Emojis bleiben in Ticket und Kommentar erhalten', async () => {
   assert.equal(tk.title, 'Drucker 🖨️ druckt nicht');
   assert.equal(tk.description, text);
   assert.ok(tk.comments.some((c) => c.body === `Danke 🙏 ${text}`));
-  // Oberfläche: ohne langes Zwischenspeichern, damit nach einem Update sofort die neue Fassung kommt
+  // UI: no long caching, so the new version arrives right after an update
   const js = await fetch(`${base}/js/emoji.js`);
   assert.equal(js.headers.get('cache-control'), 'no-cache');
   assert.ok(js.headers.get('etag'));
-  // fetch() hängt bei If-None-Match selbst „no-cache“ an – deshalb hier node:http
+  // fetch() adds "no-cache" itself with If-None-Match – hence node:http here
   const { get } = await import('node:http');
   const status = await new Promise((r) => get(`${base}/js/emoji.js`, { headers: { 'If-None-Match': js.headers.get('etag') } }, (res) => { res.resume(); r(res.statusCode); }));
-  assert.equal(status, 304, 'unverändert → nicht neu übertragen');
+  assert.equal(status, 304, 'unchanged → not transferred again');
 });

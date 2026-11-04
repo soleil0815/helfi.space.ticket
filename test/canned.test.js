@@ -1,4 +1,4 @@
-// Tests: Antwortvorlagen (Rechte, Grenzen, Platzhalter)
+// Tests: canned responses (permissions, limits, placeholders)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -46,7 +46,7 @@ const anna = client();
 const bert = client();
 const karl = client();
 
-test('Vorbereitung', async () => {
+test('Setup', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   for (const [u, role] of [['anna', 'agent'], ['bert', 'agent'], ['karl', 'user']]) {
     assert.equal((await admin('POST', '/api/users', { username: u, displayName: u, email: `${u}@firma.local`, role, password: 'Sehrgeheim123' })).status, 201);
@@ -55,14 +55,14 @@ test('Vorbereitung', async () => {
 });
 
 let shared; let annas;
-test('Admin legt Vorlage für alle an, Bearbeiter persönliche; Benutzer haben keinen Zugriff', async () => {
+test('Admin creates a shared response, agents personal ones; users have no access', async () => {
   const r = await admin('POST', '/api/canned', { title: 'Neustart', body: 'Hallo {melder},\nbitte starten Sie den Rechner neu.', shared: true });
   assert.equal(r.status, 201);
   shared = r.body.response;
   assert.equal(shared.shared, true);
 
   const r2 = await anna('POST', '/api/canned', { title: 'Passwort', body: 'Ihr Kennwort wurde zurückgesetzt.', shared: true });
-  assert.equal(r2.status, 403, 'Bearbeiter dürfen keine Vorlagen für alle anlegen');
+  assert.equal(r2.status, 403, 'agents may not create shared responses');
   annas = (await anna('POST', '/api/canned', { title: 'Passwort', body: 'Ihr Kennwort wurde zurückgesetzt.' })).body.response;
   assert.equal(annas.shared, false);
   assert.equal(annas.mine, true);
@@ -71,28 +71,28 @@ test('Admin legt Vorlage für alle an, Bearbeiter persönliche; Benutzer haben k
   assert.equal((await karl('POST', '/api/canned', { title: 'x', body: 'y' })).status, 403);
 });
 
-test('Jeder sieht die gemeinsamen und nur seine eigenen', async () => {
+test('Everyone sees the shared ones and only their own', async () => {
   assert.deepEqual((await anna('GET', '/api/canned')).body.responses.map((x) => x.title), ['Neustart', 'Passwort']);
   assert.deepEqual((await bert('GET', '/api/canned')).body.responses.map((x) => x.title), ['Neustart']);
 });
 
-test('Ändern/Löschen: eigene ja, fremde persönliche unsichtbar, gemeinsame nur Admins', async () => {
+test('Edit/delete: own yes, others\' personal invisible, shared admins only', async () => {
   assert.equal((await bert('PATCH', `/api/canned/${annas.id}`, { title: 'gekapert' })).status, 404);
   assert.equal((await bert('DELETE', `/api/canned/${annas.id}`)).status, 404);
-  assert.equal((await admin('PATCH', `/api/canned/${annas.id}`, { title: 'gekapert' })).status, 404, 'auch Admins nicht');
+  assert.equal((await admin('PATCH', `/api/canned/${annas.id}`, { title: 'gekapert' })).status, 404, 'not even admins');
   assert.equal((await anna('PATCH', `/api/canned/${shared.id}`, { body: 'anders' })).status, 403);
   assert.equal((await anna('DELETE', `/api/canned/${shared.id}`)).status, 403);
 
   const r = await anna('PATCH', `/api/canned/${annas.id}`, { title: 'Kennwort' });
   assert.equal(r.status, 200);
   assert.equal(r.body.response.title, 'Kennwort');
-  assert.equal(r.body.response.body, 'Ihr Kennwort wurde zurückgesetzt.', 'Text bleibt');
+  assert.equal(r.body.response.body, 'Ihr Kennwort wurde zurückgesetzt.', 'body stays');
   assert.equal((await admin('PATCH', `/api/canned/${shared.id}`, { body: 'Hallo {melder}, bitte neu starten.' })).status, 200);
   assert.equal((await anna('DELETE', `/api/canned/${annas.id}`)).status, 200);
   assert.deepEqual((await anna('GET', '/api/canned')).body.responses.map((x) => x.title), ['Neustart']);
 });
 
-test('Eingaben prüfen und Höchstzahl', async () => {
+test('Input validation and maximum count', async () => {
   assert.equal((await anna('POST', '/api/canned', { title: '  ', body: 'x' })).status, 400);
   assert.equal((await anna('POST', '/api/canned', { title: 'x', body: ' \n ' })).status, 400);
   assert.equal((await anna('PATCH', '/api/canned/99999', { title: 'x' })).status, 404);
@@ -102,10 +102,10 @@ test('Eingaben prüfen und Höchstzahl', async () => {
   const stmt = db.prepare('INSERT INTO canned_responses(title,body,owner_id) VALUES(?,?,(SELECT id FROM users WHERE username=?))');
   for (let i = 1; i < MAX_PERSONAL; i++) stmt.run(`v${i}`, 'x', 'anna');
   assert.equal((await anna('POST', '/api/canned', { title: 'zuviel', body: 'x' })).status, 400);
-  assert.equal((await bert('POST', '/api/canned', { title: 'geht', body: 'x' })).status, 201, 'Grenze gilt je Person');
+  assert.equal((await bert('POST', '/api/canned', { title: 'geht', body: 'x' })).status, 201, 'limit applies per person');
 });
 
-test('Gelöschter Bearbeiter: seine persönlichen Vorlagen verschwinden, gemeinsame bleiben', async () => {
+test('Deleted agent: their personal responses disappear, shared ones stay', async () => {
   const bertId = db.prepare("SELECT id FROM users WHERE username='bert'").get().id;
   db.prepare('DELETE FROM sessions WHERE user_id=?').run(bertId);
   db.prepare('DELETE FROM users WHERE id=?').run(bertId);
@@ -113,11 +113,11 @@ test('Gelöschter Bearbeiter: seine persönlichen Vorlagen verschwinden, gemeins
   assert.equal(db.prepare('SELECT COUNT(*) n FROM canned_responses WHERE owner_id IS NULL').get().n, 1);
 });
 
-test('Platzhalter (deutsch und englisch), Unbekanntes bleibt stehen', () => {
+test('Placeholders (German and English), unknown ones stay as they are', () => {
   const tk = { key: 'IT-7', title: 'Drucker', reporter: { displayName: 'Max Muster' } };
   const me = { displayName: 'Anna Admin' };
   assert.equal(fillPlaceholders('Hallo {melder}, zu {ticket} „{titel}“ – {bearbeiter}', tk, me), 'Hallo Max Muster, zu IT-7 „Drucker“ – Anna Admin');
   assert.equal(fillPlaceholders('Hi {Reporter}, {TICKET} {title} – {agent}', tk, me), 'Hi Max Muster, IT-7 Drucker – Anna Admin');
   assert.equal(fillPlaceholders('{unbekannt} {melder}', { key: 'IT-1' }, me), '{unbekannt} ');
-  assert.equal(fillPlaceholders('$& {melder}', { reporter: { displayName: '$1 $&' } }, me), '$& $1 $&', 'Ersetzung ohne Muster-Auswertung');
+  assert.equal(fillPlaceholders('$& {melder}', { reporter: { displayName: '$1 $&' } }, me), '$& $1 $&', 'replacement without pattern evaluation');
 });

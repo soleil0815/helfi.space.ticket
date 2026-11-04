@@ -1,4 +1,4 @@
-// Tests: E-Mail-Absender im AD nachschlagen und Aufbewahrung verarbeiteter Mails im Postfach
+// Tests: look up email senders in AD and retention of processed mails in the mailbox
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -42,7 +42,7 @@ after(() => { server?.close(); db?.close(); fs.rmSync(dataDir, { recursive: true
 
 const AD = {
   'm.muster@firma.local': { username: 'm.muster', displayName: 'Max Muster', email: 'm.muster@firma.local', externalId: 'guid-mm', groups: { admin: false, agent: false, user: true } },
-  // Zweitadresse (proxyAddresses): Hauptadresse im AD ist eine andere
+  // Secondary address (proxyAddresses): the primary address in AD is a different one
   'erika.alt@firma.de': { username: 'e.beispiel', displayName: 'Erika Beispiel', email: 'e.beispiel@firma.local', externalId: 'guid-eb', groups: { admin: false, agent: false, user: true } },
   'b.bearbeiter@firma.local': { username: 'b.bearbeiter', displayName: 'Bea Bearbeiter', email: 'b.bearbeiter@firma.local', externalId: 'guid-bb', groups: { admin: false, agent: true, user: true } },
   'doppelt@firma.local': { ambiguous: true },
@@ -67,7 +67,7 @@ function processorWith(lookup) {
 const userByEmail = (e) => db.prepare('SELECT * FROM users WHERE lower(email)=?').get(e);
 const reporterOf = (ticketId) => db.prepare('SELECT u.* FROM tickets t JOIN users u ON u.id=t.reporter_id WHERE t.id=?').get(ticketId);
 
-test('LDAP-Filter: Adresse wird maskiert, deaktivierte Konten ausgeschlossen', () => {
+test('LDAP filter: address is escaped, disabled accounts excluded', () => {
   const f = buildEmailFilter('A*)(objectClass=*)@Firma.local');
   assert.ok(!f.includes('*)(objectClass=*)@'), f);
   assert.match(f, /a\\2a\\29\\28objectclass=\\2a\\29@firma\.local/);
@@ -75,7 +75,7 @@ test('LDAP-Filter: Adresse wird maskiert, deaktivierte Konten ausgeschlossen', (
   assert.match(f, /proxyAddresses=smtp:/);
 });
 
-test('Absender im AD: wird als AD-Benutzer angelegt, Ticket gehört ihm', async () => {
+test('Sender in AD: created as AD user, ticket belongs to them', async () => {
   const { mail, calls } = processorWith((cfg, e) => AD[e] || null);
   const { result } = await mail('Max Muster <M.Muster@firma.local>');
   assert.equal(result.action, 'ticket');
@@ -86,42 +86,42 @@ test('Absender im AD: wird als AD-Benutzer angelegt, Ticket gehört ihm', async 
   assert.equal(u.role, 'user');
   assert.equal(u.password_hash, null);
   assert.deepEqual(calls, ['m.muster@firma.local']);
-  // Zweite Mail: Konto ist bekannt, keine erneute Suche
+  // Second mail: account is known, no new lookup
   await mail('m.muster@firma.local');
   assert.equal(calls.length, 1);
 });
 
-test('Bestehender E-Mail-Kontakt wird zum AD-Benutzer, alte Tickets bleiben bei ihm', async () => {
+test('Existing email contact becomes an AD user, old tickets stay with them', async () => {
   const off = processorWith(() => null);
   ctx.settings.set('imap.adLookup', false);
   const { result: first } = await off.mail('anna.neu@firma.local');
   ctx.settings.set('imap.adLookup', true);
   const contact = userByEmail('anna.neu@firma.local');
   assert.equal(contact.source, 'email');
-  assert.equal(off.calls.length, 0, 'Schalter aus = keine Suche');
+  assert.equal(off.calls.length, 0, 'switch off = no lookup');
 
   const { mail } = processorWith((cfg, e) => (e === 'anna.neu@firma.local'
     ? { username: 'a.neu', displayName: 'Anna Neu', email: 'anna.neu@firma.local', externalId: 'guid-an', groups: { admin: false, agent: false, user: true } }
     : null));
   const { result: second } = await mail('anna.neu@firma.local');
   const u = userByEmail('anna.neu@firma.local');
-  assert.equal(u.id, contact.id, 'gleiches Konto');
+  assert.equal(u.id, contact.id, 'same account');
   assert.equal(u.source, 'ldap');
   assert.equal(u.username, 'a.neu');
   assert.equal(reporterOf(first.ticketId).id, u.id);
   assert.equal(reporterOf(second.ticketId).id, u.id);
 });
 
-test('Zweitadresse (proxyAddresses): Ticket landet beim AD-Konto mit der Hauptadresse', async () => {
+test('Secondary address (proxyAddresses): ticket goes to the AD account with the primary address', async () => {
   const { mail } = processorWith((cfg, e) => AD[e] || null);
   const { result } = await mail('erika.alt@firma.de');
   const u = reporterOf(result.ticketId);
   assert.equal(u.username, 'e.beispiel');
   assert.equal(u.email, 'e.beispiel@firma.local');
-  assert.equal(userByEmail('erika.alt@firma.de'), undefined, 'kein zusätzlicher Kontakt');
+  assert.equal(userByEmail('erika.alt@firma.de'), undefined, 'no additional contact');
 });
 
-test('Mehrdeutig, nicht gefunden, nicht zugelassen: E-Mail-Kontakt; Merkliste verhindert erneute Suche', async () => {
+test('Ambiguous, not found, not allowed: email contact; negative cache prevents repeated lookups', async () => {
   const { mail, calls } = processorWith((cfg, e) => AD[e] || null);
   for (const e of ['doppelt@firma.local', 'fremd@kunde.example', 'gesperrt@firma.local']) {
     const { result } = await mail(e);
@@ -130,27 +130,27 @@ test('Mehrdeutig, nicht gefunden, nicht zugelassen: E-Mail-Kontakt; Merkliste ve
   }
   assert.equal(calls.length, 3);
   await mail('fremd@kunde.example');
-  assert.equal(calls.length, 3, 'unbekannte Adresse wird eine Stunde lang nicht erneut gesucht');
+  assert.equal(calls.length, 3, 'unknown address is not looked up again for one hour');
 });
 
-test('AD nicht erreichbar: Ticket entsteht trotzdem (als Kontakt)', async () => {
+test('AD unreachable: ticket is created anyway (as contact)', async () => {
   const { mail } = processorWith(() => { throw new Error('connect ECONNREFUSED'); });
   const { result } = await mail('offline@firma.local');
   assert.equal(result.action, 'ticket');
   assert.equal(reporterOf(result.ticketId).source, 'email');
 });
 
-test('Bearbeiter aus dem AD: Konto mit Rolle aus der Gruppe, die Mail selbst bleibt eine Meldung', async () => {
+test('Agent from AD: account with role from the group, the mail itself stays a report', async () => {
   const { mail } = processorWith((cfg, e) => AD[e] || null);
   const { result } = await mail('b.bearbeiter@firma.local');
   const u = reporterOf(result.ticketId);
   assert.equal(u.role, 'agent');
   const t = db.prepare('SELECT * FROM tickets WHERE id=?').get(result.ticketId);
-  assert.equal(t.assignee_id, null, 'Mail weist nichts zu');
+  assert.equal(t.assignee_id, null, 'mail assigns nothing');
   assert.equal(t.reporter_id, u.id);
 });
 
-test('Ohne Dienstkonto, ohne AD-Anmeldung oder bei automatischen Mails wird nicht gesucht', async () => {
+test('No lookup without service account, without AD login or for automated mails', async () => {
   const { mail, calls } = processorWith((cfg, e) => AD[e] || null);
   ctx.settings.set('ldap.bindDn', '');
   await mail('ohne.dienstkonto@firma.local');
@@ -162,7 +162,7 @@ test('Ohne Dienstkonto, ohne AD-Anmeldung oder bei automatischen Mails wird nich
   assert.equal(calls.length, 0);
 });
 
-// ---------- Aufbewahrung ----------
+// ---------- Retention ----------
 function fakeClient(mails) {
   const log = { locks: [], deleted: [], searches: [] };
   return {
@@ -175,7 +175,7 @@ function fakeClient(mails) {
 const NOW = new Date('2026-11-01T12:00:00Z');
 const daysAgo = (d) => new Date(NOW.getTime() - d * 24 * 3600 * 1000);
 
-test('Aufbewahrung: 0 = nie, Mindestwert 7 Tage', () => {
+test('Retention: 0 = never, minimum 7 days', () => {
   assert.equal(effectiveKeepDays(0), 0);
   assert.equal(effectiveKeepDays(''), 0);
   assert.equal(effectiveKeepDays(-5), 0);
@@ -184,7 +184,7 @@ test('Aufbewahrung: 0 = nie, Mindestwert 7 Tage', () => {
   assert.equal(effectiveKeepDays('30'), 30);
 });
 
-test('Aufbewahrung: nie im Posteingang oder ohne eigenen Ordner', async () => {
+test('Retention: never in the inbox or without a dedicated folder', async () => {
   assert.equal(purgeFolder({ processedFolder: '', folder: 'INBOX' }), null);
   assert.equal(purgeFolder({ processedFolder: 'INBOX', folder: 'INBOX' }), null);
   assert.equal(purgeFolder({ processedFolder: 'inbox', folder: 'Helpdesk' }), null);
@@ -195,11 +195,11 @@ test('Aufbewahrung: nie im Posteingang oder ohne eigenen Ordner', async () => {
     const r = await purgeProcessed(c, cfg, NOW);
     assert.equal(r.skipped, true);
   }
-  assert.deepEqual(c.log.locks, [], 'kein Ordner geöffnet');
+  assert.deepEqual(c.log.locks, [], 'no folder opened');
   assert.deepEqual(c.log.deleted, []);
 });
 
-test('Aufbewahrung: löscht nur ältere Mails im Ordner, höchstens 500 pro Lauf', async () => {
+test('Retention: deletes only older mails in the folder, at most 500 per run', async () => {
   const mails = [{ uid: 1, date: daysAgo(120) }, { uid: 2, date: daysAgo(91) }, { uid: 3, date: daysAgo(89) }, { uid: 4, date: daysAgo(1) }];
   const c = fakeClient(mails);
   const r = await purgeProcessed(c, { processedFolder: 'Helfi', folder: 'INBOX', processedKeepDays: 90 }, NOW);
@@ -212,5 +212,5 @@ test('Aufbewahrung: löscht nur ältere Mails im Ordner, höchstens 500 pro Lauf
   const c2 = fakeClient(many);
   const r2 = await purgeProcessed(c2, { processedFolder: 'Helfi', processedKeepDays: 3 }, NOW);
   assert.equal(r2.deleted, MAX_PURGE_PER_RUN);
-  assert.equal(r2.days, 7, 'zu kleiner Wert gilt als 7');
+  assert.equal(r2.days, 7, 'too small a value counts as 7');
 });

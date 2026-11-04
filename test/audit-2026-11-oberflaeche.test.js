@@ -1,20 +1,20 @@
-// Audit 2026-11, Oberfläche: Enter auf Links/Knöpfen, Ticket-Kürzel nach Seitenwechsel,
-// lineare Laufzeit beim Verlinken, „/\…“ ist kein interner Pfad, Übersetzungen in der richtigen Sprache.
-// Die Browser-Tests brauchen Playwright mit Chromium (nicht Teil der Abhängigkeiten) – fehlt es, werden sie übersprungen.
+// Audit 2026-11, UI: Enter on links/buttons, ticket shortcuts after navigating away,
+// linear runtime when linkifying, "/\…" is not an internal path, translations in the right language.
+// The browser tests need Playwright with Chromium (not part of the dependencies) – if missing, they are skipped.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { startServer } from './helpers/server.js';
 
 let chromium = null;
-try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* nicht installiert */ }
+try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* not installed */ }
 if (!chromium && process.env.NODE_PATH) {
-  try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* auch dort nicht */ }
+  try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* not there either */ }
 }
 if (!chromium) {
-  try { ({ chromium } = createRequire(import.meta.url)('/opt/npm-tools/node_modules/playwright')); } catch { /* auch dort nicht */ }
+  try { ({ chromium } = createRequire(import.meta.url)('/opt/npm-tools/node_modules/playwright')); } catch { /* not there either */ }
 }
-const skip = !chromium && 'Playwright fehlt';
+const skip = !chromium && 'Playwright missing';
 
 let S; let browser; let anna;
 before(async () => {
@@ -36,27 +36,27 @@ async function page(username = 'anna') {
   assert.equal(r.status(), 200);
   return { p, errors };
 }
-// Link wie ein App-Link anklicken (ohne ihn sichtbar in die Seite zu setzen)
+// Click a link like an app link (without visibly adding it to the page)
 const go = (p, href) => p.evaluate((u) => { const a = document.createElement('a'); a.href = u; a.dataset.link = ''; document.body.append(a); a.click(); a.remove(); }, href);
 
-test('Enter auf einem fokussierten Link folgt dem Link (Listen-Kürzel fangen ihn nicht ab)', { skip }, async () => {
+test('Enter on a focused link follows the link (list shortcuts do not intercept it)', { skip }, async () => {
   const { p, errors } = await page();
   await p.goto(`${S.base}/issues`);
   await p.waitForSelector('table.issues tbody tr[data-key]');
-  // Ohne markierte Zeile bleibt Enter beim Browser
+  // Without a highlighted row, Enter stays with the browser
   const prevented = await p.evaluate(() => {
     const e = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
     document.body.dispatchEvent(e);
     return e.defaultPrevented;
   });
   assert.equal(prevented, false);
-  // Fokus auf einem Link + Enter → Link wird geöffnet, auch wenn eine Zeile markiert ist
+  // Focus on a link + Enter → link is opened, even if a row is highlighted
   await p.keyboard.press('j');
   await p.waitForSelector('tr.kbd-focus');
   await p.focus('a.nav-item[href="/board"]');
   await p.keyboard.press('Enter');
   await p.waitForURL(/\/board$/, { timeout: 5000 });
-  // Enter ohne Fokus auf einem Bedienelement öffnet weiter die markierte Zeile
+  // Enter without focus on a control still opens the highlighted row
   await go(p, '/issues');
   await p.waitForSelector('table.issues tbody tr[data-key]');
   await p.evaluate(() => document.activeElement?.blur());
@@ -64,7 +64,7 @@ test('Enter auf einem fokussierten Link folgt dem Link (Listen-Kürzel fangen ih
   const key = await p.$eval('tr.kbd-focus', (r) => r.dataset.key);
   await p.keyboard.press('Enter');
   await p.waitForURL(new RegExp(`/browse/${key}$`), { timeout: 5000 });
-  // Fokus auf einem Bedienelement, DANACH j → Enter gehört der markierten Zeile
+  // Focus on a control, THEN j → Enter belongs to the highlighted row
   await go(p, '/issues');
   await p.waitForSelector('table.issues tbody tr[data-key]');
   await p.focus('a.nav-item[href="/board"]');
@@ -76,7 +76,7 @@ test('Enter auf einem fokussierten Link folgt dem Link (Listen-Kürzel fangen ih
   await p.context().close();
 });
 
-test('Ticket verlassen, bevor es geladen ist: keine Ticket-Kürzel, kein Titel in der Liste', { skip }, async () => {
+test('Leaving a ticket before it has loaded: no ticket shortcuts, no title in the list', { skip }, async () => {
   const { p, errors } = await page();
   await p.goto(`${S.base}/issues`);
   await p.waitForSelector('table.issues tbody tr[data-key]');
@@ -89,8 +89,8 @@ test('Ticket verlassen, bevor es geladen ist: keine Ticket-Kürzel, kein Titel i
   await p.waitForTimeout(150);
   await go(p, '/issues');
   await p.waitForSelector('table.issues tbody tr[data-key]');
-  await p.waitForTimeout(1800); // die verspätete Ticketantwort ist jetzt da
-  await p.keyboard.press('i'); // in der Ticketansicht „mir zuweisen“
+  await p.waitForTimeout(1800); // the delayed ticket response has arrived now
+  await p.keyboard.press('i'); // "assign to me" in the ticket view
   await p.waitForTimeout(500);
   assert.equal(patched, 0);
   assert.equal((await anna('GET', '/api/tickets/IT-1')).body.ticket.assignee, null);
@@ -100,7 +100,7 @@ test('Ticket verlassen, bevor es geladen ist: keine Ticket-Kürzel, kein Titel i
   await p.context().close();
 });
 
-test('richText: lange Wörter ohne Hänger, Links und Mailadressen werden weiter erkannt', { skip }, async () => {
+test('richText: long words without hanging, links and email addresses are still detected', { skip }, async () => {
   const { p } = await page();
   await p.goto(`${S.base}/issues`);
   await p.waitForSelector('table.issues');
@@ -125,7 +125,7 @@ test('richText: lange Wörter ohne Hänger, Links und Mailadressen werden weiter
   await p.context().close();
 });
 
-test('Wissensartikel: „/\\…“ ist kein interner Pfad, normale Pfade und Mails bleiben', { skip }, async () => {
+test('Knowledge base article: "/\\…" is not an internal path, normal paths and mails stay', { skip }, async () => {
   const { p } = await page();
   await p.goto(`${S.base}/issues`);
   await p.waitForSelector('table.issues');
@@ -133,9 +133,9 @@ test('Wissensartikel: „/\\…“ ist kein interner Pfad, normale Pfade und Mai
     const { safeHref, linkTarget, renderDoc } = await import('/js/kbdoc.js');
     const doc = renderDoc('[Böse](/\\evil.example/pfad) [Auch](/pfad\\x) [Ticket](/browse/IT-1) [Extern](https://helfi.dyndns.example/a) mail e.beispiel@firma.local');
     const t0 = performance.now(); renderDoc(`${'x'.repeat(60000)}@`); const ms = performance.now() - t0;
-    // Überschrift mit vielen Leerzeichen: das alte Muster brauchte hierfür Minuten
+    // Heading with many spaces: the old pattern took minutes for this
     const t1 = performance.now(); const hd = renderDoc(`# a${' '.repeat(3000)}x`); const msHead = performance.now() - t1;
-    // Backtick-Folge ohne Ende: früher an jeder Stelle neu gesucht (kubisch)
+    // Unterminated backtick run: previously searched again at every position (cubic)
     const t2 = performance.now(); const bt = renderDoc(`a ${'`'.repeat(4000)}`); const msTick = performance.now() - t2;
     const codes = [...renderDoc('x `code` y ``a`b`` z').querySelectorAll('code')].map((c) => c.textContent);
     const heads = [...renderDoc('## Titel ##  \n\n# C#\n\n### Mit #  Raute ###').querySelectorAll('h1,h2,h3')].map((x) => [x.tagName, x.textContent]);
@@ -160,13 +160,13 @@ test('Wissensartikel: „/\\…“ ist kein interner Pfad, normale Pfade und Mai
   assert.ok(r.msTick < 1500, `Backticks: ${r.msTick} ms`);
   assert.equal(r.tickText, 4002);
   assert.deepEqual(r.codes, ['code', 'a`b']);
-  assert.ok(r.msHead < 1500, `Überschrift: ${r.msHead} ms`);
+  assert.ok(r.msHead < 1500, `heading: ${r.msHead} ms`);
   assert.equal(r.headText, 3002);
   assert.deepEqual(r.heads, [['H2', 'Titel'], ['H1', 'C'], ['H3', 'Mit #  Raute']]);
   await p.context().close();
 });
 
-test('Übersetzungen: gleiche Schlüssel, Texte in der richtigen Sprache, kein Produktname', async () => {
+test('Translations: same keys, texts in the right language, no product name', async () => {
   globalThis.document ??= { documentElement: {} };
   const { _dicts: { de, en } } = await import('../public/js/i18n.js');
   assert.deepEqual(Object.keys(de).filter((k) => !(k in en)), []);
@@ -174,7 +174,7 @@ test('Übersetzungen: gleiche Schlüssel, Texte in der richtigen Sprache, kein P
   assert.equal(de['imp.jiraStatus'], 'Status im Quellsystem');
   const ph = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
   for (const k of ['warn.ldapCertFailed', 'warn.ldapCertExpiring']) assert.equal(ph(en[k]), ph(de[k]), k);
-  // Stichprobe: deutsche Wörter im englischen Text, englische im deutschen
+  // Spot check: German words in English text, English ones in German text
   const ger = /[äöüßÄÖÜ]|\b(der|die|das|und|nicht|mit|ist|wird|werden|oder|für|bitte|Zertifikat|Benutzer)\b/;
   const eng = /\b(the|is|with|and|not|please|of|to|in source|for|this|you|your)\b/i;
   assert.deepEqual(Object.keys(en).filter((k) => ger.test(en[k])), []);

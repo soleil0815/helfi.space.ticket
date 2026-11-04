@@ -1,4 +1,4 @@
-// Tests: Sammelaktionen (Mehrfachauswahl)
+// Tests: bulk actions (multi-select)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -48,7 +48,7 @@ const ids = {};
 let keys;
 const tick = () => new Promise((r) => setTimeout(r, 30));
 
-test('Vorbereitung', async () => {
+test('Setup', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   for (const [u, role, name] of [['anna', 'agent', 'Anna'], ['karl', 'user', 'Karl Kunde']]) {
     ids[u] = (await admin('POST', '/api/users', { username: u, displayName: name, email: `${u}@firma.local`, role, password: 'Sehrgeheim123' })).body.user.id;
@@ -59,15 +59,15 @@ test('Vorbereitung', async () => {
   for (const title of ['Eins', 'Zwei', 'Drei']) keys.push((await karl('POST', '/api/tickets', { title })).body.ticket.key);
 });
 
-test('Nur Bearbeiter; leere oder zu große Anfragen werden abgelehnt', async () => {
+test('Agents only; empty or oversized requests are rejected', async () => {
   assert.equal((await karl('POST', '/api/tickets/bulk', { keys, changes: { status: 'done' } })).status, 403);
   assert.equal((await anna('POST', '/api/tickets/bulk', { keys: [], changes: { status: 'done' } })).status, 400);
-  assert.equal((await anna('POST', '/api/tickets/bulk', { keys })).status, 400, 'ohne Aktion');
+  assert.equal((await anna('POST', '/api/tickets/bulk', { keys })).status, 400, 'without action');
   assert.equal((await anna('POST', '/api/tickets/bulk', { keys: Array.from({ length: 501 }, (_, i) => `IT-${i}`), changes: { status: 'done' } })).status, 400);
-  assert.equal((await anna('POST', '/api/tickets/bulk', { keys, delete: true })).status, 400, 'Löschen gibt es nicht');
+  assert.equal((await anna('POST', '/api/tickets/bulk', { keys, delete: true })).status, 400, 'deleting does not exist');
 });
 
-test('Zuweisen, Priorität, Status – mit Verlauf und Benachrichtigung je Ticket', async () => {
+test('Assign, priority, status – with activity and notification per ticket', async () => {
   events.length = 0;
   let r = await anna('POST', '/api/tickets/bulk', { keys, changes: { assigneeId: ids.anna, priority: 'high' } });
   assert.deepEqual(r.body, { ok: keys, failed: [] });
@@ -80,10 +80,10 @@ test('Zuweisen, Priorität, Status – mit Verlauf und Benachrichtigung je Ticke
   r = await anna('POST', '/api/tickets/bulk', { keys: [keys[0]], changes: { status: 'in_progress' } });
   assert.equal(r.body.ok.length, 1);
   await tick();
-  assert.equal(events.filter((x) => x.e === 'assigned').length, 0, 'keine Zuweisungs-Mail an sich selbst');
+  assert.equal(events.filter((x) => x.e === 'assigned').length, 0, 'no assignment mail to oneself');
 });
 
-test('Erledigen mit Antwort: Platzhalter je Ticket, keine zusätzliche Erledigt-Mail', async () => {
+test('Resolve with reply: placeholders per ticket, no additional resolved mail', async () => {
   events.length = 0;
   const r = await anna('POST', '/api/tickets/bulk', { keys: keys.slice(0, 2), changes: { status: 'done' }, comment: 'Hallo {melder}, {ticket} ist erledigt. – {bearbeiter}' });
   assert.deepEqual(r.body.failed, []);
@@ -91,16 +91,16 @@ test('Erledigen mit Antwort: Platzhalter je Ticket, keine zusätzliche Erledigt-
   const comments = events.filter((x) => x.e === 'commented');
   assert.equal(comments.length, 2);
   assert.equal(comments[0].body, `Hallo Karl Kunde, ${keys[0]} ist erledigt. – Anna`);
-  assert.equal(events.filter((x) => x.e === 'resolved').length, 0, 'nur die Antwort, keine zweite Mail');
+  assert.equal(events.filter((x) => x.e === 'resolved').length, 0, 'only the reply, no second mail');
   for (const k of keys.slice(0, 2)) assert.equal((await anna('GET', `/api/tickets/${k}`)).body.ticket.status, 'done');
 
   events.length = 0;
   await anna('POST', '/api/tickets/bulk', { keys: [keys[2]], changes: { status: 'done' } });
   await tick();
-  assert.equal(events.filter((x) => x.e === 'resolved').length, 1, 'ohne Antwort die normale Erledigt-Mail');
+  assert.equal(events.filter((x) => x.e === 'resolved').length, 1, 'without reply the normal resolved mail');
 });
 
-test('Verschieben: neue Nummern, Ergebnis enthält neue Schlüssel', async () => {
+test('Moving: new numbers, result contains new keys', async () => {
   const hr = (await admin('GET', '/api/projects')).body.projects.find((p) => p.key === 'HR');
   const r = await anna('POST', '/api/tickets/bulk', { keys: keys.slice(0, 2), changes: { projectId: hr.id } });
   assert.deepEqual(r.body.failed, []);
@@ -108,16 +108,16 @@ test('Verschieben: neue Nummern, Ergebnis enthält neue Schlüssel', async () =>
   keys = ['HR-1', 'HR-2', keys[2]];
 });
 
-test('Fehler einzelner Tickets brechen den Rest nicht ab', async () => {
+test('Errors on single tickets do not abort the rest', async () => {
   const r = await anna('POST', '/api/tickets/bulk', { keys: ['IT-999', keys[2], 'kaputt'], changes: { priority: 'low' } });
   assert.deepEqual(r.body.ok, [keys[2]]);
   assert.deepEqual(r.body.failed.map((x) => x.key), ['IT-999', 'kaputt']);
-  assert.ok(r.body.failed[0].error.length > 3, 'verständliche Meldung');
+  assert.ok(r.body.failed[0].error.length > 3, 'understandable message');
   const bad = await anna('POST', '/api/tickets/bulk', { keys: [keys[2]], changes: { assigneeId: ids.karl } });
-  assert.equal(bad.body.failed.length, 1, 'Zuweisen nur an Bearbeiter');
+  assert.equal(bad.body.failed.length, 1, 'assign to agents only');
 });
 
-test('Löschen gibt es nicht – auch nicht für Admins', async () => {
+test('Deleting does not exist – not even for admins', async () => {
   const r = await admin('POST', '/api/tickets/bulk', { keys: keys.slice(0, 2), delete: true, changes: { status: 'done' } });
   assert.equal(r.status, 400);
   assert.equal(r.body.error.code, 'err.ticketDeleteDisabled');

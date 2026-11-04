@@ -1,4 +1,4 @@
-// Tests: eingefügte Bilder (Entwürfe, Zuordnung zu Kommentar/Beschreibung, Sichtbarkeit)
+// Tests: pasted images (drafts, assignment to comment/description, visibility)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -45,7 +45,7 @@ function client() {
 const admin = client();
 const anna = client();
 const karl = client();
-// kleines gültiges PNG (1×1)
+// small valid PNG (1×1)
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const form = (draft, name = 'Bildschirmfoto.png', type = 'image/png', data = PNG) => {
   const fd = new FormData();
@@ -55,64 +55,64 @@ const form = (draft, name = 'Bildschirmfoto.png', type = 'image/png', data = PNG
 };
 let key;
 
-test('Vorbereitung', async () => {
+test('Setup', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   for (const [u, role] of [['anna', 'agent'], ['karl', 'user']]) await admin('POST', '/api/users', { username: u, displayName: u, email: `${u}@firma.local`, role, password: 'Sehrgeheim123' });
   for (const [c, u] of [[anna, 'anna'], [karl, 'karl']]) assert.equal((await c('POST', '/api/auth/login', { username: u, password: 'Sehrgeheim123' })).status, 200);
   key = (await karl('POST', '/api/tickets', { title: 'Fehlermeldung' })).body.ticket.key;
 });
 
-test('Entwurf: nur für Bearbeiter und den Hochladenden, nicht in der Anhangsliste', async () => {
+test('Draft: only for agents and the uploader, not in the attachment list', async () => {
   const r = await anna('POST', `/api/tickets/${key}/attachments`, form(true));
   assert.equal(r.status, 201);
   const id = r.body.ids[0];
   assert.equal((await anna('GET', `/api/attachments/${id}`)).status, 200);
-  assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 404, 'Melder sieht den Entwurf nicht');
+  assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 404, 'reporter does not see the draft');
   assert.deepEqual((await karl('GET', `/api/tickets/${key}`)).body.ticket.attachments, []);
-  assert.deepEqual((await anna('GET', `/api/tickets/${key}`)).body.ticket.attachments, [], 'auch nicht in der Liste der Bearbeiter');
-  assert.ok(!(await anna('GET', `/api/tickets/${key}`)).body.ticket.activity.some((a) => a.action === 'attached'), 'kein Verlaufseintrag für Entwürfe');
+  assert.deepEqual((await anna('GET', `/api/tickets/${key}`)).body.ticket.attachments, [], 'not in the agents\' list either');
+  assert.ok(!(await anna('GET', `/api/tickets/${key}`)).body.ticket.activity.some((a) => a.action === 'attached'), 'no activity entry for drafts');
 });
 
-test('Bild in einer internen Notiz bleibt intern', async () => {
+test('Image in an internal note stays internal', async () => {
   const id = (await anna('POST', `/api/tickets/${key}/attachments`, form(true))).body.ids[0];
   assert.equal((await anna('POST', `/api/tickets/${key}/comments`, { body: `Siehe Log:\n![log.png](/api/attachments/${id})`, internal: true })).status, 201);
   assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 404);
   assert.ok(!(await karl('GET', `/api/tickets/${key}`)).body.ticket.attachments.some((a) => a.id === id));
   const row = db.prepare('SELECT draft, comment_id FROM attachments WHERE id=?').get(id);
   assert.equal(row.draft, 0);
-  assert.ok(row.comment_id, 'der Notiz zugeordnet');
+  assert.ok(row.comment_id, 'assigned to the note');
 });
 
-test('Bild in einer öffentlichen Antwort ist für den Melder sichtbar', async () => {
+test('Image in a public reply is visible to the reporter', async () => {
   const id = (await anna('POST', `/api/tickets/${key}/attachments`, form(true))).body.ids[0];
   await anna('POST', `/api/tickets/${key}/comments`, { body: `Klicken Sie hier:\n![schritt.png](/api/attachments/${id})` });
   assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 200);
   assert.ok((await karl('GET', `/api/tickets/${key}`)).body.ticket.attachments.some((a) => a.id === id));
 });
 
-test('Melder fügt Bild in die Beschreibung ein', async () => {
+test('Reporter pastes an image into the description', async () => {
   const id = (await karl('POST', `/api/tickets/${key}/attachments`, form(true))).body.ids[0];
-  assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 200, 'eigener Entwurf sichtbar');
+  assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 200, 'own draft visible');
   assert.equal((await karl('PATCH', `/api/tickets/${key}`, { description: `Diese Meldung:\n![fehler.png](/api/attachments/${id})` })).status, 200);
   assert.equal(db.prepare('SELECT draft FROM attachments WHERE id=?').get(id).draft, 0);
   assert.equal((await anna('GET', `/api/attachments/${id}`)).status, 200);
 });
 
-test('Fremde Entwürfe lassen sich nicht übernehmen; nur Bilder als Entwurf', async () => {
+test('Other people\'s drafts cannot be taken over; only images as drafts', async () => {
   const id = (await anna('POST', `/api/tickets/${key}/attachments`, form(true))).body.ids[0];
   await karl('POST', `/api/tickets/${key}/comments`, { body: `![x](/api/attachments/${id})` });
-  assert.equal(db.prepare('SELECT draft FROM attachments WHERE id=?').get(id).draft, 1, 'bleibt Entwurf von Anna');
+  assert.equal(db.prepare('SELECT draft FROM attachments WHERE id=?').get(id).draft, 1, 'stays Anna\'s draft');
   assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 404);
   assert.equal((await anna('POST', `/api/tickets/${key}/attachments`, form(true, 'skript.sh', 'text/x-sh', Buffer.from('rm -rf')))).status, 400);
-  // Entwurf eines anderen Tickets bleibt beim anderen Ticket
+  // A draft of another ticket stays with that ticket
   const other = (await karl('POST', '/api/tickets', { title: 'Anderes' })).body.ticket.key;
   const oid = (await karl('POST', `/api/tickets/${other}/attachments`, form(true))).body.ids[0];
   await karl('POST', `/api/tickets/${key}/comments`, { body: `![x](/api/attachments/${oid})` });
   assert.equal(db.prepare('SELECT draft FROM attachments WHERE id=?').get(oid).draft, 1);
 });
 
-test('In Mails wird aus dem Bild ein Hinweis', () => {
+test('In mails the image becomes a placeholder note', () => {
   assert.equal(inlineImagesAsText('Siehe:\n![schritt.png](/api/attachments/12)\nDanke', 'de'), 'Siehe:\n[Bild: schritt.png]\nDanke');
   assert.equal(inlineImagesAsText('![](/api/attachments/3)', 'en'), '[Image: …]');
-  assert.equal(inlineImagesAsText('![a](https://evil.example/x.png)', 'de'), '![a](https://evil.example/x.png)', 'nur eigene Anhänge');
+  assert.equal(inlineImagesAsText('![a](https://evil.example/x.png)', 'de'), '![a](https://evil.example/x.png)', 'own attachments only');
 });

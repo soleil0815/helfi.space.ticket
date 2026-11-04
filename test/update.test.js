@@ -1,4 +1,4 @@
-// Tests für update.sh mit nachgebautem docker (läuft mit /bin/sh bzw. dash).
+// Tests for update.sh with a fake docker (runs with /bin/sh or dash).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-// HELFI_TEST_SHELL/HELFI_TEST_PATH: z. B. BusyBox ash samt BusyBox-Werkzeugen prüfen
+// HELFI_TEST_SHELL/HELFI_TEST_PATH: e.g. test BusyBox ash together with the BusyBox tools
 const SHELL = process.env.HELFI_TEST_SHELL || (fs.existsSync('/usr/bin/dash') ? '/usr/bin/dash' : '/bin/sh');
 const BASE_PATH = process.env.HELFI_TEST_PATH || '/usr/bin:/bin';
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -50,12 +50,12 @@ function run(ctx, args = [], env = {}) {
 }
 const read = (ctx, f) => fs.readFileSync(path.join(ctx.dir, f), 'utf8');
 
-test('docker-compose.yml der aktuellen Fassung steht in compose-hashes.txt', () => {
+test('The current docker-compose.yml is listed in compose-hashes.txt', () => {
   const hashes = fs.readFileSync(path.join(root, 'docker/compose-hashes.txt'), 'utf8');
-  assert.ok(hashes.split('\n').includes(sha(fs.readFileSync(path.join(root, 'docker-compose.yml')))), 'Prüfsumme der aktuellen docker-compose.yml fehlt in docker/compose-hashes.txt');
+  assert.ok(hashes.split('\n').includes(sha(fs.readFileSync(path.join(root, 'docker-compose.yml')))), 'checksum of the current docker-compose.yml is missing from docker/compose-hashes.txt');
 });
 
-test('Update ohne Fehler: vorheriges Image merken, holen, starten', () => {
+test('Update without errors: remember previous image, pull, start', () => {
   const ctx = setup();
   const r = run(ctx, [], { FAKE_NEW_VERSION: '1.1.0' });
   assert.equal(r.status, 0, r.stderr + r.stdout);
@@ -66,7 +66,7 @@ test('Update ohne Fehler: vorheriges Image merken, holen, starten', () => {
   assert.equal(read(ctx, 'data/helfi.sqlite'), 'migriert');
 });
 
-test('Version angeben: wird erst nach erfolgreichem Holen in .env festgehalten', () => {
+test('Specifying a version: written to .env only after a successful pull', () => {
   const ctx = setup();
   const r = run(ctx, ['1.2.0']);
   assert.equal(r.status, 0, r.stderr);
@@ -75,21 +75,21 @@ test('Version angeben: wird erst nach erfolgreichem Holen in .env festgehalten',
   assert.doesNotMatch(read(ctx, '.env'), /HELFI_VERSION=latest/);
 });
 
-test('Herunterladen schlägt fehl: .env bleibt unverändert (Audit)', () => {
+test('Download fails: .env stays unchanged (Audit)', () => {
   const ctx = setup();
   const r = run(ctx, ['1.2.0'], { FAKE_PULL_FAIL: '1' });
   assert.equal(r.status, 1);
   assert.match(read(ctx, '.env'), /^HELFI_VERSION=latest$/m);
 });
 
-test('.env ohne Zeilenumbruch am Ende wird nicht beschädigt (Audit)', () => {
+test('.env without trailing newline is not damaged (Audit)', () => {
   const ctx = setup({ envText: 'HELFI_BASE_URL=http://x\nHELFI_SECRET=geheim-1234567890abc' });
   const r = run(ctx, ['1.2.0']);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(read(ctx, '.env'), 'HELFI_BASE_URL=http://x\nHELFI_SECRET=geheim-1234567890abc\nHELFI_VERSION=1.2.0\n');
 });
 
-test('.env mit Windows-Zeilenenden (Audit)', () => {
+test('.env with Windows line endings (Audit)', () => {
   const ctx = setup({ envText: 'HELFI_BASE_URL=http://x\r\nHELFI_VERSION=latest\r\n' });
   const r = run(ctx);
   assert.equal(r.status, 0, r.stderr);
@@ -97,7 +97,7 @@ test('.env mit Windows-Zeilenenden (Audit)', () => {
   assert.doesNotMatch(r.calls, /latest\r/);
 });
 
-test('Ungültige Versionen werden abgelehnt (Audit)', () => {
+test('Invalid versions are rejected (Audit)', () => {
   for (const v of ['1.2;rm -rf /', '1.2..3', '1.2.3.4', 'v1.2.3', '1.2']) {
     const ctx = setup();
     const r = run(ctx, [v]);
@@ -106,7 +106,7 @@ test('Ungültige Versionen werden abgelehnt (Audit)', () => {
   }
 });
 
-test('Neuere docker-compose.yml im Image wird übernommen, alte mit Zeitstempel behalten', () => {
+test('Newer docker-compose.yml in the image is taken over, old one kept with timestamp', () => {
   const ctx = setup({ composeVersionInImage: 2 });
   const before = read(ctx, 'docker-compose.yml');
   const r = run(ctx);
@@ -117,25 +117,25 @@ test('Neuere docker-compose.yml im Image wird übernommen, alte mit Zeitstempel 
   assert.match(read(ctx, 'docker-compose.yml'), /HELFI_COMPOSE_VERSION: "2"/);
 });
 
-test('Angepasste docker-compose.yml wird NICHT ersetzt (Audit)', () => {
+test('Customized docker-compose.yml is NOT replaced (Audit)', () => {
   const ctx = setup({ composeVersionInImage: 2, customizeCompose: true });
   const before = read(ctx, 'docker-compose.yml');
   const r = run(ctx);
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(read(ctx, 'docker-compose.yml'), before, 'eigener Datenpfad bleibt');
+  assert.equal(read(ctx, 'docker-compose.yml'), before, 'custom data path stays');
   assert.match(read(ctx, 'docker-compose.yml.neu'), /HELFI_COMPOSE_VERSION: "2"/);
   assert.match(r.stdout, /angepasst/);
 });
 
-test('Gleiche docker-compose.yml-Version: Datei bleibt unangetastet', () => {
+test('Same docker-compose.yml version: file stays untouched', () => {
   const ctx = setup({ composeVersionInImage: 1 });
   run(ctx);
   assert.equal(fs.readdirSync(ctx.dir).some((f) => f.startsWith('docker-compose.yml.alt')), false);
 });
 
-test('Neue Version startet nicht: mit -y vorherige Version, Sicherung und Version in .env zurück', () => {
+test('New version does not start: with -y previous version, backup and version in .env are restored', () => {
   const ctx = setup();
-  // Eine ALTE Sicherung derselben Version (früherer Versuch) darf nicht genommen werden
+  // An OLD backup of the same version (earlier attempt) must not be used
   const old = path.join(ctx.dir, 'data/backups/helfi-vor-1.2.0-2020-01-01T00-00-00.sqlite');
   fs.writeFileSync(old, 'uralt');
   fs.utimesSync(old, new Date('2020-01-01'), new Date('2020-01-01'));
@@ -143,16 +143,16 @@ test('Neue Version startet nicht: mit -y vorherige Version, Sicherung und Versio
   assert.equal(r.status, 1);
   assert.match(r.calls, /tag ghcr\.io\/soleil0815\/helfi\.space\.ticket:previous ghcr\.io\/soleil0815\/helfi\.space\.ticket:1\.1\.0/);
   assert.match(r.calls, /compose up -d --pull never helfi \[HELFI_VERSION=1\.1\.0\]/);
-  assert.match(read(ctx, '.env'), /^HELFI_VERSION=1\.1\.0$/m, 'alte Version festgehalten (Watchtower holt die defekte nicht wieder)');
+  assert.match(read(ctx, '.env'), /^HELFI_VERSION=1\.1\.0$/m, 'old version pinned (Watchtower does not pull the broken one again)');
   assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-neu');
   const failed = fs.readdirSync(path.join(ctx.dir, 'data')).filter((f) => f.startsWith('helfi.sqlite.fehlgeschlagen-'));
-  assert.equal(failed.length, 2, 'Datenbank und WAL des fehlgeschlagenen Stands bleiben erhalten');
+  assert.equal(failed.length, 2, 'database and WAL of the failed state are kept');
   assert.equal(read(ctx, `data/${failed.find((f) => !f.endsWith('-wal'))}`), 'migriert');
   assert.equal(fs.existsSync(path.join(ctx.dir, 'data/helfi.sqlite-wal')), false);
   assert.match(r.stdout, /Vorherige Version läuft wieder/);
 });
 
-test('Rücksprung nutzt den echten Datenordner aus dem Mount (Audit)', () => {
+test('Rollback uses the real data folder from the mount (Audit)', () => {
   const ctx = setup();
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-volume-'));
   fs.mkdirSync(path.join(other, 'backups'));
@@ -160,10 +160,10 @@ test('Rücksprung nutzt den echten Datenordner aus dem Mount (Audit)', () => {
   const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_DATA_DIR: other });
   assert.equal(r.status, 1);
   assert.equal(fs.readFileSync(path.join(other, 'helfi.sqlite'), 'utf8'), 'sicherung-neu');
-  assert.equal(read(ctx, 'data/helfi.sqlite'), 'original', './data im Skriptordner bleibt unberührt');
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'original', './data in the script folder stays untouched');
 });
 
-test('Neue Version startet nicht, ohne -y und ohne Antwort: nichts zurückdrehen, ehrliche Meldung', () => {
+test('New version does not start, without -y and without answer: no rollback, honest message', () => {
   const ctx = setup();
   const r = run(ctx, [], { FAKE_HEALTH_NEW: 'exited', FAKE_NEW_VERSION: '1.2.0' });
   assert.equal(r.status, 1);
@@ -173,7 +173,7 @@ test('Neue Version startet nicht, ohne -y und ohne Antwort: nichts zurückdrehen
   assert.match(r.stdout, /bleibt gestartet/);
 });
 
-test('Ohne Internet: Image-Datei laden', () => {
+test('Without internet: load image file', () => {
   const ctx = setup();
   const tar = path.join(ctx.dir, 'helfi-9.9.9.tar');
   fs.writeFileSync(tar, 'x');
@@ -183,7 +183,7 @@ test('Ohne Internet: Image-Datei laden', () => {
   assert.doesNotMatch(r.calls, /compose pull/);
 });
 
-test('Ohne .env bricht update.sh mit Hinweis ab', () => {
+test('Without .env, update.sh aborts with a notice', () => {
   const ctx = setup();
   fs.rmSync(path.join(ctx.dir, '.env'));
   const r = run(ctx);
@@ -191,7 +191,7 @@ test('Ohne .env bricht update.sh mit Hinweis ab', () => {
   assert.match(r.stderr, /\.env fehlt/);
 });
 
-test('Rücksprung stellt auch die alte docker-compose.yml wieder her', () => {
+test('Rollback also restores the old docker-compose.yml', () => {
   const ctx = setup({ composeVersionInImage: 2 });
   const before = read(ctx, 'docker-compose.yml');
   const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0' });
@@ -207,33 +207,33 @@ function cleanupSetup() {
   const f = (name, text = 'x') => fs.writeFileSync(path.join(ctx.dir, name), text);
   const old = (name) => { const t = new Date(Date.now() - 2 * 3600 * 1000); fs.utimesSync(path.join(ctx.dir, name), t, t); };
   f('docker-compose.yml.alt-20261001-080000');
-  f('docker-compose.yml.alt-20261031-200000'); // neueste – bleibt
+  f('docker-compose.yml.alt-20261031-200000'); // newest – stays
   f('helfi-1.0.1-amd64.tar.gz');
   f('helfi-1.0.1-arm64.tar.gz');
   f('.docker-compose.neu.4711'); old('.docker-compose.neu.4711');
-  f('.env.tmp.4712'); // frisch – gehört evtl. zu einem laufenden Update
+  f('.env.tmp.4712'); // fresh – may belong to a running update
   f('notizen.txt');
-  f('helfi-sicherung.tar.gz'); // passt nicht zum Muster der Release-Dateien
+  f('helfi-sicherung.tar.gz'); // does not match the release file pattern
   fs.writeFileSync(path.join(ctx.dir, 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite'), 'sicherung');
   return ctx;
 }
 const exists = (ctx, name) => fs.existsSync(path.join(ctx.dir, name)) || (() => { try { fs.lstatSync(path.join(ctx.dir, name)); return true; } catch { return false; } })();
 
-test('--cleanup: zeigt nur Reste von update.sh und löscht sie mit -y', () => {
+test('--cleanup: shows only update.sh leftovers and deletes them with -y', () => {
   const ctx = cleanupSetup();
-  fs.copyFileSync(path.join(ctx.dir, 'docker-compose.yml'), path.join(ctx.dir, 'docker-compose.yml.neu')); // schon übernommen
+  fs.copyFileSync(path.join(ctx.dir, 'docker-compose.yml'), path.join(ctx.dir, 'docker-compose.yml.neu')); // already taken over
   const r = run(ctx, ['--cleanup', '-y']);
   assert.equal(r.status, 0, r.stderr + r.stdout);
   for (const gone of ['docker-compose.yml.alt-20261001-080000', 'helfi-1.0.1-amd64.tar.gz', 'helfi-1.0.1-arm64.tar.gz', '.docker-compose.neu.4711', 'docker-compose.yml.neu']) {
-    assert.ok(!exists(ctx, gone), `${gone} hätte gelöscht werden sollen`);
+    assert.ok(!exists(ctx, gone), `${gone} should have been deleted`);
   }
   for (const kept of ['docker-compose.yml.alt-20261031-200000', '.env.tmp.4712', 'notizen.txt', 'helfi-sicherung.tar.gz', '.env', 'docker-compose.yml', 'update.sh', 'data/helfi.sqlite', 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite']) {
-    assert.ok(exists(ctx, kept), `${kept} darf nicht gelöscht werden`);
+    assert.ok(exists(ctx, kept), `${kept} must not be deleted`);
   }
-  assert.doesNotMatch(r.calls, /compose (pull|up)/, 'Aufräumen startet kein Update');
+  assert.doesNotMatch(r.calls, /compose (pull|up)/, 'cleanup does not start an update');
 });
 
-test('--cleanup: ohne Bestätigung wird nichts gelöscht', () => {
+test('--cleanup: nothing is deleted without confirmation', () => {
   const ctx = cleanupSetup();
   const r = run(ctx, ['--cleanup']);
   assert.equal(r.status, 0, r.stderr);
@@ -243,7 +243,7 @@ test('--cleanup: ohne Bestätigung wird nichts gelöscht', () => {
   assert.ok(exists(ctx, 'docker-compose.yml.alt-20261001-080000'));
 });
 
-test('--cleanup: Links werden nie verfolgt oder gelöscht, Daten bleiben', () => {
+test('--cleanup: links are never followed or deleted, data stays', () => {
   const ctx = cleanupSetup();
   fs.symlinkSync(path.join(ctx.dir, 'data/helfi.sqlite'), path.join(ctx.dir, 'helfi-1.0.0.tar.gz'));
   fs.symlinkSync(path.join(ctx.dir, 'data'), path.join(ctx.dir, 'docker-compose.yml.alt-20260101-000000'));
@@ -253,11 +253,11 @@ test('--cleanup: Links werden nie verfolgt oder gelöscht, Daten bleiben', () =>
   assert.equal(read(ctx, 'data/helfi.sqlite'), 'original');
   assert.ok(fs.existsSync(path.join(ctx.dir, 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite')));
   for (const link of ['helfi-1.0.0.tar.gz', 'docker-compose.yml.alt-20260101-000000', 'helfi-0.9.0.tar']) {
-    assert.ok(fs.lstatSync(path.join(ctx.dir, link)).isSymbolicLink(), `${link} bleibt unangetastet`);
+    assert.ok(fs.lstatSync(path.join(ctx.dir, link)).isSymbolicLink(), `${link} stays untouched`);
   }
 });
 
-test('--cleanup: in einen Container eingebundene Datei bleibt', () => {
+test('--cleanup: a file mounted into a container stays', () => {
   const ctx = cleanupSetup();
   const r = run(ctx, ['--cleanup', '-y'], { FAKE_MOUNTS: path.join(fs.realpathSync(ctx.dir), 'helfi-1.0.1-arm64.tar.gz') });
   assert.equal(r.status, 0, r.stderr);
@@ -266,7 +266,7 @@ test('--cleanup: in einen Container eingebundene Datei bleibt', () => {
   assert.ok(!exists(ctx, 'helfi-1.0.1-amd64.tar.gz'));
 });
 
-test('--cleanup: docker nicht erreichbar → nichts löschen; angepasste docker-compose.yml.neu bleibt', () => {
+test('--cleanup: docker unreachable → delete nothing; customized docker-compose.yml.neu stays', () => {
   let ctx = cleanupSetup();
   let r = run(ctx, ['--cleanup', '-y'], { FAKE_DOCKER_DOWN: '1' });
   assert.equal(r.status, 1);

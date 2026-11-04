@@ -1,4 +1,4 @@
-// Tests: Anzahl der Sicherungen einstellen, aufräumen, einzeln löschen
+// Tests: configure the number of backups, cleanup, delete individual backups
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -21,50 +21,50 @@ function fake(name, ageMin) {
   fs.utimesSync(f, t, t);
 }
 
-test('Standard 10, Übersicht mit Art und Gesamtgröße', async () => {
+test('Default 10, overview with kind and total size', async () => {
   for (let i = 0; i < 12; i++) fake(`helfi-taeglich-2026-10-${String(i + 1).padStart(2, '0')}.sqlite`, 1000 - i);
   const r = await S.admin('GET', '/api/admin/system');
   assert.equal(r.status, 200);
   assert.equal(r.body.backupKeep, 10);
   const daily = r.body.backups.filter((b) => b.kind === 'daily');
-  assert.equal(daily.length, 12, 'noch nicht aufgeräumt');
-  assert.equal(daily[0].name, 'helfi-taeglich-2026-10-12.sqlite', 'neueste zuerst');
+  assert.equal(daily.length, 12, 'not cleaned up yet');
+  assert.equal(daily[0].name, 'helfi-taeglich-2026-10-12.sqlite', 'newest first');
   assert.ok(r.body.backupsSize >= 1200);
 });
 
-test('Anzahl ändern räumt sofort auf, Werte werden begrenzt', async () => {
+test('Changing the count cleans up immediately, values are clamped', async () => {
   let r = await S.admin('PUT', '/api/admin/settings', { settings: { 'backup.keep': 3 } });
   assert.equal(r.status, 200);
   let daily = files().filter((f) => f.includes('taeglich'));
   assert.deepEqual(daily, ['helfi-taeglich-2026-10-10.sqlite', 'helfi-taeglich-2026-10-11.sqlite', 'helfi-taeglich-2026-10-12.sqlite']);
 
   r = await S.admin('PUT', '/api/admin/settings', { settings: { 'backup.keep': 0 } });
-  assert.equal(S.ctx.settings.get('backup.keep'), 1, 'mindestens 1');
+  assert.equal(S.ctx.settings.get('backup.keep'), 1, 'at least 1');
   daily = files().filter((f) => f.includes('taeglich'));
-  assert.deepEqual(daily, ['helfi-taeglich-2026-10-12.sqlite'], 'die neueste bleibt');
+  assert.deepEqual(daily, ['helfi-taeglich-2026-10-12.sqlite'], 'the newest one stays');
   await S.admin('PUT', '/api/admin/settings', { settings: { 'backup.keep': 5000 } });
-  assert.equal(S.ctx.settings.get('backup.keep'), 100, 'höchstens 100');
+  assert.equal(S.ctx.settings.get('backup.keep'), 100, 'at most 100');
   await S.admin('PUT', '/api/admin/settings', { settings: { 'backup.keep': 2 } });
 });
 
-test('Manuelle Sicherungen werden mitgezählt, Versions- und Vor-Löschen-Sicherungen getrennt', async () => {
+test('Manual backups are counted, version and pre-delete backups separately', async () => {
   fake('helfi-vor-1.8.0-a.sqlite', 500);
   fake('helfi-vor-1.9.0-a.sqlite', 400);
   fake('helfi-vor-loeschen-HR-a.sqlite', 300);
   for (let i = 0; i < 3; i++) {
     const r = await S.admin('POST', '/api/admin/backup');
     assert.equal(r.status, 200);
-    await new Promise((res) => setTimeout(res, 1100)); // eigener Zeitstempel im Namen
+    await new Promise((res) => setTimeout(res, 1100)); // distinct timestamp in the name
   }
   const left = files();
   assert.equal(left.filter((f) => f.startsWith('helfi-manuell-')).length, 2);
-  // Die Sicherung vor dem Löschen eines Projekts ist eine eigene Art und wird nicht von manuellen verdrängt (Audit 2026-11)
-  assert.ok(left.includes('helfi-vor-loeschen-HR-a.sqlite'), 'Sicherung vor Projekt-Löschen bleibt');
-  // Sicherungen vor Versionswechsel (inkl. der beim Start angelegten) zählen getrennt
+  // The backup before deleting a project is its own kind and is not pushed out by manual ones (Audit 2026-11)
+  assert.ok(left.includes('helfi-vor-loeschen-HR-a.sqlite'), 'backup before project deletion stays');
+  // Backups before a version change (incl. the one created at startup) count separately
   assert.ok(left.includes('helfi-vor-1.9.0-a.sqlite'));
 });
 
-test('Einzelne Sicherung löschen: nur Admins, nur Dateien aus dem Sicherungsordner', async () => {
+test('Deleting a single backup: admins only, only files from the backup folder', async () => {
   const agent = await S.user('agent1', 'agent');
   const name = files().find((f) => f.includes('taeglich'));
   let r = await agent('DELETE', `/api/admin/backups/${name}`);

@@ -1,4 +1,4 @@
-// Gemeinsamer Testaufbau: eigener Datenordner, Server, Ersteinrichtung, Clients mit Cookie
+// Shared test setup: own data folder, server, initial setup, clients with cookie
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,7 +38,7 @@ export async function startServer(name) {
   const s = await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' });
   if (s.status !== 200) throw new Error(`setup ${s.status}`);
   const ids = {};
-  /** Benutzer anlegen und angemeldeten Client liefern */
+  /** Create a user and return a logged-in client */
   const user = async (username, role) => {
     const r = await admin('POST', '/api/users', { username, displayName: username, email: `${username}@firma.local`, role, password: 'Sehrgeheim123' });
     ids[username] = r.body.user.id;

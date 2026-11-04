@@ -1,4 +1,4 @@
-// Antwort- und Erledigt-Mails: Absender bleibt das Ticketsystem, der Bearbeiter steht im Text
+// Reply and resolved mails: the sender stays the ticket system, the agent is named in the text
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -18,7 +18,7 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Antwort: Gruß mit Namen des Bearbeiters, Ansprechpartner nur wenn jemand anderes zugewiesen ist', async () => {
+test('Reply: signature with the agent name, contact person only if someone else is assigned', async () => {
   const tk = (await karl('POST', '/api/tickets', { title: 'Drucker' })).body.ticket;
   sent.length = 0;
   await anna('POST', `/api/tickets/${tk.key}/comments`, { body: 'Ich schaue es mir an.' });
@@ -26,8 +26,8 @@ test('Antwort: Gruß mit Namen des Bearbeiters, Ansprechpartner nur wenn jemand 
   const m1 = sent.find((m) => m.to === 'karl@firma.local');
   assert.match(m1.text, /Anna Berger hat auf Ihr Ticket/);
   assert.match(m1.text, /Viele Grüße\nAnna Berger\nIT-Helpdesk$/);
-  assert.doesNotMatch(m1.text, /Ansprechpartner/, 'niemand zugewiesen');
-  assert.equal(m1.from, undefined, 'kein eigener Absender – der kommt aus den Einstellungen');
+  assert.doesNotMatch(m1.text, /Ansprechpartner/, 'nobody assigned');
+  assert.equal(m1.from, undefined, 'no own sender – it comes from the settings');
 
   await anna('PATCH', `/api/tickets/${tk.key}`, { assigneeId: S.ids.anna });
   sent.length = 0;
@@ -39,10 +39,10 @@ test('Antwort: Gruß mit Namen des Bearbeiters, Ansprechpartner nur wenn jemand 
   sent.length = 0;
   await anna('POST', `/api/tickets/${tk.key}/comments`, { body: 'Toner ist da.' });
   await wait();
-  assert.doesNotMatch(sent.find((m) => m.to === 'karl@firma.local').text, /Ansprechpartner/, 'antwortet selbst');
+  assert.doesNotMatch(sent.find((m) => m.to === 'karl@firma.local').text, /Ansprechpartner/, 'replies themselves');
 });
 
-test('Erledigt: Ansprechpartner und Gruß; interne Notizen gehen nicht raus', async () => {
+test('Resolved: contact person and signature; internal notes are not sent', async () => {
   const tk = (await karl('POST', '/api/tickets', { title: 'VPN' })).body.ticket;
   await anna('PATCH', `/api/tickets/${tk.key}`, { assigneeId: S.ids.anna });
   sent.length = 0;
@@ -50,10 +50,10 @@ test('Erledigt: Ansprechpartner und Gruß; interne Notizen gehen nicht raus', as
   await anna('PATCH', `/api/tickets/${tk.key}`, { status: 'done' });
   await wait();
   const mails = sent.filter((m) => m.to === 'karl@firma.local');
-  assert.equal(mails.length, 1, 'nur die Erledigt-Mail');
-  assert.doesNotMatch(mails[0].text, /Ansprechpartner/, 'erledigt selbst – kein Hinweis auf sich selbst');
+  assert.equal(mails.length, 1, 'only the resolved mail');
+  assert.doesNotMatch(mails[0].text, /Ansprechpartner/, 'resolves it themselves – no reference to themselves');
   assert.match(mails[0].text, /Viele Grüße\nAnna Berger\nIT-Helpdesk$/);
-  // Erledigt jemand anderes, steht die zugewiesene Person als Ansprechpartner dabei
+  // If someone else resolves it, the assignee is listed as contact person
   const tk2 = (await karl('POST', '/api/tickets', { title: 'WLAN' })).body.ticket;
   await anna('PATCH', `/api/tickets/${tk2.key}`, { assigneeId: S.ids.anna });
   sent.length = 0;
@@ -64,7 +64,7 @@ test('Erledigt: Ansprechpartner und Gruß; interne Notizen gehen nicht raus', as
   assert.match(m2.text, /Viele Grüße\nTom Schulz\nIT-Helpdesk$/);
 });
 
-test('Englisch', async () => {
+test('English', async () => {
   S.db.prepare("UPDATE users SET language='en' WHERE username='karl'").run();
   const tk = (await karl('POST', '/api/tickets', { title: 'Printer' })).body.ticket;
   sent.length = 0;

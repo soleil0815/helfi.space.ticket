@@ -1,4 +1,4 @@
-// ITIL-Kennzahlen: Wiedereröffnung, erster Kontakt, SLA-Einhaltung, Changes je Monat, Probleme
+// ITIL metrics: reopening, first contact, SLA compliance, changes per month, problems
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -14,26 +14,26 @@ after(() => S.stop());
 const done = (key) => anna('PATCH', `/api/tickets/${key}`, { status: 'done' });
 const mk = async (title) => (await karl('POST', '/api/tickets', { title })).body.ticket.key;
 
-test('Wiedereröffnung und Lösung beim ersten Kontakt', async () => {
-  // 1) eine Antwort, erledigt → erster Kontakt
+test('Reopening and first-contact resolution', async () => {
+  // 1) one reply, resolved → first contact
   const a = await mk('A');
   await anna('POST', `/api/tickets/${a}/comments`, { body: 'Neu gestartet, geht wieder.' });
   await done(a);
-  // 2) Rückfrage (wartet) → kein erster Kontakt
+  // 2) follow-up question (waiting) → no first contact
   const b = await mk('B');
   await anna('PATCH', `/api/tickets/${b}`, { status: 'waiting' });
   await done(b);
-  // 3) erledigt, wieder geöffnet, erneut erledigt → Wiedereröffnung
+  // 3) resolved, reopened, resolved again → reopening
   const c = await mk('C');
   await done(c);
   await anna('PATCH', `/api/tickets/${c}`, { status: 'in_progress' });
   await done(c);
-  // 4) zwei Antworten → kein erster Kontakt
+  // 4) two replies → no first contact
   const d = await mk('D');
   await anna('POST', `/api/tickets/${d}/comments`, { body: 'eins' });
   await anna('POST', `/api/tickets/${d}/comments`, { body: 'zwei' });
   await done(d);
-  // eigene Tickets der IT zählen nicht
+  // IT's own tickets do not count
   const own = (await anna('POST', '/api/tickets', { title: 'intern' })).body.ticket.key;
   await done(own);
 
@@ -43,7 +43,7 @@ test('Wiedereröffnung und Lösung beim ersten Kontakt', async () => {
   assert.deepEqual(r.sla, { enabled: false });
 });
 
-test('SLA-Einhaltung nach Priorität', async () => {
+test('SLA compliance by priority', async () => {
   S.ctx.settings.set('sla.enabled', true);
   S.ctx.settings.set('sla.hours', JSON.stringify({ days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '24:00' }));
   const late = await mk('alt');
@@ -60,7 +60,7 @@ test('SLA-Einhaltung nach Priorität', async () => {
   S.ctx.settings.set('sla.enabled', false);
 });
 
-test('Changes je Monat mit Erfolgsquote und Notfallanteil; Probleme', async () => {
+test('Changes per month with success rate and emergency share; problems', async () => {
   const mkChange = async (title, fields) => {
     const key = (await anna('POST', '/api/tickets', { title, type: 'change' })).body.ticket.key;
     const id = S.db.prepare("SELECT t.id FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key || '-' || t.number = ?").get(key).id;
