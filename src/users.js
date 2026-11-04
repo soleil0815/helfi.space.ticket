@@ -1,4 +1,4 @@
-// Benutzerverwaltung: lokale Konten, Übernahme aus AD/SSO, Rollen.
+// User management: local accounts, provisioning from AD/SSO, roles.
 import { hashPassword } from './lib/crypto.js';
 import { HttpError } from './lib/http.js';
 
@@ -20,7 +20,7 @@ export function publicUser(u) {
   };
 }
 
-/** Kurzform für Listen (Zuweisung, Avatare) – ohne Anmeldedetails. */
+/** Short form for lists (assignment, avatars) – without sign-in details. */
 export function userRef(u) {
   if (!u) return null;
   return { id: u.id, displayName: u.display_name, username: u.username, email: u.email || '' };
@@ -28,7 +28,7 @@ export function userRef(u) {
 
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[^\s@<>()",;:]+$/;
 
-/** E-Mail-Adresse prüfen und vereinheitlichen (klein geschrieben). Leer = keine Adresse. */
+/** Validate and normalize an email address (lowercase). Empty = no address. */
 export function normalizeEmail(value) {
   const e = String(value ?? '').trim().toLowerCase();
   if (!e) return '';
@@ -39,7 +39,7 @@ export function normalizeEmail(value) {
 export function createUsers(db) {
   const byId = db.prepare('SELECT * FROM users WHERE id=?');
   const byName = db.prepare('SELECT * FROM users WHERE username=?');
-  // Groß-/Kleinschreibung egal: AD liefert z. B. "Max.Muster@firma.local", Mails kommen klein geschrieben
+  // Case-insensitive: AD returns e.g. "Max.Muster@firma.local", mails arrive in lowercase
   const byEmail = db.prepare("SELECT * FROM users WHERE lower(email)=lower(?) AND email<>'' ORDER BY (source='email'), id LIMIT 1");
 
   function countActiveAdmins(exceptId = 0) {
@@ -60,9 +60,9 @@ export function createUsers(db) {
   }
 
   /**
-   * E-Mail-Adresse eines Kontos setzen. Eingehende Mails werden über die Adresse zugeordnet, deshalb:
-   * gehört sie einem anderen Konto → 409; gehört sie einem E-Mail-Kontakt (aus Mails entstanden),
-   * wird der Kontakt mit seinen Tickets, Kommentaren und Teilnahmen in dieses Konto übernommen.
+   * Set the email address of an account. Incoming mails are matched by address, therefore:
+   * if it belongs to another account → 409; if it belongs to an email contact (created from mails),
+   * the contact with its tickets, comments and participations is merged into this account.
    */
   function setEmail(userId, email) {
     const mail = normalizeEmail(email);
@@ -77,7 +77,7 @@ export function createUsers(db) {
     return byId.get(userId);
   }
 
-  /** E-Mail-Kontakt in ein Konto übernehmen und den Kontakt löschen. */
+  /** Merge an email contact into an account and delete the contact. */
   function mergeContact(fromId, intoId) {
     const from = byId.get(fromId);
     if (!from || from.source !== 'email') throw new Error('Nur E-Mail-Kontakte lassen sich übernehmen');
@@ -85,13 +85,13 @@ export function createUsers(db) {
     db.prepare('UPDATE comments SET author_id=? WHERE author_id=?').run(intoId, fromId);
     db.prepare('UPDATE attachments SET uploaded_by=? WHERE uploaded_by=?').run(intoId, fromId);
     db.prepare('UPDATE activity SET user_id=? WHERE user_id=?').run(intoId, fromId);
-    // Teilnahmen übernehmen, aber nicht bei eigenen Tickets (dort ist das Konto schon Melder)
+    // Take over participations, but not on own tickets (the account is already the reporter there)
     db.prepare(`INSERT OR IGNORE INTO ticket_participants(ticket_id,user_id,added_by,created_at)
       SELECT p.ticket_id, ?, p.added_by, p.created_at FROM ticket_participants p JOIN tickets t ON t.id=p.ticket_id
       WHERE p.user_id=? AND (t.reporter_id IS NULL OR t.reporter_id<>?)`).run(intoId, fromId, intoId);
-    // Alle übrigen Verweise umhängen, sonst würde das Löschen sie leeren (SET NULL) oder mitlöschen (CASCADE),
-    // z. B. offene Genehmigungen: die Anfrage bliebe sonst für immer „ausstehend“.
-    // Genehmigungen: war das Konto in derselben Runde schon angefragt, bleibt dessen Zeile (OR IGNORE).
+    // Repoint all other references, otherwise deleting would clear them (SET NULL) or delete them too (CASCADE),
+    // e.g. open approvals: the request would otherwise stay "pending" forever.
+    // Approvals: if the account was already asked in the same round, its row stays (OR IGNORE).
     db.prepare('UPDATE OR IGNORE approvals SET approver_id=? WHERE approver_id=?').run(intoId, fromId);
     for (const [table, col] of [
       ['tickets', 'assignee_id'], ['projects', 'lead_id'], ['ticket_participants', 'added_by'],
@@ -100,7 +100,7 @@ export function createUsers(db) {
       ['kb_articles', 'created_by'], ['kb_articles', 'updated_by'], ['kb_images', 'created_by'], ['kb_versions', 'author_id'],
       ['kb_templates', 'created_by'], ['kb_templates', 'updated_by'], ['kb_comments', 'author_id'], ['kb_comments', 'resolved_by'],
     ]) db.prepare(`UPDATE ${table} SET ${col}=? WHERE ${col}=?`).run(intoId, fromId);
-    // Genehmiger-Listen als Text (Servicekatalog, Change-Genehmiger in den Einstellungen)
+    // Approver lists as text (service catalog, change approvers in the settings)
     const swap = (list, sep) => [...new Set(String(list).split(sep).filter(Boolean).map((x) => (Number(x) === fromId ? String(intoId) : x.trim())))].join(',');
     for (const it of db.prepare("SELECT id, approver_ids FROM catalog_items WHERE ','||approver_ids||',' LIKE ?").all(`%,${fromId},%`)) {
       db.prepare('UPDATE catalog_items SET approver_ids=? WHERE id=?').run(swap(it.approver_ids, ','), it.id);
@@ -116,35 +116,35 @@ export function createUsers(db) {
   }
 
   /**
-   * Legt Benutzer aus AD/SSO an oder aktualisiert sie.
-   * role: gewünschte Rolle aus Gruppen; null = Rolle nicht aus Gruppen ableiten.
-   * trustName: Benutzername ist von einer vertrauenswürdigen Quelle (AD bzw. SSO mit eigener Domäne)
-   *            und darf mit einem bestehenden AD-/SSO-Konto gleichen Namens zusammengeführt werden.
-   * trustEmail: E-Mail-Adresse ist bestätigt – E-Mail-Kontakte dürfen übernommen werden.
-   * allowCreate: false = nur bestehende Konten anmelden.
+   * Creates or updates users from AD/SSO.
+   * role: desired role from groups; null = do not derive the role from groups.
+   * trustName: username comes from a trusted source (AD or SSO with own domain)
+   *            and may be merged with an existing AD/SSO account of the same name.
+   * trustEmail: email address is verified – email contacts may be merged.
+   * allowCreate: false = only sign in existing accounts.
    */
-  /** Bis 1.12 konnte die objectGUID als Text (statt Hex) gespeichert werden: weder 32 Hex-Zeichen noch ein DN */
+  /** Up to 1.12 the objectGUID could be stored as text (instead of hex): neither 32 hex characters nor a DN */
   const garbledGuid = (id) => !/^[0-9a-f]{32}$/i.test(String(id)) && !String(id).includes('=');
 
   function upsertExternal({ source, username, displayName, email, externalId, role, trustName = true, trustEmail = true, allowCreate = true, sid = '' }) {
-    // objectSid nur von AD-Konten speichern (stabile Kennung für die Zusammenführung mit SSO)
+    // Store objectSid only for AD accounts (stable identifier for merging with SSO)
     const adSid = source === 'ldap' && /^S-1-[\d-]+$/.test(String(sid || '')) ? String(sid) : null;
-    // Unbestätigte Adressen nie speichern: Mails von dieser Adresse würden sonst diesem Konto zugeordnet
+    // Never store unverified addresses: mails from this address would otherwise be matched to this account
     if (!trustEmail) email = '';
     let u = externalId ? db.prepare('SELECT * FROM users WHERE source=? AND external_id=?').get(source, externalId) : null;
 
     if (!u) {
       const byUsername = byName.get(username);
       const mergeable = byUsername && trustName && byUsername.source !== 'local'
-        // nie ein Konto derselben Quelle mit anderer Identität übernehmen – außer bei AD-Konten, deren
-        // gespeicherte objectGUID bis 1.12 verstümmelt sein konnte (16 Bytes zufällig gültiges UTF-8 → Text statt Hex)
+        // never take over an account of the same source with a different identity – except AD accounts whose
+        // stored objectGUID could be mangled up to 1.12 (16 bytes happened to be valid UTF-8 → text instead of hex)
         && !(byUsername.source === source && byUsername.external_id && byUsername.external_id !== externalId
           && !(source === 'ldap' && garbledGuid(byUsername.external_id) && /^[0-9a-f]{32}$/.test(String(externalId || ''))))
-        // Konten im Namensraum "oidc:" (nicht vertrauenswürdige SSO-Namen) nie übernehmen
+        // Never take over accounts in the namespace "oidc:" (untrusted SSO names)
         && !String(byUsername.username).startsWith('oidc:');
       if (mergeable) u = byUsername;
       else if (byUsername) {
-        // Namenskonflikt (lokales Konto oder andere Identität): eigenes Konto mit Präfix
+        // Name conflict (local account or other identity): separate account with prefix
         const base = `${source}:${username}`;
         for (let i = 1; i < 100; i++) {
           const candidate = i === 1 ? base : `${base}-${i}`;
@@ -155,7 +155,7 @@ export function createUsers(db) {
       }
     }
     if (!u && email && trustEmail) {
-      // Per E-Mail nur reine Kontakte übernehmen (aus Mails entstanden), nie fremde Konten
+      // Via email only take over plain contacts (created from mails), never other accounts
       const contact = byEmail.get(email);
       if (contact && contact.source === 'email') u = contact;
     }
@@ -170,9 +170,9 @@ export function createUsers(db) {
     }
 
     const newRole = u.role_locked || !role ? u.role : role;
-    // Den letzten Admin nicht durch eine Gruppenänderung herabstufen
+    // Do not demote the last admin through a group change
     const safeRole = u.role === 'admin' && newRole !== 'admin' && countActiveAdmins(u.id) === 0 ? 'admin' : newRole;
-    // Herkunft nur übernehmen, wenn das Konto ein E-Mail-Kontakt war oder schon dieser Quelle gehört
+    // Take over the source only if the account was an email contact or already belongs to this source
     const adopt = u.source === 'email' || u.source === source;
     db.prepare(
       `UPDATE users SET display_name=?, email=COALESCE(NULLIF(?,''),email), role=?, source=?, external_id=? WHERE id=?`,
@@ -185,7 +185,7 @@ export function createUsers(db) {
     return byId.get(u.id);
   }
 
-  /** Absender einer E-Mail ohne Konto: als "email"-Kontakt anlegen (kann sich nicht anmelden). */
+  /** Sender of an email without an account: create as "email" contact (cannot sign in). */
   function contactForEmail(email, name) {
     const existing = byEmail.get(email);
     if (existing) return existing;
@@ -197,7 +197,7 @@ export function createUsers(db) {
     return byId.get(info.lastInsertRowid);
   }
 
-  /** AD-Konto über die AD-Kennung aus einem SSO-Claim ({ sid } oder { guid }) */
+  /** AD account via the AD identifier from an SSO claim ({ sid } or { guid }) */
   function byAdId(adId) {
     if (adId?.sid) return db.prepare("SELECT * FROM users WHERE source='ldap' AND ad_sid=? COLLATE NOCASE").get(adId.sid) || null;
     if (adId?.guid) return db.prepare("SELECT * FROM users WHERE source='ldap' AND lower(external_id)=?").get(adId.guid) || null;
@@ -207,7 +207,7 @@ export function createUsers(db) {
   return { byAdId, byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, countActiveAdmins, setEmail };
 }
 
-/** Rolle aus Gruppenmitgliedschaft ableiten. Keine Gruppen konfiguriert → null (Rolle bleibt). */
+/** Derive the role from group membership. No groups configured → null (role stays). */
 export function roleFromGroups(groups, cfg) {
   if (!cfg.adminGroup && !cfg.agentGroup) return null;
   if (cfg.adminGroup && groups.admin) return 'admin';

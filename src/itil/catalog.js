@@ -1,4 +1,4 @@
-// Servicekatalog: Angebote mit Formular; optional Genehmigung vor der Bearbeitung.
+// Service catalog: offerings with a form; optional approval before processing.
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 import { log } from '../lib/log.js';
@@ -54,7 +54,7 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
     db.prepare('DELETE FROM catalog_items WHERE id=?').run(int(id) || 0);
   }
 
-  /** Anfrage aus dem Katalog: Antworten prüfen, Ticket anlegen, ggf. Genehmigung anfragen */
+  /** Request from the catalog: validate answers, create ticket, request approval if needed */
   function order(user, id, answers = {}) {
     if (!isAgent(user) && !settings.get('general.allowSelfService')) throw new HttpError(403, 'err.selfServiceOff');
     const r = db.prepare('SELECT * FROM catalog_items WHERE id=? AND active=1').get(int(id) || 0);
@@ -89,7 +89,7 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
   const setField = (ticketId, name, value) => db.prepare(`INSERT INTO ticket_fields(ticket_id, name, value) VALUES(?,?,?)
     ON CONFLICT(ticket_id, name) DO UPDATE SET value=excluded.value`).run(ticketId, name, value);
 
-  /** Entscheidung über eine Katalog-Anfrage */
+  /** Decision on a catalog request */
   function decide(user, key, decision, comment) {
     const row = tickets.load(user, key);
     if (fieldOf(row.id, 'approvalState') !== 'pending') throw new HttpError(400, 'err.alreadyDecided');
@@ -101,7 +101,7 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
       const msgKey = result === 'approved' ? 'catalog.approvedNote' : 'catalog.rejectedNote';
       const lang = settings.get('general.defaultLanguage');
       const text = `${t ? t(lang, msgKey) : result}${comment ? `\n\n„${str(comment, 2000)}“` : ''}`;
-      // Antwort an den Melder (Mail wie jede Antwort); bei Ablehnung erledigt
+      // Reply to the reporter (mail like any reply); resolved if rejected
       tickets.addComment(user, row.id, { body: text }, { skipPermission: true });
       if (result === 'rejected') tickets.update({ ...user, role: 'agent' }, row.id, { status: 'done' }, { quietResolved: true });
     }
@@ -114,7 +114,7 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
     const vars = { key: tk.key, title: tk.title, link: `${baseUrl}/browse/${tk.key}`, app: settings.get('general.title') || 'Helfi.Space', ...extra };
     await mailer.send({ to: to.email, subject: t(lang, subjectKey, vars), text: t(lang, bodyKey, vars), ticketId: tk.id });
   }
-  const notify = (...a) => send(...a).catch((e) => log.warn('Genehmigungs-Mail fehlgeschlagen', { error: e.message }));
+  const notify = (...a) => send(...a).catch((e) => log.warn('Approval mail failed', { error: e.message }));
 
   tickets.addDetailExtra((user, row) => {
     const state = fieldOf(row.id, 'approvalState');

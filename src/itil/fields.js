@@ -1,4 +1,4 @@
-// Zusatzfelder je Tickettyp (Problem, Change). Nur Bearbeiter lesen und ändern sie.
+// Extra fields per ticket type (problem, change). Only agents read and change them.
 import { HttpError, forbidden, str } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 
@@ -48,7 +48,7 @@ export function createFields(db, tickets) {
     return str(v, d.max || 20000);
   }
 
-  /** Felder ändern; Verlauf je geändertem Feld (lange Texte ohne Inhalt) */
+  /** Change fields; history entry per changed field (long texts without content) */
   function update(user, key, data = {}, { allowed = null } = {}) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);

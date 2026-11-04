@@ -1,4 +1,4 @@
-// Tickets, Projekte, Kommentare, Anhänge, Verlauf.
+// Tickets, projects, comments, attachments, history.
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,10 +11,10 @@ import { log } from './lib/log.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 export const TYPES = ['incident', 'request', 'task', 'question', 'problem', 'change'];
-// Nur Bearbeiter legen Probleme und Changes an
+// Only agents create problems and changes
 export const AGENT_TYPES = ['problem', 'change'];
 export const PRIORITIES = ['highest', 'high', 'medium', 'low'];
-// Auswirkung × Dringlichkeit → Priorität (ITIL)
+// Impact × urgency → priority (ITIL)
 export const LEVELS = ['high', 'medium', 'low'];
 export const PRIORITY_MATRIX = {
   high: { high: 'highest', medium: 'high', low: 'medium' },
@@ -31,18 +31,18 @@ export function normalizeLabels(v) {
 }
 
 export function createTickets(db, users) {
-  // Volltextsuche: Index beim Start nachziehen (nach dem Update einmal alle Tickets)
+  // Full-text search: catch up the index at startup (after an update once for all tickets)
   const search = createSearch(db);
   try {
     const t0 = Date.now(); const n = search.flush();
-    if (n > 100) log.info(`Suchindex aufgebaut: ${n} Tickets in ${Date.now() - t0} ms`);
-  } catch (e) { log.warn('Suchindex konnte nicht aufgebaut werden', { error: e.message }); }
+    if (n > 100) log.info(`Search index built: ${n} tickets in ${Date.now() - t0} ms`);
+  } catch (e) { log.warn('Search index could not be built', { error: e.message }); }
   const events = new EventEmitter();
-  // Ereignisse erst nach Abschluss der laufenden Transaktion auslösen
+  // Fire events only after the current transaction has completed
   const emitLater = (name, payload) => setImmediate(() => events.emit(name, payload));
 
-  // ---------- Projekte ----------
-  /** Projektleitung: nur bestehende Benutzer, sonst 400 statt Fremdschlüssel-Fehler */
+  // ---------- Projects ----------
+  /** Project lead: existing users only, otherwise 400 instead of a foreign key error */
   function validLead(id) {
     if (id === null || id === undefined || id === '') return null;
     const n = int(id);
@@ -81,9 +81,9 @@ export function createTickets(db, users) {
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(id));
     },
     /**
-     * Projekt löschen. Tickets werden nie gelöscht (Nachweis): ein Projekt mit Tickets lässt sich nur
-     * löschen, wenn sie in ein anderes Projekt verschoben werden (moveTo) – sonst archivieren.
-     * Das letzte Projekt bleibt immer. Liefert { key, moved, target }.
+     * Delete a project. Tickets are never deleted (records): a project with tickets can only be
+     * deleted if they are moved to another project (moveTo) – otherwise archive it.
+     * The last project always remains. Returns { key, moved, target }.
      */
     remove(user, id, { moveTo = null } = {}) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(int(id) || 0);
@@ -119,9 +119,9 @@ export function createTickets(db, users) {
     LEFT JOIN users a ON a.id=t.assignee_id
     LEFT JOIN users r ON r.id=t.reporter_id`;
 
-  /** agent=false: Sicht von Melder/Teilnehmer/Genehmigenden; viewerId = wer schaut (eigene Angaben sichtbar) */
+  /** agent=false: view of reporter/participant/approver; viewerId = who is viewing (own details visible) */
   function ticketOut(t, agent = true, viewerId = null) {
-    // Adresse/Anmeldename des Melders nur für Bearbeiter und den Melder selbst
+    // Reporter's address/login name only for agents and the reporter themselves
     const own = agent || (viewerId != null && t.reporter_id === viewerId);
     return {
       id: t.id,
@@ -153,7 +153,7 @@ export function createTickets(db, users) {
     };
   }
 
-  /** Zuweisen nur an aktive Bearbeiter/Admins */
+  /** Assign only to active agents/admins */
   function isAssignable(id) {
     const u = users.byId(Number(id));
     return !!u && u.active === 1 && (u.role === 'agent' || u.role === 'admin');
@@ -161,7 +161,7 @@ export function createTickets(db, users) {
 
   function rawById(id) { return db.prepare(`${SELECT} WHERE t.id=?`).get(id); }
 
-  /** Ticket per ID oder Schlüssel ("HS-12") holen, mit Rechteprüfung. */
+  /** Get a ticket by ID or key ("HS-12"), with permission check. */
   function load(user, idOrKey) {
     let row;
     const m = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/.exec(str(idOrKey, 30));
@@ -177,12 +177,12 @@ export function createTickets(db, users) {
     return !!userId && !!participantStmt.get(ticketId, userId);
   }
 
-  /** Melder oder Anfrage-Teilnehmer ("Kunde" der Anfrage) */
+  /** Reporter or request participant ("customer" of the request) */
   function isCustomer(user, row) {
     return !!user && (row.reporter_id === user.id || isParticipant(row.id, user.id));
   }
 
-  // Genehmigende Personen (z. B. Vorgesetzte bei Katalog-Anfragen) sehen das Ticket wie ein Teilnehmer
+  // Approvers (e.g. managers for catalog requests) see the ticket like a participant
   const approverStmt = db.prepare('SELECT 1 FROM approvals WHERE ticket_id=? AND approver_id=?');
   function canSee(user, row) {
     return isAgent(user) || isCustomer(user, row) || (!!user && !!approverStmt.get(row.id, user.id));
@@ -230,7 +230,7 @@ export function createTickets(db, users) {
     };
     const lim = int(f.limit);
     const limit = lim && lim > 0 ? Math.min(lim, 2000) : 500;
-    // Suche: Standard „beste Treffer zuerst“ (Reihenfolge aus dem Index), sonst wie gewählt
+    // Search: default "best matches first" (order from the index), otherwise as selected
     const relevance = hits && (!f.sort || f.sort === 'relevance');
     const order = sorts[f.sort] || sorts.updated;
     let rows = db.prepare(`${SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ${relevance ? '' : `ORDER BY ${order} LIMIT ${limit}`}`).all(...args);
@@ -240,7 +240,7 @@ export function createTickets(db, users) {
     }
     const out = rows.map((r) => ticketOut(r, isAgent(user), user.id));
     if (hits) {
-      // Fundstelle für die ersten Treffer (Beschreibung, Antwort, Anhang)
+      // Match location for the first results (description, reply, attachment)
       out.slice(0, 100).forEach((tk) => { const m = search.snippet(tk.id, hits.terms, { internal: isAgent(user) }); if (m) tk.match = m; });
       out.searchTerms = hits.terms;
     }
@@ -283,7 +283,7 @@ export function createTickets(db, users) {
     return t;
   }
 
-  /** opts.quietResolved: keine „Erledigt“-Mail (z. B. wenn gleichzeitig eine Antwort rausgeht). */
+  /** opts.quietResolved: no "Resolved" mail (e.g. when a reply goes out at the same time). */
   function update(user, idOrKey, data, opts = {}) {
     const row = load(user, idOrKey);
     const agent = isAgent(user);
@@ -317,7 +317,7 @@ export function createTickets(db, users) {
       if (data[f] && !LEVELS.includes(data[f])) throw new HttpError(400, 'err.badRequest', f);
       set(f, f, data[f] || null);
     }
-    // Priorität aus der Matrix, sobald beides bekannt ist und Auswirkung/Dringlichkeit sich ändert
+    // Priority from the matrix once both are known and impact/urgency changes
     if ((changes.impact || changes.urgency) && data.priority === undefined) {
       const imp = changes.impact ? changes.impact.new : row.impact;
       const urg = changes.urgency ? changes.urgency.new : row.urgency;
@@ -330,7 +330,7 @@ export function createTickets(db, users) {
       set('dueDate', 'due_date', d);
     }
     if (data.projectId !== undefined && agent) {
-      // Projektwechsel: neue Nummer im Zielprojekt
+      // Project change: new number in the target project
       const target = projects.get(data.projectId);
       if (!target || target.archived) throw notFound();
       if (target.id !== row.project_id) changes.project_id = { field: 'project', old: row.project_key, new: target.key, target };
@@ -344,8 +344,8 @@ export function createTickets(db, users) {
         if (col === 'project_id') { moveToProject(row, c.target, user.id); continue; }
         db.prepare(`UPDATE tickets SET ${col}=? WHERE id=?`).run(c.new, row.id);
         const show = (v) => (col === 'assignee_id' ? (v ? users.byId(v)?.display_name : null) : v);
-        // Beschreibung: alte und neue Fassung im Verlauf aufbewahren (Nachweis bei Änderungen);
-        // ausgeliefert werden die Texte nur auf Anfrage (descriptionVersion), nicht mit jedem Ticket
+        // Description: keep old and new version in the history (record of changes);
+        // the texts are only delivered on request (descriptionVersion), not with every ticket
         if (col === 'description') logActivity(row.id, user.id, 'changed', 'description', c.old ?? '', c.new ?? '');
         else logActivity(row.id, user.id, 'changed', c.field, show(c.old), show(c.new));
       }
@@ -355,7 +355,7 @@ export function createTickets(db, users) {
       if (rankChanged) db.prepare('UPDATE tickets SET rank=? WHERE id=?').run(Number(data.rank), row.id);
       if (changes.description) {
         claimInlineImages(row.id, changes.description.new, user.id);
-        // Nach dem Bearbeiten gilt der Text – die formatierte Mail-Fassung passt nicht mehr dazu
+        // After editing the text applies – the formatted mail version no longer matches it
         db.prepare('DELETE FROM mail_html WHERE ticket_id=? AND comment_id IS NULL').run(row.id);
       }
       if (Object.keys(changes).length) db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
@@ -369,7 +369,7 @@ export function createTickets(db, users) {
     return result;
   }
 
-  /** Ticket in ein anderes Projekt: neue Nummer dort, alte Nummer im Verlauf (in laufender Transaktion aufrufen). */
+  /** Move a ticket to another project: new number there, old number in the history (call within a transaction). */
   function moveToProject(row, target, userId) {
     if (row.project_id === target.id) return;
     const number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(target.id).n;
@@ -377,7 +377,7 @@ export function createTickets(db, users) {
     logActivity(row.id, userId, 'changed', 'project', `${row.project_key}-${row.number}`, `${target.key}-${number}`);
   }
 
-  // ---------- Kommentare ----------
+  // ---------- Comments ----------
   function comments(user, ticketId) {
     const agent = isAgent(user);
     return db.prepare(`SELECT c.*, u.display_name u_name, u.username u_username FROM comments c LEFT JOIN users u ON u.id=c.author_id
@@ -391,7 +391,7 @@ export function createTickets(db, users) {
     }));
   }
 
-  /** system: Hinweis von Helfi.Space selbst (z. B. Zustellfehler) – immer intern, öffnet nichts wieder. */
+  /** system: notice from Helfi.Space itself (e.g. delivery failure) – always internal, reopens nothing. */
   function addComment(user, idOrKey, { body, internal = false }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false } = {}) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
     const text = str(body, 100000).trim();
@@ -403,7 +403,7 @@ export function createTickets(db, users) {
         .run(row.id, user ? user.id : null, authorEmail, authorName, text, isInternal, source);
       if (user && source !== 'email') claimInlineImages(row.id, text, user.id, r.lastInsertRowid);
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
-      // Antwort des Meldenden auf ein wartendes/erledigtes Ticket → wieder öffnen
+      // Reply from the reporter to a waiting/resolved ticket → reopen
       const fromCustomer = !system && !agent && (user ? isCustomer(user, row) : true);
       if (fromCustomer && (row.status === 'waiting' || row.status === 'done')) {
         db.prepare("UPDATE tickets SET status='open', resolved_at=NULL WHERE id=?").run(row.id);
@@ -418,9 +418,9 @@ export function createTickets(db, users) {
   }
 
   /**
-   * Im Text eingebettete Bilder (![name](/api/attachments/ID)) übernehmen: Entwürfe dieses Tickets,
-   * die die Person selbst hochgeladen hat, werden sichtbar und – bei Kommentaren – dem Kommentar
-   * zugeordnet (interne Notiz → Bild bleibt intern).
+   * Adopt images embedded in the text (![name](/api/attachments/ID)): drafts of this ticket
+   * uploaded by the person themselves become visible and – for comments – are assigned to the
+   * comment (internal note → image stays internal).
    */
   function claimInlineImages(ticketId, text, userId, commentId = null) {
     const ids = [...String(text || '').matchAll(/\]\(\/api\/attachments\/(\d+)\)/g)].map((m) => Number(m[1]));
@@ -429,7 +429,7 @@ export function createTickets(db, users) {
     for (const id of ids) stmt.run(commentId, id, ticketId, userId);
   }
 
-  // ---------- Anhänge ----------
+  // ---------- Attachments ----------
   function attachments(ticketId) {
     return db.prepare('SELECT id, filename, mime, size, comment_id, created_at FROM attachments WHERE ticket_id=? AND draft=0 AND inline=0 ORDER BY id').all(ticketId)
       .map((a) => ({ id: a.id, filename: a.filename, mime: a.mime, size: a.size, commentId: a.comment_id, createdAt: a.created_at }));
@@ -445,7 +445,7 @@ export function createTickets(db, users) {
       try { fs.renameSync(tmpPath, target); }
       catch (e) {
         if (e.code !== 'EXDEV') throw e;
-        // anderes Dateisystem (z. B. /tmp im Container, /data eingebunden)
+        // different file system (e.g. /tmp in the container, /data mounted)
         fs.copyFileSync(tmpPath, target);
         fs.rmSync(tmpPath, { force: true });
       }
@@ -460,7 +460,7 @@ export function createTickets(db, users) {
   function attachmentFile(user, attId) {
     const a = db.prepare('SELECT * FROM attachments WHERE id=?').get(attId);
     if (!a) throw notFound();
-    load(user, a.ticket_id); // Rechte
+    load(user, a.ticket_id); // permissions
     if (a.draft && !isAgent(user) && a.uploaded_by !== user.id) throw notFound();
     if (a.comment_id && !isAgent(user)) {
       const c = db.prepare('SELECT internal FROM comments WHERE id=?').get(a.comment_id);
@@ -477,8 +477,8 @@ export function createTickets(db, users) {
     logActivity(a.ticket_id, user.id, 'detached', null, a.filename, null);
   }
 
-  // ---------- Anfrage-Teilnehmer ----------
-  /** Teilnehmerliste. E-Mail-Adressen nur für Bearbeiter (bzw. die eigene). */
+  // ---------- Request participants ----------
+  /** Participant list. Email addresses only for agents (or one's own). */
   function participants(ticketId, viewer = null) {
     const agent = !viewer || isAgent(viewer);
     return db.prepare(`SELECT u.id, u.display_name, u.username, u.email, u.source, p.created_at FROM ticket_participants p
@@ -490,10 +490,10 @@ export function createTickets(db, users) {
   }
 
   /**
-   * Teilnehmer hinzufügen.
-   * Web: Bearbeiter (Benutzer oder beliebige Adresse) und Melder/Teilnehmer (nur bestehende Konten,
-   *      keine freien Adressen – sonst ließen sich Benachrichtigungen an Fremde auslösen).
-   * system: aus E-Mails (CC) – Rechte prüft der Aufrufer.
+   * Add a participant.
+   * Web: agents (user or any address) and reporter/participants (existing accounts only,
+   *      no free addresses – otherwise notifications to strangers could be triggered).
+   * system: from emails (CC) – the caller checks permissions.
    */
   function addParticipant(user, idOrKey, { userId, email } = {}, { system = false, notify = true } = {}) {
     const row = system ? load(null, idOrKey) : load(user, idOrKey);
@@ -523,7 +523,7 @@ export function createTickets(db, users) {
     return { added: true, participants: participants(row.id, user) };
   }
 
-  /** Teilnehmer entfernen: Bearbeiter, Melder oder die Person selbst. */
+  /** Remove a participant: agents, reporter or the person themselves. */
   function removeParticipant(user, idOrKey, userId) {
     const row = load(user, idOrKey);
     const target = users.byId(int(userId) || 0);
@@ -533,11 +533,11 @@ export function createTickets(db, users) {
       db.prepare('DELETE FROM ticket_participants WHERE ticket_id=? AND user_id=?').run(row.id, target.id);
       logActivity(row.id, user.id, 'participantRemoved', null, target.display_name, null);
     })();
-    // Wer sich selbst entfernt, sieht das Ticket danach nicht mehr
+    // Whoever removes themselves no longer sees the ticket afterwards
     return { participants: canSee(user, row) ? participants(row.id, user) : [] };
   }
 
-  /** Empfänger für Benachrichtigungen an "Kunden": Melder und Teilnehmer (aktiv, mit Adresse). */
+  /** Recipients of notifications to "customers": reporter and participants (active, with address). */
   function customerRecipients(ticketId) {
     const t = db.prepare('SELECT reporter_id, reporter_email, reporter_name FROM tickets WHERE id=?').get(ticketId);
     if (!t) return [];
@@ -569,7 +569,7 @@ export function createTickets(db, users) {
       });
   }
 
-  /** Alte und neue Fassung der Beschreibung zu einem Verlaufseintrag (nur Bearbeiter, wie der Verlauf) */
+  /** Old and new version of the description for a history entry (agents only, like the history) */
   function descriptionVersion(user, idOrKey, activityId) {
     const row = load(user, idOrKey);
     if (!isAgent(user)) throw forbidden();
@@ -579,11 +579,11 @@ export function createTickets(db, users) {
     return { old: a.old_value, new: a.new_value ?? '', createdAt: a.created_at, user: a.user_id ? { id: a.user_id, displayName: a.u_name } : null };
   }
 
-  // ---------- HTML-Mails ----------
+  // ---------- HTML mails ----------
   function saveMailHtml(ticketId, commentId, html, blocked = 0) {
     db.prepare('INSERT INTO mail_html(ticket_id, comment_id, html, blocked) VALUES(?,?,?,?)').run(ticketId, commentId, html, blocked);
   }
-  /** HTML zur Beschreibung (commentId null) oder zu einem Kommentar – mit denselben Rechten wie der Text */
+  /** HTML for the description (commentId null) or a comment – with the same permissions as the text */
   function mailHtml(user, idOrKey, commentId = null) {
     const row = load(user, idOrKey);
     if (commentId) {
@@ -596,7 +596,7 @@ export function createTickets(db, users) {
     return m;
   }
 
-  // Erweiterungen (Verknüpfungen, SLA, Change …) hängen eigene Felder an die Ticketansicht
+  // Extensions (links, SLA, change …) attach their own fields to the ticket view
   const detailExtras = [];
   function addDetailExtra(fn) { detailExtras.push(fn); }
 
@@ -616,7 +616,7 @@ export function createTickets(db, users) {
     };
   }
 
-  /** Zahlen für die Warteschlangen der Seitenleiste (eine Abfrage, nur aktive Projekte; unbekanntes Projekt → 0). */
+  /** Counts for the sidebar queues (one query, active projects only; unknown project → 0). */
   function queueCounts(user, projectKey = null) {
     const p = projectKey ? (projects.get(projectKey) || { id: 0 }) : null;
     const r = db.prepare(`SELECT
@@ -633,7 +633,7 @@ export function createTickets(db, users) {
     return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v || 0]));
   }
 
-  /** Zusammenfassung eines Projekts (auch eines archivierten, wenn ausdrücklich gewählt) oder aller aktiven. */
+  /** Summary of one project (also an archived one if explicitly selected) or of all active ones. */
   function summary(user, projectKey = null) {
     const p = projectKey ? projects.get(projectKey) : null;
     if (projectKey && !p) throw notFound();
@@ -662,7 +662,7 @@ export function createTickets(db, users) {
   }
 
   function stats(user) {
-    // wie die Warteschlangen: nur aktive Projekte
+    // like the queues: active projects only
     const mine = db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND assignee_id=? AND status<>'done'").get(user.id).n;
     const unassigned = db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND assignee_id IS NULL AND status<>'done'").get().n;
     const byStatus = Object.fromEntries(STATUSES.map((s) => [s, 0]));

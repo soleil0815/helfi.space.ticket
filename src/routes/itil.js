@@ -1,4 +1,4 @@
-// ITIL-Erweiterungen: Verknüpfungen, (später) SLA, Problem, Change, Wissen, Katalog …
+// ITIL extensions: links, (later) SLA, problem, change, knowledge, catalog …
 import express from 'express';
 import { requireRole, isAgent } from '../auth/session.js';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ export function createItilRoutes(ctx) {
   const r = express.Router();
   const { links, major, fields, problems, changes, approvals, tickets, kb, kbComments, catalog, cmdb, survey, itilReports } = ctx;
 
-  // ---------- Verknüpfungen ----------
+  // ---------- Links ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
     res.status(201).json({ links: links.add(req.user, req.params.key, { kind: str(req.body.kind, 20), target: req.body.target }) });
   }));
@@ -25,25 +25,25 @@ export function createItilRoutes(ctx) {
     res.status(201).json(links.createSubtask(req.user, req.params.key, { title: req.body.title, assigneeId: req.body.assigneeId || null }));
   }));
 
-  // ---------- Zusatzfelder (Problem, Change) ----------
+  // ---------- Extra fields (problem, change) ----------
   r.patch('/tickets/:key/fields', requireRole('agent'), wrap(async (req, res) => {
     res.json({ fields: fields.update(req.user, req.params.key, req.body || {}) });
   }));
 
-  // ---------- Problem-Management ----------
+  // ---------- Problem management ----------
   r.post('/tickets/:key/problem', requireRole('agent'), wrap(async (req, res) => {
     res.status(201).json({ ticket: problems.fromIncident(req.user, req.params.key, { title: req.body.title }) });
   }));
   r.get('/known-errors', requireRole('agent'), (req, res) => res.json({ knownErrors: problems.knownErrors() }));
 
-  // ---------- Change-Management ----------
+  // ---------- Change management ----------
   r.post('/tickets/:key/change/transition', requireRole('agent'), wrap(async (req, res) => {
     res.json({ ticket: changes.transition(req.user, req.params.key, str(req.body.to, 20), { outcome: req.body.outcome || null, review: req.body.review ?? null }) });
   }));
   r.post('/tickets/:key/change/request-approval', requireRole('agent'), wrap(async (req, res) => {
     res.json({ ticket: changes.requestLate(req.user, req.params.key) });
   }));
-  // Entscheidung: Change (Bearbeiter) oder Katalog-Anfrage (auch Nicht-Bearbeiter, z. B. Vorgesetzte)
+  // Decision: change (agents) or catalog request (also non-agents, e.g. managers)
   r.post('/tickets/:key/approval', wrap(async (req, res) => {
     const row = tickets.load(req.user, req.params.key);
     const decision = str(req.body.decision, 10);
@@ -64,23 +64,23 @@ export function createItilRoutes(ctx) {
     res.json({ tickets: approvals.pendingFor(req.user.id).map((id) => tickets.ticketOut(tickets.rawById(id), isAgent(req.user), req.user.id)) });
   });
 
-  // ---------- Wissensdatenbank (Lesen: alle Angemeldeten, öffentliche Artikel; Schreiben: Bearbeiter) ----------
+  // ---------- Knowledge base (read: all signed-in users, public articles; write: agents) ----------
   r.get('/kb', (req, res) => {
     let articles = kb.search(req.user, str(req.query.q, 200), { category: str(req.query.category, 60) });
     if (req.user.role !== 'user') { const open = kbComments.openCounts(); articles = articles.map((a) => ({ ...a, openComments: open.get(a.id) || 0 })); }
     res.json({ articles, categories: kb.categories(req.user) });
   });
-  // Kommentare
+  // Comments
   r.get('/kb/:id/comments', (req, res) => res.json({ comments: kbComments.list(req.user, req.params.id) }));
   r.post('/kb/:id/comments', (req, res) => res.status(201).json({ comment: kbComments.add(req.user, req.params.id, req.body?.body) }));
   r.patch('/kb/comments/:cid', (req, res) => res.json({ comment: kbComments.setResolved(req.user, req.params.cid, !!req.body?.resolved) }));
   r.delete('/kb/comments/:cid', (req, res) => { kbComments.remove(req.user, req.params.cid); res.json({ ok: true }); });
   r.get('/kb/suggest', (req, res) => {
-    // Vorschläge beim Melden: nur öffentliche Artikel, höchstens 3
+    // Suggestions when reporting: public articles only, at most 3
     const q = str(req.query.q, 200);
     res.json({ articles: kb.search({ role: 'user' }, q, { limit: 3 }) });
   });
-  // Bilder für Wissensartikel
+  // Images for knowledge articles
   const kbUpload = multer({ dest: path.join(paths.attachments, '.tmp'), limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 1 } });
   r.post('/kb/images', requireRole('agent'), (req, res, next) => {
     kbUpload.single('file')(req, res, (err) => {
@@ -103,13 +103,13 @@ export function createItilRoutes(ctx) {
   r.get('/kb/tree', (req, res) => res.json({ tree: kb.tree(req.user) }));
   r.patch('/kb/:id/parent', requireRole('agent'), (req, res) => res.json({ article: kb.move(req.user, req.params.id, req.body?.parentId ?? null) }));
   r.get('/kb/:id/bundle', (req, res) => res.json({ articles: kb.bundle(req.user, req.params.id) }));
-  // Vorlagen (vor /kb/:id, sonst wäre „templates“ eine Artikel-ID)
+  // Templates (before /kb/:id, otherwise "templates" would be an article ID)
   r.get('/kb/templates', requireRole('agent'), (req, res) => res.json({ templates: kb.templates(req.user) }));
   r.get('/kb/templates/:id', requireRole('agent'), (req, res) => res.json({ template: kb.template(req.user, req.params.id) }));
   r.post('/kb/templates', requireRole('agent'), (req, res) => res.status(201).json({ template: kb.saveTemplate(req.user, null, req.body || {}) }));
   r.put('/kb/templates/:id', requireRole('agent'), (req, res) => res.json({ template: kb.saveTemplate(req.user, req.params.id, req.body || {}) }));
   r.delete('/kb/templates/:id', requireRole('agent'), (req, res) => { kb.removeTemplate(req.user, req.params.id); res.json({ ok: true }); });
-  // Versionen
+  // Versions
   r.get('/kb/:id/versions', requireRole('agent'), (req, res) => res.json({ versions: kb.versions(req.user, req.params.id) }));
   r.get('/kb/:id/versions/:v', requireRole('agent'), (req, res) => res.json({ version: kb.version(req.user, req.params.id, req.params.v) }));
   r.post('/kb/:id/versions/:v/restore', requireRole('agent'), (req, res) => res.json({ article: kb.restore(req.user, req.params.id, req.params.v) }));
@@ -119,13 +119,13 @@ export function createItilRoutes(ctx) {
   r.delete('/kb/:id', requireRole('agent'), (req, res) => { kb.remove(req.user, req.params.id); res.json({ ok: true }); });
   r.get('/tickets/:key/kb-draft', requireRole('agent'), (req, res) => res.json({ draft: kb.draftFromTicket(req.user, req.params.key) }));
 
-  // ---------- Servicekatalog ----------
-  // ---------- Zufriedenheit ----------
+  // ---------- Service catalog ----------
+  // ---------- Satisfaction ----------
   r.post('/tickets/:key/rating', (req, res) => res.json({ ticket: survey.rateAsUser(req.user, req.params.key, req.body.rating, req.body.comment) }));
   r.get('/reports/itil', requireRole('agent'), (req, res) => res.json(itilReports.report(req.query)));
   r.get('/reports/satisfaction', requireRole('agent'), (req, res) => res.json(survey.report(req.query)));
 
-  // ---------- Geräte und Dienste ----------
+  // ---------- Devices and services ----------
   r.get('/cis', requireRole('agent'), (req, res) => res.json({ items: cmdb.list(req.user, { q: str(req.query.q, 200), kind: str(req.query.kind, 20), status: str(req.query.status, 20) }) }));
   r.get('/cis/:id', requireRole('agent'), (req, res) => res.json({ item: cmdb.get(req.user, req.params.id) }));
   r.post('/cis', requireRole('agent'), (req, res) => res.status(201).json({ item: cmdb.create(req.user, req.body || {}) }));

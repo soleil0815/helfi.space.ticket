@@ -1,7 +1,7 @@
-// Anbindung an Active Directory (Windows Server oder Samba AD) per LDAPS / StartTLS.
-// - Zertifikat des Domänencontrollers abrufen und vertrauen ("pinned"),
-// - Zertifizierungsstellen der Domäne automatisch aus dem AD nachladen,
-// - Anmeldung prüfen, Gruppen (auch verschachtelt) auf Rollen abbilden.
+// Connection to Active Directory (Windows Server or Samba AD) via LDAPS / StartTLS.
+// - fetch and trust the domain controller's certificate ("pinned"),
+// - load the domain's certificate authorities automatically from AD,
+// - verify sign-in, map groups (including nested ones) to roles.
 import net from 'node:net';
 import tls from 'node:tls';
 import crypto from 'node:crypto';
@@ -10,28 +10,28 @@ import { log } from '../lib/log.js';
 
 const IN_CHAIN = '1.2.840.113556.1.4.1941'; // LDAP_MATCHING_RULE_IN_CHAIN (AD + Samba AD)
 
-/** Maskiert Werte für LDAP-Filter (RFC 4515). */
+/** Escapes values for LDAP filters (RFC 4515). */
 export function escapeFilter(value) {
   return String(value).replace(/[\\*()\0]/g, (c) => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'));
 }
 
-/** Benutzerfilter mit maskiertem Namen. Ersetzung per Funktion: sonst würden $&, $' usw. im
- *  Benutzernamen von String.replace als Muster ausgewertet und könnten den Filter verändern. */
+/** User filter with escaped name. Replacement via function: otherwise $&, $' etc. in the
+ *  username would be interpreted as patterns by String.replace and could alter the filter. */
 export function buildUserFilter(template, username) {
   return String(template).replace(/\{\{username\}\}/g, () => escapeFilter(username));
 }
 
-/** DN für Vergleiche: Kleinschreibung, keine Leerzeichen um Kommas/Gleichheitszeichen */
+/** DN for comparisons: lowercase, no spaces around commas/equals signs */
 export function normalizeDn(dn) {
   return String(dn).trim().toLowerCase().replace(/\s*([,=])\s*/g, '$1');
 }
 
-/** Maskiert einen Wert innerhalb eines DN (RFC 4514) – für Filter mit DN-Wert zusätzlich escapeFilter. */
+/** Escapes a value within a DN (RFC 4514) – for filters with a DN value additionally escapeFilter. */
 export function domainFromBaseDn(baseDn) {
   return String(baseDn).split(',').map((p) => p.trim()).filter((p) => /^dc=/i.test(p)).map((p) => p.slice(3)).join('.');
 }
 
-/** "FIRMA\\m.muster" oder "m.muster@firma.local" → "m.muster" */
+/** "FIRMA\\m.muster" or "m.muster@firma.local" → "m.muster" */
 export function normalizeUsername(input) {
   let u = String(input || '').trim();
   if (u.includes('\\')) u = u.split('\\').pop();
@@ -58,7 +58,7 @@ export function describeCert(pemOrDer) {
   };
 }
 
-/** Teilt einen PEM-Block mit mehreren Zertifikaten auf. */
+/** Splits a PEM block with multiple certificates. */
 export function splitPem(pem) {
   return String(pem || '').match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) || [];
 }
@@ -70,7 +70,7 @@ export function mergePem(existing, additional) {
     try {
       const fp = new crypto.X509Certificate(p).fingerprint256;
       if (!seen.has(fp)) { seen.add(fp); out.push(p.trim()); }
-    } catch { /* ungültige Blöcke ignorieren */ }
+    } catch { /* ignore invalid blocks */ }
   }
   return out.join('\n') + (out.length ? '\n' : '');
 }
@@ -85,8 +85,8 @@ function startTlsRequest() {
 }
 
 /**
- * Baut eine TLS-Verbindung auf (LDAPS direkt oder per StartTLS) und liefert die
- * Zertifikatskette des Servers – ohne ihr zu vertrauen. Der Admin bestätigt sie danach.
+ * Opens a TLS connection (LDAPS directly or via StartTLS) and returns the
+ * server's certificate chain – without trusting it. The admin confirms it afterwards.
  */
 export function fetchCertificateChain({ host, port, security = 'ldaps', timeoutMs = 8000 }) {
   return new Promise((resolve, reject) => {
@@ -132,13 +132,13 @@ export function fetchCertificateChain({ host, port, security = 'ldaps', timeoutM
   });
 }
 
-/** TLS-Optionen je nach Modus. */
+/** TLS options depending on the mode. */
 export function tlsOptions(cfg) {
   const opts = { servername: net.isIP(cfg.host) ? undefined : cfg.host, minVersion: 'TLSv1.2' };
   if (cfg.tlsMode === 'insecure') return { ...opts, rejectUnauthorized: false };
   if (cfg.tlsMode === 'pinned') {
     if (!cfg.caPem) throw new Error('Es ist noch kein Zertifikat hinterlegt. Bitte zuerst „Zertifikat abrufen“.');
-    // allowPartialTrustChain: das abgerufene Zertifikat (oder eine Zwischen-CA) genügt als Vertrauensanker
+    // allowPartialTrustChain: the fetched certificate (or an intermediate CA) is enough as trust anchor
     Object.assign(opts, { ca: splitPem(cfg.caPem), allowPartialTrustChain: true, rejectUnauthorized: true });
   } else {
     opts.rejectUnauthorized = true;
@@ -169,21 +169,21 @@ export async function connect(cfg) {
 
 function first(v) { return Array.isArray(v) ? v[0] : v; }
 
-/** DNS-Domäne für UPN-Anmeldungen: aus dem Base-DN, sonst aus dem Namen des DCs (dc01.firma.local → firma.local). */
+/** DNS domain for UPN sign-ins: from the base DN, otherwise from the DC's name (dc01.firma.local → firma.local). */
 export function dnsDomain(cfg) {
   return domainFromBaseDn(cfg.baseDn) || (net.isIP(cfg.host) ? '' : String(cfg.host).split('.').slice(1).join('.'));
 }
 
 async function serviceBind(client, cfg, fallbackUser, fallbackPassword) {
   if (cfg.bindDn) return client.bind(cfg.bindDn, cfg.bindPassword);
-  // Ohne Dienstkonto: mit dem anmeldenden Benutzer selbst binden (UPN)
+  // Without a service account: bind as the signing-in user (UPN)
   if (fallbackUser && fallbackPassword) {
     return client.bind(`${fallbackUser}@${dnsDomain(cfg)}`, fallbackPassword);
   }
   throw new Error('Kein Dienstkonto (Bind-DN) eingetragen.');
 }
 
-/** Base-DN aus dem AD ermitteln, wenn keiner eingetragen ist. */
+/** Determine the base DN from AD if none is configured. */
 async function ensureBaseDn(client, cfg) {
   if (cfg.baseDn) return cfg;
   const dse = await readRootDse(client);
@@ -199,9 +199,9 @@ async function resolveGroupDn(client, cfg, value) {
     filter: `(&(objectClass=group)(|(cn=${escapeFilter(value)})(sAMAccountName=${escapeFilter(value)})))`,
     attributes: ['dn'],
   });
-  if (!searchEntries.length) { log.warn(`AD-Gruppe nicht gefunden: ${value}`); return ''; }
-  // Mehrdeutig (gleicher Name in mehreren OUs) → lieber keine Rolle als die falsche
-  if (searchEntries.length > 1) { log.warn(`AD-Gruppe "${value}" ist mehrdeutig (${searchEntries.length} Treffer) – bitte den vollständigen DN eintragen.`); return ''; }
+  if (!searchEntries.length) { log.warn(`AD group not found: ${value}`); return ''; }
+  // Ambiguous (same name in several OUs) → better no role than the wrong one
+  if (searchEntries.length > 1) { log.warn(`AD group "${value}" is ambiguous (${searchEntries.length} matches) – please enter the full DN.`); return ''; }
   return searchEntries[0].dn;
 }
 
@@ -221,19 +221,19 @@ async function isMember(client, cfg, userDn, memberOf, groupValue) {
 }
 
 /**
- * Prüft Benutzername/Kennwort gegen das AD.
- * @returns {Promise<{username, displayName, email, dn, groups:{admin,agent,user}}|null>} null = falsche Anmeldedaten
+ * Verifies username/password against AD.
+ * @returns {Promise<{username, displayName, email, dn, groups:{admin,agent,user}}|null>} null = wrong credentials
  */
 export async function authenticate(cfg, rawUsername, password) {
   const username = normalizeUsername(rawUsername);
-  if (!username || !password) return null; // leeres Kennwort = anonymer Bind, niemals zulassen
+  if (!username || !password) return null; // empty password = anonymous bind, never allow
 
   const client = await connect(cfg);
   try {
     try {
       await serviceBind(client, cfg, username, password);
     } catch (e) {
-      if (!cfg.bindDn) return null; // eigener Bind fehlgeschlagen = falsches Kennwort
+      if (!cfg.bindDn) return null; // own bind failed = wrong password
       throw new Error(`Dienstkonto-Anmeldung am AD fehlgeschlagen: ${e.message}`);
     }
     cfg = await ensureBaseDn(client, cfg);
@@ -243,9 +243,9 @@ export async function authenticate(cfg, rawUsername, password) {
     if (searchEntries.length !== 1) return null;
     const entry = searchEntries[0];
 
-    // Kennwort IMMER mit dem gefundenen Konto prüfen (eigene Verbindung). Ohne Dienstkonto hat der erste
-    // Bind über „name@domäne“ geklappt – das kann der UPN eines ANDEREN Kontos sein als das, dessen
-    // sAMAccountName gleich „name“ ist. Erst der Bind auf den gefundenen DN beweist, dass es dieses Konto ist.
+    // ALWAYS verify the password with the account found (separate connection). Without a service account the first
+    // bind via "name@domain" succeeded – that can be the UPN of a DIFFERENT account than the one whose
+    // sAMAccountName equals "name". Only the bind to the found DN proves it is this account.
     const userClient = await connect(cfg);
     try { await userClient.bind(entry.dn, password); }
     catch { return null; }
@@ -257,7 +257,7 @@ export async function authenticate(cfg, rawUsername, password) {
   }
 }
 
-/** AD-Eintrag → Benutzerdaten mit Gruppenzugehörigkeit (für Anmeldung und Absender-Suche). */
+/** AD entry → user data with group membership (for sign-in and sender lookup). */
 async function entryToUser(client, cfg, entry, fallbackName) {
   const groups = {
     admin: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.adminGroup),
@@ -276,17 +276,17 @@ async function entryToUser(client, cfg, entry, fallbackName) {
   };
 }
 
-/** LDAP-Filter: aktives Benutzerkonto mit dieser Adresse (Hauptadresse, UPN oder Zweitadresse). */
+/** LDAP filter: active user account with this address (primary address, UPN or secondary address). */
 export function buildEmailFilter(email) {
   const e = escapeFilter(String(email).trim().toLowerCase());
   return '(&(objectCategory=person)(objectClass=user)'
-    + '(!(userAccountControl:1.2.840.113556.1.4.803:=2))' // deaktivierte Konten nicht
+    + '(!(userAccountControl:1.2.840.113556.1.4.803:=2))' // not disabled accounts
     + `(|(mail=${e})(userPrincipalName=${e})(proxyAddresses=smtp:${e})))`;
 }
 
 /**
- * Absender einer E-Mail im AD suchen (nur mit Dienstkonto).
- * Ergebnis: Benutzerdaten wie bei authenticate(), null (nicht gefunden) oder { ambiguous: true }.
+ * Look up the sender of an email in AD (service account only).
+ * Result: user data as with authenticate(), null (not found) or { ambiguous: true }.
  */
 export async function findByEmail(cfg, email) {
   if (!cfg.bindDn) throw new Error('Kein Dienstkonto (Bind-DN) eingetragen.');
@@ -305,7 +305,7 @@ export async function findByEmail(cfg, email) {
 }
 
 // ---------- objectSid ----------
-/** objectSid (Bytes) → „S-1-5-21-…“; sonst '' */
+/** objectSid (bytes) → "S-1-5-21-…"; otherwise '' */
 export function sidToString(buf) {
   if (!Buffer.isBuffer(buf) || buf.length < 8) return '';
   const count = buf[1];
@@ -316,7 +316,7 @@ export function sidToString(buf) {
   return `S-${buf[0]}-${auth}${subs.map((x) => `-${x}`).join('')}`;
 }
 
-/** „S-1-5-21-…“ → Bytes (für LDAP-Filter); sonst null */
+/** "S-1-5-21-…" → bytes (for LDAP filters); otherwise null */
 export function sidToBuffer(sid) {
   const m = /^S-(\d+)-(\d+)((?:-\d+){1,15})$/i.exec(String(sid || '').trim());
   if (!m) return null;
@@ -330,12 +330,12 @@ export function sidToBuffer(sid) {
   return buf;
 }
 
-// ---------- Personen suchen (Teilnehmer aus dem AD) ----------
+// ---------- Search people (participants from AD) ----------
 const ACTIVE_PERSON = '(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2))';
 const SEARCH_ATTRS = ['displayName', 'givenName', 'sn', 'cn', 'mail', 'sAMAccountName', 'userPrincipalName'];
 const safeAttr = (a) => (/^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(String(a || '')) ? a : null);
 
-/** LDAP-Filter für die Personensuche: jedes Wort muss in Name, Anmeldename oder einer Adresse vorkommen. */
+/** LDAP filter for people search: every word must appear in name, login name or an address. */
 export function buildPeopleFilter(cfg, q) {
   const words = String(q || '').trim().split(/\s+/).filter(Boolean).slice(0, 4);
   if (!words.length) throw new Error('Suchbegriff fehlt');
@@ -348,15 +348,15 @@ export function buildPeopleFilter(cfg, q) {
 }
 
 /**
- * Filter „aktiver Benutzer mit dieser objectGUID“ (Hex aus externalId).
- * Als Filter-Objekt mit Bytes: in einer Filter-Zeichenkette würde ldapts \\aa… als UTF-8 verschicken.
+ * Filter "active user with this objectGUID" (hex from externalId).
+ * As a filter object with bytes: in a filter string ldapts would send \\aa… as UTF-8.
  */
 export function guidFilter(hex) {
   if (!/^[0-9a-f]{32}$/i.test(String(hex || ''))) return null;
   return binaryFilter('objectGUID', Buffer.from(String(hex), 'hex'));
 }
 
-/** Filter „aktiver Benutzer mit dieser objectSid“ (Textform S-1-5-…) */
+/** Filter "active user with this objectSid" (text form S-1-5-…) */
 export function sidFilter(sid) {
   const b = sidToBuffer(sid);
   return b ? binaryFilter('objectSid', b) : null;
@@ -371,8 +371,8 @@ function binaryFilter(attribute, value) {
 const guidHex = (v) => { const g = first(v); return Buffer.isBuffer(g) ? g.toString('hex') : ''; };
 
 /**
- * Aktive AD-Benutzer suchen (nur mit Dienstkonto). Liefert höchstens `limit` Treffer,
- * nach Anzeigename sortiert: { username, displayName, email, externalId }.
+ * Search active AD users (service account only). Returns at most `limit` matches,
+ * sorted by display name: { username, displayName, email, externalId }.
  */
 export async function searchPeople(cfg, q, { limit = 10 } = {}) {
   if (!cfg.bindDn) throw new Error('Kein Dienstkonto (Bind-DN) eingetragen.');
@@ -383,7 +383,7 @@ export async function searchPeople(cfg, q, { limit = 10 } = {}) {
     cfg = await ensureBaseDn(client, cfg);
     const attrs = [cfg.usernameAttr, cfg.displayNameAttr, cfg.emailAttr, 'objectGUID'];
     const entries = [];
-    // Nur die erste Seite: bei sehr allgemeinen Suchen nicht das ganze Verzeichnis lesen
+    // Only the first page: do not read the whole directory for very general searches
     for await (const page of client.searchPaginated(cfg.baseDn, {
       scope: 'sub', filter, attributes: attrs, explicitBufferAttributes: ['objectGUID'], paged: { pageSize: Math.max(limit * 3, 20) },
     })) { entries.push(...page.searchEntries); break; }
@@ -405,12 +405,12 @@ export async function searchPeople(cfg, q, { limit = 10 } = {}) {
   }
 }
 
-/** Einen AD-Benutzer über seine objectGUID holen, mit Gruppen (wie bei der Anmeldung). null = nicht (mehr) da oder deaktiviert. */
+/** Get an AD user by objectGUID, with groups (as on sign-in). null = not there (anymore) or disabled. */
 export async function findByGuid(cfg, hex) {
   return findOne(cfg, guidFilter(hex));
 }
 
-/** Einen AD-Benutzer über seine objectSid (S-1-5-…) holen, mit Gruppen. null = nicht (mehr) da oder deaktiviert. */
+/** Get an AD user by objectSid (S-1-5-…), with groups. null = not there (anymore) or disabled. */
 export async function findBySid(cfg, sid) {
   return findOne(cfg, sidFilter(sid));
 }
@@ -434,7 +434,7 @@ async function findOne(cfg, filter) {
   }
 }
 
-/** Liest RootDSE (Base-DN, Konfigurationspartition, Servername). */
+/** Reads RootDSE (base DN, configuration partition, server name). */
 export async function readRootDse(client) {
   const { searchEntries } = await client.search('', {
     scope: 'base',
@@ -449,7 +449,7 @@ export async function readRootDse(client) {
   };
 }
 
-/** Holt die Zertifizierungsstellen der Domäne (AD CS) aus der Konfigurationspartition. */
+/** Gets the domain's certificate authorities (AD CS) from the configuration partition. */
 export async function fetchDomainCAs(client, configNc) {
   if (!configNc) return [];
   const base = `CN=Public Key Services,CN=Services,${configNc}`;
@@ -465,17 +465,17 @@ export async function fetchDomainCAs(client, configNc) {
       const vals = Array.isArray(e.cACertificate) ? e.cACertificate : [e.cACertificate];
       for (const v of vals) {
         if (!v || !v.length) continue;
-        try { out.push(describeCert(v)); } catch { /* kein gültiges Zertifikat */ }
+        try { out.push(describeCert(v)); } catch { /* not a valid certificate */ }
       }
     }
     return out;
   } catch (e) {
-    log.debug('Keine AD-Zertifizierungsstellen gefunden', { error: e.message });
+    log.debug('No AD certificate authorities found', { error: e.message });
     return [];
   }
 }
 
-/** Verbindungstest für die Einstellungsseite. */
+/** Connection test for the settings page. */
 export async function testConnection(cfg, { username, password } = {}) {
   const result = { ok: false, steps: [] };
   let client;

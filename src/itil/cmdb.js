@@ -1,4 +1,4 @@
-// Geräte und Dienste (leichtes CI-Verzeichnis): Einträge, Verknüpfung mit Tickets, Verlauf, CSV-Import.
+// Devices and services (lightweight CI registry): entries, links to tickets, history, CSV import.
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 
@@ -7,7 +7,7 @@ export const CI_STATUS = ['active', 'maintenance', 'retired'];
 const MAX_PER_TICKET = 30;
 const MAX_IMPORT = 5000;
 
-// Spaltennamen und Werte, wie sie in Exporten typischerweise vorkommen (de/en)
+// Column names and values as they typically appear in exports (de/en)
 const COLUMNS = {
   name: ['name', 'hostname', 'gerät', 'geraet', 'bezeichnung', 'device', 'computer', 'computername'],
   kind: ['kind', 'type', 'typ', 'art', 'kategorie', 'category'],
@@ -35,7 +35,7 @@ const lookup = (words, v, def) => {
   return Object.keys(words).find((k) => k === x || words[k].includes(x)) || def;
 };
 
-/** CSV-Zeilen lesen: Trennzeichen ; , oder Tab, Anführungszeichen wie in Excel */
+/** Read CSV rows: separator ; , or tab, quotes as in Excel */
 export function parseCsv(text) {
   const src = String(text || '').replace(/^﻿/, '');
   const first = src.split(/\r?\n/, 1)[0] || '';
@@ -71,7 +71,7 @@ export function createCmdb(db, tickets, users) {
     need(user);
     const where = []; const args = [];
     if (kind && CI_KINDS.includes(kind)) { where.push('c.kind=?'); args.push(kind); }
-    if (status === 'all') { /* alles */ } else if (CI_STATUS.includes(status)) { where.push('c.status=?'); args.push(status); } else where.push("c.status<>'retired'");
+    if (status === 'all') { /* everything */ } else if (CI_STATUS.includes(status)) { where.push('c.status=?'); args.push(status); } else where.push("c.status<>'retired'");
     for (const w of String(q).trim().split(/\s+/).filter(Boolean).slice(0, 5)) {
       where.push("(c.name LIKE ? ESCAPE '\\' OR c.location LIKE ? ESCAPE '\\' OR c.ip LIKE ? ESCAPE '\\' OR c.serial LIKE ? ESCAPE '\\' OR c.model LIKE ? ESCAPE '\\' OR c.vendor LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')");
       const like = `%${w.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
@@ -123,7 +123,7 @@ export function createCmdb(db, tickets, users) {
       vendor=@vendor, model=@model, description=@description, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=@id`).run({ ...c, id: cur.id });
     return get(user, cur.id);
   }
-  /** Löschen nur ohne Tickets – sonst ginge der Verlauf verloren; dann „ausgemustert“ setzen */
+  /** Delete only without tickets – otherwise the history would be lost; set "retired" instead */
   function remove(user, id) {
     if (user.role !== 'admin') throw forbidden();
     const c = db.prepare('SELECT id FROM config_items WHERE id=?').get(int(id) || 0);
@@ -158,7 +158,7 @@ export function createCmdb(db, tickets, users) {
 
   tickets.addDetailExtra((user, row) => (isAgent(user) ? { cis: forTicket(row.id) } : {}));
 
-  // ---------- CSV-Import ----------
+  // ---------- CSV import ----------
   function importCsv(user, text) {
     if (user.role !== 'admin') throw forbidden();
     const rows = parseCsv(text);

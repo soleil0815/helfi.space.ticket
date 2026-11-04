@@ -1,8 +1,8 @@
-// Import aus Jira (Cloud oder Server/Data Center) als Hintergrundauftrag.
-// - Projekte werden angelegt (oder in bestehende übernommen), Ticketnummern bleiben wenn möglich gleich (IT-123 → IT-123)
-// - Kommentare (interne Kommentare aus Jira Service Management bleiben intern) und Anhänge
-// - Ein erneuter Import aktualisiert bereits übernommene Tickets statt Doppelte anzulegen
-// - Beim Import werden KEINE E-Mails verschickt
+// Import from Jira (Cloud or Server/Data Center) as a background job.
+// - Projects are created (or merged into existing ones), ticket numbers stay the same where possible (IT-123 → IT-123)
+// - Comments (internal comments from Jira Service Management stay internal) and attachments
+// - Importing again updates already imported tickets instead of creating duplicates
+// - NO emails are sent during the import
 import { jiraText } from './jira-text.js';
 import { createJiraClient, JiraError } from './jira-client.js';
 import { normalizeLabels } from '../tickets.js';
@@ -12,7 +12,7 @@ import { HttpError } from '../lib/http.js';
 export const STATUS_TARGETS = ['open', 'in_progress', 'waiting', 'done'];
 export const TYPE_TARGETS = ['incident', 'request', 'task', 'question'];
 
-/** Vorschlag für die Status-Zuordnung aus Statuskategorie und Name */
+/** Suggested status mapping from status category and name */
 export function suggestStatus(name, category) {
   if (/wait|warte|pending|hold|feedback|rückmeldung|blocked|blockiert|kunde|customer/i.test(name || '')) return 'waiting';
   if (category === 'done') return 'done';
@@ -37,7 +37,7 @@ export function mapPriority(name) {
   return 'medium';
 }
 
-/** Interner Kommentar? (Jira Service Management "Interner Kommentar" oder eingeschränkte Sichtbarkeit) */
+/** Internal comment? (Jira Service Management "internal comment" or restricted visibility) */
 export function isInternalComment(c) {
   if (c.jsdPublic === false) return true;
   if (c.visibility) return true;
@@ -45,14 +45,14 @@ export function isInternalComment(c) {
   return !!prop?.value?.internal;
 }
 
-/** "IT-123" → Ziel-Projektschlüssel (Großbuchstaben/Ziffern, beginnt mit Buchstabe, 2–10 Zeichen) */
+/** "IT-123" → target project key (uppercase letters/digits, starts with a letter, 2–10 characters) */
 export function sanitizeProjectKey(key) {
   let k = String(key || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!/^[A-Z]/.test(k)) k = `J${k}`;
   return k.slice(0, 10).padEnd(2, 'X');
 }
 
-/** Datum aus Jira → ISO; ungültige Werte → null (statt den ganzen Vorgang abzubrechen) */
+/** Date from Jira → ISO; invalid values → null (instead of aborting the whole issue) */
 export const iso = (v) => {
   if (!v) return null;
   const d = new Date(v);
@@ -73,7 +73,7 @@ export function createJiraImporter({ db, tickets, users }) {
     return rest;
   }
 
-  /** Jira-Person → lokale Zuordnung. Mit E-Mail: Konto suchen oder E-Mail-Kontakt anlegen. */
+  /** Jira person → local mapping. With email: find an account or create an email contact. */
   function person(p) {
     if (!p) return null;
     const email = String(p.emailAddress || '').trim().toLowerCase();
@@ -94,7 +94,7 @@ export function createJiraImporter({ db, tickets, users }) {
     const byMail = email && agents.find((a) => String(a.email || '').toLowerCase() === email);
     if (byMail) id = byMail.id;
     else {
-      // Ohne E-Mail (Jira Cloud verbirgt sie oft): eindeutiger Anzeigename oder Benutzername
+      // Without email (Jira Cloud often hides it): unique display name or username
       const candidates = agents.filter((a) => a.display_name === p.displayName || (p.name && a.username.toLowerCase() === String(p.name).toLowerCase()));
       if (candidates.length === 1) id = candidates[0].id;
     }
@@ -102,7 +102,7 @@ export function createJiraImporter({ db, tickets, users }) {
     return id;
   }
 
-  /** Nummern, die Tickets dieses Projekts früher hatten und beim Verschieben abgegeben haben (je Import einmal ermittelt) */
+  /** Numbers that tickets of this project had before and gave up when moved (determined once per import) */
   const movedCache = new Map();
   function movedAway(project) {
     if (!movedCache.has(project.id)) {
@@ -121,7 +121,7 @@ export function createJiraImporter({ db, tickets, users }) {
     const mapped = mapGet.get(source, 'issue', String(issue.id));
     let ticketId = mapped?.local_id ?? null;
     if (ticketId && !db.prepare('SELECT 1 FROM tickets WHERE id=?').get(ticketId)) {
-      mapDel.run(source, 'issue', String(issue.id)); // lokal gelöscht → neu anlegen
+      mapDel.run(source, 'issue', String(issue.id)); // deleted locally → create again
       ticketId = null;
     }
 
@@ -144,7 +144,7 @@ export function createJiraImporter({ db, tickets, users }) {
     if (values.status !== 'done') values.resolved = null;
 
     const created = !ticketId;
-    // Bereits übernommen und in Jira seitdem unverändert → lokale Änderungen NICHT überschreiben
+    // Already imported and unchanged in Jira since → do NOT overwrite local changes
     const jiraUpdated = iso(f.updated);
     const unchanged = ticketId && mapped?.imported_at && jiraUpdated && jiraUpdated <= mapped.imported_at;
     if (unchanged) {
@@ -153,7 +153,7 @@ export function createJiraImporter({ db, tickets, users }) {
     db.transaction(() => {
       if (unchanged) return;
       if (ticketId) {
-        // Geänderte Felder im Verlauf festhalten (wie bei einer Änderung von Hand), damit nichts spurlos überschrieben wird
+        // Record changed fields in the history (like a manual change) so nothing is overwritten without a trace
         const old = db.prepare('SELECT title, description, type, status, priority, labels, due_date, assignee_id FROM tickets WHERE id=?').get(ticketId);
         const next = { title: values.title, description: values.description, type: values.type, status: values.status, priority: values.priority,
           labels: values.labels, due_date: values.due, assignee_id: assigneeId ?? old.assignee_id };
@@ -170,8 +170,8 @@ export function createJiraImporter({ db, tickets, users }) {
           values.title, values.description, values.type, values.status, values.priority, values.labels, values.due,
           assigneeId, values.updated, values.resolved, ticketId);
       } else {
-        // Nummer aus Jira übernehmen, wenn im Zielprojekt frei und nie vergeben: Nummern verschobener
-        // Tickets (Verlauf „IT-11 → OPS-3“) nicht neu vergeben, sonst zeigten alte Verweise auf ein anderes Ticket
+        // Keep the number from Jira if it is free and never used in the target project: do not reuse numbers of
+        // moved tickets (history "IT-11 → OPS-3"), otherwise old references would point to a different ticket
         const wanted = Number(String(issue.key).split('-').pop());
         let number = Number.isInteger(wanted) && wanted > 0 && !movedAway(project).has(wanted)
           && !db.prepare('SELECT 1 FROM tickets WHERE project_id=? AND number=?').get(project.id, wanted) ? wanted : null;
@@ -229,7 +229,7 @@ export function createJiraImporter({ db, tickets, users }) {
   function addError(msg) {
     job.errors.push(msg);
     if (job.errors.length > 200) job.errors.shift();
-    log.warn(`Jira-Import: ${msg}`);
+    log.warn(`Jira import: ${msg}`);
   }
 
   async function run(cfg) {
@@ -265,16 +265,16 @@ export function createJiraImporter({ db, tickets, users }) {
       addError(e.message);
     } finally {
       job.current = null;
-      job.client = null; // Zugangsdaten nicht länger im Speicher halten
+      job.client = null; // do not keep credentials in memory any longer
       job.finishedAt = new Date().toISOString();
-      log.info(`Jira-Import beendet (${job.state})`, job.counts);
+      log.info(`Jira import finished (${job.state})`, job.counts);
     }
   }
 
   return {
     status: publicStatus,
 
-    /** Verbindung prüfen und Projekte auflisten */
+    /** Test the connection and list projects */
     async connect(conn) {
       const client = createJiraClient(conn);
       const [info, me, projects] = await Promise.all([client.serverInfo(), client.myself(), client.projects()]);
@@ -286,7 +286,7 @@ export function createJiraImporter({ db, tickets, users }) {
       };
     },
 
-    /** Status/Typen der gewählten Projekte mit Vorschlägen für die Zuordnung */
+    /** Statuses/types of the selected projects with mapping suggestions */
     async inspect(conn, projectKeys) {
       const client = createJiraClient(conn);
       const statuses = new Map();
@@ -335,7 +335,7 @@ export function createJiraImporter({ db, tickets, users }) {
 
     cancel() { if (job?.state === 'running') job.cancelRequested = true; return publicStatus(); },
 
-    /** Für Tests: auf das Ende warten */
+    /** For tests: wait for completion */
     async wait() { if (job?.promise) await job.promise; return publicStatus(); },
   };
 }

@@ -1,10 +1,10 @@
-// Zufriedenheitsumfrage: nach „Erledigt“ bewertet der Melder mit 1–5 Sternen (Link in der Mail oder im Ticket).
+// Satisfaction survey: after "Resolved" the reporter rates with 1–5 stars (link in the mail or in the ticket).
 import crypto from 'node:crypto';
 import { HttpError, notFound, forbidden, str, int, isoDate } from '../lib/http.js';
 import { randomToken } from '../lib/crypto.js';
 import { isAgent } from '../auth/session.js';
 
-const SKIP_TYPES = new Set(['problem', 'change']); // intern, kein Melder im eigentlichen Sinn
+const SKIP_TYPES = new Set(['problem', 'change']); // internal, no reporter in the real sense
 const hash = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 
 export function createSurvey(db, tickets, settings) {
@@ -12,7 +12,7 @@ export function createSurvey(db, tickets, settings) {
   const days = () => Math.min(Math.max(int(settings.get('survey.days')) || 14, 1), 90);
   const rowOf = (ticketId) => db.prepare('SELECT * FROM ticket_ratings WHERE ticket_id=?').get(ticketId);
 
-  /** Bei jedem „Erledigt“: neue Umfrage (eine frühere Bewertung gilt nach Wiedereröffnung nicht mehr) */
+  /** On every "Resolved": new survey (an earlier rating no longer counts after reopening) */
   tickets.events.on('resolved', ({ ticket }) => {
     if (!enabled() || SKIP_TYPES.has(ticket.type)) return;
     const raw = tickets.rawById(ticket.id);
@@ -22,7 +22,7 @@ export function createSurvey(db, tickets, settings) {
       sent_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), rated_at=NULL`).run(ticket.id, raw.assignee_id || null);
   });
 
-  /** Token für die Mail an den Melder; nur der Hash wird gespeichert */
+  /** Token for the mail to the reporter; only the hash is stored */
   function issueToken(ticketId) {
     if (!enabled() || !rowOf(ticketId)) return null;
     const token = randomToken(24);
@@ -49,7 +49,7 @@ export function createSurvey(db, tickets, settings) {
     if (changed) tickets.logActivity(r.ticket_id, userId, 'rated', null, r.rating, n);
   }
 
-  /** Öffentliche Seite: was wird bewertet? (nur Schlüssel und Titel) */
+  /** Public page: what is being rated? (key and title only) */
   function publicInfo(token) {
     const r = byToken(token);
     const t = tickets.rawById(r.ticket_id);
@@ -62,7 +62,7 @@ export function createSurvey(db, tickets, settings) {
     return publicInfo(token);
   }
 
-  /** Bewertung im Ticket durch den angemeldeten Melder */
+  /** Rating in the ticket by the signed-in reporter */
   function rateAsUser(user, key, rating, comment) {
     const row = tickets.load(user, key);
     const r = rowOf(row.id);
@@ -81,7 +81,7 @@ export function createSurvey(db, tickets, settings) {
     return {};
   });
 
-  /** Auswertung für Berichte */
+  /** Evaluation for reports */
   function report({ from, to, project } = {}) {
     const f = isoDate(from) || '0000'; const tt = isoDate(to) ? `${isoDate(to)}T23:59:59.999Z` : '9999';
     const p = project ? tickets.projects.get(String(project).toUpperCase()) : null;

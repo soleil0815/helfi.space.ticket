@@ -1,5 +1,5 @@
-// Kommentare an Wissensartikeln: wer den Artikel sehen darf, darf kommentieren.
-// Autor und letzter Bearbeiter des Artikels bekommen eine Mail; Bearbeiter markieren erledigt.
+// Comments on knowledge articles: whoever may see the article may comment.
+// The article's author and last editor get an email; agents mark comments as done.
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 import { log } from '../lib/log.js';
@@ -17,7 +17,7 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
   });
 
   function list(user, articleId) {
-    const a = kb.get(user, articleId); // Rechte
+    const a = kb.get(user, articleId); // permissions
     return db.prepare(`${SELECT} WHERE c.article_id=? ORDER BY c.created_at, c.id`).all(a.id).map((c) => out(c, user));
   }
 
@@ -34,7 +34,7 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
   const load = (user, cid) => {
     const c = db.prepare(`${SELECT} WHERE c.id=?`).get(int(cid) || 0);
     if (!c) throw notFound();
-    kb.get(user, c.article_id); // Rechte am Artikel
+    kb.get(user, c.article_id); // permissions on the article
     return c;
   };
   function setResolved(user, cid, resolved) {
@@ -50,7 +50,7 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
     db.prepare('DELETE FROM kb_comments WHERE id=?').run(c.id);
   }
 
-  // Mail an Autor und letzten Bearbeiter (nicht an den Kommentierenden selbst)
+  // Mail to author and last editor (not to the commenter themselves)
   function notify(user, article, text) {
     if (!mailer?.enabled?.() || !t || !users) return;
     const row = db.prepare('SELECT created_by, updated_by FROM kb_articles WHERE id=?').get(article.id);
@@ -61,11 +61,11 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
       const lang = to.language || settings?.get('general.defaultLanguage') || 'de';
       const vars = { title: article.title, author: user.display_name || user.username, body: text.slice(0, 2000), link: `${baseUrl}/kb/${article.id}#comments`, app: settings?.get('general.title') || 'Helfi.Space' };
       mailer.send({ to: to.email, subject: t(lang, 'mail.kbComment.subject', vars), text: t(lang, 'mail.kbComment.body', vars) })
-        .catch((e) => log.warn('Kommentar-Mail fehlgeschlagen', { error: e.message }));
+        .catch((e) => log.warn('Comment mail failed', { error: e.message }));
     }
   }
 
-  /** offene Kommentare je Artikel (für die Liste der Bearbeiter) */
+  /** open comments per article (for the agents' list) */
   const openCounts = () => new Map(db.prepare('SELECT article_id, COUNT(*) n FROM kb_comments WHERE resolved=0 GROUP BY article_id').all().map((r) => [r.article_id, r.n]));
 
   return { list, add, setResolved, remove, openCounts };

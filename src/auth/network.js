@@ -1,4 +1,4 @@
-// Erkennt, ob eine Anfrage aus dem internen Netz kommt, und ob dafür 2FA nötig ist.
+// Detects whether a request comes from the internal network and whether 2FA is required for it.
 import fs from 'node:fs';
 import dns from 'node:dns';
 import net from 'node:net';
@@ -13,7 +13,7 @@ export function normalizeIp(ip) {
   return m ? m[1] : s;
 }
 
-/** Liste wie "10.0.0.0/8, 192.168.1.10, fd00::/8" → BlockList. Ungültige Einträge werden gemeldet. */
+/** List like "10.0.0.0/8, 192.168.1.10, fd00::/8" → BlockList. Invalid entries are reported. */
 export function parseNetworks(text) {
   const list = new net.BlockList();
   const invalid = [];
@@ -29,7 +29,7 @@ export function parseNetworks(text) {
   return { list, invalid };
 }
 
-/** Standard-Gateway des Containers (aus /proc/net/route), z. B. 172.17.0.1 */
+/** Default gateway of the container (from /proc/net/route), e.g. 172.17.0.1 */
 export function readDefaultGateway(routeFile = '/proc/net/route') {
   try {
     for (const line of fs.readFileSync(routeFile, 'utf8').split('\n').slice(1)) {
@@ -39,14 +39,14 @@ export function readDefaultGateway(routeFile = '/proc/net/route') {
         return `${b[3]}.${b[2]}.${b[1]}.${b[0]}`;
       }
     }
-  } catch { /* nicht Linux */ }
+  } catch { /* not Linux */ }
   return null;
 }
 
 export const MFA_LEVELS = ['none', 'admins', 'agents', 'all'];
 export const RESOLVE_EVERY_MS = 5 * 60 * 1000;
 
-/** Gilt die Stufe für diese Rolle? none / admins / agents (Bearbeiter + Admins) / all */
+/** Does the level apply to this role? none / admins / agents (agents + admins) / all */
 export function levelApplies(level, role) {
   if (level === 'all') return true;
   if (level === 'agents') return role === 'agent' || role === 'admin';
@@ -55,8 +55,8 @@ export function levelApplies(level, role) {
 }
 
 /**
- * Wirksame Pflicht außen/innen. Ältere Installationen haben nur mfa.mode
- * (off | external | always) – daraus wird abgeleitet, solange nichts Neues gespeichert ist.
+ * Effective requirement external/internal. Older installations only have mfa.mode
+ * (off | external | always) – derived from it as long as nothing new has been saved.
  */
 export function mfaLevels(settings) {
   const mode = settings.get('mfa.mode');
@@ -68,7 +68,7 @@ export function mfaLevels(settings) {
   };
 }
 
-/** Einträge „Eigener Internetanschluss“: IP-Adressen und Namen (DynDNS), eine pro Zeile. */
+/** Entries "own internet connection": IP addresses and names (DynDNS), one per line. */
 export function parseOwnAddresses(text) {
   const ips = [];
   const names = [];
@@ -86,7 +86,7 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
   let cacheKey = null;
   let cached = null;
   let warnedProxy = false;
-  // Eigener Internetanschluss: aufgelöste Adressen (Namen werden regelmäßig neu aufgelöst)
+  // Own internet connection: resolved addresses (names are re-resolved regularly)
   let ownKey = null;
   let own = { ips: new Set(), resolved: {}, at: null, errors: {} };
 
@@ -102,7 +102,7 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
         for (const a of next.resolved[n]) next.ips.add(a);
       } catch (e) {
         next.errors[n] = e.code || e.message;
-        // Bei einem Fehler die zuletzt bekannte Auflösung behalten (DNS kurz nicht erreichbar)
+        // On error keep the last known resolution (DNS briefly unreachable)
         if (own.resolved[n]) { next.resolved[n] = own.resolved[n]; for (const a of own.resolved[n]) next.ips.add(a); }
       }
     }
@@ -111,7 +111,7 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
     return own;
   }
   const ownSync = () => {
-    // Geänderte Einstellung sofort für reine IP-Einträge übernehmen; Namen folgen asynchron
+    // Apply a changed setting immediately for plain IP entries; names follow asynchronously
     const text = settings.get('mfa.ownAddresses');
     if (text !== ownKey) {
       const { ips } = parseOwnAddresses(text);
@@ -128,32 +128,32 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
   }
 
   /**
-   * Intern = Client-IP liegt in den internen Netzen (oder ist der Server selbst).
-   * Sicherheitsregel: Steht ein X-Forwarded-For im Request, den Helfi.Space wegen fehlender
-   * HELFI_TRUST_PROXY-Einstellung NICHT ausgewertet hat, ist die echte Herkunft unbekannt →
-   * als extern behandeln (sonst wäre hinter einem Reverse-Proxy jeder Zugriff "intern").
+   * Internal = client IP is in the internal networks (or is the server itself).
+   * Security rule: if the request has an X-Forwarded-For that Helfi.Space did NOT evaluate because
+   * HELFI_TRUST_PROXY is not set, the real origin is unknown →
+   * treat as external (otherwise behind a reverse proxy every request would be "internal").
    */
   function isInternal(req) {
     return classify(req).internal;
   }
 
-  /** Liefert { ip, internal, reason } – auch für die Anzeige „So erkennt Helfi.Space deine Adresse“. */
+  /** Returns { ip, internal, reason } – also for the display "How Helfi.Space sees your address". */
   function classify(req) {
     const peer = normalizeIp(req.socket?.remoteAddress);
     const ip = normalizeIp(req.ip);
     if (req.headers['x-forwarded-for'] && ip === peer) {
-      if (!warnedProxy) { warnedProxy = true; log.warn('X-Forwarded-For erhalten, aber der Proxy ist nicht in HELFI_TRUST_PROXY eingetragen – Zugriffe gelten als extern (2FA).'); }
+      if (!warnedProxy) { warnedProxy = true; log.warn('X-Forwarded-For received, but the proxy is not listed in HELFI_TRUST_PROXY – requests are treated as external (2FA).'); }
       return { ip, internal: false, reason: 'untrustedProxy' };
     }
-    // Loopback zählt NICHT automatisch als intern: Ein Reverse-Proxy auf demselben Rechner ohne
-    // X-Forwarded-For ließe sonst jeden Zugriff von außen als intern erscheinen.
+    // Loopback does NOT automatically count as internal: a reverse proxy on the same host without
+    // X-Forwarded-For would otherwise make every external request look internal.
     const type = net.isIPv4(ip) ? 'ipv4' : (net.isIPv6(ip) ? 'ipv6' : null);
     if (!type) return { ip, internal: false, reason: 'unknown' };
-    // Docker-Gateway: Bei manchen Docker-Setups (userland-proxy, rootless, IPv6) kommen ALLE
-    // Zugriffe scheinbar vom Gateway. Er zählt deshalb nur als intern, wenn er einzeln eingetragen ist.
+    // Docker gateway: with some Docker setups (userland-proxy, rootless, IPv6) ALL requests
+    // seem to come from the gateway. It therefore only counts as internal if listed individually.
     if (gateway && ip === gateway && !explicitlyListed(ip)) return { ip, internal: false, reason: 'dockerGateway' };
-    // Eigener Internetanschluss: interne Rechner rufen die öffentliche Adresse auf, der Router reicht
-    // sie mit der eigenen öffentlichen IP weiter (Hairpin-NAT) → gilt als intern
+    // Own internet connection: internal machines call the public address, the router forwards
+    // them with its own public IP (hairpin NAT) → counts as internal
     if (ownSync().has(ip)) return { ip, internal: true, reason: 'ownAddress' };
     return { ip, internal: networks().check(ip, type), reason: 'networks' };
   }
@@ -162,19 +162,19 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
     return String(settings.get('mfa.internalNetworks') || '').split(/[\s,;]+/).some((x) => x === ip || x === `${ip}/32`);
   }
 
-  /** Muss für diese Anfrage (und diesen Benutzer) ein zweiter Faktor vorliegen? */
+  /** Is a second factor required for this request (and this user)? */
   function mfaRequired(req, user) {
     const levels = mfaLevels(settings);
     const level = isInternal(req) ? levels.internal : levels.external;
     return levelApplies(level, user?.role || 'user');
   }
 
-  // regelmäßig neu auflösen, damit eine geänderte DynDNS-Adresse ohne Neustart gilt
+  // re-resolve regularly so a changed DynDNS address applies without restart
   const timer = setInterval(() => refreshOwn().catch(() => {}), RESOLVE_EVERY_MS);
   timer.unref?.();
   refreshOwn().catch(() => {});
 
-  /** Pflicht für diesen Benutzer außen/innen – für Anzeige in Profil und Banner */
+  /** Requirement for this user external/internal – for display in profile and banner */
   function userMode(user) {
     const levels = mfaLevels(settings);
     const role = user?.role || 'user';

@@ -1,9 +1,9 @@
-// HTML-Mails: bereinigen (nur harmlose Elemente), zitierten Verlauf einklappen, eingebettete Bilder zuordnen.
-// Angezeigt wird das Ergebnis zusätzlich in einem abgeschotteten Rahmen mit eigener CSP (siehe viewerDocument).
+// HTML mails: sanitize (only harmless elements), collapse quoted history, map embedded images.
+// The result is additionally shown in an isolated frame with its own CSP (see viewerDocument).
 import sanitizeHtml from 'sanitize-html';
 
 export const MAX_HTML_BYTES = 1024 * 1024;
-// Kann aus der Mail selbst nicht entstehen (class ist nicht erlaubt)
+// Cannot come from the mail itself (class is not allowed)
 const QUOTE_OPEN = '<details class="helfi-quote"><summary></summary>';
 
 const TAGS = [
@@ -32,11 +32,11 @@ const STYLES = {
 };
 
 /**
- * Stelle, ab der in einer Antwort-Mail der zitierte Verlauf beginnt (Outlook, Gmail, Apple Mail, Thunderbird).
- * Liefert den Index im Roh-HTML oder -1.
+ * Position where the quoted history starts in a reply mail (Outlook, Gmail, Apple Mail, Thunderbird).
+ * Returns the index in the raw HTML or -1.
  */
 export function quoteStart(html) {
-  // Begrenzt und nie über das nächste „<“ hinaus: sonst braucht z. B. „<div <div <div …“ quadratisch viel Zeit (Server hängt)
+  // Bounded and never past the next "<": otherwise e.g. "<div <div <div …" takes quadratic time (server hangs)
   const markers = [
     /<div\s[^<>]{0,1000}?id=["']?(appendonsend|divRplyFwdMsg|mail-editor-reference-message-container)\b/i,
     /<div\s[^<>]{0,1000}?class=["'][^"'<>]{0,1000}?\b(gmail_quote|moz-cite-prefix|yahoo_quoted|protonmail_quote)\b/i,
@@ -46,16 +46,16 @@ export function quoteStart(html) {
   const hits = markers.map((re) => { const m = re.exec(html); return m ? m.index : -1; }).filter((i) => i > 0);
   if (!hits.length) return -1;
   const i = Math.min(...hits);
-  // Textmarke („-----Original Message-----“): ab dem Tag davor schneiden
+  // Text marker ("-----Original Message-----"): cut from the tag before it
   if (html[i] !== '<') { const t = html.lastIndexOf('<', i); return t > 0 ? t : i; }
   return i;
 }
 
 /**
- * Roh-HTML einer Mail bereinigen.
- * opts.collapseQuote: zitierten Verlauf in <details> einklappen (Antworten).
- * Die Beschriftung des Aufklappers setzt viewerDocument in der Sprache des Betrachters ein.
- * Liefert { html, blocked (Anzahl externer Bilder), cids (verwendete Content-IDs) } oder null, wenn leer/zu groß.
+ * Sanitize the raw HTML of a mail.
+ * opts.collapseQuote: collapse quoted history into <details> (replies).
+ * viewerDocument inserts the toggle label in the viewer's language.
+ * Returns { html, blocked (number of external images), cids (Content-IDs used) } or null if empty/too large.
  */
 export function sanitizeMailHtml(raw, { collapseQuote = false } = {}) {
   let blocked = 0;
@@ -84,7 +84,7 @@ export function sanitizeMailHtml(raw, { collapseQuote = false } = {}) {
         const src = String(attribs.src || '').trim();
         if (/^cid:/i.test(src)) { cids.add(src.slice(4).replace(/^<|>$/g, '').toLowerCase()); return { tagName: 'img', attribs }; }
         if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(src)) return { tagName: 'img', attribs };
-        // Bilder aus dem Internet (oft Zählpixel) nie laden
+        // Never load images from the internet (often tracking pixels)
         if (src) blocked++;
         return { tagName: 'span', attribs: {}, text: '' };
       },
@@ -102,14 +102,14 @@ export function sanitizeMailHtml(raw, { collapseQuote = false } = {}) {
   } else {
     out = clean(source);
   }
-  // Leer (nur Leerraum/Umbrüche) → kein HTML speichern
+  // Empty (only whitespace/line breaks) → do not store HTML
   const visible = out.replace(/<[^>]*>|&nbsp;|\s/g, '');
   if (!visible && !/<img/i.test(out)) return null;
   if (Buffer.byteLength(out) > MAX_HTML_BYTES) return null;
   return { html: out, blocked, cids: [...cids] };
 }
 
-/** cid:-Verweise durch Anhänge ersetzen; nicht gefundene Bilder entfernen. */
+/** Replace cid: references with attachments; remove images not found. */
 export function resolveCids(html, map) {
   return html.replace(/<img\b[^>]*?\ssrc="cid:([^"]+)"[^>]*>/gi, (tag, cid) => {
     const id = map.get(cid.replace(/^<|>$/g, '').toLowerCase());
@@ -119,7 +119,7 @@ export function resolveCids(html, map) {
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-/** Komplettes Dokument für den Anzeigerahmen (eigene CSP setzt die Route). */
+/** Complete document for the viewer frame (the route sets its own CSP). */
 export function viewerDocument(html, { blocked = 0, blockedText = '', quoteText = '', lang = 'de' } = {}) {
   html = html.split(QUOTE_OPEN).join(`<details class="helfi-quote"><summary>${escapeHtml(quoteText)}</summary>`);
   const note = blocked ? `<p class="helfi-blocked">${escapeHtml(blockedText)}</p>` : '';

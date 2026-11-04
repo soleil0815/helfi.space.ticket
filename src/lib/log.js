@@ -1,5 +1,5 @@
-// Einfaches Protokoll auf stdout (landet im Docker-Log).
-// Kennwörter und Tokens werden nie protokolliert – redact() entfernt sie aus Objekten.
+// Simple logging to stdout (ends up in the Docker log).
+// Passwords and tokens are never logged – redact() removes them from objects.
 const levels = { debug: 10, info: 20, warn: 30, error: 40 };
 const current = levels[process.env.HELFI_LOG_LEVEL || 'info'] ?? 20;
 

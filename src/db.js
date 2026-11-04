@@ -1,4 +1,4 @@
-// SQLite-Datenbank: Öffnen, Sicherung vor Versionswechsel, Migrationen.
+// SQLite database: opening, backup before version change, migrations.
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -6,8 +6,8 @@ import { config, paths } from './config.js';
 import { log } from './lib/log.js';
 import { encrypt, decrypt } from './lib/crypto.js';
 
-// Jede Migration bekommt eine fortlaufende Nummer. Bestehende Einträge NIE ändern,
-// nur neue anhängen.
+// Each migration gets a sequential number. NEVER change existing entries,
+// only append new ones.
 export const MIGRATIONS = [
   {
     id: 1,
@@ -119,7 +119,7 @@ export const MIGRATIONS = [
     );
     CREATE INDEX activity_ticket ON activity(ticket_id);
 
-    -- Verarbeitete und versendete E-Mails (Doppelte vermeiden, Antworten zuordnen)
+    -- Processed and sent emails (avoid duplicates, match replies)
     CREATE TABLE mail_messages (
       message_id TEXT PRIMARY KEY,
       ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
@@ -132,8 +132,8 @@ export const MIGRATIONS = [
     id: 2,
     name: 'Import-Zuordnung',
     sql: `
-    -- Welcher fremde Datensatz (Jira-Vorgang, -Kommentar, -Anhang) wurde zu welchem lokalen?
-    -- Damit lässt sich ein Import wiederholen, ohne Doppelte anzulegen.
+    -- Which foreign record (Jira issue, comment, attachment) became which local one?
+    -- This allows repeating an import without creating duplicates.
     CREATE TABLE import_map (
       source TEXT NOT NULL,
       kind TEXT NOT NULL CHECK (kind IN ('issue','comment','attachment')),
@@ -150,18 +150,18 @@ export const MIGRATIONS = [
     id: 3,
     name: 'Zwei-Faktor-Anmeldung',
     sql: `
-    ALTER TABLE users ADD COLUMN totp_secret TEXT;          -- verschlüsselt
+    ALTER TABLE users ADD COLUMN totp_secret TEXT;          -- encrypted
     ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT 0;
-    ALTER TABLE users ADD COLUMN recovery_codes TEXT;       -- JSON-Liste von SHA-256-Hashes
-    ALTER TABLE sessions ADD COLUMN mfa INTEGER NOT NULL DEFAULT 0;  -- zweiter Faktor in dieser Sitzung erbracht
+    ALTER TABLE users ADD COLUMN recovery_codes TEXT;       -- JSON list of SHA-256 hashes
+    ALTER TABLE sessions ADD COLUMN mfa INTEGER NOT NULL DEFAULT 0;  -- second factor provided in this session
     `,
   },
   {
     id: 4,
     name: 'Anfrage-Teilnehmer',
     sql: `
-    -- Weitere Personen, die ein Ticket sehen, kommentieren und benachrichtigt werden
+    -- Additional people who see a ticket, comment and get notified
     CREATE TABLE ticket_participants (
       ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -176,7 +176,7 @@ export const MIGRATIONS = [
     id: 5,
     name: 'Antwortvorlagen',
     sql: `
-    -- Vorlagen für häufige Antworten. owner_id NULL = für alle Bearbeiter, sonst persönlich.
+    -- Templates for frequent replies. owner_id NULL = for all agents, otherwise personal.
     CREATE TABLE canned_responses (
       id INTEGER PRIMARY KEY,
       title TEXT NOT NULL,
@@ -193,7 +193,7 @@ export const MIGRATIONS = [
     id: 6,
     name: 'Gesperrte Empfänger',
     sql: `
-    -- Adressen, für die ein Unzustellbarkeitsbericht kam: eine Zeit lang keine Mails dorthin (gegen Mail-Ping-Pong)
+    -- Addresses that caused a non-delivery report: no mails there for a while (against mail ping-pong)
     CREATE TABLE mail_suppressions (
       address TEXT PRIMARY KEY,
       reason TEXT,
@@ -206,8 +206,8 @@ export const MIGRATIONS = [
     id: 7,
     name: 'Eingefügte Bilder',
     sql: `
-    -- Per Zwischenablage eingefügte Bilder sind Entwürfe, bis der Kommentar/die Beschreibung gespeichert ist:
-    -- nur für Bearbeiter und den Hochladenden sichtbar (z. B. Screenshot in einer internen Notiz)
+    -- Images pasted from the clipboard are drafts until the comment/description is saved:
+    -- visible only to agents and the uploader (e.g. screenshot in an internal note)
     ALTER TABLE attachments ADD COLUMN draft INTEGER NOT NULL DEFAULT 0;
     `,
   },
@@ -215,7 +215,7 @@ export const MIGRATIONS = [
     id: 8,
     name: 'HTML-Mails',
     sql: `
-    -- Bereinigtes HTML eingehender Mails (Beschreibung: comment_id NULL). Eigene Tabelle, damit Listen schlank bleiben.
+    -- Sanitized HTML of incoming mails (description: comment_id NULL). Separate table so lists stay lean.
     CREATE TABLE mail_html (
       id INTEGER PRIMARY KEY,
       ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -225,7 +225,7 @@ export const MIGRATIONS = [
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     );
     CREATE INDEX idx_mail_html_ticket ON mail_html(ticket_id);
-    -- Eingebettete Bilder (Logos, Signaturen) nur für die formatierte Ansicht, nicht in der Anhangsliste
+    -- Embedded images (logos, signatures) only for the formatted view, not in the attachment list
     ALTER TABLE attachments ADD COLUMN inline INTEGER NOT NULL DEFAULT 0;
     `,
   },
@@ -233,7 +233,7 @@ export const MIGRATIONS = [
     id: 9,
     name: 'Verknüpfungen',
     sql: `
-    -- Gerichtete Verknüpfungen zwischen Tickets (relates, duplicates, blocks, causes, parent)
+    -- Directed links between tickets (relates, duplicates, blocks, causes, parent)
     CREATE TABLE ticket_links (
       id INTEGER PRIMARY KEY,
       from_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -259,7 +259,7 @@ export const MIGRATIONS = [
     id: 11,
     name: 'SLA-Warnungen',
     sql: `
-    -- Je Ticket, Uhr (response/resolve) und Stufe (warning/breached) nur einmal warnen
+    -- Warn only once per ticket, clock (response/resolve) and level (warning/breached)
     CREATE TABLE sla_events (
       ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
       kind TEXT NOT NULL,
@@ -272,8 +272,8 @@ export const MIGRATIONS = [
   {
     id: 12,
     name: 'Zusatzfelder (Problem, Change)',
-    // Tabelle tickets neu aufbauen (die Liste erlaubter Typen steckte in einem CHECK). Dafür
-    // Fremdschlüssel kurz aus, sonst würden abhängige Zeilen beim DROP mitgelöscht.
+    // Rebuild table tickets (the list of allowed types was in a CHECK). For that,
+    // foreign keys briefly off, otherwise dependent rows would be deleted along with the DROP.
     foreignKeysOff: true,
     sql: `
     CREATE TABLE tickets_new (
@@ -308,7 +308,7 @@ export const MIGRATIONS = [
     CREATE INDEX tickets_assignee ON tickets(assignee_id);
     CREATE INDEX tickets_reporter ON tickets(reporter_id);
 
-    -- Felder je Tickettyp, z. B. Ursache/Workaround (Problem) oder Rückfallplan (Change)
+    -- Fields per ticket type, e.g. root cause/workaround (problem) or backout plan (change)
     CREATE TABLE ticket_fields (
       ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
@@ -322,7 +322,7 @@ export const MIGRATIONS = [
     id: 13,
     name: 'Genehmigungen',
     sql: `
-    -- Genehmigungen (Change, Servicekatalog): je angefragter Person eine Zeile, Entscheidung später
+    -- Approvals (change, service catalog): one row per requested person, decision later
     CREATE TABLE approvals (
       id INTEGER PRIMARY KEY,
       ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -345,7 +345,7 @@ export const MIGRATIONS = [
       id INTEGER PRIMARY KEY,
       title TEXT NOT NULL,
       body TEXT NOT NULL DEFAULT '',
-      visibility TEXT NOT NULL DEFAULT 'internal', -- internal (nur Bearbeiter) | public (alle Angemeldeten)
+      visibility TEXT NOT NULL DEFAULT 'internal', -- internal (agents only) | public (all signed-in users)
       category TEXT NOT NULL DEFAULT '',
       source_ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
       views INTEGER NOT NULL DEFAULT 0,
@@ -367,7 +367,7 @@ export const MIGRATIONS = [
       emoji TEXT NOT NULL DEFAULT '',
       project_key TEXT NOT NULL DEFAULT '',
       fields TEXT NOT NULL DEFAULT '[]',     -- JSON: [{ id, label, type, required, options }]
-      approver_ids TEXT NOT NULL DEFAULT '', -- leer = keine Genehmigung
+      approver_ids TEXT NOT NULL DEFAULT '', -- empty = no approval
       approval_mode TEXT NOT NULL DEFAULT 'any',
       active INTEGER NOT NULL DEFAULT 1,
       sort INTEGER NOT NULL DEFAULT 0,
@@ -453,7 +453,7 @@ export const MIGRATIONS = [
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       UNIQUE (article_id, version)
     );
-    -- vorhandene Artikel: heutiger Stand als Version 1
+    -- existing articles: current state as version 1
     INSERT INTO kb_versions(article_id, version, title, body, category, visibility, author_id, created_at)
       SELECT id, 1, title, body, category, visibility, COALESCE(updated_by, created_by), updated_at FROM kb_articles;
     CREATE TABLE kb_templates (
@@ -496,8 +496,8 @@ export const MIGRATIONS = [
   {
     id: 22,
     name: 'Volltextsuche für Tickets',
-    // Achtung: Baut eine spätere Migration „tickets“, „comments“ oder „attachments“ neu auf,
-    // müssen die search_*-Trigger dort neu angelegt werden.
+    // Note: if a later migration rebuilds "tickets", "comments" or "attachments",
+    // the search_* triggers must be recreated there.
     sql: `
     CREATE VIRTUAL TABLE ticket_fts USING fts5(title, public_text, internal_text, people, tokenize='trigram');
     CREATE TABLE search_dirty (ticket_id INTEGER PRIMARY KEY);
@@ -513,16 +513,16 @@ export const MIGRATIONS = [
     CREATE TRIGGER search_a_del AFTER DELETE ON attachments BEGIN INSERT OR IGNORE INTO search_dirty VALUES (OLD.ticket_id); END;
     CREATE TRIGGER search_u_upd AFTER UPDATE OF display_name, email, username ON users
       BEGIN INSERT OR IGNORE INTO search_dirty SELECT id FROM tickets WHERE reporter_id=NEW.id OR assignee_id=NEW.id; END;
-    -- vorhandene Tickets: Index beim nächsten Start aufbauen
+    -- existing tickets: build the index on next start
     INSERT INTO search_dirty SELECT id FROM tickets;
     `,
   },
   {
     id: 23,
     name: 'Tickets nie löschen (Schutz in der Datenbank)',
-    // Tickets sind Nachweis: auch ein versehentliches DELETE (oder ON DELETE CASCADE über das Projekt) bricht ab.
-    // Hinweis: DROP TABLE löst keine Trigger aus – ein späterer Umbau der Tabelle „tickets“ muss
-    // tickets_no_delete danach neu anlegen.
+    // Tickets are records: even an accidental DELETE (or ON DELETE CASCADE via the project) aborts.
+    // Note: DROP TABLE does not fire triggers – a later rebuild of the table "tickets" must
+    // recreate tickets_no_delete afterwards.
     sql: `
     CREATE TRIGGER tickets_no_delete BEFORE DELETE ON tickets BEGIN SELECT RAISE(ABORT, 'Tickets werden nie gelöscht'); END;
     CREATE TRIGGER projects_no_delete_with_tickets BEFORE DELETE ON projects
@@ -533,25 +533,25 @@ export const MIGRATIONS = [
     id: 24,
     name: 'AD-Kennung, Bearbeiter-Mails, Suche nach Namen, Neuigkeiten, SSO als zweiter Faktor',
     sql: `
-    -- objectSid von AD-Konten (Zusammenführung mit SSO über eine stabile Kennung)
+    -- objectSid of AD accounts (merging with SSO via a stable identifier)
     ALTER TABLE users ADD COLUMN ad_sid TEXT;
     CREATE INDEX idx_users_ad_sid ON users(ad_sid) WHERE ad_sid IS NOT NULL;
-    -- zuletzt gesehene Neuigkeiten (Version). Bestehende Konten (NULL) sehen die Neuigkeiten nach dem
-    -- Update einmal; neue Konten starten beim aktuellen Stand (kein Hinweis auf Altes)
+    -- last seen news (version). Existing accounts (NULL) see the news once after the
+    -- update; new accounts start at the current state (no notice about old items)
     ALTER TABLE users ADD COLUMN news_seen TEXT;
     CREATE TRIGGER users_news_seen AFTER INSERT ON users WHEN NEW.news_seen IS NULL
       BEGIN UPDATE users SET news_seen=(SELECT value FROM meta WHERE key='app_version') WHERE id=NEW.id; END;
 
-    -- Mail ging nur an einen Bearbeiter: eigene Spalte statt Kennung in der Message-ID
+    -- Mail went only to an agent: separate column instead of a marker in the Message-ID
     ALTER TABLE mail_messages ADD COLUMN agent_only INTEGER NOT NULL DEFAULT 0;
     UPDATE mail_messages SET agent_only=1 WHERE direction='out' AND message_id LIKE 'helfi.%.agent@%';
 
-    -- Suchindex mit eigener Spalte für sichtbare Namen (für Benutzer); neu aufbauen
+    -- Search index with its own column for visible names (for users); rebuild
     DROP TABLE ticket_fts;
     CREATE VIRTUAL TABLE ticket_fts USING fts5(title, public_text, internal_text, people, people_public, tokenize='trigram');
     INSERT OR IGNORE INTO search_dirty SELECT id FROM tickets;
 
-    -- SSO als zweiter Faktor: bestehende Installationen mit aktivem SSO behalten ihr Verhalten
+    -- SSO as second factor: existing installations with active SSO keep their behaviour
     INSERT OR IGNORE INTO settings(key, value, secret)
       SELECT 'mfa.ssoSecondFactor',
         CASE WHEN EXISTS (SELECT 1 FROM settings WHERE key='mfa.trustSso' AND value='false') THEN '"never"' ELSE '"always"' END, 0
@@ -568,7 +568,7 @@ export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
 export class DatabaseTooNewError extends Error {}
 export class WrongKeyError extends Error {}
 
-/** Passt der Schlüssel (secret.key / HELFI_SECRET) zur Datenbank? Sonst klar abbrechen statt später abzustürzen. */
+/** Does the key (secret.key / HELFI_SECRET) match the database? Otherwise abort clearly instead of crashing later. */
 export function verifyKey(db) {
   const row = db.prepare("SELECT value FROM meta WHERE key='key_check'").get();
   if (!row) {
@@ -599,27 +599,27 @@ function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 }
 
-/** Sichert die Datenbank (konsistent, auch im laufenden Betrieb). */
+/** Backs up the database (consistent, also while running). */
 export async function backupDatabase(db, label, dir = paths.backups) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `helfi-${label}-${stamp()}.sqlite`);
-  // Erst unter Zwischennamen schreiben, dann umbenennen: Wird der Start mittendrin abgebrochen,
-  // liegt nie eine halbfertige Sicherung unter dem endgültigen Namen (update.sh spielt sie sonst zurück)
+  // Write under a temporary name first, then rename: if startup is aborted midway,
+  // there is never a half-written backup under the final name (update.sh would otherwise restore it)
   const part = `${file}.part`;
   try {
     await db.backup(part);
-    // Enthält Kennwort-Hashes und personenbezogene Daten → nur für den Besitzer lesbar
-    try { fs.chmodSync(part, 0o600); } catch { /* z. B. Dateisystem ohne Rechte */ }
+    // Contains password hashes and personal data → readable by the owner only
+    try { fs.chmodSync(part, 0o600); } catch { /* e.g. file system without permissions */ }
     fs.renameSync(part, file);
   } catch (e) {
-    for (const f of [part, `${part}-journal`]) { try { fs.rmSync(f, { force: true }); } catch { /* egal */ } }
+    for (const f of [part, `${part}-journal`]) { try { fs.rmSync(f, { force: true }); } catch { /* ignore */ } }
     throw e;
   }
-  log.info(`Sicherung erstellt: ${file}`);
+  log.info(`Backup created: ${file}`);
   return file;
 }
 
-/** Wie viele Sicherungen je Art standardmäßig bleiben (Einstellung backup.keep). */
+/** How many backups per kind are kept by default (setting backup.keep). */
 export const DEFAULT_BACKUP_KEEP = 10;
 export const MAX_BACKUP_KEEP = 100;
 export function clampBackupKeep(n) {
@@ -631,8 +631,8 @@ export function clampBackupKeep(n) {
 const BACKUP_NAME = /^helfi-[A-Za-z0-9._-]+\.sqlite$/;
 
 /**
- * Art einer Sicherung: daily (täglich), version (vor Versionswechsel), manual (von Hand),
- * predelete (vor dem Löschen eines Projekts), preimport (vor einem Import). Je Art bleiben die neuesten.
+ * Kind of backup: daily, version (before version change), manual,
+ * predelete (before deleting a project), preimport (before an import). The newest are kept per kind.
  */
 export function backupKind(name) {
   if (!BACKUP_NAME.test(name)) return null;
@@ -644,7 +644,7 @@ export function backupKind(name) {
   return null;
 }
 
-/** Sicherungen im Ordner, neueste zuerst. */
+/** Backups in the folder, newest first. */
 export function listBackups(dir = paths.backups) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).filter((f) => backupKind(f))
@@ -653,8 +653,8 @@ export function listBackups(dir = paths.backups) {
 }
 
 /**
- * Räumt Sicherungen auf: je Art (täglich, vor Versionswechsel, manuell, vor Löschen, vor Import) bleiben die neuesten `keep`.
- * Mindestens eine je Art bleibt immer. Liefert die Anzahl gelöschter Dateien und den frei gewordenen Platz.
+ * Cleans up backups: per kind (daily, before version change, manual, before deletion, before import) the newest `keep` remain.
+ * At least one per kind always remains. Returns the number of deleted files and the space freed.
  */
 export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
   const n = clampBackupKeep(keep);
@@ -664,12 +664,12 @@ export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
     seen[b.kind] = (seen[b.kind] || 0) + 1;
     if (seen[b.kind] <= n) continue;
     try { fs.unlinkSync(path.join(dir, b.name)); deleted++; freed += b.size; }
-    catch (e) { log.warn(`Sicherung ließ sich nicht löschen: ${b.name}`, { error: e.message }); }
+    catch (e) { log.warn(`Could not delete backup: ${b.name}`, { error: e.message }); }
   }
-  // Liegengebliebene Teil-Sicherungen (Abbruch während des Schreibens) nach einer Stunde entfernen
+  // Remove leftover partial backups (aborted while writing) after one hour
   const PART = /^helfi-[A-Za-z0-9._-]+\.sqlite\.part(-journal)?$/;
   let names = [];
-  try { names = fs.readdirSync(dir); } catch { /* Ordner fehlt */ }
+  try { names = fs.readdirSync(dir); } catch { /* folder missing */ }
   for (const name of names) {
     if (!PART.test(name)) continue;
     const file = path.join(dir, name);
@@ -677,25 +677,25 @@ export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
       const st = fs.lstatSync(file);
       if (!st.isFile() || Date.now() - st.mtimeMs < 3600_000) continue;
       fs.unlinkSync(file); deleted++; freed += st.size;
-    } catch (e) { log.warn(`Teil-Sicherung ließ sich nicht löschen: ${name}`, { error: e.message }); }
+    } catch (e) { log.warn(`Could not delete partial backup: ${name}`, { error: e.message }); }
   }
-  if (deleted) log.info(`Alte Sicherungen gelöscht: ${deleted} (${Math.round(freed / 1048576)} MB frei)`);
+  if (deleted) log.info(`Old backups deleted: ${deleted} (${Math.round(freed / 1048576)} MB freed)`);
   return { deleted, freed };
 }
 
-/** Eine Sicherung gezielt löschen (nur Dateien aus dem Sicherungsordner). */
+/** Delete a specific backup (only files from the backup folder). */
 export function deleteBackup(name, dir = paths.backups) {
   if (typeof name !== 'string' || !backupKind(name)) return false;
   const file = path.join(dir, name);
   if (!fs.existsSync(file)) return false;
   fs.unlinkSync(file);
-  log.info(`Sicherung gelöscht: ${name}`);
+  log.info(`Backup deleted: ${name}`);
   return true;
 }
 
 /**
- * Öffnet die Datenbank, sichert vor einem Versionswechsel und führt Migrationen aus.
- * Bricht mit klarer Meldung ab, wenn die Datenbank von einer neueren Version stammt.
+ * Opens the database, backs up before a version change and runs migrations.
+ * Aborts with a clear message if the database comes from a newer version.
  */
 export async function openDatabase(file = paths.db, { appVersion = config.version, backupDir = paths.backups } = {}) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -718,19 +718,19 @@ export async function openDatabase(file = paths.db, { appVersion = config.versio
     );
   }
 
-  // Sichern vor Versionswechsel UND vor jeder ausstehenden Migration
+  // Back up before a version change AND before any pending migration
   if (existed && dbSchema > 0 && (dbApp !== appVersion || dbSchema < SCHEMA_VERSION)) {
     await backupDatabase(db, `vor-${appVersion}`, backupDir);
   }
 
   const pending = MIGRATIONS.filter((m) => m.id > dbSchema);
   for (const m of pending) {
-    log.info(`Datenbank-Migration ${m.id}: ${m.name}`);
+    log.info(`Database migration ${m.id}: ${m.name}`);
     if (m.foreignKeysOff) db.pragma('foreign_keys = OFF');
     try {
       db.transaction(() => {
         db.exec(m.sql);
-        // Nach einem Umbau müssen alle Verweise noch stimmen, sonst alles zurück
+        // After a rebuild all references must still be valid, otherwise roll everything back
         if (m.foreignKeysOff && db.pragma('foreign_key_check').length) throw new Error(`Migration ${m.id}: Fremdschlüssel verletzt`);
         setMeta(db, 'schema_version', m.id);
       })();

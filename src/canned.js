@@ -1,5 +1,5 @@
-// Antwortvorlagen: häufige Antworten speichern und im Kommentarfeld einfügen.
-// owner_id NULL = für alle Bearbeiter (nur Admins pflegen sie), sonst persönlich.
+// Canned responses: save frequent replies and insert them into the comment field.
+// owner_id NULL = for all agents (maintained by admins only), otherwise personal.
 import { HttpError, notFound, forbidden, str, int } from './lib/http.js';
 
 export const MAX_PERSONAL = 200;
@@ -10,7 +10,7 @@ export function createCanned(db) {
     id: r.id, title: r.title, body: r.body, shared: r.owner_id === null, mine: r.owner_id === user.id, updatedAt: r.updated_at,
   });
 
-  /** Vorlagen für alle plus die eigenen, nach Titel sortiert. */
+  /** Shared templates plus the user's own, sorted by title. */
   function list(user) {
     return db.prepare('SELECT * FROM canned_responses WHERE owner_id IS NULL OR owner_id=? ORDER BY lower(title), id')
       .all(user.id).map((r) => out(r, user));
@@ -42,7 +42,7 @@ export function createCanned(db) {
     return out(db.prepare('SELECT * FROM canned_responses WHERE id=?').get(info.lastInsertRowid), user);
   }
 
-  /** Persönliche nur der Besitzer, gemeinsame nur Admins. Fremde persönliche sind unsichtbar (404). */
+  /** Personal ones only by the owner, shared ones only by admins. Other users' personal ones are invisible (404). */
   function editable(user, id) {
     const r = db.prepare('SELECT * FROM canned_responses WHERE id=?').get(int(id) || 0);
     if (!r || (r.owner_id !== null && r.owner_id !== user.id)) throw notFound();

@@ -1,4 +1,4 @@
-// E-Mail-Versand und Benachrichtigungen.
+// Sending email and notifications.
 import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
 import { config } from '../config.js';
@@ -39,7 +39,7 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
     return { transport, cfg };
   }
 
-  /** Keine Mails an Absender mit Regel „nie antworten“ und an gesperrte (unzustellbare) Adressen. */
+  /** No mails to senders with a "never reply" rule or to blocked (undeliverable) addresses. */
   function blocked(to) {
     const rule = matchRule(parseRules(settings.get('imap.senderRules')), to);
     if (rule) return 'Regel';
@@ -49,17 +49,17 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
 
   const agentAccount = db.prepare("SELECT 1 FROM users WHERE lower(email)=? AND role IN ('agent','admin') LIMIT 1");
 
-  /** customer: Mail an Melder/Teilnehmer. Sonst (Zuweisung, SLA, Genehmigung …) und ist der Empfänger ein
-   *  Bearbeiter-Konto, wird die Mail als „nur an Bearbeiter“ gemerkt (mail_messages.agent_only):
-   *  Antworten darauf werden interne Notizen. Die Message-ID verrät das nicht. */
+  /** customer: mail to reporter/participants. Otherwise (assignment, SLA, approval …) and if the recipient is an
+   *  agent account, the mail is recorded as "agents only" (mail_messages.agent_only):
+   *  replies to it become internal notes. The Message-ID does not reveal this. */
   async function send({ to, subject, text, ticketId = null, inReplyTo = null, customer = false }) {
     const tr = getTransport();
     if (!tr) return false;
     const why = blocked(to);
-    if (why) { log.info(`Keine Mail an ${to}: ${why}`); return false; }
+    if (why) { log.info(`No mail to ${to}: ${why}`); return false; }
     const domain = tr.cfg.from.split('@')[1] || 'helfi.space';
     const agentOnly = !customer && !!ticketId && !!agentAccount.get(String(to || '').toLowerCase());
-    // Nicht erratbar: über diese ID werden Antworten Tickets zugeordnet
+    // Not guessable: replies are matched to tickets via this ID
     const messageId = `<helfi.${ticketId || 0}.${Date.now()}.${crypto.randomBytes(16).toString('hex')}@${domain}>`;
     await tr.transport.sendMail({
       from: { name: tr.cfg.fromName || 'Helfi.Space', address: tr.cfg.from },
@@ -89,12 +89,12 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
   return { send, test, blocked, enabled: () => !!getTransport() };
 }
 
-/** Eingebettete Bilder in Mails als Hinweis statt Markup (die Bilder liegen im Ticket). */
+/** Embedded images in mails as a note instead of markup (the images are in the ticket). */
 export function inlineImagesAsText(text, lang) {
   return String(text || '').replace(/!\[([^\]]*)\]\(\/api\/attachments\/\d+\)/g, (m, name) => `[${lang === 'en' ? 'Image' : 'Bild'}: ${name || '…'}]`);
 }
 
-/** Hängt die Benachrichtigungen an die Ticket-Ereignisse. */
+/** Attaches the notifications to the ticket events. */
 export function wireNotifications({ tickets, mailer, settings, users, survey = null }) {
   const link = (tk) => `${config.baseUrl}/browse/${tk.key}`;
   const appName = () => settings.get('general.title') || 'Helfi.Space';
@@ -106,17 +106,17 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
 
   const safe = (fn) => (payload) => {
     if (!mailer.enabled()) return;
-    // Ticket inzwischen verworfen (Transaktion zurückgerollt) oder gelöscht → keine Mail
+    // Ticket discarded in the meantime (transaction rolled back) or deleted → no mail
     if (!tickets.rawById(payload.ticket.id)) return;
-    Promise.resolve(fn(payload)).catch((e) => log.warn('Benachrichtigung fehlgeschlagen', { error: e.message }));
+    Promise.resolve(fn(payload)).catch((e) => log.warn('Notification failed', { error: e.message }));
   };
 
-  // Bestätigungen an Absender lassen sich mit gefälschtem Absender auslösen → Gesamtgrenze je Stunde
+  // Confirmations to senders can be triggered with a forged sender → overall limit per hour
   let confirmWindow = { start: Date.now(), count: 0 };
   tickets.events.on('created', safe(async ({ ticket }) => {
     if (!settings.get('notify.reporterOnCreate') || ticket.source !== 'email') return;
     if (Date.now() - confirmWindow.start > 3600_000) confirmWindow = { start: Date.now(), count: 0 };
-    if (++confirmWindow.count > MAX_CONFIRMATIONS_PER_HOUR) { log.warn('Eingangsbestätigungen: Stundengrenze erreicht – keine weitere Bestätigung'); return; }
+    if (++confirmWindow.count > MAX_CONFIRMATIONS_PER_HOUR) { log.warn('Receipt confirmations: hourly limit reached – no further confirmation'); return; }
     const to = ticket.reporter?.email;
     if (!to) return;
     const lang = recipientLang(ticket.reporter.id);
@@ -124,8 +124,8 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     await mailer.send({ to, subject: t(lang, 'mail.created.subject', vars), text: t(lang, 'mail.created.body', vars), ticketId: ticket.id, inReplyTo: ticket.sourceMessageId, customer: true });
   }));
 
-  /** Je Empfänger (Melder und Anfrage-Teilnehmer) eine eigene Mail in seiner Sprache – keine
-   *  Adressen anderer Beteiligter im Kopf. Der Auslöser selbst bekommt nichts. */
+  /** One separate mail per recipient (reporter and request participants) in their language – no
+   *  addresses of other parties in the headers. The person who triggered it gets nothing. */
   async function toCustomers(ticket, actorId, build) {
     for (const r of tickets.customerRecipients(ticket.id)) {
       if (actorId && r.id === actorId) continue;
@@ -136,13 +136,13 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
   }
 
   tickets.events.on('commented', safe(async ({ ticket, comment, user, internal }) => {
-    // Kommentare aus E-Mails nie weiterleiten: Absender von Mails lassen sich fälschen
+    // Never forward comments from emails: mail senders can be forged
     if (internal || comment.source === 'email' || !settings.get('notify.reporterOnComment') || !user) return;
     const assignee = ticket.assignee?.displayName && ticket.assignee.id !== user.id ? ticket.assignee.displayName : null;
     await toCustomers(ticket, user.id, (lang, name) => {
       const vars = {
         key: ticket.key, title: ticket.title, name, author: user.display_name, body: inlineImagesAsText(comment.body, lang), link: link(ticket), app: appName(),
-        // Absender bleibt immer das Ticketsystem – der Name des Bearbeiters steht nur im Text
+        // The sender is always the ticket system – the agent's name only appears in the text
         contact: assignee ? `${t(lang, 'mail.contact', { name: assignee })}\n` : '',
         closing: t(lang, 'mail.closing', { author: user.display_name || user.username, app: appName() }),
       };
@@ -152,7 +152,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
 
   tickets.events.on('resolved', safe(async ({ ticket, user }) => {
     if (!settings.get('notify.reporterOnDone')) return;
-    // Bewertungslinks nur für den Melder selbst (nicht für Anfrage-Teilnehmer)
+    // Rating links only for the reporter (not for request participants)
     const raw = tickets.rawById(ticket.id);
     const isReporter = (r) => (raw.reporter_id ? r.id === raw.reporter_id : r.email === String(raw.reporter_email || '').toLowerCase());
     await toCustomers(ticket, user?.id, (lang, name, r) => {
@@ -165,7 +165,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       const agentName = user && ['agent', 'admin'].includes(user.role) ? (user.display_name || user.username) : null;
       const vars = {
         key: ticket.key, title: ticket.title, name, link: link(ticket), app: appName(), survey: surveyText,
-        // wie bei Antworten: nur wenn jemand anderes zugewiesen ist als der, der erledigt
+        // as with replies: only if someone other than the resolver is assigned
         contact: ticket.assignee?.displayName && ticket.assignee.id !== user?.id ? `${t(lang, 'mail.contact', { name: ticket.assignee.displayName })}\n` : '',
         closing: agentName ? t(lang, 'mail.closing', { author: agentName, app: appName() }) : appName(),
       };

@@ -1,11 +1,11 @@
-// Sitzungen (Cookie + Tabelle), Rollenprüfung, Schutz gegen Fehlversuche.
+// Sessions (cookie + table), role checks, protection against failed attempts.
 import { randomToken } from '../lib/crypto.js';
 import { config } from '../config.js';
 import { HttpError } from '../lib/http.js';
 import { normalizeUsername } from './ldap.js';
 
 export const COOKIE = 'helfi_sid';
-// Höchstdauer einer Sitzung ab Anmeldung – auch bei ständiger Nutzung danach neu anmelden
+// Maximum session lifetime from sign-in – after that sign in again, even with constant use
 export const SESSION_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 
 export function createSessions(db, { policy } = {}) {
@@ -35,21 +35,21 @@ export function createSessions(db, { policy } = {}) {
       if (id) del.run(id);
       res.clearCookie(COOKIE, { path: '/' });
     },
-    /** Middleware: setzt req.user, verlängert die Sitzung gleitend. */
+    /** Middleware: sets req.user, extends the session (sliding). */
     middleware(req, res, next) {
       const id = req.cookies?.[COOKIE];
       if (id) {
         let row = find.get(id);
-        // Älter als die Höchstdauer: ungültig (wird unten gelöscht)
+        // Older than the maximum lifetime: invalid (deleted below)
         if (row && !(Date.now() - Number(row.session_created) < SESSION_MAX_AGE_MS)) row = { ...row, expires_at: 0 };
         if (row && row.expires_at > Date.now() && row.active && !row.session_mfa && policy?.mfaRequired(req, row)) {
-          // Sitzung ohne zweiten Faktor (z. B. im Büro angemeldet), jetzt aber von außen → neu anmelden
+          // Session without second factor (e.g. signed in at the office), but now from outside → sign in again
           req.mfaBlocked = true;
         } else if (row && row.expires_at > Date.now() && row.active) {
           req.user = row;
           req.sessionId = id;
-          // gleitend verlängern, höchstens einmal pro Minute schreiben
-          // (aber nie über die Höchstdauer ab Anmeldung hinaus)
+          // sliding extension, write at most once per minute
+          // (but never beyond the maximum lifetime from sign-in)
           const until = Math.min(Date.now() + ttl(), Number(row.session_created) + SESSION_MAX_AGE_MS);
           if (until - row.expires_at > 60000) {
             touch.run(until, id);
@@ -66,7 +66,7 @@ export function createSessions(db, { policy } = {}) {
   };
 }
 
-/** Minimaler Cookie-Parser (spart eine Abhängigkeit). */
+/** Minimal cookie parser (saves a dependency). */
 export function parseCookies(req, _res, next) {
   const out = {};
   for (const part of String(req.headers.cookie || '').split(';')) {
@@ -74,7 +74,7 @@ export function parseCookies(req, _res, next) {
     if (i < 0) continue;
     const k = part.slice(0, i).trim();
     if (!k) continue;
-    try { out[k] = decodeURIComponent(part.slice(i + 1).trim()); } catch { /* ignorieren */ }
+    try { out[k] = decodeURIComponent(part.slice(i + 1).trim()); } catch { /* ignore */ }
   }
   req.cookies = out;
   next();
@@ -98,9 +98,9 @@ export function requireRole(role) {
 export const isAgent = (user) => user && (user.role === 'agent' || user.role === 'admin');
 
 /**
- * Schutz gegen Raten von Kennwörtern (15-Minuten-Fenster):
- * - je Benutzername (normalisiert: "FIRMA\\x", "x@firma.local" und "x" zählen zusammen) max. 8 Fehlversuche,
- * - je IP-Adresse max. 40 Fehlversuche (gegen das Durchprobieren vieler Namen).
+ * Protection against password guessing (15-minute window):
+ * - per username (normalized: "FIRMA\\x", "x@firma.local" and "x" count together) max. 8 failed attempts,
+ * - per IP address max. 40 failed attempts (against trying many names).
  */
 export function createLoginLimiter({ max = 8, ipMax = 40, windowMs = 15 * 60 * 1000 } = {}) {
   const hits = new Map();

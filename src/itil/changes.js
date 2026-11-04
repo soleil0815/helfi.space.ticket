@@ -1,10 +1,10 @@
-// Change-Management: Standard/Normal/Notfall, Phasen, Genehmigung (CAB), Kalender, Nachbetrachtung.
+// Change management: standard/normal/emergency, phases, approval (CAB), calendar, review.
 import { HttpError, forbidden, str } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 import { log } from '../lib/log.js';
 
 export const PHASES = ['draft', 'approval', 'approved', 'rejected', 'scheduled', 'implementing', 'review', 'closed'];
-// Ticketstatus je Phase
+// Ticket status per phase
 const STATUS_OF = { draft: 'open', approval: 'open', approved: 'open', scheduled: 'open', implementing: 'in_progress', review: 'in_progress', rejected: 'done', closed: 'done' };
 
 export function createChanges(db, tickets, fields, approvals, settings, { mailer = null, users = null, baseUrl = '', t = null } = {}) {
@@ -17,11 +17,11 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
     return { ...f, phase: f.phase || 'draft', changeType: f.changeType || 'normal' };
   }
 
-  /** erlaubte nächste Phasen */
+  /** allowed next phases */
   function nextPhases(f) {
     const n = {
       draft: f.changeType === 'standard' ? ['scheduled'] : f.changeType === 'emergency' ? ['implementing', 'approval'] : ['approval'],
-      approval: [], // entscheidet die Genehmigung
+      approval: [], // decided by the approval
       approved: ['scheduled', 'implementing'],
       rejected: ['draft'],
       scheduled: ['implementing', 'draft'],
@@ -72,7 +72,7 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
     return detail(user, key);
   }
 
-  /** Notfall-Change: Genehmigung nachträglich einholen (Phase bleibt) */
+  /** Emergency change: obtain approval afterwards (phase stays) */
   function requestLate(user, key) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);
@@ -103,7 +103,7 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
     return tickets.detail(user, row.id);
   }
 
-  /** Kalender: Changes mit geplantem Zeitraum, Überschneidungen markiert */
+  /** Calendar: changes with a planned period, overlaps marked */
   function calendar(fromIso, toIso) {
     const rows = db.prepare(`SELECT t.id FROM tickets t
       JOIN ticket_fields s ON s.ticket_id=t.id AND s.name='plannedStart' AND s.value<>''
@@ -124,7 +124,7 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
     try { const l = JSON.parse(settings.get('change.standardTemplates') || '[]'); return Array.isArray(l) ? l.slice(0, 100) : []; } catch { return []; }
   }
 
-  // ---------- Benachrichtigungen ----------
+  // ---------- Notifications ----------
   async function send(to, subjectKey, bodyKey, row, extra = {}) {
     if (!mailer?.enabled?.() || !t || !to?.email || !to.active) return;
     const lang = to.language || settings.get('general.defaultLanguage');
@@ -132,12 +132,12 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
     await mailer.send({ to: to.email, subject: t(lang, subjectKey, vars), text: t(lang, bodyKey, vars), ticketId: row.id });
   }
   function notifyApprovers(row, ids) {
-    for (const id of ids) send(users?.byId(id), 'mail.approval.subject', 'mail.approval.body', row, () => ({})).catch((e) => log.warn('Genehmigungs-Mail fehlgeschlagen', { error: e.message }));
+    for (const id of ids) send(users?.byId(id), 'mail.approval.subject', 'mail.approval.body', row, () => ({})).catch((e) => log.warn('Approval mail failed', { error: e.message }));
   }
   function notifyOwner(row, result) {
     const owner = users?.byId(row.assignee_id || row.reporter_id);
     send(owner, 'mail.approvalResult.subject', 'mail.approvalResult.body', row, (lang) => ({ result: t(lang, `approval.${result}`) }))
-      .catch((e) => log.warn('Genehmigungs-Mail fehlgeschlagen', { error: e.message }));
+      .catch((e) => log.warn('Approval mail failed', { error: e.message }));
   }
 
   tickets.addDetailExtra((user, row) => {

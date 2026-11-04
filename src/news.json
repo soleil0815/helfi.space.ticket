@@ -1,5 +1,5 @@
 {
-  "_hinweis": "Neuigkeiten je Version, neueste zuerst. version \"\" = kommende Version (wird beim Release automatisch zur neuen Nummer). Beim nächsten neuen Eintrag die vorige Version eintragen. audience: all | agent | admin.",
+  "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
       "version": "",

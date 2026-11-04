@@ -1,4 +1,4 @@
-// Startpunkt: Datenbank öffnen, Hintergrundaufgaben starten, HTTP-Server.
+// Entry point: open the database, start background tasks, HTTP server.
 import fs from 'node:fs';
 import { config, paths } from './config.js';
 import { openDatabase, backupDatabase, pruneBackups, DatabaseTooNewError, verifyKey, WrongKeyError } from './db.js';
@@ -8,7 +8,7 @@ import * as ldap from './auth/ldap.js';
 import { log } from './lib/log.js';
 
 async function main() {
-  log.info(`Helfi.Space ${config.version} startet (Daten: ${config.dataDir})`);
+  log.info(`Helfi.Space ${config.version} starting (data: ${config.dataDir})`);
   fs.mkdirSync(config.dataDir, { recursive: true });
   initMasterKey();
 
@@ -29,32 +29,32 @@ async function main() {
   }
 
   const { app, ctx } = createApp(db);
-  const server = app.listen(config.port, () => log.info(`Bereit auf Port ${config.port} – ${config.baseUrl}`));
+  const server = app.listen(config.port, () => log.info(`Ready on port ${config.port} – ${config.baseUrl}`));
 
-  // E-Mail-Abruf
+  // Email fetching
   ctx.poller.start();
   ctx.sla.start();
 
-  // Alte Sicherungen gleich beim Start aufräumen (z. B. nach einem Update)
-  try { pruneBackups(ctx.settings.get('backup.keep')); } catch (e) { log.warn('Sicherungen aufräumen fehlgeschlagen', { error: e.message }); }
-  if (process.env.HELFI_BACKUP_KEEP_DAYS) log.warn('HELFI_BACKUP_KEEP_DAYS wird nicht mehr verwendet – die Anzahl der Sicherungen steht unter Administration → System.');
+  // Clean up old backups right at startup (e.g. after an update)
+  try { pruneBackups(ctx.settings.get('backup.keep')); } catch (e) { log.warn('Backup cleanup failed', { error: e.message }); }
+  if (process.env.HELFI_BACKUP_KEEP_DAYS) log.warn('HELFI_BACKUP_KEEP_DAYS is no longer used – the number of backups is set under Administration → System.');
 
-  // Täglich: Sicherung, alte Sitzungen, LDAPS-Zertifikat prüfen
+  // Daily: backup, old sessions, check LDAPS certificate
   const daily = async () => {
     try {
       ctx.sessions.purgeExpired();
       ctx.suppressions.purgeExpired();
       await backupDatabase(db, 'taeglich');
       pruneBackups(ctx.settings.get('backup.keep'));
-    } catch (e) { log.error('Tägliche Sicherung fehlgeschlagen', { error: e.message }); }
+    } catch (e) { log.error('Daily backup failed', { error: e.message }); }
     await checkLdapCertificate(ctx).catch(() => {});
   };
   setTimeout(() => checkLdapCertificate(ctx).catch(() => {}), 10_000).unref();
   setInterval(daily, 24 * 3600 * 1000).unref();
-  setTimeout(daily, 60 * 60 * 1000).unref(); // erste Sicherung eine Stunde nach Start
+  setTimeout(daily, 60 * 60 * 1000).unref(); // first backup one hour after start
 
   const shutdown = (sig) => {
-    log.info(`${sig} empfangen, beende ...`);
+    log.info(`${sig} received, shutting down ...`);
     ctx.poller.stop();
     server.close(() => { db.close(); process.exit(0); });
     setTimeout(() => process.exit(0), 5000).unref();
@@ -63,17 +63,17 @@ async function main() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-/** Prüft, ob das hinterlegte LDAPS-Zertifikat noch passt (z. B. nach Erneuerung am DC). */
+/** Checks whether the stored LDAPS certificate still matches (e.g. after renewal on the DC). */
 async function checkLdapCertificate(ctx) {
   try {
     const cfg = ctx.settings.group('ldap');
     if (!cfg.enabled || cfg.security === 'none' || cfg.tlsMode !== 'pinned' || !cfg.host) return;
     const client = await ldap.connect(cfg);
-    // StartTLS prüft bereits beim Verbinden; LDAPS spätestens beim ersten Befehl
+    // StartTLS checks when connecting; LDAPS at the latest on the first command
     await ldap.readRootDse(client);
     await client.unbind().catch(() => {});
     ctx.ldapCertWarning = null;
-    // Ablaufende Zertifikate frühzeitig melden
+    // Report expiring certificates early
     for (const pem of ldap.splitPem(cfg.caPem)) {
       const c = ldap.describeCert(pem);
       const days = (new Date(c.validTo) - Date.now()) / 86400000;
@@ -83,11 +83,11 @@ async function checkLdapCertificate(ctx) {
     }
   } catch (e) {
     ctx.ldapCertWarning = { code: 'ldapCertFailed', message: e.message };
-    log.warn(`LDAPS-Verbindung mit hinterlegtem Zertifikat fehlgeschlagen: ${e.message}`);
+    log.warn(`LDAPS connection with stored certificate failed: ${e.message}`);
   }
 }
 
 main().catch((e) => {
-  log.error(`Start fehlgeschlagen: ${e.stack || e.message}`);
+  log.error(`Startup failed: ${e.stack || e.message}`);
   process.exit(1);
 });

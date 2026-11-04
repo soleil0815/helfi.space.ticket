@@ -1,16 +1,16 @@
-// Volltextsuche für Tickets (SQLite FTS5, Trigramme: findet auch Wortteile).
-// Spalten: title · public_text (Beschreibung, öffentliche Antworten, Anhänge, Stichwörter)
-//          internal_text (interne Notizen – nur für Bearbeiter) · people (Melder, Bearbeiter, Antwortende mit
-//          Adressen und Anmeldenamen – nur für Bearbeiter) · people_public (nur die Namen, die auch Benutzer sehen)
-// Änderungen markieren Trigger in search_dirty; vor jeder Suche wird nachgezogen.
+// Full-text search for tickets (SQLite FTS5, trigrams: also finds parts of words).
+// Columns: title · public_text (description, public replies, attachments, tags)
+//          internal_text (internal notes – agents only) · people (reporter, assignee, repliers with
+//          addresses and login names – agents only) · people_public (only the names users can see too)
+// Changes are marked by triggers in search_dirty; the index is caught up before every search.
 
 const MAX_HITS = 5000;
 const SNIPPET = 160;
 
-/** Suchtext zerlegen: Wörter, "genaue Folge", -ausschließen */
+/** Split search text: words, "exact phrase", -exclude */
 export function parseQuery(q) {
   const terms = [];
-  // Steuerzeichen (z. B. NUL) brechen die FTS-Abfrage ab → wie Leerraum behandeln
+  // Control characters (e.g. NUL) break the FTS query → treat as whitespace
   for (const m of String(q || '').replace(/[\u0000-\u001f\u007f]/g, ' ').matchAll(/(-?)"([^"]*)"|(-?)([^\s"]+)/g)) {
     const neg = !!(m[1] || m[3]);
     const text = (m[2] ?? m[4] ?? '').replace(/\s+/g, ' ').trim();
@@ -49,12 +49,12 @@ export function createSearch(db) {
       join([...comments.filter((c) => c.internal).map((c) => c.body), ...files.filter((f) => f.internal).map((f) => f.filename)]),
       join([t.r_name, t.r_email, t.r_user, t.reporter_name, t.reporter_email, t.a_name, t.a_email, t.a_user,
         ...new Set(comments.filter((c) => !c.internal).flatMap((c) => [c.u_name, c.author_name, c.author_email]))]),
-      // Was Benutzer im Ticket sehen: Anzeigenamen von Melder, Bearbeiter und Antwortenden – keine Adressen
+      // What users see in the ticket: display names of reporter, assignee and repliers – no addresses
       join([...new Set([t.r_name || t.reporter_name, t.a_name, ...comments.filter((c) => !c.internal).map((c) => c.u_name || c.author_name)])]
         .filter((n) => n && !String(n).includes('@'))));
   }
 
-  /** ausstehende Änderungen in den Index übernehmen (beim Start: alle Tickets) */
+  /** apply pending changes to the index (at startup: all tickets) */
   function flush() {
     let n = 0;
     for (;;) {
@@ -66,17 +66,17 @@ export function createSearch(db) {
   }
 
   /**
-   * Treffer für einen Suchtext → { ids: [id …] nach Relevanz, terms: positive Suchbegriffe } oder null (nichts Suchbares).
-   * internal: interne Notizen und Personen (auch Adressen und Anmeldenamen) mit durchsuchen – nur Bearbeiter.
-   * Benutzer suchen in Titel, öffentlichem Text und den sichtbaren Namen (people_public); die Spalte „people“
-   * enthält auch E-Mail-Adressen und Anmeldenamen, die Benutzern nicht angezeigt werden.
+   * Matches for a search text → { ids: [id …] by relevance, terms: positive search terms } or null (nothing searchable).
+   * internal: also search internal notes and people (including addresses and login names) – agents only.
+   * Users search title, public text and the visible names (people_public); the column "people"
+   * also contains email addresses and login names that are not shown to users.
    */
   function find(q, { internal = false } = {}) {
     const terms = parseQuery(q);
     const pos = terms.filter((x) => !x.neg);
     if (!pos.length) return null;
     flush();
-    const long = (x) => x.text.length >= 3; // Trigramme brauchen mindestens drei Zeichen
+    const long = (x) => x.text.length >= 3; // trigrams need at least three characters
     const cols = internal ? 'title, public_text, internal_text, people, people_public' : 'title, public_text, people_public';
     const all = `(${cols.split(', ').map((c) => `f.${c}`).join(" || ' ' || ")})`;
     const where = []; const args = [];
@@ -90,26 +90,26 @@ export function createSearch(db) {
     } else {
       for (const n of ftsNeg) { where.push(`${all} NOT LIKE ? ESCAPE '\\'`); args.push(likeEsc(n.slice(1, -1).replace(/""/g, '"'))); }
     }
-    // kurze Begriffe (z. B. „2“) als Teiltext
+    // short terms (e.g. "2") as substring
     for (const x of terms.filter((y) => !long(y))) { where.push(`${all} ${x.neg ? 'NOT ' : ''}LIKE ? ESCAPE '\\'`); args.push(likeEsc(x.text)); }
     const order = ftsPos.length ? `ORDER BY bm25(ticket_fts, 10.0, 2.0, ${internal ? '1.5, 3.0' : '0.0, 0.0'}, 3.0)` : 'ORDER BY f.rowid DESC';
     let rows;
     try {
       rows = db.prepare(`SELECT f.rowid id FROM ticket_fts f WHERE ${where.join(' AND ')} ${order} LIMIT ${MAX_HITS}`).all(...args);
     } catch (e) {
-      // Unerwartete Eingabe, die FTS5 nicht versteht: keine Treffer statt Serverfehler
+      // Unexpected input that FTS5 does not understand: no matches instead of a server error
       if (e?.code?.startsWith?.('SQLITE_') || e?.name === 'SqliteError') rows = [];
       else throw e;
     }
     return { ids: rows.map((r) => r.id), terms: pos.map((x) => x.text) };
   }
 
-  /** Wo steht der Treffer? Ausschnitt aus Beschreibung, Antwort oder Anhang, wenn der Titel nicht alles erklärt */
+  /** Where is the match? Excerpt from description, reply or attachment if the title does not explain it */
   function snippet(ticketId, terms, { internal = false } = {}) {
     const low = terms.map((x) => x.toLowerCase());
     const t = getTicket.get(ticketId);
     if (!t || low.every((x) => t.title.toLowerCase().includes(x))) return null;
-    // Ausschnitt rund um den ersten Treffer (Leerraum zusammengefasst)
+    // Excerpt around the first match (whitespace collapsed)
     const cut = (text) => {
       const sx = String(text).replace(/\s+/g, ' ').trim();
       const l = sx.toLowerCase();

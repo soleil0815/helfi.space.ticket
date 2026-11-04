@@ -1,4 +1,4 @@
-// Zwei-Faktor-Anmeldung per TOTP (RFC 6238) – funktioniert mit jeder Authenticator-App
+// Two-factor sign-in via TOTP (RFC 6238) – works with any authenticator app
 // (Microsoft/Google Authenticator, Aegis, 2FAS, 1Password, Bitwarden …).
 import crypto from 'node:crypto';
 import QRCode from 'qrcode';
@@ -33,7 +33,7 @@ export function generateSecret() {
   return base32Encode(crypto.randomBytes(20));
 }
 
-/** Code für einen Zeitschritt */
+/** Code for a time step */
 export function totpAt(secret, step) {
   const key = base32Decode(secret);
   const msg = Buffer.alloc(8);
@@ -47,9 +47,9 @@ export function totpAt(secret, step) {
 export const currentStep = (now = Date.now()) => Math.floor(now / 1000 / PERIOD);
 
 /**
- * Prüft einen Code (±1 Zeitschritt Toleranz für abweichende Uhren).
- * Liefert den benutzten Zeitschritt oder null. Codes mit Schritt ≤ lastStep werden
- * abgelehnt (kein zweites Verwenden desselben Codes).
+ * Verifies a code (±1 time step tolerance for clock drift).
+ * Returns the time step used or null. Codes with step ≤ lastStep are
+ * rejected (no reuse of the same code).
  */
 export function verifyTotp(secret, code, { lastStep = 0, now = Date.now() } = {}) {
   const c = String(code || '').replace(/\s/g, '');
@@ -68,18 +68,18 @@ export function otpauthUri(secret, account, issuer = 'Helfi.Space') {
   return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=${DIGITS}&period=${PERIOD}`;
 }
 
-/** QR-Code als data:-URL (SVG) – die Oberfläche zeigt ihn als Bild an */
+/** QR code as data: URL (SVG) – the UI shows it as an image */
 export async function qrDataUrl(text) {
   const svg = await QRCode.toString(text, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 }
 
-// ---------- Wiederherstellungscodes ----------
+// ---------- Recovery codes ----------
 const normCode = (c) => String(c).toLowerCase().replace(/[^a-z0-9]/g, '');
-// Früheres Format (bis 1.12): SHA-256 ohne Salz – wird weiter angenommen, neue Codes nur noch mit scrypt
+// Old format (up to 1.12): SHA-256 without salt – still accepted, new codes only with scrypt
 const legacyHash = (c) => crypto.createHash('sha256').update(normCode(c)).digest('hex');
-// scrypt mit eigenem Salz je Code. Kleineres N als bei Kennwörtern: bis zu 10 Codes werden je Versuch geprüft,
-// die Codes selbst sind zufällig (~40 Bit) – offline durchprobieren bleibt trotzdem aussichtslos.
+// scrypt with its own salt per code. Smaller N than for passwords: up to 10 codes are checked per attempt,
+// the codes themselves are random (~40 bits) – offline brute force remains hopeless anyway.
 const RC = { N: 4096, r: 8, p: 1, maxmem: 32 * 1024 * 1024 };
 const RC_LEN = 8;
 
@@ -114,9 +114,9 @@ export function generateRecoveryCodes(n = 10) {
   return { codes, hashes: codes.map(hashCode) };
 }
 
-/** Prüft einen Wiederherstellungscode; liefert die verbleibenden Hashes oder null */
+/** Verifies a recovery code; returns the remaining hashes or null */
 export function useRecoveryCode(hashes, code) {
-  // Nur Eingaben in Code-Form prüfen (spart scrypt bei TOTP-Codes und Unsinn)
+  // Only check input shaped like a code (saves scrypt for TOTP codes and garbage)
   if (normCode(code).length !== RC_LEN) return null;
   const list = Array.isArray(hashes) ? hashes : [];
   const idx = list.findIndex((x) => matches(x, code));
