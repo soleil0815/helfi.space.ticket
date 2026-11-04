@@ -1,4 +1,4 @@
-// Tests für .github/scripts/next-version.sh (automatisches Hochzählen der Version beim Release)
+// Tests for .github/scripts/next-version.sh (automatic version bump on release)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -29,25 +29,25 @@ function run(dir, mode) {
   return { code: r.status, out, err: r.stderr };
 }
 
-test('Patch/Minor/Major zählen vom höchsten Tag hoch (numerisch, nicht alphabetisch)', () => {
+test('Patch/minor/major count up from the highest tag (numerically, not alphabetically)', () => {
   const dir = repo(['v1.0.0', 'v1.2.9', 'v1.10.0', 'v0.9.0', 'test-tag']);
   assert.deepEqual(run(dir, 'patch').out, { version: '1.10.1', latest: 'true' });
   assert.deepEqual(run(dir, 'minor').out, { version: '1.11.0', latest: 'true' });
   assert.deepEqual(run(dir, 'major').out, { version: '2.0.0', latest: 'true' });
 });
 
-test('Ohne Tag gilt die Version aus package.json als erste Version', () => {
+test('Without a tag, the version from package.json is the first version', () => {
   const dir = repo([], '1.0.0');
   assert.deepEqual(run(dir, 'patch').out, { version: '1.0.0', latest: 'true' });
 });
 
-test('Von Hand gesetzter Tag: Version übernehmen, latest nur beim höchsten', () => {
+test('Manually set tag: version is taken over, latest only for the highest', () => {
   const dir = repo(['v1.0.0', 'v1.1.0', 'v1.0.5']);
   assert.deepEqual(run(dir, 'tag:v1.1.0').out, { version: '1.1.0', latest: 'true' });
   assert.deepEqual(run(dir, 'tag:v1.0.5').out, { version: '1.0.5', latest: 'false' });
 });
 
-test('Ungültige Eingaben werden abgelehnt', () => {
+test('Invalid input is rejected', () => {
   const dir = repo(['v1.0.0']);
   assert.notEqual(run(dir, 'tag:v1.0').code, 0);
   assert.notEqual(run(dir, 'tag:v1.0.0;rm').code, 0);
@@ -55,7 +55,7 @@ test('Ungültige Eingaben werden abgelehnt', () => {
   assert.notEqual(run(repo([], 'kaputt'), 'patch').code, 0);
 });
 
-test('Tags mit führenden Nullen zählen nicht und werden abgelehnt (Audit)', () => {
+test('Tags with leading zeros do not count and are rejected (Audit)', () => {
   let dir = repo(['v1.10.0', 'v1.10.08']);
   const r = run(dir, 'patch');
   assert.equal(r.code, 0, r.err);

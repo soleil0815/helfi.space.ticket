@@ -1,4 +1,4 @@
-// Wissensartikel-Editor: Bilder (Upload, Typprüfung, Sichtbarkeit), Kurztext aus dem Textformat
+// Knowledge base editor: images (upload, type check, visibility), excerpt from the text format
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -28,10 +28,10 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Bild hochladen: nur Bearbeiter, Typ an den Bytes erkannt', async () => {
+test('Image upload: agents only, type detected from the bytes', async () => {
   assert.equal((await upload(karlCookie, PNG)).status, 403);
   const bad = await upload(annaCookie, Buffer.from('<svg onload=alert(1)>'), 'x.png', 'image/png');
-  assert.equal(bad.status, 400, 'als PNG getarnt, ist aber keins');
+  assert.equal(bad.status, 400, 'disguised as PNG, but is not one');
   const ok = await upload(annaCookie, PNG, 'Bildschirmfoto.png');
   assert.equal(ok.status, 201);
   assert.match(ok.body.url, /^\/api\/kb\/images\/[\w-]{16,}$/);
@@ -40,29 +40,29 @@ test('Bild hochladen: nur Bearbeiter, Typ an den Bytes erkannt', async () => {
   assert.equal(r.headers.get('content-type'), 'image/png');
   assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
   assert.match(r.headers.get('content-security-policy'), /sandbox/);
-  assert.equal((await getImg(karlCookie, ok.body.url)).status, 404, 'Entwurf: nur Bearbeiter');
+  assert.equal((await getImg(karlCookie, ok.body.url)).status, 404, 'draft: agents only');
   assert.equal((await getImg('', ok.body.url)).status, 401);
 });
 
-test('Sichtbarkeit folgt dem Artikel; Löschen entfernt die Bilder', async () => {
+test('Visibility follows the article; deleting removes the images', async () => {
   const { url } = (await upload(annaCookie, PNG)).body;
   const art = (await anna('POST', '/api/kb', { title: 'Drucker', visibility: 'internal', body: `# Schritte\n\n![Fach 2|medium](${url})\n\n- [ ] Toner\n- [x] Papier\n\n:::warning\nVorsicht **heiß**\n:::` })).body.article;
-  assert.equal((await getImg(karlCookie, url)).status, 404, 'interner Artikel');
+  assert.equal((await getImg(karlCookie, url)).status, 404, 'internal article');
   await anna('PUT', `/api/kb/${art.id}`, { title: 'Drucker', visibility: 'public', body: art.body });
-  assert.equal((await getImg(karlCookie, url)).status, 200, 'öffentlicher Artikel');
-  // Kurztext ohne Formatierungszeichen
+  assert.equal((await getImg(karlCookie, url)).status, 200, 'public article');
+  // Excerpt without formatting characters
   const list = (await karl('GET', '/api/kb')).body.articles;
   assert.equal(list[0].excerpt, 'Schritte Toner Papier Vorsicht heiß');
-  // Suche findet Text in Infobox
+  // Search finds text inside an info box
   assert.equal((await karl('GET', '/api/kb?q=heiß')).body.articles.length, 1);
   const file = S.db.prepare('SELECT token FROM kb_images WHERE article_id=?').get(art.id);
-  assert.ok(file, 'Bild gehört zum Artikel');
+  assert.ok(file, 'image belongs to the article');
   await anna('DELETE', `/api/kb/${art.id}`);
-  assert.equal(S.db.prepare('SELECT COUNT(*) n FROM kb_images').get().n, 1, 'nur das Bild aus dem ersten Test (Entwurf) bleibt');
+  assert.equal(S.db.prepare('SELECT COUNT(*) n FROM kb_images').get().n, 1, 'only the image from the first test (draft) remains');
   assert.equal((await getImg(annaCookie, url)).status, 404);
 });
 
-test('Entwürfe ohne Artikel verfallen nach zwei Tagen', async () => {
+test('Drafts without an article expire after two days', async () => {
   S.db.prepare("UPDATE kb_images SET created_at='2020-01-01T00:00:00.000Z' WHERE article_id IS NULL").run();
   const old = S.db.prepare('SELECT token FROM kb_images WHERE article_id IS NULL').all();
   await upload(annaCookie, PNG);
@@ -71,7 +71,7 @@ test('Entwürfe ohne Artikel verfallen nach zwei Tagen', async () => {
   for (const o of old) assert.ok(!fs.existsSync(`${paths.attachments}/kb/${o.token}`));
 });
 
-test('Textformat: Kurztext', async () => {
+test('Text format: excerpt', async () => {
   const { plainText } = await import('../src/itil/kb.js');
   assert.equal(plainText('## Titel\n\n1. **eins** und [Link](https://x.example)\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n```\ncode\n```'), 'Titel eins und Link a b 1 2 code');
 });

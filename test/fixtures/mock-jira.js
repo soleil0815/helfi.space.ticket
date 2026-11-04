@@ -1,5 +1,5 @@
-// Nachgebautes Jira für Tests: Cloud (REST v3, ADF, search/jql mit nextPageToken)
-// und Server/Data Center (REST v2, Wiki-Markup, search mit startAt).
+// Mock Jira for tests: Cloud (REST v3, ADF, search/jql with nextPageToken)
+// and Server/Data Center (REST v2, wiki markup, search with startAt).
 import http from 'node:http';
 
 export function startMockJira({ type = 'cloud', issueCount = 3, throttleOnce = true } = {}) {
@@ -12,7 +12,7 @@ export function startMockJira({ type = 'cloud', issueCount = 3, throttleOnce = t
   const people = {
     anna: { accountId: 'a-1', name: 'anna', displayName: 'Anna Agentin', emailAddress: 'anna@firma.local' },
     kurt: { accountId: 'k-1', name: 'kurt', displayName: 'Kurt Kunde', emailAddress: 'kurt@kunde.example' },
-    ghost: { accountId: 'g-1', displayName: 'Geist ohne Mail' }, // Cloud verbirgt E-Mails oft
+    ghost: { accountId: 'g-1', displayName: 'Geist ohne Mail' }, // Cloud often hides email addresses
   };
 
   const text = (s) => (cloud
@@ -23,7 +23,7 @@ export function startMockJira({ type = 'cloud', issueCount = 3, throttleOnce = t
   for (let n = 1; n <= issueCount; n++) {
     issues.push({
       id: String(10000 + n),
-      key: `SUP-${n * 10}`, // Lücken in der Nummerierung wie in echten Projekten
+      key: `SUP-${n * 10}`, // gaps in the numbering as in real projects
       fields: {
         summary: `Vorgang ${n}`,
         description: n === 1
@@ -72,7 +72,7 @@ export function startMockJira({ type = 'cloud', issueCount = 3, throttleOnce = t
     let body = '';
     req.on('data', (d) => { body += d; });
     req.on('end', () => {
-      // Anhänge: Cloud leitet auf einen fremden Host um (ohne Anmeldung!)
+      // Attachments: Cloud redirects to a foreign host (without credentials!)
       if (url.pathname.startsWith('/media/')) {
         if (req.headers.authorization) return send(res, 400, { error: 'Anmeldedaten an fremden Host geschickt!' });
         res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -100,7 +100,7 @@ export function startMockJira({ type = 'cloud', issueCount = 3, throttleOnce = t
         if (!throttled) { throttled = true; return send(res, 429, { errorMessages: ['slow down'] }, { 'Retry-After': '0' }); }
         const b = JSON.parse(body || '{}');
         const start = b.nextPageToken ? Number(b.nextPageToken) : 0;
-        const page = issues.slice(start, start + 2); // kleine Seiten → Paging wird getestet
+        const page = issues.slice(start, start + 2); // small pages → paging gets tested
         const fixed = page.map((i) => ({ ...i, fields: { ...i.fields, attachment: i.fields.attachment.map((a) => ({ ...a, content: `http://127.0.0.1:${server.address().port}/attach/${a.id}` })) } }));
         return send(res, 200, { issues: fixed, ...(start + 2 < issues.length ? { nextPageToken: String(start + 2) } : {}) });
       }
@@ -121,7 +121,7 @@ export function startMockJira({ type = 'cloud', issueCount = 3, throttleOnce = t
   };
 
   return new Promise((resolve) => {
-    // zweiter Server simuliert den fremden Host für Cloud-Anhänge
+    // second server simulates the foreign host for Cloud attachments
     const media = http.createServer(handler).listen(0, '127.0.0.1', () => {
       server = http.createServer(handler).listen(0, '127.0.0.1', () => {
         server.mediaPort = media.address().port;

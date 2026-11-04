@@ -1,4 +1,4 @@
-// Zwei-Faktor-Pflicht je Rolle und Netz, eigener Internetanschluss
+// Two-factor requirement per role and network, own internet connection
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -16,7 +16,7 @@ const admin = { role: 'admin' };
 const agent = { role: 'agent' };
 const user = { role: 'user' };
 
-test('Stufen: wer ist betroffen?', () => {
+test('Levels: who is affected?', () => {
   assert.equal(levelApplies('all', 'user'), true);
   assert.equal(levelApplies('agents', 'user'), false);
   assert.equal(levelApplies('agents', 'agent'), true);
@@ -27,14 +27,14 @@ test('Stufen: wer ist betroffen?', () => {
   assert.equal(levelApplies('quatsch', 'admin'), false);
 });
 
-test('Bisheriger Modus wird übernommen, solange nichts Neues gespeichert ist', () => {
+test('Previous mode is taken over as long as nothing new is saved', () => {
   assert.deepEqual(mfaLevels(mkSettings({ 'mfa.mode': 'external' })), { external: 'all', internal: 'none' });
   assert.deepEqual(mfaLevels(mkSettings({ 'mfa.mode': 'always' })), { external: 'all', internal: 'all' });
   assert.deepEqual(mfaLevels(mkSettings({ 'mfa.mode': 'off' })), { external: 'none', internal: 'none' });
   assert.deepEqual(mfaLevels(mkSettings({ 'mfa.mode': 'off', 'mfa.external': 'admins', 'mfa.internal': 'none' })), { external: 'admins', internal: 'none' });
 });
 
-test('Pflicht je Rolle und Netz', () => {
+test('Requirement per role and network', () => {
   const p = createNetworkPolicy(mkSettings({ 'mfa.external': 'agents', 'mfa.internal': 'admins' }), { gateway: null });
   try {
     assert.equal(p.mfaRequired(req(EXTERN), user), false);
@@ -42,7 +42,7 @@ test('Pflicht je Rolle und Netz', () => {
     assert.equal(p.mfaRequired(req(EXTERN), admin), true);
     assert.equal(p.mfaRequired(req(INTERN), agent), false);
     assert.equal(p.mfaRequired(req(INTERN), admin), true);
-    // ohne Benutzer (unbekannt) gilt die Rolle „user“
+    // without a user (unknown) the role "user" applies
     assert.equal(p.mfaRequired(req(EXTERN)), false);
     assert.equal(p.userMode(admin), 'always');
     assert.equal(p.userMode(agent), 'external');
@@ -50,14 +50,14 @@ test('Pflicht je Rolle und Netz', () => {
   } finally { p.stop(); }
 });
 
-test('Eigener Internetanschluss: Einträge prüfen', () => {
+test('Own internet connection: validate entries', () => {
   const r = parseOwnAddresses('203.0.113.10\nhelfi.dyndns.example\n\nkein name!\n2001:db8::1');
   assert.deepEqual(r.ips, ['203.0.113.10', '2001:db8::1']);
   assert.deepEqual(r.names, ['helfi.dyndns.example']);
   assert.deepEqual(r.invalid, ['kein', 'name!']);
 });
 
-test('Eigener Internetanschluss per IP gilt als intern', () => {
+test('Own internet connection by IP counts as internal', () => {
   const s = mkSettings({ 'mfa.ownAddresses': OWN });
   const p = createNetworkPolicy(s, { gateway: null, resolver: async () => [] });
   try {
@@ -66,13 +66,13 @@ test('Eigener Internetanschluss per IP gilt als intern', () => {
     assert.equal(c.reason, 'ownAddress');
     assert.equal(p.mfaRequired(req(OWN), user), false);
     assert.equal(p.isInternal(req(EXTERN)), false);
-    // Eintrag entfernt → sofort wieder extern
+    // Entry removed → external again immediately
     s.set('mfa.ownAddresses', '');
     assert.equal(p.isInternal(req(OWN)), false);
   } finally { p.stop(); }
 });
 
-test('Eigener Internetanschluss per DynDNS-Name, Auflösung bleibt bei DNS-Fehler erhalten', async () => {
+test('Own internet connection by DynDNS name, resolution is kept on DNS error', async () => {
   let answer = [{ address: OWN, family: 4 }];
   let fail = false;
   const resolver = async (name) => {
@@ -87,13 +87,13 @@ test('Eigener Internetanschluss per DynDNS-Name, Auflösung bleibt bei DNS-Fehle
     let info = await p.ownAddresses();
     assert.deepEqual(info.resolved, { 'helfi.dyndns.example': [OWN] });
 
-    // neue Adresse beim Anbieter
+    // new address from the provider
     answer = [{ address: '203.0.113.20', family: 4 }];
     await p.refreshOwn();
     assert.equal(p.isInternal(req(OWN)), false);
     assert.equal(p.isInternal(req('203.0.113.20')), true);
 
-    // DNS kurz weg → letzte bekannte Adresse bleibt gültig, Fehler wird gemeldet
+    // DNS briefly gone → last known address stays valid, error is reported
     fail = true;
     await p.refreshOwn();
     assert.equal(p.isInternal(req('203.0.113.20')), true);

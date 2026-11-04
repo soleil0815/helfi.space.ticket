@@ -1,4 +1,4 @@
-// HTML-Mails: Bereinigung, eingebettete Bilder, Anzeige im abgeschotteten Rahmen, Rechte
+// HTML mails: sanitizing, embedded images, display in an isolated frame, permissions
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -16,7 +16,7 @@ const { createApp } = await import('../src/app.js');
 const { paths } = await import('../src/config.js');
 const { sanitizeMailHtml, quoteStart, resolveCids, viewerDocument } = await import('../src/mail/html.js');
 
-test('Bereinigung: Angriffsmuster werden entfernt', () => {
+test('Sanitizing: attack patterns are removed', () => {
   const attacks = [
     '<script>alert(1)</script>', '<img src=x onerror=alert(1)>', '<a href="javascript:alert(1)">x</a>',
     '<a href="JaVaScRiPt:alert(1)">x</a>', '<a href="&#106;avascript:alert(1)">x</a>', '<iframe src="https://example.com"></iframe>',
@@ -40,7 +40,7 @@ test('Bereinigung: Angriffsmuster werden entfernt', () => {
   assert.equal(r.blocked, 2);
 });
 
-test('Erlaubt: Gestaltung, Tabellen, sichere Links, eingebettete Bilder', () => {
+test('Allowed: styling, tables, safe links, embedded images', () => {
   const r = sanitizeMailHtml('<table cellpadding="4" style="border-collapse:collapse"><tr><td style="color:#C9372C;font-weight:bold;padding:4px 8px">Fehler</td></tr></table>'
     + '<a href="https://firma.local/hilfe">Hilfe</a> <a href="mailto:it@firma.local">IT</a><img src="cid:logo@firma" alt="Logo"><img src="data:image/png;base64,iVBORw0KGgo=">');
   assert.match(r.html, /<table cellpadding="4" style="border-collapse:collapse">/);
@@ -50,22 +50,22 @@ test('Erlaubt: Gestaltung, Tabellen, sichere Links, eingebettete Bilder', () => 
   assert.deepEqual(r.cids, ['logo@firma']);
   assert.match(r.html, /data:image\/png/);
   assert.equal(resolveCids(r.html, new Map([['logo@firma', 7]])).match(/src="\/api\/attachments\/7"/).length, 1);
-  assert.doesNotMatch(resolveCids(r.html, new Map()), /cid:/, 'unbekannte Bilder fallen weg');
-  assert.equal(sanitizeMailHtml('<p>&nbsp;</p><br><script>x</script>'), null, 'leer → kein HTML');
+  assert.doesNotMatch(resolveCids(r.html, new Map()), /cid:/, 'unknown images are dropped');
+  assert.equal(sanitizeMailHtml('<p>&nbsp;</p><br><script>x</script>'), null, 'empty → no HTML');
 });
 
-test('Zitierten Verlauf erkennen und einklappen', () => {
+test('Detect and collapse quoted history', () => {
   assert.ok(quoteStart('<p>Danke</p><div id="appendonsend"></div><hr><div id="divRplyFwdMsg">Von: x</div>') > 0, 'Outlook');
   assert.ok(quoteStart('<div>Ok</div><div class="gmail_quote">Am Mo schrieb:</div>') > 0, 'Gmail');
   assert.ok(quoteStart('<p>Ja</p><blockquote type="cite">alt</blockquote>') > 0, 'Apple/Thunderbird');
-  assert.ok(quoteStart('<p>Gut</p><p>-----Ursprüngliche Nachricht-----<br>Von: x</p>') > 0, 'Textmarke');
+  assert.ok(quoteStart('<p>Gut</p><p>-----Ursprüngliche Nachricht-----<br>Von: x</p>') > 0, 'text marker');
   assert.equal(quoteStart('<p>Nur neu</p>'), -1);
   const r = sanitizeMailHtml('<p>Läuft wieder</p><div class="gmail_quote">Am Montag schrieb IT:<blockquote>Bitte neu starten</blockquote></div>', { collapseQuote: true });
   assert.match(r.html, /^<p>Läuft wieder<\/p><details class="helfi-quote"><summary><\/summary>/);
   assert.match(viewerDocument(r.html, { quoteText: 'Zitat <x>' }), /<summary>Zitat &lt;x&gt;<\/summary>/);
-  // aus der Mail selbst lässt sich der Aufklapper nicht vortäuschen
+  // the collapsible cannot be faked from within the mail itself
   assert.doesNotMatch(sanitizeMailHtml('<details class="helfi-quote"><summary></summary>x</details>').html, /class=/);
-  assert.doesNotMatch(sanitizeMailHtml('<p>a</p><blockquote type="cite">b</blockquote>').html, /<details/, 'nur bei Antworten');
+  assert.doesNotMatch(sanitizeMailHtml('<p>a</p><blockquote type="cite">b</blockquote>').html, /<details/, 'only for replies');
 });
 
 let server; let base; let db; let ctx;
@@ -105,7 +105,7 @@ const htmlMail = (id, subject, html, extra = []) => Buffer.from([
 ].join('\r\n'));
 
 let key;
-test('HTML-Mail → Ticket mit formatierter Fassung; Logo eingebettet, nicht in der Anhangsliste', async () => {
+test('HTML mail → ticket with formatted version; logo embedded, not in the attachment list', async () => {
   const p = ctx.processor;
   const r = p.process(await p.parse(htmlMail('h1', 'Drucker', '<p>Drucker <b>PR-0001</b> druckt nicht.</p><img src="cid:logo@firma"><img src="https://tracker.example/p.gif"><script>alert(1)</script>')));
   assert.equal(r.action, 'ticket');
@@ -115,7 +115,7 @@ test('HTML-Mail → Ticket mit formatierter Fassung; Logo eingebettet, nicht in 
   const tk = (await admin('GET', `/api/tickets/${key}`)).body.ticket;
   assert.equal(tk.descriptionHtml, true);
   assert.equal(tk.description, 'Drucker PR-0001 druckt nicht.');
-  assert.deepEqual(tk.attachments, [], 'eingebettetes Logo nicht in der Liste');
+  assert.deepEqual(tk.attachments, [], 'embedded logo not in the list');
   const v = await admin('GET', `/api/tickets/${key}/mail-html`);
   assert.equal(v.status, 200);
   assert.match(v.headers.get('content-type'), /text\/html/);
@@ -127,13 +127,13 @@ test('HTML-Mail → Ticket mit formatierter Fassung; Logo eingebettet, nicht in 
   assert.doesNotMatch(v.body, /tracker\.example/);
   assert.match(v.body, /1 Bild\(er\) aus dem Internet/);
   const img = /src="\/api\/attachments\/(\d+)"/.exec(v.body);
-  assert.ok(img, 'Logo verweist auf gespeicherten Anhang');
+  assert.ok(img, 'logo points to stored attachment');
   const file = await fetch(`${base}/api/attachments/${img[1]}`, { headers: { cookie: '' } });
-  assert.notEqual(file.status, 200, 'ohne Anmeldung nicht abrufbar');
+  assert.notEqual(file.status, 200, 'not retrievable without login');
   assert.equal((await admin('GET', `/api/attachments/${img[1]}`)).status, 200);
 });
 
-test('Antwort per HTML-Mail: Kommentar mit formatierter Fassung, Verlauf eingeklappt', async () => {
+test('Reply via HTML mail: comment with formatted version, history collapsed', async () => {
   const p = ctx.processor;
   const r = p.process(await p.parse(htmlMail('h2', `Re: [${key}] Drucker`, '<p>Geht wieder, danke!</p><div class="gmail_quote">Am Montag schrieb IT:<blockquote>Bitte neu starten</blockquote></div>', [`In-Reply-To: <h1@firma.local>`])));
   assert.equal(r.action, 'comment');
@@ -143,11 +143,11 @@ test('Antwort per HTML-Mail: Kommentar mit formatierter Fassung, Verlauf eingekl
   assert.equal(c.hasHtml, true);
   const v = await admin('GET', `/api/tickets/${key}/mail-html?comment=${c.id}`);
   assert.match(v.body, /<p>Geht wieder, danke!<\/p><details class="helfi-quote"><summary>Zitierten Text anzeigen<\/summary>/);
-  // unbekannter Kommentar
+  // unknown comment
   assert.equal((await admin('GET', `/api/tickets/${key}/mail-html?comment=999999`)).status, 404);
 });
 
-test('Rechte: Fremde sehen die formatierte Fassung nicht; nach Bearbeiten gilt der Text', async () => {
+test('Permissions: others do not see the formatted version; after editing the text applies', async () => {
   const admin = client();
   await admin('POST', '/api/auth/login', { username: 'admin', password: 'Sehrgeheim123' });
   await admin('POST', '/api/users', { username: 'karl', displayName: 'Karl', role: 'user', password: 'Sehrgeheim123', email: 'karl@firma.local' });
@@ -160,7 +160,7 @@ test('Rechte: Fremde sehen die formatierte Fassung nicht; nach Bearbeiten gilt d
   assert.equal((await admin('GET', `/api/tickets/${key}/mail-html`)).status, 404);
 });
 
-test('Reine Textmail: keine formatierte Fassung', async () => {
+test('Plain text mail: no formatted version', async () => {
   const p = ctx.processor;
   const r = p.process(await p.parse(Buffer.from(['From: max@firma.local', 'To: helpdesk@firma.local', 'Subject: Nur Text', 'Message-ID: <t1@firma.local>', '', 'Hallo'].join('\r\n'))));
   const admin = client();

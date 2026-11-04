@@ -1,4 +1,4 @@
-// Erscheinungsbild: Farbe, Kontrast, Logo-Prüfung und öffentliche Auslieferung
+// Branding: color, contrast, logo validation and public delivery
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ const { contrast, mix, brandCss, checkSvg, isHexColor } = await import('../src/b
 
 const fake = (v) => ({ get: (k) => v[k] });
 
-test('Farben: Kontrast und Ableitungen', () => {
+test('Colors: contrast and derived colors', () => {
   assert.ok(contrast('#FFFFFF', '#000000') > 20.9);
   assert.ok(contrast('#0C66E4', '#FFFFFF') >= 4.5);
   assert.ok(contrast('#FFD700', '#FFFFFF') < 3);
@@ -24,20 +24,20 @@ test('Farben: Kontrast und Ableitungen', () => {
   assert.ok(!isHexColor('#fff'));
 });
 
-test('brand.css: Standard leer, eigene Farbe und farbige Kopfzeile', () => {
+test('brand.css: empty by default, custom color and colored header', () => {
   assert.equal(brandCss(fake({ 'brand.color': '', 'brand.header': 'light' })).trim(), '');
   const css = brandCss(fake({ 'brand.color': '#7A1F5C', 'brand.header': 'color' }));
   assert.match(css, /--blue: #7A1F5C/);
   assert.match(css, /\.topbar \{ background: var\(--blue\)/);
   assert.match(css, /color: #FFFFFF/);
-  // sehr helle Farbe → dunkle Schrift in der Kopfzeile
+  // very light color → dark text in the header
   assert.match(brandCss(fake({ 'brand.color': '#FFD700', 'brand.header': 'color' })), /color: #172B4D/);
-  // ungültige Farbe → Standard, kein eingeschleustes CSS
+  // invalid color → default, no injected CSS
   const evil = brandCss(fake({ 'brand.color': 'red;} body{display:none', 'brand.header': 'light' }));
   assert.equal(evil.trim(), '');
 });
 
-test('SVG-Prüfung', () => {
+test('SVG validation', () => {
   const ok = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10"><defs><linearGradient id="g"/></defs><rect fill="url(#g)" width="10" height="10"/><use href="#g"/></svg>';
   assert.equal(checkSvg(Buffer.from(ok)), null);
   for (const bad of [
@@ -54,7 +54,7 @@ test('SVG-Prüfung', () => {
   assert.equal(checkSvg(Buffer.from('<html></html>')), 'err.brandNotSvg');
 });
 
-test('Logo hochladen, ausliefern, entfernen; nur Admins', async () => {
+test('Upload, serve, remove logo; admins only', async () => {
   const { openDatabase } = await import('../src/db.js');
   const { initMasterKey } = await import('../src/lib/crypto.js');
   const { createApp } = await import('../src/app.js');
@@ -81,7 +81,7 @@ test('Logo hochladen, ausliefern, entfernen; nur Admins', async () => {
   await admin('POST', '/api/users', { username: 'karl', displayName: 'Karl', role: 'user', password: 'Sehrgeheim123' });
   await user('POST', '/api/auth/login', { username: 'karl', password: 'Sehrgeheim123' });
 
-  // ohne eigenes Logo: Standardlogo, auch ohne Anmeldung
+  // without a custom logo: default logo, even without login
   let r = await fetch(`${base}/brand/logo`);
   assert.equal(r.status, 200);
   assert.match(r.headers.get('content-type'), /svg/);
@@ -89,7 +89,7 @@ test('Logo hochladen, ausliefern, entfernen; nur Admins', async () => {
 
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
   assert.equal((await user('PUT', '/api/admin/brand/logo', { data: png })).status, 403);
-  assert.equal((await admin('PUT', '/api/admin/brand/logo', { data: 'data:image/png;base64,AAAA' })).status, 400, 'kein echtes PNG');
+  assert.equal((await admin('PUT', '/api/admin/brand/logo', { data: 'data:image/png;base64,AAAA' })).status, 400, 'not a real PNG');
   assert.equal((await admin('PUT', '/api/admin/brand/logo', { data: 'data:image/gif;base64,R0lGOD' })).status, 400);
   const evil = `data:image/svg+xml;base64,${Buffer.from('<svg onload="alert(1)"/>').toString('base64')}`;
   assert.equal((await admin('PUT', '/api/admin/brand/logo', { data: evil })).body.error.code, 'err.brandUnsafeSvg');
@@ -102,11 +102,11 @@ test('Logo hochladen, ausliefern, entfernen; nur Admins', async () => {
   const res = await fetch(`${base}/brand/logo`);
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.equal((await user('GET', '/api/bootstrap')).body.brand.logo, r.body.logo);
-  // brand.logo lässt sich nicht über die Einstellungen setzen
+  // brand.logo cannot be set via the settings
   await admin('PUT', '/api/admin/settings', { settings: { 'brand.logo': 'svg:../../etc' } });
   assert.equal(built.ctx.settings.get('brand.logo'), r.body.logo);
 
-  // Farbe prüfen und als CSS ausliefern
+  // Validate color and serve it as CSS
   assert.equal((await admin('PUT', '/api/admin/settings', { settings: { 'brand.color': 'red' } })).status, 400);
   assert.equal((await admin('PUT', '/api/admin/settings', { settings: { 'brand.header': 'bunt' } })).status, 400);
   assert.equal((await admin('PUT', '/api/admin/settings', { settings: { 'brand.color': '#7A1F5C', 'brand.header': 'color' } })).status, 200);

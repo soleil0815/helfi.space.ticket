@@ -1,4 +1,4 @@
-// Tests: Warteschlangen-Zahlen, Zusammenfassung, Filter „kürzlich erledigt“ und „überfällig“
+// Tests: queue counts, summary, "recently resolved" and "overdue" filters
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -43,7 +43,7 @@ const admin = client();
 const karl = client();
 const k = {};
 
-test('Vorbereitung: zwei Projekte, gemischte Tickets', async () => {
+test('Setup: two projects, mixed tickets', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   await admin('POST', '/api/users', { username: 'karl', displayName: 'Karl', email: 'karl@firma.local', role: 'user', password: 'Sehrgeheim123' });
   assert.equal((await karl('POST', '/api/auth/login', { username: 'karl', password: 'Sehrgeheim123' })).status, 200);
@@ -64,7 +64,7 @@ test('Vorbereitung: zwei Projekte, gemischte Tickets', async () => {
   db.prepare("UPDATE tickets SET resolved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-30 days') WHERE title='Erledigt alt'").run();
 });
 
-test('Zahlen je Warteschlange, je Projekt und gesamt; nur Bearbeiter', async () => {
+test('Counts per queue, per project and total; agents only', async () => {
   assert.equal((await karl('GET', '/api/queues')).status, 403);
   const it = (await admin('GET', '/api/queues?project=IT')).body.counts;
   assert.deepEqual(it, { open: 4, mine: 1, unassigned: 3, waiting: 1, recent: 1, total: 6, requests: 1, incidents: 2, problems: 0, changes: 0, approvals: 0 });
@@ -73,7 +73,7 @@ test('Zahlen je Warteschlange, je Projekt und gesamt; nur Bearbeiter', async () 
   assert.equal(all.requests, 2);
 });
 
-test('Listen-Filter passen zu den Zahlen (kürzlich erledigt, überfällig)', async () => {
+test('List filters match the counts (recently resolved, overdue)', async () => {
   const keys = async (q) => (await admin('GET', `/api/tickets?${q}`)).body.tickets.map((x) => x.key).sort();
   assert.deepEqual(await keys('project=IT&status=done&resolvedDays=7'), [k.d]);
   assert.deepEqual(await keys('project=IT&status=done'), [k.d, k.e].sort());
@@ -81,7 +81,7 @@ test('Listen-Filter passen zu den Zahlen (kürzlich erledigt, überfällig)', as
   assert.deepEqual(await keys('project=IT&type=incident&status=unresolved'), [k.b, k.f].sort());
 });
 
-test('Zusammenfassung', async () => {
+test('Summary', async () => {
   assert.equal((await karl('GET', '/api/summary')).status, 403);
   assert.equal((await admin('GET', '/api/summary?project=XX')).status, 404);
   const s = (await admin('GET', '/api/summary?project=IT')).body;
@@ -89,7 +89,7 @@ test('Zusammenfassung', async () => {
   assert.deepEqual(s.counts, { open: 4, created7: 6, resolved7: 1, overdue: 1, unassigned: 3 });
   assert.deepEqual(s.byStatus, { open: 3, in_progress: 0, waiting: 1, done: 2 });
   assert.deepEqual(s.byType, { incident: 2, request: 1, task: 1, question: 0, problem: 0, change: 0 });
-  assert.equal(s.urgent[0].key, k.b, 'höchste Priorität zuerst');
+  assert.equal(s.urgent[0].key, k.b, 'highest priority first');
   assert.ok(!s.urgent.some((x) => x.status === 'done'));
-  assert.equal(s.urgent[1].key, k.f, 'dann überfällige');
+  assert.equal(s.urgent[1].key, k.f, 'then overdue ones');
 });

@@ -1,10 +1,10 @@
-// Serverseitige Texte (Fehlermeldungen und E-Mails) auf Deutsch und Englisch.
-// Die Oberfläche hat ihre eigenen Texte in public/js/i18n.js.
+// Server-side texts (error messages and emails) in German and English.
+// The UI has its own texts in public/js/i18n.js.
 export const LANGUAGES = ['de', 'en'];
 
 const T = {
   de: {
-    // Fehler
+    // Errors
     'err.unauthorized': 'Bitte melde dich an.',
     'err.forbidden': 'Dafür fehlt dir die Berechtigung.',
     'err.notFound': 'Nicht gefunden.',
@@ -104,7 +104,7 @@ const T = {
     'err.mfaInvalid': 'Der Code stimmt nicht. Bitte den aktuellen Code aus der App eingeben.',
     'err.mfaAlreadyEnabled': 'Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Zum Wechseln des Handys zuerst abschalten (mit Code).',
     'err.secretRebind': 'Server, Konto oder Zertifikatsprüfung wurden geändert. Bitte das Kennwort bzw. Geheimnis im selben Schritt neu eingeben – das gespeicherte wird aus Sicherheitsgründen nicht für die geänderte Verbindung verwendet.',
-    // E-Mails
+    // Emails
     'mail.created.subject': '[{key}] Ihr Ticket wurde angelegt: {title}',
     'mail.created.body': 'Hallo {name},\n\nvielen Dank für Ihre Nachricht. Wir haben dazu das Ticket {key} angelegt und kümmern uns darum.\n\nWenn Sie auf diese E-Mail antworten, landet Ihre Antwort automatisch im Ticket. Bitte lassen Sie die Ticketnummer [{key}] im Betreff stehen.\n\n{link}\n\nViele Grüße\n{app}',
     'mail.comment.subject': '[{key}] Neue Antwort: {title}',
@@ -254,7 +254,7 @@ export function normalizeLang(value, fallback = 'de') {
   return LANGUAGES.includes(v) ? v : fallback;
 }
 
-/** Wählt die Sprache aus dem Accept-Language-Header. */
+/** Picks the language from the Accept-Language header. */
 export function langFromHeader(header, fallback = 'de') {
   if (!header) return fallback;
   const parts = String(header).split(',').map((p) => {

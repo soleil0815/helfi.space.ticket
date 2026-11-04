@@ -1,10 +1,10 @@
-// SLA: Geschäftszeiten, Uhren, Pause bei „Wartet“, Warnungen
+// SLA: business hours, clocks, pause while "Waiting", warnings
 process.env.TZ = 'Europe/Berlin';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
 
-const L = (s) => new Date(s).getTime(); // lokale Zeit (Europe/Berlin)
+const L = (s) => new Date(s).getTime(); // local time (Europe/Berlin)
 let M; let S; let anna; let karl;
 before(async () => {
   M = await import('../src/itil/sla.js');
@@ -14,41 +14,41 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Geschäftsminuten und Fälligkeit (Mo–Fr 8–17 Uhr, Feiertag)', () => {
+test('Business minutes and due date (Mon–Fri 8am–5pm, holiday)', () => {
   const cal = M.calendarFrom('{"days":[1,2,3,4,5],"start":"08:00","end":"17:00"}', '2026-11-04 Testfeiertag\nkein Datum');
-  assert.equal(M.businessMinutes(L('2026-11-02T07:00'), L('2026-11-02T09:00'), cal), 60, 'vor Arbeitsbeginn zählt nicht');
-  assert.equal(M.businessMinutes(L('2026-11-06T16:00'), L('2026-11-09T09:00'), cal), 120, 'Wochenende zählt nicht');
-  assert.equal(M.businessMinutes(L('2026-11-03T16:00'), L('2026-11-05T09:00'), cal), 120, 'Feiertag zählt nicht');
+  assert.equal(M.businessMinutes(L('2026-11-02T07:00'), L('2026-11-02T09:00'), cal), 60, 'before start of work does not count');
+  assert.equal(M.businessMinutes(L('2026-11-06T16:00'), L('2026-11-09T09:00'), cal), 120, 'weekend does not count');
+  assert.equal(M.businessMinutes(L('2026-11-03T16:00'), L('2026-11-05T09:00'), cal), 120, 'holiday does not count');
   assert.equal(M.businessMinutes(L('2026-11-02T10:00'), L('2026-11-02T09:00'), cal), 0);
   assert.equal(M.addBusinessMinutes(L('2026-11-06T16:30'), 60, cal), L('2026-11-09T08:30'));
-  assert.equal(M.addBusinessMinutes(L('2026-11-07T12:00'), 30, cal), L('2026-11-09T08:30'), 'Start am Samstag');
-  assert.equal(M.addBusinessMinutes(L('2026-11-02T10:00'), 60, M.calendarFrom('{"days":[]}', '')), null, 'kein Arbeitstag');
+  assert.equal(M.addBusinessMinutes(L('2026-11-07T12:00'), 30, cal), L('2026-11-09T08:30'), 'start on Saturday');
+  assert.equal(M.addBusinessMinutes(L('2026-11-02T10:00'), 60, M.calendarFrom('{"days":[]}', '')), null, 'no working day');
 });
 
-test('Uhren: erste Reaktion, Lösung, Pause bei „Wartet“, Warnungen einmalig', async () => {
+test('Clocks: first response, resolution, pause while "Waiting", warnings only once', async () => {
   S.ctx.settings.setMany({ 'sla.enabled': true, 'sla.holidays': '' });
   const tk = (await karl('POST', '/api/tickets', { title: 'Drucker', priority: 'highest' })).body.ticket;
   await anna('PATCH', `/api/tickets/${tk.key}`, { priority: 'highest' });
-  // Erstellt Mo 08:00
+  // Created Mon 08:00
   S.db.prepare('UPDATE tickets SET created_at=? WHERE id=?').run(new Date(L('2026-11-02T08:00')).toISOString(), tk.id);
   const row = () => S.ctx.tickets.rawById(tk.id);
   let s = S.ctx.sla.forRow(row(), L('2026-11-02T08:20'));
   assert.equal(s.response.state, 'ok');
   assert.equal(s.response.remaining, 10);
   assert.equal(s.response.due, new Date(L('2026-11-02T08:30')).toISOString());
-  assert.equal(S.ctx.sla.forRow(row(), L('2026-11-02T08:25')).response.state, 'warning', 'ab 80 %');
+  assert.equal(S.ctx.sla.forRow(row(), L('2026-11-02T08:25')).response.state, 'warning', 'from 80 %');
   assert.equal(S.ctx.sla.forRow(row(), L('2026-11-02T08:31')).response.state, 'breached');
-  // Warnungen werden je Stufe nur einmal festgehalten
+  // Warnings are recorded only once per level
   assert.equal(S.ctx.sla.check(L('2026-11-02T08:31')), 1);
   assert.equal(S.ctx.sla.check(L('2026-11-02T08:32')), 0);
   assert.ok((await anna('GET', `/api/tickets/${tk.key}`)).body.ticket.activity.some((a) => a.action === 'sla' && a.field === 'response' && a.newValue === 'breached'));
-  // Antwort eines Bearbeiters stoppt die Reaktionsuhr
+  // A reply from an agent stops the response clock
   await anna('POST', `/api/tickets/${tk.key}/comments`, { body: 'Ich schaue es mir an.' });
   S.db.prepare('UPDATE comments SET created_at=? WHERE ticket_id=?').run(new Date(L('2026-11-02T08:40')).toISOString(), tk.id);
   s = S.ctx.sla.forRow(row(), L('2026-11-02T12:00'));
   assert.equal(s.response.state, 'missed');
   assert.equal(s.response.elapsed, 40);
-  // Wartet von 09:00 bis 11:00 → Lösung zählt 1 h + 1 h
+  // Waiting from 09:00 to 11:00 → resolution counts 1 h + 1 h
   await anna('PATCH', `/api/tickets/${tk.key}`, { status: 'waiting' });
   await anna('PATCH', `/api/tickets/${tk.key}`, { status: 'in_progress' });
   const acts = S.db.prepare("SELECT id FROM activity WHERE ticket_id=? AND field='status' ORDER BY id").all(tk.id);
@@ -59,7 +59,7 @@ test('Uhren: erste Reaktion, Lösung, Pause bei „Wartet“, Warnungen einmalig
   assert.equal(s.resolve.state, 'ok');
 });
 
-test('Nicht anwendbar: Aufgaben und eigene Tickets der Bearbeiter; SLA aus', async () => {
+test('Not applicable: tasks and agents\' own tickets; SLA off', async () => {
   const task = (await anna('POST', '/api/tickets', { title: 'Wartung', type: 'task' })).body.ticket;
   assert.equal(S.ctx.sla.forRow(S.ctx.tickets.rawById(task.id)), null);
   const own = (await anna('POST', '/api/tickets', { title: 'Eigenes', type: 'incident' })).body.ticket;
@@ -67,7 +67,7 @@ test('Nicht anwendbar: Aufgaben und eigene Tickets der Bearbeiter; SLA aus', asy
   assert.equal((await karl('GET', `/api/tickets/${task.key}`)).status, 404);
 });
 
-test('Liste: SLA-Stand, Filter „gefährdet“, Zähler; Benutzer sehen nichts', async () => {
+test('List: SLA state, "at risk" filter, counter; users see nothing', async () => {
   const fresh = (await karl('POST', '/api/tickets', { title: 'Neu', priority: 'low' })).body.ticket;
   const all = (await anna('GET', '/api/tickets')).body.tickets;
   assert.equal(all.find((x) => x.key === fresh.key).sla.state, 'ok');

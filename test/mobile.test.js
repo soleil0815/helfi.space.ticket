@@ -1,5 +1,5 @@
-// Smartphone-Ansicht: keine Seite darf seitlich überstehen, keine Fehler in der Konsole.
-// Braucht Playwright mit Chromium (nicht Teil der Abhängigkeiten) – fehlt es, wird der Test übersprungen:
+// Smartphone view: no page may overflow sideways, no errors in the console.
+// Needs Playwright with Chromium (not part of the dependencies) – if missing, the test is skipped:
 //   npm install --no-save playwright && npx playwright install chromium
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,9 +7,9 @@ import { createRequire } from 'node:module';
 import { startServer } from './helpers/server.js';
 
 let chromium = null;
-try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* nicht installiert */ }
+try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* not installed */ }
 if (!chromium && process.env.NODE_PATH) {
-  try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* auch dort nicht */ }
+  try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* not there either */ }
 }
 
 let S; let browser;
@@ -38,7 +38,7 @@ async function page(username, width, height) {
   return { p, errors };
 }
 
-/** Elemente, die rechts über den Bildschirm hinausragen (außer in Bereichen, die selbst scrollen) */
+/** Elements that stick out past the right edge of the screen (except in areas that scroll themselves) */
 const overflow = () => {
   const vw = window.innerWidth; const out = [];
   const inScroller = (el) => { for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) { const s = getComputedStyle(a); if (/(auto|scroll|hidden|clip)/.test(s.overflowX) && !a.classList.contains('main')) return true; if (s.position === 'fixed') return true; } return false; };
@@ -56,7 +56,7 @@ const PAGES = {
 };
 
 for (const [w, hgt] of [[390, 844], [360, 740]]) {
-  test(`keine Seite steht über (${w} px)`, { skip: !chromium && 'Playwright fehlt' }, async () => {
+  test(`no page overflows (${w} px)`, { skip: !chromium && 'Playwright missing' }, async () => {
     for (const [who, urls] of Object.entries(PAGES)) {
       const { p, errors } = await page(who, w, hgt);
       for (const url of urls) {
@@ -71,11 +71,11 @@ for (const [w, hgt] of [[390, 844], [360, 740]]) {
   });
 }
 
-test('Menü, Suche und Details auf dem Smartphone', { skip: !chromium && 'Playwright fehlt' }, async () => {
+test('Menu, search and details on the smartphone', { skip: !chromium && 'Playwright missing' }, async () => {
   const { p, errors } = await page('anna', 390, 844);
   await p.goto(`${S.base}/my`);
   await p.waitForLoadState('networkidle');
-  assert.ok(await p.evaluate(() => document.querySelector('.sidebar').getBoundingClientRect().right <= 0), 'Seitenleiste zu');
+  assert.ok(await p.evaluate(() => document.querySelector('.sidebar').getBoundingClientRect().right <= 0), 'sidebar closed');
   await p.tap('.nav-toggle');
   await p.waitForTimeout(300);
   assert.equal(await p.evaluate(() => document.querySelector('.shell').classList.contains('nav-open')), true);
@@ -86,13 +86,13 @@ test('Menü, Suche und Details auf dem Smartphone', { skip: !chromium && 'Playwr
   await p.keyboard.press('Enter');
   await p.waitForURL('**/browse/IT-1');
   await p.waitForLoadState('networkidle');
-  assert.equal(await p.isVisible('.detail-row'), false, 'Details zugeklappt');
+  assert.equal(await p.isVisible('.detail-row'), false, 'details collapsed');
   await p.tap('.details-head');
   assert.equal(await p.isVisible('.detail-row'), true);
-  // Reihenfolge: Titel vor den Details
+  // Order: title before the details
   const [title, details] = await p.evaluate(() => [document.querySelector('.ticket-title').getBoundingClientRect().top, document.querySelector('.details-box').getBoundingClientRect().top]);
   assert.ok(title < details);
   const inputSize = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.composer textarea')).fontSize));
-  assert.ok(inputSize >= 16, 'kein Zoom beim Antippen (iPhone)');
+  assert.ok(inputSize >= 16, 'no zoom on tap (iPhone)');
   assert.deepEqual(errors, []);
 });

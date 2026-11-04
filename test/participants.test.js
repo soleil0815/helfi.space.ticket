@@ -1,4 +1,4 @@
-// Tests: Anfrage-Teilnehmer (Rechte, Web, E-Mail-CC, Benachrichtigungen)
+// Tests: request participants (permissions, web, email CC, notifications)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -44,14 +44,14 @@ function client() {
   };
 }
 const admin = client();
-const anna = client(); // Bearbeiterin
-const karl = client(); // Melder
-const lena = client(); // Kollegin, wird Teilnehmerin
-const otto = client(); // unbeteiligt
+const anna = client(); // agent
+const karl = client(); // reporter
+const lena = client(); // colleague, becomes a participant
+const otto = client(); // not involved
 const ids = {};
 let key;
 
-test('Vorbereitung', async () => {
+test('Setup', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   for (const [u, role] of [['anna', 'agent'], ['karl', 'user'], ['lena', 'user'], ['otto', 'user']]) {
     const r = await admin('POST', '/api/users', { username: u, displayName: u[0].toUpperCase() + u.slice(1), email: `${u}@firma.local`, role, password: 'Sehrgeheim123' });
@@ -67,19 +67,19 @@ test('Vorbereitung', async () => {
   await anna('POST', `/api/tickets/${key}/comments`, { body: 'Bitte neu starten' });
 });
 
-test('Melder fügt Kollegin hinzu: sie sieht das Ticket ohne interne Notizen', async () => {
-  assert.equal((await lena('GET', `/api/tickets/${key}`)).status, 404, 'vorher unsichtbar');
+test('Reporter adds a colleague: she sees the ticket without internal notes', async () => {
+  assert.equal((await lena('GET', `/api/tickets/${key}`)).status, 404, 'invisible before');
   const r = await karl('POST', `/api/tickets/${key}/participants`, { userId: ids.lena });
   assert.equal(r.status, 201);
   assert.deepEqual(r.body.participants.map((p) => p.displayName), ['Lena']);
-  assert.equal(r.body.participants[0].email, undefined, 'Benutzer sehen keine fremden Adressen');
+  assert.equal(r.body.participants[0].email, undefined, 'users do not see other people\'s addresses');
 
   const tk = (await lena('GET', `/api/tickets/${key}`)).body.ticket;
   assert.equal(tk.key, key);
-  assert.ok(tk.comments.every((c) => !c.internal), 'keine internen Notizen');
+  assert.ok(tk.comments.every((c) => !c.internal), 'no internal notes');
   assert.ok(tk.comments.some((c) => c.body === 'Bitte neu starten'));
   assert.equal(tk.canManageParticipants, true);
-  assert.equal(tk.participants[0].email, 'lena@firma.local', 'eigene Adresse sichtbar');
+  assert.equal(tk.participants[0].email, 'lena@firma.local', 'own address visible');
 
   const list = (await lena('GET', '/api/tickets')).body.tickets.map((x) => x.key);
   assert.ok(list.includes(key));
@@ -88,14 +88,14 @@ test('Melder fügt Kollegin hinzu: sie sieht das Ticket ohne interne Notizen', a
   assert.equal((await otto('GET', `/api/tickets/${key}`)).status, 404);
   assert.ok(!(await otto('GET', '/api/tickets')).body.tickets.some((x) => x.key === key));
 
-  // doppelt und Melder selbst: kein Fehler, keine Dopplung
+  // duplicate and the reporter themselves: no error, no duplicate
   assert.equal((await karl('POST', `/api/tickets/${key}/participants`, { userId: ids.lena })).status, 200);
   assert.equal((await karl('POST', `/api/tickets/${key}/participants`, { userId: ids.karl })).body.participants.length, 1);
   const act = db.prepare("SELECT * FROM activity WHERE action='participantAdded'").all();
   assert.equal(act.length, 1);
 });
 
-test('Teilnehmer: kommentieren ja, Status/Titel/Zuweisung nein', async () => {
+test('Participants: commenting yes, status/title/assignment no', async () => {
   assert.equal((await lena('POST', `/api/tickets/${key}/comments`, { body: 'Bei mir auch' })).status, 201);
   const r = await lena('PATCH', `/api/tickets/${key}`, { status: 'done', assigneeId: ids.anna });
   assert.equal(r.status, 403);
@@ -103,54 +103,54 @@ test('Teilnehmer: kommentieren ja, Status/Titel/Zuweisung nein', async () => {
   const tk = (await anna('GET', `/api/tickets/${key}`)).body.ticket;
   assert.equal(tk.status, 'open');
   assert.equal(tk.title, 'Drucker druckt nicht');
-  // interne Notiz kann ein Teilnehmer nicht schreiben
+  // a participant cannot write an internal note
   await lena('POST', `/api/tickets/${key}/comments`, { body: 'heimlich', internal: true });
   assert.ok(!(await anna('GET', `/api/tickets/${key}`)).body.ticket.comments.some((c) => c.body === 'heimlich' && c.internal));
 });
 
-test('Antwort eines Teilnehmers öffnet ein wartendes Ticket wieder', async () => {
+test('A participant\'s reply reopens a waiting ticket', async () => {
   await anna('PATCH', `/api/tickets/${key}`, { status: 'waiting' });
   await lena('POST', `/api/tickets/${key}/comments`, { body: 'Geht immer noch nicht' });
   assert.equal((await anna('GET', `/api/tickets/${key}`)).body.ticket.status, 'open');
 });
 
-test('Benutzer dürfen keine freien Adressen oder E-Mail-Kontakte hinzufügen, Bearbeiter schon', async () => {
+test('Users may not add arbitrary addresses or email contacts, agents may', async () => {
   assert.equal((await karl('POST', `/api/tickets/${key}/participants`, { email: 'fremd@kunde.example' })).status, 403);
-  assert.equal((await otto('POST', `/api/tickets/${key}/participants`, { userId: ids.otto })).status, 404, 'Unbeteiligte sehen das Ticket nicht');
+  assert.equal((await otto('POST', `/api/tickets/${key}/participants`, { userId: ids.otto })).status, 404, 'uninvolved people do not see the ticket');
   const r = await anna('POST', `/api/tickets/${key}/participants`, { email: 'Extern@Kunde.example' });
   assert.equal(r.status, 201);
   const ext = r.body.participants.find((p) => p.email === 'extern@kunde.example');
-  assert.ok(ext && ext.contact, 'als E-Mail-Kontakt angelegt');
-  assert.equal((await karl('POST', `/api/tickets/${key}/participants`, { userId: ext.id })).status, 403, 'Kontakte nur durch Bearbeiter');
+  assert.ok(ext && ext.contact, 'created as email contact');
+  assert.equal((await karl('POST', `/api/tickets/${key}/participants`, { userId: ext.id })).status, 403, 'contacts only by agents');
   assert.equal((await anna('POST', `/api/tickets/${key}/participants`, { email: 'kein-mail' })).status, 400);
   assert.equal((await anna('POST', `/api/tickets/${key}/participants`, {})).status, 400);
-  // Kontakt aus einem anderen Ticket darf ein Benutzer nicht hinzufügen
+  // a user may not add a contact from another ticket
   const t2 = (await karl('POST', '/api/tickets', { title: 'Zweites' })).body.ticket.key;
   assert.equal((await karl('POST', `/api/tickets/${t2}/participants`, { userId: ext.id })).status, 403);
 });
 
-test('Personensuche: Benutzer finden nur echte Konten, ohne Adressen', async () => {
-  assert.deepEqual((await karl('GET', '/api/people?q=l')).body.people, [], 'mindestens 2 Zeichen');
+test('People search: users only find real accounts, without addresses', async () => {
+  assert.deepEqual((await karl('GET', '/api/people?q=l')).body.people, [], 'at least 2 characters');
   const p = (await karl('GET', '/api/people?q=le')).body.people;
   assert.deepEqual(p.map((x) => x.displayName), ['Lena']);
   assert.equal(p[0].email, undefined);
-  assert.deepEqual((await karl('GET', '/api/people?q=extern')).body.people, [], 'E-Mail-Kontakte nicht');
+  assert.deepEqual((await karl('GET', '/api/people?q=extern')).body.people, [], 'not email contacts');
   const a = (await anna('GET', '/api/people?q=extern')).body.people;
-  assert.equal(a[0].email, 'extern@kunde.example', 'Bearbeiter finden auch Kontakte');
-  assert.deepEqual((await karl('GET', '/api/people?q=%25%25')).body.people, [], 'Platzhalter werden maskiert');
+  assert.equal(a[0].email, 'extern@kunde.example', 'agents also find contacts');
+  assert.deepEqual((await karl('GET', '/api/people?q=%25%25')).body.people, [], 'wildcards are escaped');
 });
 
-test('Entfernen: Melder, Bearbeiter oder die Person selbst – sonst niemand', async () => {
+test('Removing: reporter, agents or the person themselves – nobody else', async () => {
   const tk = (await anna('GET', `/api/tickets/${key}`)).body.ticket;
   const ext = tk.participants.find((p) => p.contact);
   assert.equal((await lena('DELETE', `/api/tickets/${key}/participants/${ext.id}`)).status, 403);
   assert.equal((await karl('DELETE', `/api/tickets/${key}/participants/${ext.id}`)).status, 200);
   assert.equal((await lena('DELETE', `/api/tickets/${key}/participants/${ids.lena}`)).status, 200);
-  assert.equal((await lena('GET', `/api/tickets/${key}`)).status, 404, 'danach unsichtbar');
+  assert.equal((await lena('GET', `/api/tickets/${key}`)).status, 404, 'invisible afterwards');
   assert.equal((await anna('DELETE', `/api/tickets/${key}/participants/${ids.lena}`)).status, 404);
 });
 
-test(`Höchstens ${MAX_PARTICIPANTS} Teilnehmer`, async () => {
+test(`At most ${MAX_PARTICIPANTS} participants`, async () => {
   const t3 = (await anna('POST', '/api/tickets', { title: 'Viele' })).body.ticket.key;
   for (let i = 0; i < MAX_PARTICIPANTS; i++) {
     assert.equal((await anna('POST', `/api/tickets/${t3}/participants`, { email: `p${i}@kunde.example` })).status, 201);
@@ -158,14 +158,14 @@ test(`Höchstens ${MAX_PARTICIPANTS} Teilnehmer`, async () => {
   assert.equal((await anna('POST', `/api/tickets/${t3}/participants`, { email: 'zuviel@kunde.example' })).status, 400);
 });
 
-// ---------- E-Mail ----------
+// ---------- Email ----------
 async function mail(lines) {
   const p = ctx.processor;
   const parsed = await p.parse(Buffer.from(lines.join('\r\n')));
   return p.process(parsed, {});
 }
 
-test('E-Mail: An/CC werden Teilnehmer (ohne eigene Adresse und Bearbeiter), sie dürfen per Mail antworten', async () => {
+test('Email: To/CC become participants (except our own address and agents), they may reply by mail', async () => {
   ctx.settings.set('imap.user', 'helpdesk@firma.local');
   const r = await mail(['From: Paula <paula@kunde.example>', 'To: helpdesk@firma.local, Chef <chef@kunde.example>',
     'Cc: anna@firma.local, kollege@kunde.example, Helpdesk@firma.local, paula@kunde.example', 'Subject: Server weg', 'Message-ID: <cc1@k>', '', 'Hilfe']);
@@ -173,17 +173,17 @@ test('E-Mail: An/CC werden Teilnehmer (ohne eigene Adresse und Bearbeiter), sie 
   const names = ctx.tickets.participants(r.ticketId).map((p) => p.email).sort();
   assert.deepEqual(names, ['chef@kunde.example', 'kollege@kunde.example']);
 
-  // Teilnehmer antwortet mit Ticketnummer im Betreff → Kommentar statt neues Ticket
+  // Participant replies with ticket number in the subject → comment instead of new ticket
   const tk = ctx.tickets.rawById(r.ticketId);
   const r2 = await mail(['From: kollege@kunde.example', `Subject: AW: [IT-${tk.number}] Server weg`, 'Message-ID: <cc2@k>', '', 'Bei mir auch']);
   assert.equal(r2.action, 'comment');
   assert.equal(r2.ticketId, r.ticketId);
-  // Unbeteiligter mit derselben Nummer → eigenes Ticket
+  // Uninvolved person with the same number → separate ticket
   const r3 = await mail(['From: fremd@kunde.example', `Subject: AW: [IT-${tk.number}] Server weg`, 'Message-ID: <cc3@k>', '', 'x']);
   assert.equal(r3.action, 'ticket');
 });
 
-test('E-Mail: CC-Übernahme abschaltbar; automatische Mails fügen niemanden hinzu', async () => {
+test('Email: CC takeover can be disabled; automated mails add nobody', async () => {
   ctx.settings.set('imap.ccParticipants', false);
   const r = await mail(['From: max@kunde.example', 'To: helpdesk@firma.local', 'Cc: x1@kunde.example', 'Subject: Ohne CC', 'Message-ID: <cc4@k>', '', 'x']);
   assert.deepEqual(ctx.tickets.participants(r.ticketId), []);
@@ -193,8 +193,8 @@ test('E-Mail: CC-Übernahme abschaltbar; automatische Mails fügen niemanden hin
   assert.equal(ctx.users.byEmail('x2@kunde.example'), undefined);
 });
 
-// ---------- Benachrichtigungen ----------
-test('Benachrichtigungen gehen einzeln an Melder und Teilnehmer, nie an den Auslöser', async () => {
+// ---------- Notifications ----------
+test('Notifications go individually to reporter and participants, never to the actor', async () => {
   const sent = [];
   const events = new EventEmitter();
   const recipients = [{ id: 5, email: 'melder@x.de', displayName: 'Melder' }, { id: 6, email: 'teil@x.de', displayName: 'Teil' }, { id: null, email: 'kontakt@x.de', displayName: 'K' }];
@@ -211,13 +211,13 @@ test('Benachrichtigungen gehen einzeln an Melder und Teilnehmer, nie an den Ausl
   sent.length = 0;
   events.emit('commented', { ticket, comment: { body: 'auch', source: 'web' }, user: { id: 6, role: 'user', display_name: 'Teil' }, internal: false });
   await new Promise((r) => setTimeout(r, 20));
-  assert.deepEqual(sent.map((m) => m.to), ['melder@x.de', 'kontakt@x.de'], 'Kommentar eines Teilnehmers geht an die anderen');
+  assert.deepEqual(sent.map((m) => m.to), ['melder@x.de', 'kontakt@x.de'], 'a participant\'s comment goes to the others');
 
   sent.length = 0;
   events.emit('commented', { ticket, comment: { body: 'intern', source: 'web' }, user: { id: 2, role: 'agent', display_name: 'Anna' }, internal: true });
   events.emit('commented', { ticket, comment: { body: 'mail', source: 'email' }, user: { id: 6, role: 'user', display_name: 'Teil' }, internal: false });
   await new Promise((r) => setTimeout(r, 20));
-  assert.equal(sent.length, 0, 'nie interne Notizen oder Kommentare aus E-Mails');
+  assert.equal(sent.length, 0, 'never internal notes or comments from emails');
 
   events.emit('resolved', { ticket, user: { id: 2 } });
   await new Promise((r) => setTimeout(r, 20));
@@ -231,7 +231,7 @@ test('Benachrichtigungen gehen einzeln an Melder und Teilnehmer, nie an den Ausl
   assert.match(sent[0].text, /Melder hat Sie als Teilnehmer/);
 });
 
-test('Empfängerliste: Melder und aktive Teilnehmer, ohne Doppelte', async () => {
+test('Recipient list: reporter and active participants, without duplicates', async () => {
   const t4 = (await karl('POST', '/api/tickets', { title: 'Liste' })).body.ticket.key;
   await karl('POST', `/api/tickets/${t4}/participants`, { userId: ids.lena });
   await anna('POST', `/api/tickets/${t4}/participants`, { userId: ids.otto });

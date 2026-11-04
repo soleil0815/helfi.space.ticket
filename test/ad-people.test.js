@@ -1,4 +1,4 @@
-// Tests: Teilnehmer beim Hinzufügen aus dem AD suchen und übernehmen (AD nachgebildet)
+// Tests: search and import participants from AD when adding them (AD mocked)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -40,7 +40,7 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Bearbeiter finden Personen aus dem AD, Benutzer nicht', async () => {
+test('Agents find people from AD, users do not', async () => {
   let r = await agent('GET', '/api/people?q=beisp');
   assert.equal(r.status, 200);
   const hit = r.body.people.find((p) => p.source === 'ad');
@@ -48,17 +48,17 @@ test('Bearbeiter finden Personen aus dem AD, Benutzer nicht', async () => {
   const before = calls.search;
   r = await karl('GET', '/api/people?q=beisp');
   assert.equal(r.body.people.length, 0);
-  assert.equal(calls.search, before, 'Benutzer lösen keine AD-Suche aus');
+  assert.equal(calls.search, before, 'users do not trigger an AD search');
   r = await agent('GET', '/api/people?q=be');
-  assert.equal(calls.search, before, 'erst ab 3 Zeichen');
+  assert.equal(calls.search, before, 'only from 3 characters');
 });
 
-test('Suche per Mailadresse findet auch Zweitadressen', async () => {
+test('Search by email address also finds secondary addresses', async () => {
   const r = await agent('GET', '/api/people?q=erika.alt@firma.local');
   assert.equal(r.body.people.filter((p) => p.source === 'ad').length, 1);
 });
 
-test('AD nicht erreichbar: lokale Treffer und Hinweis', async () => {
+test('AD unreachable: local results and notice', async () => {
   fail = true;
   const r = await agent('GET', '/api/people?q=karl');
   fail = false;
@@ -67,16 +67,16 @@ test('AD nicht erreichbar: lokale Treffer und Hinweis', async () => {
   assert.ok(r.body.people.some((p) => p.username === 'karl'));
 });
 
-test('AD-Person hinzufügen: als AD-Benutzer mit Mailadresse angelegt, ein vorhandener E-Mail-Kontakt wird übernommen', async () => {
-  // Erika hat früher schon gemailt → reiner E-Mail-Kontakt
+test('Adding an AD person: created as AD user with email address, an existing email contact is taken over', async () => {
+  // Erika has emailed before → plain email contact
   const contact = S.ctx.users.contactForEmail('e.beispiel@firma.local', 'e.beispiel@firma.local');
   let r = await agent('GET', '/api/people?q=beispiel');
-  assert.ok(!r.body.people.some((p) => p.id === contact.id && p.source !== 'ad'), 'Kontakt nicht doppelt');
+  assert.ok(!r.body.people.some((p) => p.id === contact.id && p.source !== 'ad'), 'contact not duplicated');
 
   r = await agent('POST', `/api/tickets/${ticket}/participants`, { adId: GUID.erika });
   assert.equal(r.status, 201);
   const u = S.ctx.users.byEmail('e.beispiel@firma.local');
-  assert.equal(u.id, contact.id, 'Kontakt übernommen, kein zweites Konto');
+  assert.equal(u.id, contact.id, 'contact taken over, no second account');
   assert.equal(u.source, 'ldap');
   assert.equal(u.username, 'e.beispiel');
   assert.equal(u.display_name, 'Erika Beispiel');
@@ -84,22 +84,22 @@ test('AD-Person hinzufügen: als AD-Benutzer mit Mailadresse angelegt, ein vorha
   assert.equal(u.role, 'user');
   assert.ok(r.body.participants.some((p) => p.id === u.id));
 
-  // Danach erscheint sie als bekannte Person, nicht doppelt
+  // Afterwards she appears as a known person, not duplicated
   r = await agent('GET', '/api/people?q=beispiel');
   const hits = r.body.people.filter((p) => p.displayName === 'Erika Beispiel');
   assert.equal(hits.length, 1);
   assert.equal(hits[0].id, u.id);
   r = await agent('POST', `/api/tickets/${ticket}/participants`, { adId: GUID.erika });
-  assert.equal(r.status, 200, 'schon dabei');
+  assert.equal(r.status, 200, 'already participating');
 });
 
-test('Rolle aus den AD-Gruppen wie bei der Anmeldung', async () => {
+test('Role from the AD groups as at login', async () => {
   const r = await agent('POST', `/api/tickets/${ticket}/participants`, { adId: GUID.max });
   assert.equal(r.status, 201);
   assert.equal(S.ctx.users.byName('m.muster').role, 'agent');
 });
 
-test('Laut Gruppen nicht zugelassen: nur als E-Mail-Kontakt; ohne Adresse abgelehnt', async () => {
+test('Not allowed by groups: only as email contact; rejected without address', async () => {
   let r = await agent('POST', `/api/tickets/${ticket}/participants`, { adId: GUID.gast });
   assert.equal(r.status, 201);
   const g = S.ctx.users.byEmail('g.gast@firma.local');
@@ -109,36 +109,36 @@ test('Laut Gruppen nicht zugelassen: nur als E-Mail-Kontakt; ohne Adresse abgele
   assert.equal(r.status, 400);
 });
 
-test('Mailadresse eintippen: Person wird im AD gefunden (auch per Zweitadresse)', async () => {
+test('Typing an email address: person is found in AD (also by secondary address)', async () => {
   const t2 = (await karl('POST', '/api/tickets', { title: 'VPN', description: 'geht nicht' })).body.ticket.key;
   let r = await agent('POST', `/api/tickets/${t2}/participants`, { email: 'erika.alt@firma.local' });
   assert.equal(r.status, 201);
   const erika = S.ctx.users.byName('e.beispiel');
-  assert.ok(r.body.participants.some((p) => p.id === erika.id), 'AD-Konto statt neuem Kontakt');
-  assert.equal(S.ctx.users.byEmail('erika.alt@firma.local'), undefined, 'kein zusätzlicher Kontakt für die Zweitadresse');
-  // Nicht im AD → wie bisher E-Mail-Kontakt
+  assert.ok(r.body.participants.some((p) => p.id === erika.id), 'AD account instead of a new contact');
+  assert.equal(S.ctx.users.byEmail('erika.alt@firma.local'), undefined, 'no additional contact for the secondary address');
+  // Not in AD → email contact as before
   r = await agent('POST', `/api/tickets/${t2}/participants`, { email: 'extern@lieferant.example' });
   assert.equal(r.status, 201);
   assert.equal(S.ctx.users.byEmail('extern@lieferant.example').source, 'email');
-  // AD gestört → trotzdem als Kontakt hinzufügen
+  // AD failing → add as contact anyway
   fail = true;
   r = await agent('POST', `/api/tickets/${t2}/participants`, { email: 'nochwer@firma.local' });
   fail = false;
   assert.equal(r.status, 201);
 });
 
-test('Schutz: Benutzer, unbekannte Tickets, ungültige Kennung, abgeschaltete Einstellung', async () => {
+test('Protection: users, unknown tickets, invalid ID, disabled setting', async () => {
   const own = (await karl('POST', '/api/tickets', { title: 'Monitor', description: 'flackert' })).body.ticket.key;
   let r = await karl('POST', `/api/tickets/${own}/participants`, { adId: GUID.max });
-  assert.equal(r.status, 403, 'Benutzer dürfen nicht ins AD greifen');
+  assert.equal(r.status, 403, 'users may not access AD');
   const n = calls.byGuid;
   r = await agent('POST', '/api/tickets/IT-999/participants', { adId: GUID.max });
   assert.equal(r.status, 404);
-  assert.equal(calls.byGuid, n, 'erst Zugriff prüfen, dann AD');
+  assert.equal(calls.byGuid, n, 'check access first, then AD');
   r = await agent('POST', `/api/tickets/${own}/participants`, { adId: 'x)(cn=*' });
   assert.equal(r.status, 400);
   r = await agent('POST', `/api/tickets/${own}/participants`, { adId: 'ee'.repeat(16) });
-  assert.equal(r.status, 404, 'nicht (mehr) im AD');
+  assert.equal(r.status, 404, 'not (or no longer) in AD');
   fail = true;
   r = await agent('POST', `/api/tickets/${own}/participants`, { adId: GUID.max });
   fail = false;

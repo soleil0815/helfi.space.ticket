@@ -1,4 +1,4 @@
-// Tests: Berichte (Kennzahlen je Bearbeiter, Zeitraum, Projekt, Rechte)
+// Tests: reports (metrics per agent, time range, project, permissions)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -48,7 +48,7 @@ const ids = {};
 const today = new Date().toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString();
 
-test('Vorbereitung: zwei Bearbeiter, ein Melder, zwei Projekte', async () => {
+test('Setup: two agents, one reporter, two projects', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   for (const [u, role] of [['anna', 'agent'], ['bert', 'agent'], ['karl', 'user']]) {
     ids[u] = (await admin('POST', '/api/users', { username: u, displayName: u[0].toUpperCase() + u.slice(1), email: `${u}@firma.local`, role, password: 'Sehrgeheim123' })).body.user.id;
@@ -59,43 +59,43 @@ test('Vorbereitung: zwei Bearbeiter, ein Melder, zwei Projekte', async () => {
   const mk = async (title, project) => (await karl('POST', '/api/tickets', { title, projectId: project })).body.ticket.key;
   const hr = (await admin('GET', '/api/projects')).body.projects.find((p) => p.key === 'HR').id;
   const [t1, t2, t3, t4] = [await mk('A'), await mk('B'), await mk('C'), await mk('D', hr)];
-  // Anna erledigt zwei IT-Tickets, schreibt Antworten und eine Notiz
+  // Anna resolves two IT tickets, writes replies and a note
   await anna('PATCH', `/api/tickets/${t1}`, { assigneeId: ids.anna });
   await anna('POST', `/api/tickets/${t1}/comments`, { body: 'Antwort 1' });
   await anna('POST', `/api/tickets/${t1}/comments`, { body: 'Notiz', internal: true });
   await anna('PATCH', `/api/tickets/${t1}`, { status: 'done' });
   await anna('PATCH', `/api/tickets/${t2}`, { status: 'done' });
-  // Bert: ein HR-Ticket erledigt, eins offen zugewiesen
+  // Bert: one HR ticket resolved, one open and assigned
   await bert('PATCH', `/api/tickets/${t4}`, { status: 'done' });
   await bert('PATCH', `/api/tickets/${t3}`, { assigneeId: ids.bert });
-  // Altes Erledigen (vor 60 Tagen) zählt nicht in den letzten 30 Tagen
+  // An old resolution (60 days ago) does not count in the last 30 days
   db.prepare("INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value,created_at) VALUES((SELECT id FROM tickets WHERE title='C'),?,'changed','status','open','done',?)")
     .run(ids.anna, daysAgo(60));
-  // Ein Ticket nur anlegen zählt nicht als „bearbeitet“
+  // Only creating a ticket does not count as "worked on"
   await admin('POST', '/api/tickets', { title: 'Nur angelegt' });
-  // Kommentar des Melders zählt nicht als Bearbeiter-Arbeit
+  // A reporter's comment does not count as agent work
   await karl('POST', `/api/tickets/${t3}/comments`, { body: 'Danke' });
 });
 
-test('Kennzahlen je Bearbeiter (letzte 30 Tage)', async () => {
+test('Metrics per agent (last 30 days)', async () => {
   const r = await bert('GET', '/api/reports');
-  assert.equal(r.status, 200, 'alle Bearbeiter dürfen Berichte sehen');
+  assert.equal(r.status, 200, 'all agents may see reports');
   const by = Object.fromEntries(r.body.agents.map((a) => [a.username, a]));
-  assert.ok(!('karl' in by), 'Melder erscheinen nicht');
-  assert.ok('admin' in by, 'aktive Bearbeiter/Admins erscheinen auch mit 0');
+  assert.ok(!('karl' in by), 'reporters do not appear');
+  assert.ok('admin' in by, 'active agents/admins appear even with 0');
   assert.equal(by.anna.resolved, 2);
   assert.equal(by.anna.replies, 1);
   assert.equal(by.anna.notes, 1);
   assert.equal(by.anna.touched, 2);
-  assert.equal(by.anna.openAssigned, 0, 'erledigte zählen nicht als offen');
+  assert.equal(by.anna.openAssigned, 0, 'resolved ones do not count as open');
   assert.ok(by.anna.avgResolutionHours >= 0 && by.anna.avgResolutionHours < 1);
   assert.equal(by.bert.resolved, 1);
   assert.equal(by.bert.openAssigned, 1);
   assert.equal(by.bert.touched, 2);
   assert.equal(by.admin.resolved, 0);
-  assert.equal(by.admin.touched, 0, 'Anlegen allein ist keine Bearbeitung');
+  assert.equal(by.admin.touched, 0, 'creating alone is not working on it');
   assert.equal(by.admin.avgResolutionHours, null);
-  assert.equal(r.body.agents[0].username, 'anna', 'nach Erledigten sortiert');
+  assert.equal(r.body.agents[0].username, 'anna', 'sorted by resolved');
   assert.equal(r.body.totals.created, 5);
   assert.equal(r.body.totals.resolved, 3);
   assert.equal(r.body.totals.open, 2);
@@ -104,7 +104,7 @@ test('Kennzahlen je Bearbeiter (letzte 30 Tage)', async () => {
   assert.deepEqual(r.body.series.points.at(-1), { date: today, created: 5, resolved: 3 });
 });
 
-test('Zeitraum: älteres Erledigen nur im längeren Zeitraum, wöchentliche Punkte ab 93 Tagen', async () => {
+test('Time range: older resolution only in the longer range, weekly points from 93 days', async () => {
   const from = new Date(Date.now() - 89 * 864e5).toISOString().slice(0, 10);
   const r = await anna('GET', `/api/reports?from=${from}&to=${today}`);
   assert.equal(r.body.agents.find((a) => a.username === 'anna').resolved, 3);
@@ -112,21 +112,21 @@ test('Zeitraum: älteres Erledigen nur im längeren Zeitraum, wöchentliche Punk
   const from2 = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
   const w = await anna('GET', `/api/reports?from=${from2}&to=${today}`);
   assert.equal(w.body.series.unit, 'week');
-  assert.ok(w.body.series.points.every((p) => new Date(`${p.date}T00:00:00Z`).getUTCDay() === 1), 'Wochen beginnen montags');
+  assert.ok(w.body.series.points.every((p) => new Date(`${p.date}T00:00:00Z`).getUTCDay() === 1), 'weeks start on Monday');
   assert.equal(w.body.series.points.reduce((n, p) => n + p.resolved, 0), 4);
 });
 
-test('Projektfilter', async () => {
+test('Project filter', async () => {
   const r = await anna('GET', '/api/reports?project=hr');
   const by = Object.fromEntries(r.body.agents.map((a) => [a.username, a]));
   assert.equal(by.anna.resolved, 0);
   assert.equal(by.bert.resolved, 1);
-  assert.equal(by.bert.openAssigned, 0, 'offenes Ticket liegt im IT-Projekt');
+  assert.equal(by.bert.openAssigned, 0, 'open ticket is in the IT project');
   assert.equal(r.body.totals.created, 1);
   assert.equal((await anna('GET', '/api/reports?project=XX')).status, 404);
 });
 
-test('Rechte und Eingaben', async () => {
+test('Permissions and input', async () => {
   assert.equal((await karl('GET', '/api/reports')).status, 403);
   assert.equal((await anna('GET', '/api/reports?from=2026-13-01')).status, 400);
   assert.equal((await anna('GET', '/api/reports?from=gestern')).status, 400);
@@ -134,11 +134,11 @@ test('Rechte und Eingaben', async () => {
   assert.throws(() => parseRange({ from: '2020-01-01', to: '2026-01-01' }), /badRequest/);
   const r = parseRange({}, new Date('2026-11-01T15:00:00Z'));
   assert.deepEqual([r.from, r.to, r.days], ['2026-10-03', '2026-11-01', 30]);
-  assert.equal(r.toIso, '2026-11-02T00:00:00.000Z', 'letzter Tag zählt ganz');
+  assert.equal(r.toIso, '2026-11-02T00:00:00.000Z', 'last day counts fully');
   assert.ok(MAX_RANGE_DAYS >= 366 * 3);
 });
 
-test('Deaktivierter Bearbeiter mit Erledigten bleibt im Bericht', async () => {
+test('Deactivated agent with resolved tickets stays in the report', async () => {
   db.prepare('UPDATE users SET active=0 WHERE id=?').run(ids.bert);
   const r = await anna('GET', '/api/reports');
   const b = r.body.agents.find((a) => a.username === 'bert');

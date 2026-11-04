@@ -1,4 +1,4 @@
-// Wissensartikel: Versionen (Verlauf, Wiederherstellen) und eigene Vorlagen
+// Knowledge base articles: versions (history, restore) and custom templates
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -12,26 +12,26 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Jede Änderung ist eine Version; unverändert speichern legt keine an', async () => {
+test('Every change is a version; saving unchanged creates none', async () => {
   const a = (await anna('POST', '/api/kb', { title: 'VPN', body: '# Schritt 1\n\nClient installieren', visibility: 'public', note: 'erste Fassung' })).body.article;
   assert.equal(a.version, 1);
   let r = await tom('PUT', `/api/kb/${a.id}`, { title: 'VPN einrichten', body: '# Schritt 1\n\nClient aus dem Softwarecenter installieren', visibility: 'public', note: 'Softwarecenter' });
   assert.equal(r.body.article.version, 2);
   r = await tom('PUT', `/api/kb/${a.id}`, { title: 'VPN einrichten', body: '# Schritt 1\n\nClient aus dem Softwarecenter installieren', visibility: 'public' });
-  assert.equal(r.body.article.version, 2, 'nichts geändert');
+  assert.equal(r.body.article.version, 2, 'nothing changed');
   const list = (await anna('GET', `/api/kb/${a.id}/versions`)).body.versions;
   assert.deepEqual(list.map((v) => [v.version, v.author, v.note]), [[2, 'tom', 'Softwarecenter'], [1, 'anna', 'erste Fassung']]);
-  assert.equal(list[0].body, undefined, 'Liste ohne Text');
+  assert.equal(list[0].body, undefined, 'list without body');
   const v1 = (await anna('GET', `/api/kb/${a.id}/versions/1`)).body.version;
   assert.equal(v1.title, 'VPN');
   assert.equal(v1.body, '# Schritt 1\n\nClient installieren');
   assert.equal((await anna('GET', `/api/kb/${a.id}/versions/9`)).status, 404);
-  // Benutzer sehen den Verlauf nicht
+  // Users do not see the history
   assert.equal((await karl('GET', `/api/kb/${a.id}/versions`)).status, 403);
   assert.equal((await karl('POST', `/api/kb/${a.id}/versions/1/restore`)).status, 403);
 });
 
-test('Wiederherstellen legt eine neue Version an, nichts geht verloren', async () => {
+test('Restoring creates a new version, nothing is lost', async () => {
   const id = (await anna('GET', '/api/kb')).body.articles[0].id;
   const r = await anna('POST', `/api/kb/${id}/versions/1/restore`);
   assert.equal(r.status, 200);
@@ -40,12 +40,12 @@ test('Wiederherstellen legt eine neue Version an, nichts geht verloren', async (
   const list = (await anna('GET', `/api/kb/${id}/versions`)).body.versions;
   assert.deepEqual(list.map((v) => v.version), [3, 2, 1]);
   assert.equal(list[0].note, '↩ 1');
-  // Löschen entfernt die Versionen mit
+  // Deleting also removes the versions
   await anna('DELETE', `/api/kb/${id}`);
   assert.equal(S.db.prepare('SELECT COUNT(*) n FROM kb_versions WHERE article_id=?').get(id).n, 0);
 });
 
-test('Eigene Vorlagen: nur Bearbeiter', async () => {
+test('Custom templates: agents only', async () => {
   assert.equal((await karl('GET', '/api/kb/templates')).status, 403);
   assert.equal((await anna('POST', '/api/kb/templates', { title: ' ' })).status, 400);
   const t = (await anna('POST', '/api/kb/templates', { title: 'Störungsbericht', description: 'Für Ausfälle', body: '## Ursache\n\n## Lösung' })).body.template;
@@ -56,7 +56,7 @@ test('Eigene Vorlagen: nur Bearbeiter', async () => {
   assert.equal((await anna('GET', `/api/kb/templates/${t.id}`)).status, 404);
 });
 
-test('Migration 19: vorhandene Artikel bekommen Version 1', async () => {
+test('Migration 19: existing articles get version 1', async () => {
   const fs = await import('node:fs');
   const os = await import('node:os');
   const path = await import('node:path');
@@ -80,7 +80,7 @@ test('Migration 19: vorhandene Artikel bekommen Version 1', async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('Textvergleich: Zeilen und Wörter', async () => {
+test('Text diff: lines and words', async () => {
   const { diffLines, diffWords } = await import('../public/js/diff.js');
   const d = diffLines('# Titel\n\nAlter Satz hier.\nbleibt\nweg', '# Titel\n\nNeuer Satz hier.\nbleibt\nneu');
   assert.deepEqual(d.map((x) => x.op), ['=', '=', '~', '=', '~']);
@@ -88,7 +88,7 @@ test('Textvergleich: Zeilen und Wörter', async () => {
   assert.deepEqual(diffLines('a\nb', 'a\nb\nc').map((x) => x.op), ['=', '=', '+']);
   assert.deepEqual(diffLines('a\nb\nc', 'a\nc').map((x) => x.op), ['=', '-', '=']);
   assert.equal(diffWords('gleich', 'gleich').length, 1);
-  // große Texte bleiben schnell
+  // large texts stay fast
   const big = Array.from({ length: 3000 }, (_, i) => `Zeile ${i}`).join('\n');
   const t0 = Date.now();
   diffLines(big, big.replace('Zeile 1500', 'Zeile X'));

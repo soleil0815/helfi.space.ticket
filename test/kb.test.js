@@ -1,4 +1,4 @@
-// Wissensdatenbank
+// Knowledge base
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -11,25 +11,25 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Artikel anlegen, Sichtbarkeit, Suche mit Titel vor Text', async () => {
+test('Create article, visibility, search ranks title before body', async () => {
   const pub = (await anna('POST', '/api/kb', { title: 'Drucker: Papierstau beheben', body: 'Fach 2 öffnen und Papier entnehmen.', visibility: 'public', category: 'Drucker' })).body.article;
   const intern = (await anna('POST', '/api/kb', { title: 'VPN-Server neu starten', body: 'Nur für die IT: Dienst neu starten, danach Drucker prüfen.', visibility: 'internal' })).body.article;
   assert.equal((await karl('POST', '/api/kb', { title: 'x' })).status, 403);
   assert.equal((await anna('POST', '/api/kb', { title: '  ' })).status, 400);
-  // Benutzer sehen nur öffentliche Artikel
+  // Users only see public articles
   assert.deepEqual((await karl('GET', '/api/kb')).body.articles.map((a) => a.id), [pub.id]);
   assert.equal((await karl('GET', `/api/kb/${intern.id}`)).status, 404);
-  // Suche: Titeltreffer zuerst; Stoppwörter zählen nicht
+  // Search: title matches first; stop words do not count
   const r = (await anna('GET', '/api/kb?q=drucker')).body.articles.map((a) => a.id);
   assert.deepEqual(r, [pub.id, intern.id]);
-  assert.deepEqual((await anna('GET', '/api/kb?q=der%20die%20das')).body.articles.length, 2, 'nur Stoppwörter → alles');
+  assert.deepEqual((await anna('GET', '/api/kb?q=der%20die%20das')).body.articles.length, 2, 'only stop words → everything');
   assert.deepEqual((await anna('GET', '/api/kb?category=Drucker')).body.categories, [{ name: 'Drucker', count: 1 }]);
-  // Vorschläge beim Melden: nur öffentlich, höchstens 3
+  // Suggestions when reporting: public only, at most 3
   assert.deepEqual((await karl('GET', '/api/kb/suggest?q=Drucker%20druckt%20nicht')).body.articles.map((a) => a.id), [pub.id]);
-  // Aufrufe zählen
+  // Count views
   await karl('GET', `/api/kb/${pub.id}?view=1`);
   assert.equal((await anna('GET', `/api/kb/${pub.id}`)).body.article.views, 1);
-  // Bearbeiten und Löschen
+  // Edit and delete
   const u = await anna('PUT', `/api/kb/${intern.id}`, { title: 'VPN-Server neu starten', body: 'neu', visibility: 'public' });
   assert.equal(u.body.article.visibility, 'public');
   assert.equal((await karl('DELETE', `/api/kb/${intern.id}`)).status, 403);
@@ -37,7 +37,7 @@ test('Artikel anlegen, Sichtbarkeit, Suche mit Titel vor Text', async () => {
   assert.equal((await anna('GET', `/api/kb/${intern.id}`)).status, 404);
 });
 
-test('Entwurf aus Ticket mit Lösung und Verlauf im Ticket', async () => {
+test('Draft from ticket with solution and activity entry in the ticket', async () => {
   const key = (await karl('POST', '/api/tickets', { title: 'Outlook startet nicht', description: 'Fehlermeldung beim Start.' })).body.ticket.key;
   await anna('POST', `/api/tickets/${key}/comments`, { body: 'Bitte Outlook im abgesicherten Modus starten.' });
   await anna('POST', `/api/tickets/${key}/comments`, { body: 'interne Notiz', internal: true });

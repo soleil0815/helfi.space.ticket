@@ -1,4 +1,4 @@
-// Volltextsuche: Antworten, Namen, Anhänge, Reihenfolge, Phrasen, Ausschluss, Rechte (interne Notizen)
+// Full-text search: replies, names, attachments, order, phrases, exclusion, permissions (internal notes)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -21,24 +21,24 @@ before(async () => {
 });
 after(() => S.stop());
 
-test('Wortteile, beliebige Reihenfolge, Titel vor Text', async () => {
-  assert.deepEqual((await keys(anna, 'druck')).slice(0, 1), [k.printer], 'Titeltreffer zuerst');
+test('Word parts, any order, title before body', async () => {
+  assert.deepEqual((await keys(anna, 'druck')).slice(0, 1), [k.printer], 'title matches first');
   assert.deepEqual((await keys(anna, 'druck')).sort(), [k.printer, k.paper, k.toner].sort());
-  assert.deepEqual(await keys(anna, 'Drucker Fach 2'), [k.paper], 'Reihenfolge egal, kurze Begriffe als Teiltext');
+  assert.deepEqual(await keys(anna, 'Drucker Fach 2'), [k.paper], 'order does not matter, short terms as substring');
   assert.deepEqual(await keys(anna, '"Fach 2"'), [k.paper]);
-  assert.deepEqual(await keys(anna, '"2 Fach"'), [], 'genaue Folge');
+  assert.deepEqual(await keys(anna, '"2 Fach"'), [], 'exact sequence');
   assert.deepEqual((await keys(anna, 'Drucker -Toner')).sort(), [k.printer, k.paper].sort());
-  assert.deepEqual(await keys(anna, `${k.paper}`), [k.paper], 'Ticketnummer');
+  assert.deepEqual(await keys(anna, `${k.paper}`), [k.paper], 'ticket number');
 });
 
-test('Antworten, Namen und Anhänge; Fundstelle', async () => {
+test('Replies, names and attachments; match location', async () => {
   const r = (await anna('GET', '/api/tickets?q=softwarecenter')).body;
   assert.deepEqual(r.tickets.map((x) => x.key), [k.vpn]);
   assert.deepEqual(r.searchTerms, ['softwarecenter']);
   assert.equal(r.tickets[0].match.source, 'comment');
   assert.equal(r.tickets[0].match.author, 'anna');
   assert.match(r.tickets[0].match.text, /Softwarecenter/);
-  assert.deepEqual((await keys(anna, 'Karl Muster')).sort(), [k.printer, k.paper, k.vpn].sort(), 'Name des Melders');
+  assert.deepEqual((await keys(anna, 'Karl Muster')).sort(), [k.printer, k.paper, k.vpn].sort(), 'reporter name');
   const fd = new FormData();
   fd.append('files', new Blob(['x'], { type: 'text/plain' }), 'Rechnung_Lieferant_2026.txt');
   const login = await fetch(`${S.base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Helfi-Request': '1' }, body: JSON.stringify({ username: 'anna', password: 'Sehrgeheim123' }) });
@@ -50,25 +50,25 @@ test('Antworten, Namen und Anhänge; Fundstelle', async () => {
   assert.equal(a[0].match.source, 'attachment');
 });
 
-test('Interne Notizen: nur Bearbeiter finden sie, Benutzer nur eigene Tickets', async () => {
+test('Internal notes: only agents find them, users only their own tickets', async () => {
   assert.deepEqual(await keys(anna, 'Geheimtipp'), [k.vpn]);
   assert.equal((await anna('GET', '/api/tickets?q=Geheimtipp')).body.tickets[0].match.source, 'internal');
-  assert.deepEqual(await keys(karl, 'Geheimtipp'), [], 'Melder findet sein Ticket nicht über eine interne Notiz');
+  assert.deepEqual(await keys(karl, 'Geheimtipp'), [], 'reporter does not find their ticket via an internal note');
   assert.deepEqual(await keys(karl, 'Firewallregel -xyz'), []);
   assert.deepEqual(await keys(karl, 'softwarecenter'), [k.vpn]);
-  assert.deepEqual(await keys(lisa, 'druck'), [k.toner], 'nur eigene Tickets');
-  // Ausschnitt nie aus interner Notiz für Benutzer
+  assert.deepEqual(await keys(lisa, 'druck'), [k.toner], 'own tickets only');
+  // Never show an excerpt from an internal note to users
   const kv = (await karl('GET', '/api/tickets?q=prüfen')).body.tickets;
   assert.ok(kv.every((x) => x.match?.source !== 'internal'));
 });
 
-test('Index folgt Änderungen: Titel, gelöschte Kommentare, Umbenennen', async () => {
+test('Index follows changes: title, deleted comments, renaming', async () => {
   await anna('PATCH', `/api/tickets/${k.vpn}`, { title: 'VPN Abbruch Homeoffice' });
   assert.deepEqual(await keys(anna, 'homeoffice'), [k.vpn]);
   S.db.prepare("UPDATE users SET display_name='Karla Neuname' WHERE username='karl'").run();
   assert.deepEqual((await keys(anna, 'Neuname')).sort(), [k.printer, k.paper, k.vpn].sort());
   S.db.prepare("DELETE FROM comments WHERE body LIKE 'Bitte den Client%'").run();
   assert.deepEqual(await keys(anna, 'softwarecenter'), []);
-  // Filter lassen sich weiter kombinieren, Sortierung wählbar
+  // Filters can still be combined, sort order selectable
   assert.deepEqual(await keys(anna, 'druck', '&status=open&sort=created'), [k.toner, k.paper, k.printer]);
 });

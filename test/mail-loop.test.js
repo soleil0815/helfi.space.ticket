@@ -1,4 +1,4 @@
-// Tests: Schutz vor Mail-Schleifen (Unzustellbarkeitsberichte, Sperrliste, Absender-Regeln)
+// Tests: protection against mail loops (non-delivery reports, suppression list, sender rules)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -53,7 +53,7 @@ async function run(buf, opts = {}) {
   return p.process(await p.parse(buf), opts);
 }
 
-test('Berichte erkennen: Exchange, Postfix, Lesebestätigung; normale Mail nicht', async () => {
+test('Detect reports: Exchange, Postfix, read receipt; not a normal mail', async () => {
   const p = ctx.processor;
   const ex = deliveryReport(...await (async () => { const x = await p.parse(exchangeNdr('helfi.1.1.ab@firma.local')); return [x, x.raw]; })());
   assert.equal(ex.kind, 'bounce');
@@ -65,12 +65,12 @@ test('Berichte erkennen: Exchange, Postfix, Lesebestätigung; normale Mail nicht
   assert.equal(deliveryReport(mdn, mdn.raw).kind, 'receipt');
   const normal = await p.parse(eml(['From: max@firma.local', 'Subject: Drucker', '', 'geht nicht']));
   assert.equal(deliveryReport(normal, normal.raw), null);
-  // „Unzustellbar“ im Betreff allein macht noch keinen Bericht
+  // "Unzustellbar" in the subject alone does not make a report
   const subj = await p.parse(eml(['From: max@firma.local', 'Subject: Unzustellbar: Paket kam nicht an', '', 'Hilfe']));
   assert.equal(deliveryReport(subj, subj.raw), null);
 });
 
-test('Bericht zu einer eigenen Mail: interne Notiz, kein Wiederöffnen, Adresse gesperrt, keine Antwort', async () => {
+test('Report for one of our own mails: internal note, no reopening, address blocked, no reply', async () => {
   const first = await run(eml(['From: Monitor <monitor@firma.local>', 'To: helpdesk@firma.local', 'Subject: Festplatte voll', 'Message-ID: <alarm1@mon>', '', 'C: 98 %']));
   assert.equal(first.action, 'ticket');
   ctx.tickets.update({ id: 1, role: 'admin' }, first.ticketId, { status: 'waiting' });
@@ -81,27 +81,27 @@ test('Bericht zu einer eigenen Mail: interne Notiz, kein Wiederöffnen, Adresse 
   const r = await run(exchangeNdr(outId));
   assert.equal(r.action, 'bounce');
   assert.equal(r.ticketId, first.ticketId);
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM tickets').get().n, before, 'kein neues Ticket');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM tickets').get().n, before, 'no new ticket');
   const notes = db.prepare('SELECT * FROM comments WHERE ticket_id=?').all(first.ticketId);
   assert.equal(notes.length, 1);
-  assert.equal(notes[0].internal, 1, 'nur intern');
+  assert.equal(notes[0].internal, 1, 'internal only');
   assert.match(notes[0].body, /monitor@firma\.local/);
-  assert.equal(ctx.tickets.rawById(first.ticketId).status, 'waiting', 'wird nicht wieder geöffnet');
+  assert.equal(ctx.tickets.rawById(first.ticketId).status, 'waiting', 'is not reopened');
   assert.equal(ctx.suppressions.isBlocked('Monitor@firma.local'), true);
   assert.equal(ctx.mailer.blocked('monitor@firma.local'), 'gesperrt (unzustellbar)');
   assert.equal((await run(exchangeNdr(outId))).action, 'duplicate');
 });
 
-test('Bericht ohne eigene Message-ID (gefälscht/fremd): keine Notiz in irgendeinem Ticket', async () => {
+test('Report without our own Message-ID (forged/foreign): no note in any ticket', async () => {
   const before = db.prepare('SELECT COUNT(*) n FROM comments').get().n;
   const r = await run(postfixNdr('helfi.1.99.ff@firma.local', 'drucker@firma.local'));
   assert.equal(r.action, 'bounce');
-  assert.equal(r.ticketId, null, 'erfundene Helfi-ID wird nicht geglaubt');
+  assert.equal(r.ticketId, null, 'made-up Helfi ID is not trusted');
   assert.equal(db.prepare('SELECT COUNT(*) n FROM comments').get().n, before);
   assert.equal(ctx.suppressions.isBlocked('drucker@firma.local'), true);
 });
 
-test('Gesperrte Empfänger: Liste und Freigabe (nur Admins)', async () => {
+test('Blocked recipients: list and unblock (admins only)', async () => {
   let cookie = '';
   const call = async (method, url) => {
     const r = await fetch(base + url, { method, headers: { 'X-Helfi-Request': '1', cookie } });
@@ -115,14 +115,14 @@ test('Gesperrte Empfänger: Liste und Freigabe (nur Admins)', async () => {
   const after = (await call('DELETE', '/api/admin/mail/suppressions/DRUCKER%40firma.local')).body.suppressions.map((x) => x.address);
   assert.deepEqual(after, ['monitor@firma.local']);
   assert.equal(ctx.mailer.blocked('drucker@firma.local'), null);
-  // abgelaufene Sperren gelten nicht mehr
+  // expired blocks no longer apply
   db.prepare("UPDATE mail_suppressions SET until='2000-01-01T00:00:00.000Z'").run();
   assert.equal(ctx.suppressions.isBlocked('monitor@firma.local'), false);
   ctx.suppressions.purgeExpired();
   assert.equal(db.prepare('SELECT COUNT(*) n FROM mail_suppressions').get().n, 0);
 });
 
-test('Regeln: Muster, Groß-/Kleinschreibung, ungültige Einträge', () => {
+test('Rules: patterns, case, invalid entries', () => {
   const rules = parseRules(JSON.stringify([
     { pattern: 'Monitor@Firma.local', action: 'noreply', project: 'mon' },
     { pattern: '*@zabbix.firma.local', action: 'ignore' },
@@ -131,14 +131,14 @@ test('Regeln: Muster, Groß-/Kleinschreibung, ungültige Einträge', () => {
   assert.equal(rules.length, 3);
   assert.equal(matchRule(rules, 'monitor@firma.local').project, 'MON');
   assert.equal(matchRule(rules, 'alarm@zabbix.firma.local').action, 'ignore');
-  assert.equal(matchRule(rules, 'alarm@zabbix.firma.local.evil.example'), null, 'Muster gilt für die ganze Adresse');
-  assert.equal(matchRule(rules, 'drucker@firma.local').action, 'noreply', 'unbekannte Wirkung → nie antworten');
+  assert.equal(matchRule(rules, 'alarm@zabbix.firma.local.evil.example'), null, 'pattern applies to the whole address');
+  assert.equal(matchRule(rules, 'drucker@firma.local').action, 'noreply', 'unknown action → never reply');
   assert.equal(matchRule(rules, 'max@firma.local'), null);
   assert.deepEqual(parseRules('kaputt'), []);
-  assert.equal(matchRule(parseRules(JSON.stringify([{ pattern: 'a.b@x.de' }])), 'aXb@x.de'), null, 'Punkt ist kein Platzhalter');
+  assert.equal(matchRule(parseRules(JSON.stringify([{ pattern: 'a.b@x.de' }])), 'aXb@x.de'), null, 'dot is not a wildcard');
 });
 
-test('Regel „nie antworten“: Ticket im gewählten Projekt, keine Mail an den Absender', async () => {
+test('Rule "never reply": ticket in the chosen project, no mail to the sender', async () => {
   ctx.settings.set('imap.senderRules', JSON.stringify([{ pattern: 'backup@firma.local', action: 'noreply', project: 'MON' }, { pattern: '*@spam.example', action: 'ignore' }]));
   const r = await run(eml(['From: backup@firma.local', 'To: helpdesk@firma.local', 'Subject: Sicherung fehlgeschlagen', 'Message-ID: <bk1@x>', '', 'Fehler']));
   assert.equal(r.action, 'ticket');
@@ -146,13 +146,13 @@ test('Regel „nie antworten“: Ticket im gewählten Projekt, keine Mail an den
   assert.equal(ctx.mailer.blocked('Backup@firma.local'), 'Regel');
   const ig = await run(eml(['From: werbung@spam.example', 'Subject: Angebot', 'Message-ID: <sp1@x>', '', 'x']));
   assert.equal(ig.reason, 'rule');
-  // Regel mit unbekanntem Projekt → Standardprojekt statt Fehler
+  // Rule with unknown project → default project instead of error
   ctx.settings.set('imap.senderRules', JSON.stringify([{ pattern: 'backup@firma.local', action: 'noreply', project: 'GIBTSNICHT' }]));
   const r2 = await run(eml(['From: backup@firma.local', 'Subject: Nochmal', 'Message-ID: <bk2@x>', '', 'x']));
   assert.match(r2.key, /^IT-/);
 });
 
-test('Automatisch erzeugte Mails (Proxmox, Monitoring): nur mit Regel „nie antworten“', async () => {
+test('Automatically generated mails (Proxmox, monitoring): only with rule "never reply"', async () => {
   const pve = (id, from = 'pve@pve.firma.local', extra = 'Auto-Submitted: auto-generated') => eml([`From: ${from}`, 'To: helpdesk@firma.local', 'Subject: Testnachricht', `Message-ID: <${id}@x>`, extra, '', 'Dies ist ein Test']);
   ctx.settings.set('imap.senderRules', '[]');
   let r = await run(pve('pv1'));
@@ -161,13 +161,13 @@ test('Automatisch erzeugte Mails (Proxmox, Monitoring): nur mit Regel „nie ant
   assert.equal(r.from, 'pve@pve.firma.local');
   ctx.settings.set('imap.senderRules', JSON.stringify([{ pattern: '*@pve.firma.local', action: 'noreply' }, { pattern: 'noreply@firma.local', action: 'noreply' }]));
   r = await run(pve('pv2'));
-  assert.equal(r.action, 'ticket', 'mit Regel angenommen');
-  assert.equal(ctx.mailer.blocked('pve@pve.firma.local'), 'Regel', 'und nie beantwortet');
-  // noreply-Absender und Precedence: bulk ebenso
+  assert.equal(r.action, 'ticket', 'accepted with rule');
+  assert.equal(ctx.mailer.blocked('pve@pve.firma.local'), 'Regel', 'and never replied to');
+  // noreply senders and Precedence: bulk likewise
   assert.equal((await run(pve('pv3', 'noreply@firma.local', 'Precedence: bulk'))).action, 'ticket');
-  // ohne passende Regel weiterhin verworfen
+  // still discarded without a matching rule
   assert.equal((await run(pve('pv4', 'alarm@nas.firma.local'))).reason, 'automated');
-  // eigene Adresse immer verwerfen, auch wenn eine Regel passt
+  // always discard our own address, even if a rule matches
   ctx.settings.set('imap.senderRules', JSON.stringify([{ pattern: '*@firma.local', action: 'noreply' }]));
   const own = ctx.settings.get('smtp.from') || 'helpdesk@firma.local';
   ctx.settings.set('smtp.from', own);
@@ -175,12 +175,12 @@ test('Automatisch erzeugte Mails (Proxmox, Monitoring): nur mit Regel „nie ant
   ctx.settings.set('imap.senderRules', '[]');
 });
 
-test('Eingangsbestätigung geht nicht an gesperrte Adressen (Versand prüft vor dem Senden)', async () => {
+test('Receipt confirmation is not sent to blocked addresses (mailer checks before sending)', async () => {
   const { createMailer } = await import('../src/mail/smtp.js');
   const { createSuppressions } = await import('../src/mail/rules.js');
   const sup = createSuppressions(db);
   sup.add('weg@firma.local', 'test');
   const settings = { get: (k) => (k === 'imap.senderRules' ? '[]' : ctx.settings.get(k)), group: () => ({ enabled: true, host: '127.0.0.1', port: 1, security: 'none', from: 'helpdesk@firma.local', verifyTls: true }) };
   const m = createMailer(db, settings, { suppressions: sup });
-  assert.equal(await m.send({ to: 'weg@firma.local', subject: 'x', text: 'y' }), false, 'ohne Verbindungsversuch abgelehnt');
+  assert.equal(await m.send({ to: 'weg@firma.local', subject: 'x', text: 'y' }), false, 'rejected without a connection attempt');
 });

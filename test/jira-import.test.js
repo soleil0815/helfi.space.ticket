@@ -1,4 +1,4 @@
-// Jira-Import gegen ein nachgebautes Jira (Cloud und Server/Data Center)
+// Jira import against a mock Jira (Cloud and Server/Data Center)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -38,7 +38,7 @@ async function waitJob() {
     if (body.job && body.job.state !== 'running') return body.job;
     await new Promise((r) => setTimeout(r, 50));
   }
-  throw new Error('Import hängt');
+  throw new Error('Import is stuck');
 }
 
 before(async () => {
@@ -46,7 +46,7 @@ before(async () => {
   db = await openDatabase(paths.db);
   const built = createApp(db);
   ctx = built.ctx;
-  // Tests laufen direkt auf 127.0.0.1 – als internes Netz eintragen (sonst wäre 2FA Pflicht)
+  // Tests run directly on 127.0.0.1 – register it as internal network (otherwise 2FA would be required)
   ctx.settings.set('mfa.internalNetworks', '127.0.0.1, ::1');
   for (const e of ['created', 'commented', 'assigned', 'resolved']) ctx.tickets.events.on(e, () => events.push(e));
   await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
@@ -56,7 +56,7 @@ before(async () => {
 });
 after(() => { server?.close(); db?.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
-test('Textumwandlung ADF und Wiki-Markup', () => {
+test('Text conversion of ADF and wiki markup', () => {
   const adf = { type: 'doc', content: [
     { type: 'heading', content: [{ type: 'text', text: 'Titel' }] },
     { type: 'paragraph', content: [{ type: 'text', text: 'Siehe ' }, { type: 'text', text: 'hier', marks: [{ type: 'link', attrs: { href: 'https://x.example' } }] }, { type: 'hardBreak' }, { type: 'mention', attrs: { text: '@Anna' } }] },
@@ -68,7 +68,7 @@ test('Textumwandlung ADF und Wiki-Markup', () => {
     'Titel\nfett und kursiv\n- a\n  - b\nDoku (https://d.example) code\n[bild.png]');
 });
 
-test('Zuordnungsvorschläge', () => {
+test('Mapping suggestions', () => {
   assert.equal(suggestStatus('Waiting for customer', 'indeterminate'), 'waiting');
   assert.equal(suggestStatus('In Progress', 'indeterminate'), 'in_progress');
   assert.equal(suggestStatus('Closed', 'done'), 'done');
@@ -86,7 +86,7 @@ test('Zuordnungsvorschläge', () => {
   assert.equal(sanitizeProjectKey('1A'), 'J1A');
 });
 
-test('Jira Cloud: Verbindung, Projekte, Zuordnung', async () => {
+test('Jira Cloud: connection, projects, mapping', async () => {
   const jira = await startMockJira({ type: 'cloud' });
   try {
     const conn = { type: 'cloud', baseUrl: jira.url, email: 'admin@firma.local', token: 'falsch' };
@@ -100,13 +100,13 @@ test('Jira Cloud: Verbindung, Projekte, Zuordnung', async () => {
     const ins = await call('POST', '/api/admin/import/jira/inspect', { connection: conn, projects: ['SUP'] });
     assert.equal(ins.body.statuses.find((s) => s.name === 'Waiting for customer').suggested, 'waiting');
     assert.equal(ins.body.counts.SUP, 3);
-    // Nur Admins
+    // Admins only
     const agent = await fetch(`${base}/api/admin/import/status`);
     assert.equal(agent.status, 401);
   } finally { jira.close(); }
 });
 
-test('Jira Cloud: Import mit Nummern, Kommentaren, Anhängen – ohne E-Mails', async () => {
+test('Jira Cloud: import with numbers, comments, attachments – without emails', async () => {
   const jira = await startMockJira({ type: 'cloud' });
   try {
     const conn = { type: 'cloud', baseUrl: jira.url, email: 'admin@firma.local', token: 'cloud-token' };
@@ -121,8 +121,8 @@ test('Jira Cloud: Import mit Nummern, Kommentaren, Anhängen – ohne E-Mails', 
     const job = await waitJob();
     assert.equal(job.state, 'done', JSON.stringify(job.errors));
     assert.deepEqual(job.counts, { created: 3, updated: 0, unchanged: 0, comments: 2, attachments: 1, skippedAttachments: 1, failed: 0 });
-    assert.ok(jira.calls.includes('POST /rest/api/3/search/jql'), 'neue Cloud-Suche');
-    assert.ok(!jira.calls.includes('GET /rest/api/3/search'), 'alte (entfernte) Suche nicht benutzt');
+    assert.ok(jira.calls.includes('POST /rest/api/3/search/jql'), 'new Cloud search');
+    assert.ok(!jira.calls.includes('GET /rest/api/3/search'), 'old (removed) search not used');
 
     const t1 = (await call('GET', '/api/tickets/SUP-10')).body.ticket;
     assert.equal(t1.title, 'Vorgang 1');
@@ -132,35 +132,35 @@ test('Jira Cloud: Import mit Nummern, Kommentaren, Anhängen – ohne E-Mails', 
     assert.equal(t1.dueDate, '2024-12-24');
     assert.deepEqual(t1.labels, ['drucker', 'import-test']);
     assert.equal(t1.source, 'jira');
-    assert.equal(t1.assignee.displayName, 'Anna Agentin', 'Bearbeiter per E-Mail zugeordnet');
+    assert.equal(t1.assignee.displayName, 'Anna Agentin', 'agent matched by email');
     assert.equal(t1.reporter.email, 'kurt@kunde.example');
-    assert.equal(t1.createdAt, '2024-01-01T08:00:00.000Z', 'Datum aus Jira');
+    assert.equal(t1.createdAt, '2024-01-01T08:00:00.000Z', 'date from Jira');
     assert.match(t1.description, /Handbuch \(https:\/\/wiki\.firma\.local\/d\)/);
     assert.match(t1.description, /- Punkt A/);
     assert.deepEqual(t1.comments.map((c) => [c.body, c.internal]), [['Bitte schnell!', false], ['Intern: Toner bestellt', true]]);
     assert.equal(t1.attachments.length, 1);
     const dl = await fetch(`${base}/api/attachments/${t1.attachments[0].id}`, { headers: { cookie } });
-    assert.equal(await dl.text(), 'Fehler 4711', 'Anhang über Umleitung ohne Anmeldedaten geladen');
+    assert.equal(await dl.text(), 'Fehler 4711', 'attachment loaded via redirect without credentials');
     assert.equal(t1.activity[0].action, 'imported');
     assert.equal(t1.activity[0].oldValue, 'SUP-10');
 
     const t2 = (await call('GET', '/api/tickets/SUP-20')).body.ticket;
     assert.equal(t2.status, 'done');
     assert.ok(t2.resolvedAt);
-    assert.equal(t2.assignee, null, 'Bearbeiter ohne Konto bleibt leer');
-    assert.equal(t2.activity[0].newValue, 'Geist ohne Mail', 'Name im Verlauf festgehalten');
+    assert.equal(t2.assignee, null, 'agent without account stays empty');
+    assert.equal(t2.activity[0].newValue, 'Geist ohne Mail', 'name recorded in the activity log');
     const t3 = (await call('GET', '/api/tickets/SUP-30')).body.ticket;
     assert.equal(t3.reporter.displayName, 'Geist ohne Mail');
     assert.equal(t3.type, 'task');
 
-    // Nächste neue Nummer schließt an
+    // Next new number follows on
     const n = await call('POST', '/api/tickets', { title: 'Neu', projectId: t1.projectId });
     assert.equal(n.body.ticket.key, 'SUP-31');
 
-    assert.deepEqual(events, ['created'], 'beim Import keine Ereignisse/E-Mails – nur das eben von Hand angelegte Ticket');
+    assert.deepEqual(events, ['created'], 'no events/emails during import – only the ticket just created by hand');
 
-    // Erneuter Import: aktualisiert, legt nichts doppelt an
-    // Lokale Änderung an SUP-20 (in Jira unverändert) darf ein erneuter Import nicht überschreiben (Audit)
+    // Re-import: updates, creates no duplicates
+    // A local change to SUP-20 (unchanged in Jira) must not be overwritten by a re-import (Audit)
     await call('PATCH', '/api/tickets/SUP-20', { status: 'open', title: 'Lokal bearbeitet' });
     jira.issues[0].fields.summary = 'Vorgang 1 (geändert)';
     jira.issues[0].fields.updated = new Date(Date.now() + 60000).toISOString();
@@ -174,17 +174,17 @@ test('Jira Cloud: Import mit Nummern, Kommentaren, Anhängen – ohne E-Mails', 
   } finally { jira.close(); }
 });
 
-test('Kontakte aus Jira werden beim späteren Anmelden übernommen', () => {
+test('Contacts from Jira are taken over at a later login', () => {
   const kurt = ctx.users.byEmail('kurt@kunde.example');
   assert.equal(kurt.source, 'email');
   const u = ctx.users.upsertExternal({ source: 'ldap', username: 'k.kunde', displayName: 'Kurt', email: 'kurt@kunde.example', externalId: 'g1', role: null });
   assert.equal(u.id, kurt.id);
 });
 
-test('Jira Server/Data Center: Import mit Token, Wiki-Markup, Nummernkonflikt', async () => {
+test('Jira Server/Data Center: import with token, wiki markup, number conflict', async () => {
   const jira = await startMockJira({ type: 'server', issueCount: 2 });
   try {
-    // Projekt "OPS" gibt es schon mit Ticket 10 → Nummer wird neu vergeben
+    // Project "OPS" already exists with ticket 10 → number is reassigned
     const p = (await call('POST', '/api/projects', { key: 'OPS', name: 'Ops' })).body.project;
     for (let i = 0; i < 10; i++) await call('POST', '/api/tickets', { title: `lokal ${i}`, projectId: p.id });
     const conn = { type: 'server', baseUrl: jira.url, token: 'pat-123' };
@@ -195,17 +195,17 @@ test('Jira Server/Data Center: Import mit Token, Wiki-Markup, Nummernkonflikt', 
     const job = await waitJob();
     assert.equal(job.state, 'done', JSON.stringify(job.errors));
     assert.equal(job.counts.created, 2);
-    assert.ok(jira.calls.some((x) => x === 'GET /rest/api/2/search'), 'Server-Suche');
+    assert.ok(jira.calls.some((x) => x === 'GET /rest/api/2/search'), 'server search');
     const keys = db.prepare("SELECT number FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key='OPS' AND source='jira' ORDER BY number").all().map((r) => r.number);
-    assert.deepEqual(keys, [11, 20], 'SUP-10 kollidiert → 11, SUP-20 bleibt 20');
+    assert.deepEqual(keys, [11, 20], 'SUP-10 collides → 11, SUP-20 stays 20');
     const t = (await call('GET', '/api/tickets/OPS-11')).body.ticket;
     assert.match(t.description, /^Drucker\n- Punkt A\nHandbuch \(https:\/\/wiki\.firma\.local\/d\)\n```\nx=1\n```$/);
-    assert.equal(t.comments.find((x) => x.body.startsWith('Intern')).internal, true, 'eingeschränkte Sichtbarkeit = intern');
+    assert.equal(t.comments.find((x) => x.body.startsWith('Intern')).internal, true, 'restricted visibility = internal');
     assert.equal(t.attachments.length, 1);
   } finally { jira.close(); }
 });
 
-test('Zertifikatsfehler und falsche Adressen werden verständlich gemeldet', async () => {
+test('Certificate errors and wrong addresses are reported understandably', async () => {
   const r = await call('POST', '/api/admin/import/jira/connect', { connection: { type: 'server', baseUrl: 'http://127.0.0.1:1', token: 'x' } });
   assert.equal(r.body.ok, false);
   assert.match(r.body.error, /nicht erreichbar/);
@@ -213,7 +213,7 @@ test('Zertifikatsfehler und falsche Adressen werden verständlich gemeldet', asy
   assert.equal(bad.status, 400);
 });
 
-test('Server/DC: kleinere Seiten als angefragt – kein Vorgang geht verloren (Audit)', async () => {
+test('Server/DC: smaller pages than requested – no issue is lost (Audit)', async () => {
   const jira = await startMockJira({ type: 'server', issueCount: 5 });
   try {
     const conn = { type: 'server', baseUrl: jira.url, token: 'pat-123' };
@@ -223,7 +223,7 @@ test('Server/DC: kleinere Seiten als angefragt – kein Vorgang geht verloren (A
   } finally { jira.close(); }
 });
 
-test('Cloud: gleiches Seiten-Token zweimal → Abbruch statt Endlosschleife (Audit)', async () => {
+test('Cloud: same page token twice → abort instead of endless loop (Audit)', async () => {
   const { createJiraClient } = await import('../src/import/jira-client.js');
   const http = await import('node:http');
   let calls = 0;
@@ -235,19 +235,19 @@ test('Cloud: gleiches Seiten-Token zweimal → Abbruch statt Endlosschleife (Aud
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   try {
     const c = createJiraClient({ type: 'cloud', baseUrl: `http://127.0.0.1:${srv.address().port}`, email: 'a', token: 'b' });
-    await assert.rejects(async () => { for await (const _ of c.issues('X')) { /* nichts */ } }, /dieselbe Seite/);
-    assert.ok(calls <= 3, `nur wenige Abrufe (${calls})`);
+    await assert.rejects(async () => { for await (const _ of c.issues('X')) { /* nothing */ } }, /dieselbe Seite/);
+    assert.ok(calls <= 3, `only a few requests (${calls})`);
   } finally { srv.close(); }
 });
 
-test('Ungültige Datumsangaben brechen den Vorgang nicht ab (Audit)', async () => {
+test('Invalid dates do not abort the issue (Audit)', async () => {
   const { iso } = await import('../src/import/jira-import.js');
   assert.equal(iso('kein datum'), null);
   assert.equal(iso('2024-01-01T10:00:00.000+0200'), '2024-01-01T08:00:00.000Z');
   assert.equal(iso(null), null);
 });
 
-test('Importierte Tickets lassen sich nicht löschen; Import-Zuordnung bleibt', async () => {
+test('Imported tickets cannot be deleted; import mapping stays', async () => {
   const t = db.prepare("SELECT t.id FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key='SUP' AND t.number=10").get();
   assert.ok(db.prepare("SELECT 1 FROM import_map WHERE kind='issue' AND local_id=?").get(t.id));
   assert.equal((await call('DELETE', '/api/tickets/SUP-10')).status, 405);
