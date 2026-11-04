@@ -32,7 +32,49 @@ function append(el, children) {
 export function clear(el) { while (el.firstChild) el.firstChild.remove(); return el; }
 export function mount(el, ...children) { clear(el); append(el, children); return el; }
 
-/** SVG icon from the sprite in index.html */
+/**
+ * Load the icon sprite (/icons/sprite.svg) once and put it into the document, so that
+ * icon() can reference its symbols (<use href="#i-name">). Used by both UIs.
+ * The file is a static file of this application (parsed as XML, never as HTML).
+ */
+let spritePromise = null;
+export function loadSprite() {
+  if (spritePromise) return spritePromise;
+  spritePromise = (async () => {
+    try {
+      const res = await fetch('/icons/sprite.svg', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const doc = new DOMParser().parseFromString(await res.text(), 'image/svg+xml');
+      const svg = doc.documentElement;
+      if (!svg || svg.nodeName !== 'svg') return;
+      const node = document.importNode(svg, true);
+      node.setAttribute('class', 'sprite');
+      node.setAttribute('aria-hidden', 'true');
+      node.setAttribute('focusable', 'false');
+      document.body.prepend(node);
+    } catch { /* icons stay empty – the UI still works */ }
+  })();
+  return spritePromise;
+}
+
+/** Highlight search terms in the text (as text nodes, never as HTML) */
+export function highlight(text, terms = []) {
+  const s = String(text ?? '');
+  const low = terms.map((x) => x.toLowerCase()).filter(Boolean);
+  if (!low.length) return s;
+  const out = []; let i = 0; const l = s.toLowerCase();
+  while (i < s.length) {
+    let best = -1; let len = 0;
+    for (const x of low) { const k = l.indexOf(x, i); if (k >= 0 && (best < 0 || k < best || (k === best && x.length > len))) { best = k; len = x.length; } }
+    if (best < 0) { out.push(s.slice(i)); break; }
+    if (best > i) out.push(s.slice(i, best));
+    out.push(h('mark', s.slice(best, best + len)));
+    i = best + len;
+  }
+  return out;
+}
+
+/** SVG icon from the sprite (see loadSprite) */
 export function icon(name, cls = '') {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');

@@ -168,6 +168,14 @@ export function createApp(db) {
     }));
   });
 
+  // Mobile UI (phones): own entry page for /m and /m/… (app paths without a file extension;
+  // its CSS/JS under /m/ come from the static files below)
+  const mobileHtml = path.join(config.publicDir, 'm', 'index.html');
+  app.get(/^\/m(?:\/(?:[^.]*))?$/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(mobileHtml);
+  });
+
   // Static files + SPA
   // Always revalidate (ETag): after an update the new UI arrives immediately, unchanged files are not re-sent
   app.use(express.static(config.publicDir, { index: false, maxAge: 0, setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));
