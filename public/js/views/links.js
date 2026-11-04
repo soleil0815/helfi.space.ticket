@@ -1,9 +1,9 @@
-// Verknüpfungen und Unteraufgaben in der Ticketansicht (nur Bearbeiter)
+// Links and subtasks in the ticket view (agents only)
 import { api } from '../api.js';
 import { h, mount, icon, lozenge, typeIcon, toast, avatar } from '../dom.js';
 import { t } from '../i18n.js';
 
-// Auswahl aus Sicht des aktuellen Tickets → [kind, umgekehrt?]
+// Choice from the current ticket's point of view → [kind, reversed?]
 const CHOICES = [
   ['relates', 'relates', false], ['duplicates', 'duplicates', false], ['duplicatedBy', 'duplicates', true],
   ['blocks', 'blocks', false], ['blockedBy', 'blocks', true], ['causes', 'causes', false], ['causedBy', 'causes', true],
@@ -25,7 +25,7 @@ function row(tk, l, refresh) {
     }, icon('close')));
 }
 
-/** Eingabe einer Ticketnummer mit Vorschlägen aus der Suche */
+/** Ticket number input with suggestions from the search */
 function ticketPicker(currentKey) {
   const listId = `tp-${Math.random().toString(36).slice(2, 8)}`;
   const input = h('input.link-target', { placeholder: t('link.targetHint'), list: listId, autocomplete: 'off', required: true });
@@ -39,7 +39,7 @@ function ticketPicker(currentKey) {
       try {
         const r = await api.tickets({ q, limit: 10 });
         mount(dl, (r.tickets || []).filter((x) => x.key !== currentKey).map((x) => h('option', { value: x.key }, `${x.key} – ${x.title}`)));
-      } catch { /* egal */ }
+      } catch { /* ignore */ }
     }, 200);
   });
   return { input, el: h('span.link-picker', input, dl) };
@@ -89,7 +89,7 @@ export function linksSection(tk, refresh) {
     title.focus();
   };
 
-  // nach Bedeutung gruppiert
+  // grouped by meaning
   const groups = new Map();
   for (const l of others) {
     const label = linkLabel(l.kind, l.direction);

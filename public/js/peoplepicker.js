@@ -1,5 +1,5 @@
-// Personensuche mit Vorschlagsliste (Teilnehmer, Verantwortliche).
-// Der Fokus bleibt immer im Eingabefeld: Die Liste nimmt ihn nie weg, Auswahl mit Maus oder ↑/↓ + Enter.
+// People search with suggestion list (participants, owners).
+// Focus always stays in the input: the list never takes it; select with mouse or ↑/↓ + Enter.
 import { api } from './api.js';
 import { h, mount, icon, avatar } from './dom.js';
 import { t } from './i18n.js';
@@ -9,12 +9,12 @@ const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 let uid = 0;
 
 /**
- * input: Textfeld. Optionen:
+ * input: text field. Options:
  *  - onPick(choice, person): choice = { userId } | { adId } | { email }
- *  - exclude(): Set der Benutzer-IDs, die nicht angeboten werden
- *  - allowEmail: freie Mailadresse anbieten (nur Bearbeiter)
- *  - ad: AD-Treffer zulassen (Standard: wenn für dieses Konto verfügbar)
- *  - onClose(): Liste geschlossen und Feld verlassen
+ *  - exclude(): Set of user IDs that are not offered
+ *  - allowEmail: offer a free email address (agents only)
+ *  - ad: allow AD matches (default: if available for this account)
+ *  - onClose(): list closed and field left
  */
 export function peoplePicker(input, { onPick, exclude = () => new Set(), allowEmail = false, ad = !!state.boot?.adPeople, onClose } = {}) {
   const listId = `pp-${++uid}`;
@@ -83,7 +83,7 @@ export function peoplePicker(input, { onPick, exclude = () => new Set(), allowEm
     const add = (choice, person, content, iconEl) => {
       const el = h('div.menu-item', { id: `${listId}-${options.length}`, role: 'option', 'aria-selected': 'false' }, iconEl, content);
       const o = { el, choice, person };
-      // mousedown: Fokus bleibt im Feld; erst der Klick wählt aus
+      // mousedown: focus stays in the field; only the click selects
       el.addEventListener('mousedown', (e) => e.preventDefault());
       el.addEventListener('click', () => choose(o));
       el.addEventListener('mousemove', () => { const n = options.indexOf(o); if (n !== active) setActive(n); });
@@ -122,7 +122,7 @@ export function peoplePicker(input, { onPick, exclude = () => new Set(), allowEm
     if (!useAd) return;
     let full;
     try { full = await api.people(q); } catch { full = { people: first.people || [], adError: true }; }
-    if (my !== seq) return; // inzwischen weitergetippt
+    if (my !== seq) return; // user has typed on in the meantime
     render(q, full.people || [], full.adError ? 'error' : null);
   }
 

@@ -1,4 +1,4 @@
-// Einstieg der Oberfläche: Zustand, Router, Grundlayout.
+// UI entry point: state, router, base layout.
 import { installShortcuts, clearPageShortcuts, listKeys } from './shortcuts.js';
 import { api } from './api.js';
 import { h, mount, icon, avatar, dropdown, toast } from './dom.js';
@@ -29,18 +29,18 @@ export const state = {
   get isAdmin() { return this.user?.role === 'admin'; },
   get project() {
     let key = null;
-    try { key = localStorage.getItem('helfi.project'); } catch { /* egal */ }
+    try { key = localStorage.getItem('helfi.project'); } catch { /* ignore */ }
     return this.projects.find((p) => p.key === key) || this.projects[0] || null;
   },
-  set project(p) { try { localStorage.setItem('helfi.project', p?.key || ''); } catch { /* egal */ } },
+  set project(p) { try { localStorage.setItem('helfi.project', p?.key || ''); } catch { /* ignore */ } },
 };
 
 const root = document.getElementById('app');
 
-// Ungespeicherte Änderungen (z. B. im Artikel-Editor): vor dem Verlassen nachfragen
+// Unsaved changes (e.g. in the article editor): ask before leaving
 let leaveGuard = null;
 let guardUrl = null;
-/** Fuß der Seitenleiste: Link zur Website (neuer Tab) und Version (→ Neuigkeiten) */
+/** Sidebar footer: link to the website (new tab) and version (→ news) */
 export const HOME_URL = 'https://helfi.space';
 function sidebarFoot() {
   return h('div.sidebar-foot',
@@ -70,12 +70,12 @@ export async function reloadBase() {
 
 function applyLanguage() {
   let stored = null;
-  try { stored = localStorage.getItem('helfi.lang'); } catch { /* egal */ }
+  try { stored = localStorage.getItem('helfi.lang'); } catch { /* ignore */ }
   setLang(state.user?.language || stored || browserLang() || state.boot?.defaultLanguage || 'de');
 }
 
 export async function setLanguage(lang) {
-  try { if (lang) localStorage.setItem('helfi.lang', lang); else localStorage.removeItem('helfi.lang'); } catch { /* egal */ }
+  try { if (lang) localStorage.setItem('helfi.lang', lang); else localStorage.removeItem('helfi.lang'); } catch { /* ignore */ }
   if (state.user) {
     const r = await api.updateMe({ language: lang || null });
     state.user = r.user;
@@ -103,7 +103,7 @@ async function start() {
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');
     if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
-    // Nur Pfade dieser Anwendung selbst routen (nie „//…“ oder „/\…“ – das wäre eine fremde Adresse)
+    // Only route paths of this application itself (never “//…” or “/\…” – that would be an external address)
     const href = a.getAttribute('href') || '';
     if (!/^\/(?![/\\])/.test(href) || new URL(href, location.href).origin !== location.origin) { e.preventDefault(); return; }
     e.preventDefault(); navigate(href);
@@ -133,7 +133,7 @@ export async function route() {
   document.querySelectorAll('.menu').forEach((m) => m.remove());
   clearPageShortcuts();
 
-  // Bewertungslink aus der Mail: ohne Anmeldung
+  // Rating link from the email: no login required
   if (path.startsWith('/rate/')) return renderRate(root, path, url.searchParams);
   if (state.boot.setupRequired && !state.user) return renderSetup(root);
   if (!state.user) {
@@ -150,7 +150,7 @@ export async function route() {
     if (path === '/' ) return navigate(state.isAgent ? '/board' : '/requests', { replace: true });
     if (path === '/board') return await renderBoard(content, params);
     if (path === '/issues') return await renderList(content, params);
-    // Benutzer sehen hier ohnehin nur eigene und geteilte Anfragen (Teilnehmer); Bearbeiter standardmäßig die selbst gemeldeten
+    // Users only see their own and shared requests here anyway (participants); agents see those they reported by default
     if (path === '/requests') return await renderList(content, state.isAgent && !params.has('participant') && !params.has('approval') ? new URLSearchParams({ reporter: 'me', ...Object.fromEntries(params) }) : params, { requests: true });
     if (path === '/my') return await renderMyWork(content);
     if (path === '/reports' && state.isAgent) return await renderReports(content, params);
@@ -174,12 +174,12 @@ function layout(content, path) {
   const p = state.project;
   const nav = (href, label, ic, active) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', label));
   const activeQueue = path === '/issues' ? matchQueue(new URL(location.href).searchParams) : null;
-  // Zahl an einem Eintrag – wird nach dem Laden von /api/queues gefüllt (vorher letzter bekannter Wert)
+  // Count on an entry – filled after loading /api/queues (until then the last known value)
   const countEl = (field) => h('span.nav-count', { 'data-count': field }, state.queueCounts?.[field] ?? '');
   const countedNav = (href, label, ic, active, field) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', label), countEl(field));
   function queuesNav(curPath, proj) {
     let open = true;
-    try { open = localStorage.getItem('helfi.queuesOpen') !== '0'; } catch { /* egal */ }
+    try { open = localStorage.getItem('helfi.queuesOpen') !== '0'; } catch { /* ignore */ }
     const list = h('div.queue-list', { hidden: !open }, QUEUES.map((q) => h('a.nav-item.nav-sub', {
       href: queueHref(q, proj?.key), 'data-link': '', class: curPath === '/issues' && activeQueue?.id === q.id ? 'active' : '',
     }, h('span', t(q.label)), countEl(q.count))));
@@ -187,7 +187,7 @@ function layout(content, path) {
       type: 'button', 'aria-expanded': String(open),
       onclick: () => {
         open = !open; list.hidden = !open; head.setAttribute('aria-expanded', String(open)); head.classList.toggle('collapsed', !open);
-        try { localStorage.setItem('helfi.queuesOpen', open ? '1' : '0'); } catch { /* egal */ }
+        try { localStorage.setItem('helfi.queuesOpen', open ? '1' : '0'); } catch { /* ignore */ }
       },
     }, icon('inbox'), h('span', t('nav.queues')), icon('chevron-down', 'nav-chevron'));
     head.classList.toggle('collapsed', !open);
@@ -219,7 +219,7 @@ function layout(content, path) {
     ], { align: 'right' }),
   }, avatar(u, 'sm'));
 
-  // Smartphone: Seitenleiste als Schublade, Suche hinter der Lupe
+  // Smartphone: sidebar as drawer, search behind the magnifier
   const toggleNav = (open) => {
     const sh = document.querySelector('.shell');
     const on = open ?? !sh.classList.contains('nav-open');
@@ -293,20 +293,20 @@ function layout(content, path) {
   }
   const m = state.boot.mfa;
   let mfaHidden = false;
-  try { mfaHidden = sessionStorage.getItem('helfi.mfaBanner') === 'hidden'; } catch { /* egal */ }
+  try { mfaHidden = sessionStorage.getItem('helfi.mfaBanner') === 'hidden'; } catch { /* ignore */ }
   if (m && m.mode !== 'off' && !m.enabled && u.source !== 'oidc' && path !== '/profile' && !mfaHidden) {
     const b = h('div.banner.banner-info.banner-mfa', icon('shield'), h('span.banner-text', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup')),
-      h('button.btn-icon.banner-close', { type: 'button', 'aria-label': t('app.close'), onclick: () => { try { sessionStorage.setItem('helfi.mfaBanner', 'hidden'); } catch { /* egal */ } b.remove(); } }, icon('close')));
+      h('button.btn-icon.banner-close', { type: 'button', 'aria-label': t('app.close'), onclick: () => { try { sessionStorage.setItem('helfi.mfaBanner', 'hidden'); } catch { /* ignore */ } b.remove(); } }, icon('close')));
     warnings.push(b);
   }
   if (state.isAgent) refreshQueueCounts(p?.key);
-  // Nach einem Update einmal zeigen, was neu ist (nicht auf der Neuigkeiten-Seite selbst)
+  // After an update, show once what is new (not on the news page itself)
   if (state.boot.news && !state.newsShown && path !== '/news') {
     state.newsShown = true;
     const entry = state.boot.news;
     setTimeout(() => { if (state.boot.news) showNewsPopup(entry); }, 300);
   }
-  // Antippen eines Eintrags schließt die Schublade (die Seite wird ohnehin neu aufgebaut)
+  // Tapping an entry closes the drawer (the page is rebuilt anyway)
   sidebar.addEventListener('click', (e) => { if (e.target.closest('a[data-link]')) toggleNav(false); });
   const backdrop = h('div.nav-backdrop', { onclick: () => toggleNav(false) });
   const shell = h('div.shell', topbar, h('div.body', sidebar, backdrop, h('div.main', warnings, content)));
@@ -314,13 +314,13 @@ function layout(content, path) {
   return shell;
 }
 
-/** Zahlen der Warteschlangen neu laden und in die Seitenleiste schreiben (still bei Fehlern). */
+/** Reload queue counts and write them to the sidebar (silent on errors). */
 export async function refreshQueueCounts(projectKey = state.project?.key) {
   try {
     const { counts } = await api.queues(projectKey);
     state.queueCounts = counts;
     document.querySelectorAll('[data-count]').forEach((el) => { el.textContent = counts[el.dataset.count] ?? ''; });
-  } catch { /* egal */ }
+  } catch { /* ignore */ }
 }
 
 start().catch((e) => { console.error(e); toast(e.message, 'error'); });

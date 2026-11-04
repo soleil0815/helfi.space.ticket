@@ -1,13 +1,13 @@
-// Wissensartikel: eigenes, schlichtes Textformat im Markdown-Stil.
-// Gespeichert wird nur Text – angezeigt wird er ausschließlich über DOM-Aufbau (nie innerHTML).
+// Knowledge articles: custom, simple Markdown-style text format.
+// Only text is stored – it is displayed exclusively by building the DOM (never innerHTML).
 //
-//   # Überschrift (1–3)          **fett**  *kursiv*  ++unterstrichen++  ~~durchgestrichen~~  `code`
-//   - Liste / 1. Liste / - [ ] Checkliste / - [x] erledigt (Einrückung = Unterliste)
-//   > Zitat     ``` Codeblock ```     ---  Trennlinie
-//   :::info / :::tip / :::warning … :::   Infobox
-//   | Kopf | Kopf |  + Trennzeile |---|---|  Tabelle
-//   ![Bildunterschrift|small](/api/kb/images/…)   Bild (small | medium | full)
-//   [Text](https://… | /browse/IT-1 | /kb/3)       Link
+//   # Heading (1–3)              **bold**  *italic*  ++underlined++  ~~strikethrough~~  `code`
+//   - list / 1. list / - [ ] checklist / - [x] done (indentation = sublist)
+//   > quote     ``` code block ```    ---  divider
+//   :::info / :::tip / :::warning … :::   info box
+//   | Head | Head |  + separator |---|---|    table
+//   ![Caption|small](/api/kb/images/…)   image (small | medium | full)
+//   [Text](https://… | /browse/IT-1 | /kb/3)       link
 import { h } from './dom.js';
 
 export const PANEL_KINDS = ['info', 'tip', 'warning'];
@@ -15,18 +15,18 @@ export const IMAGE_SIZES = ['small', 'medium', 'full'];
 const IMG_SRC = /^\/api\/(kb\/images\/[A-Za-z0-9_-]{16,64}|attachments\/\d+)$/;
 const ESCAPABLE = '\\`*[]~+|#>-.:!_()';
 
-/** Erlaubte Link-Ziele: http(s), mailto und Pfade dieser Anwendung */
+/** Allowed link targets: http(s), mailto and paths of this application */
 export function safeHref(url) {
   const u = String(url || '').trim();
   if (/^https?:\/\/[^\s<>"]+$/i.test(u)) return u;
   if (/^mailto:[^\s<>"]+@[^\s<>"]+$/i.test(u)) return u;
-  // Pfad dieser Anwendung: nie „//…“ oder „/\…“ (Browser lesen beides als fremde Adresse), kein Backslash
+  // Path of this application: never “//…” or “/\…” (browsers read both as an external address), no backslash
   if (/^\/(?![/\\])[^\s<>"\\]*$/.test(u)) return u;
   return null;
 }
 export const safeImg = (src) => (IMG_SRC.test(String(src || '')) ? src : null);
 
-/** Ticketnummer / KB-Nummer / Adresse → Link-Ziel */
+/** Ticket number / KB number / address → link target */
 export function linkTarget(input) {
   const v = String(input || '').trim();
   if (/^[A-Za-z][A-Za-z0-9]{1,9}-\d+$/.test(v) && !/^kb-/i.test(v)) return `/browse/${v.toUpperCase()}`;
@@ -36,9 +36,9 @@ export function linkTarget(input) {
   return safeHref(v);
 }
 
-// ---------------------------------------------------------------- Lesen (Text → Blöcke)
+// ---------------------------------------------------------------- Parsing (text → blocks)
 
-/** „Titel ##  “ → „Titel“: Leerzeichen, dann #, dann Leerzeichen am Ende entfernen */
+/** “Title ##  ” → “Title”: strip trailing spaces, then #, then spaces */
 function trimHeading(s) {
   let t = s.trimEnd();
   let n = t.length;
@@ -70,7 +70,7 @@ function parseBlocks(lines) {
   while (i < lines.length) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
-    // Codeblock
+    // Code block
     const fence = /^\s*```(.*)$/.exec(line);
     if (fence) {
       const code = []; i++;
@@ -79,7 +79,7 @@ function parseBlocks(lines) {
       out.push({ type: 'code', text: code.join('\n') });
       continue;
     }
-    // Infobox
+    // Info box
     const panel = /^:::\s*(info|tip|warning)\s*$/.exec(line.trim());
     if (panel) {
       const inner = []; i++; let depth = 0;
@@ -93,11 +93,11 @@ function parseBlocks(lines) {
       out.push({ type: 'panel', kind: panel[1], children: parseBlocks(inner) });
       continue;
     }
-    // Überschrift: schließende # und Leerzeichen ohne Regex abschneiden (das alte Muster brauchte bei langen Zeilen Minuten)
+    // Heading: strip closing # and spaces without a regex (the old pattern took minutes on long lines)
     const hd = /^(#{1,6})\s+([\s\S]*)$/.exec(line);
     if (hd) { out.push({ type: 'heading', level: Math.min(hd[1].length, 3), text: trimHeading(hd[2]) }); i++; continue; }
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push({ type: 'hr' }); i++; continue; }
-    // Tabelle
+    // Table
     if (line.trim().startsWith('|') && isTableSep(lines[i + 1])) {
       const head = splitRow(line); i += 2;
       const rows = [];
@@ -107,27 +107,27 @@ function parseBlocks(lines) {
       out.push({ type: 'table', head: pad(head), rows: rows.map(pad) });
       continue;
     }
-    // Zitat
+    // Quote
     if (/^\s*>/.test(line)) {
       const inner = [];
       while (i < lines.length && /^\s*>/.test(lines[i])) inner.push(lines[i++].replace(/^\s*>\s?/, ''));
       out.push({ type: 'quote', children: parseBlocks(inner) });
       continue;
     }
-    // Liste (Einrückung → Unterliste)
+    // List (indentation → sublist)
     if (RE_LIST.test(line)) {
       const items = [];
       while (i < lines.length && RE_LIST.test(lines[i])) {
         const m = RE_LIST.exec(lines[i]);
         items.push({ indent: m[1].replace(/\t/g, '    ').length, ordered: /\d/.test(m[2]), check: m[3] === undefined ? null : m[3] !== ' ', text: m[4] });
         i++;
-        // Fortsetzungszeilen (eingerückt, kein neuer Punkt) gehören zum Punkt
+        // Continuation lines (indented, no new bullet) belong to the item
         while (i < lines.length && lines[i].trim() && /^\s{2,}\S/.test(lines[i]) && !RE_LIST.test(lines[i])) items[items.length - 1].text += `\n${lines[i++].trim()}`;
       }
       out.push(buildList(items));
       continue;
     }
-    // Bild in eigener Zeile
+    // Image on its own line
     const im = RE_IMGLINE.exec(line.trim());
     if (im && safeImg(im[2])) {
       const [alt, size] = im[1].split('|');
@@ -135,7 +135,7 @@ function parseBlocks(lines) {
       i++;
       continue;
     }
-    // Absatz
+    // Paragraph
     const para = [];
     while (i < lines.length && lines[i].trim() && !(para.length && startsBlock(i))) para.push(lines[i++]);
     out.push({ type: 'para', text: para.join('\n') });
@@ -144,7 +144,7 @@ function parseBlocks(lines) {
 }
 
 function buildList(items) {
-  // flache Punkte mit Einrückung → verschachtelte Listen
+  // flat items with indentation → nested lists
   const root = { type: 'list', ordered: items[0].ordered, check: items[0].check !== null, items: [] };
   const stack = [{ indent: items[0].indent, list: root }];
   for (const it of items) {
@@ -166,7 +166,7 @@ function buildList(items) {
 
 const INLINE = [
   { re: /\\([\\`*[\]~+|#>\-.:!_()])/y, make: (m) => document.createTextNode(m[1]) },
-  // (?=(`+))\1: ganze Backtick-Folge als Öffner, ohne sie Zeichen für Zeichen zurückzunehmen (sonst kubische Laufzeit)
+  // (?=(`+))\1: whole backtick run as opener, without backtracking it character by character (otherwise cubic runtime)
   { re: /(?=(`+))\1([\s\S]*?[^`])\1(?!`)/y, make: (m) => h('code', m[2].replace(/^ (.*) $/, '$1')) },
   { re: /!\[([^\]\n]*)\]\(([^)\s]+)\)/y, make: (m) => (safeImg(m[2]) ? h('img', { src: m[2], alt: m[1].split('|')[0], loading: 'lazy' }) : document.createTextNode(m[0])) },
   { re: /\[((?:\\.|[^\]\\])+)\]\(([^)\s]+)\)/y, make: (m, o) => { const href = safeHref(m[2]); if (!href) return inline(m[1], o); const a = h('a', linkAttrs(href, o)); a.append(inline(m[1], { ...o, noAuto: true })); return a; } },
@@ -180,7 +180,7 @@ const INLINE = [
 const linkAttrs = (href, o) => (/^\/(?![/\\])/.test(href) && !o.edit ? { href, 'data-link': '' } : /^https?:/.test(href) ? { href, target: '_blank', rel: 'noopener noreferrer' } : { href });
 function wrap(tag, text, o) { const el = h(tag); el.append(inline(text, o)); return el; }
 
-/** Inline-Text → DocumentFragment */
+/** Inline text → DocumentFragment */
 export function inline(text, o = {}) {
   const frag = document.createDocumentFragment();
   const s = String(text || '');
@@ -191,7 +191,7 @@ export function inline(text, o = {}) {
     const c = s[i];
     if ('\\`![*+~h@'.includes(c) || /[A-Za-z0-9._%+-]/.test(c)) {
       for (const tk of INLINE) {
-        // E-Mail nur an Wortanfang prüfen
+        // Check for email only at word start
         if ((tk.re.source.startsWith('([A-Za-z0-9') || tk.re.source.startsWith('(https?')) && o.noAuto) continue;
         if (tk.re.source.startsWith('([A-Za-z0-9') && i > 0 && /[A-Za-z0-9._%+-]/.test(s[i - 1])) continue;
         if (tk.re.source.startsWith('(https?') && i > 0 && /[A-Za-z0-9]/.test(s[i - 1])) continue;
@@ -199,7 +199,7 @@ export function inline(text, o = {}) {
         const m = tk.re.exec(s);
         if (m) { flush(); frag.append(tk.make(m, o)); i += m[0].length; continue outer; }
       }
-      // Backtick-Folge ohne passendes Ende: ganz als Text übernehmen (nicht an jeder Stelle neu suchen)
+      // Backtick run without a matching end: take it entirely as text (do not search again at every position)
       if (c === '`') { let j = i; while (s[j] === '`') j++; buf += s.slice(i, j); i = j; continue; }
     }
     buf += c; i++;
@@ -208,7 +208,7 @@ export function inline(text, o = {}) {
   return frag;
 }
 
-// ---------------------------------------------------------------- Anzeige / Editor-Inhalt
+// ---------------------------------------------------------------- Display / editor content
 
 export const slug = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 60) || 'abschnitt';
 
@@ -252,7 +252,7 @@ function renderBlocks(blocks, o, parent) {
   }
 }
 
-/** Text → Element (Ansicht oder, mit { edit: true }, Inhalt für den Editor) */
+/** Text → element (view or, with { edit: true }, content for the editor) */
 export function renderDoc(md, o = {}) {
   const root = h('div.kb-doc');
   renderBlocks(parseBlocks(String(md || '').replace(/\r\n?/g, '\n').split('\n')), o, root);
@@ -260,10 +260,10 @@ export function renderDoc(md, o = {}) {
   return root;
 }
 
-/** Überschriften für das Inhaltsverzeichnis */
+/** Headings for the table of contents */
 export const headings = (root) => [...root.querySelectorAll('h1, h2, h3')].map((x) => ({ id: x.id, level: Number(x.tagName[1]), text: x.textContent }));
 
-// ---------------------------------------------------------------- Schreiben (DOM → Text)
+// ---------------------------------------------------------------- Serializing (DOM → text)
 
 const BLOCK_TAGS = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'PRE', 'HR', 'TABLE', 'FIGURE', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'MAIN', 'ASIDE', 'NAV', 'DL', 'DT', 'DD', 'ADDRESS', 'CENTER', 'DETAILS', 'SUMMARY', 'THEAD', 'TBODY', 'TR', 'TD', 'TH']);
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'META', 'LINK', 'TITLE', 'HEAD', 'SVG', 'CANVAS', 'BUTTON', 'SELECT', 'TEXTAREA', 'INPUT', 'COLGROUP']);
@@ -275,7 +275,7 @@ function escText(s, atLineStart) {
   return out;
 }
 
-/** Inline-Inhalt eines Elements → Text. opts.styles: Formatierungen aus style-Angaben übernehmen (beim Einfügen) */
+/** Inline content of an element → text. opts.styles: take formatting from style attributes (when pasting) */
 function inlineMd(node, opts, ctx = { code: false }) {
   let out = '';
   for (const c of node.childNodes) {
@@ -359,12 +359,12 @@ function listMd(el, opts, depth = 0) {
 
 function blocksMd(container, opts) {
   const parts = [];
-  let run = null; // lose Inline-Inhalte auf Blockebene sammeln
+  let run = null; // collect loose inline content at block level
   const flushRun = () => { if (run) { const t = inlineMd(run, opts).replace(/^\n+|\n+$/g, ''); if (t.trim()) parts.push(lineStart(t)); run = null; } };
   const lineStart = (t) => t.split('\n').map((l) => l.replace(/^(\s*)(#|>|[-+](?=\s)|\d+[.)](?=\s)|:::|---|```)/, '$1\\$2')).join('\n');
   for (const c of [...container.childNodes]) {
     if (c.nodeType === 1 && SKIP_TAGS.has(c.tagName)) continue;
-    // Inline-Element, das Blöcke enthält (z. B. <b> um alles beim Einfügen aus Google Docs) → wie ein Container
+    // Inline element containing blocks (e.g. <b> around everything when pasting from Google Docs) → treat as a container
     if (c.nodeType === 1 && !BLOCK_TAGS.has(c.tagName) && c.querySelector([...BLOCK_TAGS].join(','))) { flushRun(); const t = blocksMd(c, opts); if (t.trim()) parts.push(t); continue; }
     const block = c.nodeType === 1 && (BLOCK_TAGS.has(c.tagName) || (c.tagName === 'IMG' && safeImg(c.getAttribute('src')) && !run));
     if (!block) {
@@ -412,7 +412,7 @@ function tableMd(table, opts) {
   return [line(cells[0]), `|${Array(n).fill(' --- ').join('|')}|`, ...cells.slice(1).map(line)].join('\n');
 }
 
-/** Editor- oder eingefügter Inhalt → Text */
+/** Editor or pasted content → text */
 export function toMarkdown(root, opts = {}) {
   return blocksMd(root, opts).replace(/\n{3,}/g, '\n\n').trim();
 }

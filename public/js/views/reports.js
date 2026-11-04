@@ -1,4 +1,4 @@
-// Berichte: wer hat wie viele Tickets bearbeitet und erledigt (für alle Bearbeiter sichtbar)
+// Reports: who worked on and resolved how many tickets (visible to all agents)
 import { api } from '../api.js';
 import { h, mount, icon, select, avatar, toast } from '../dom.js';
 import { t, getLang as lang } from '../i18n.js';
@@ -6,7 +6,7 @@ import { state, navigate } from '../app.js';
 import { satisfactionPanel } from './survey.js';
 import { itilPanel } from './itilReport.js';
 
-// Farben: Kategorienpalette (validiert), Text bleibt in Textfarben
+// Colours: categorical palette (validated), text stays in text colours
 const C_CREATED = '#2a78d6';
 const C_RESOLVED = '#eb6834';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -29,7 +29,7 @@ function duration(hours) {
   return `${nf().format(Math.round(hours / 2.4) / 10)} ${t('reports.days')}`;
 }
 
-// Ein Tooltip für die ganze Seite
+// One tooltip for the whole page
 function tooltip() {
   const el = h('div.chart-tip', { role: 'tooltip', hidden: true });
   document.body.append(el);
@@ -76,7 +76,7 @@ export async function renderReports(content, params) {
   catch (e) { mount(host, h('p.error-text', e.message)); return; }
 
   const tip = tooltip();
-  // Tooltip beim Seitenwechsel entfernen
+  // Remove the tooltip on page change
   const obs = new MutationObserver(() => { if (!document.body.contains(host)) { tip.remove(); obs.disconnect(); } });
   obs.observe(document.body, { childList: true, subtree: true });
 
@@ -97,7 +97,7 @@ export async function renderReports(content, params) {
   if (sat) host.append(sat);
 }
 
-/** Waagerechte Balken: erledigt je Bearbeiter (eine Reihe, Wert direkt am Balken). */
+/** Horizontal bars: resolved per agent (one series, value directly at the bar). */
 function barChart(agents, tip) {
   const rows = agents.filter((a) => a.resolved > 0 || a.active);
   if (!rows.some((a) => a.resolved > 0)) return h('p.muted.chart-empty', t('reports.noneResolved'));
@@ -128,13 +128,13 @@ function barChart(agents, tip) {
   return chart;
 }
 
-// Balken mit 4px abgerundetem Ende, flach an der Grundlinie
+// Bar with a 4px rounded end, flat at the baseline
 function roundedBar(x, y, w, hgt) {
   const r = Math.min(4, w / 2, hgt / 2);
   return `M${x},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + hgt - r} Q${x + w},${y + hgt} ${x + w - r},${y + hgt} H${x} Z`;
 }
 
-/** Linien: erstellt und erledigt je Tag/Woche, eine Achse, Fadenkreuz mit Tooltip. */
+/** Lines: created and resolved per day/week, one axis, crosshair with tooltip. */
 function lineChart(series, tip) {
   const pts = series.points;
   if (!pts.length) return h('p.muted.chart-empty', t('reports.noData'));
@@ -160,14 +160,14 @@ function lineChart(series, tip) {
   }
   const line = (key, color) => svg('path', { d: pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' '), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
   chart.append(line('created', C_CREATED), line('resolved', C_RESOLVED));
-  // Direkte Beschriftung am Linienende (Textfarbe, Farbpunkt trägt die Zuordnung)
+  // Direct label at the line end (text colour; the colour dot carries the mapping)
   const last = pts.length - 1;
   const ends = [['created', C_CREATED, t('reports.created')], ['resolved', C_RESOLVED, t('reports.resolved')]]
     .map(([k, c, label]) => ({ c, label, y: y(pts[last][k]) })).sort((a, b) => a.y - b.y);
   if (ends[1].y - ends[0].y < 14) ends[1].y = ends[0].y + 14;
   for (const e of ends) chart.append(svg('circle', { cx: x(last) + 8, cy: e.y, r: 4, fill: e.c }), svg('text', { x: x(last) + 15, y: e.y + 4, class: 'chart-label' }, e.label));
 
-  // Fadenkreuz
+  // Crosshair
   const cross = svg('line', { y1: m.t, y2: m.t + ph, class: 'chart-cross', visibility: 'hidden' });
   const dots = [C_CREATED, C_RESOLVED].map((c) => svg('circle', { r: 4.5, fill: c, stroke: '#fff', 'stroke-width': 2, visibility: 'hidden' }));
   const hit = svg('rect', { x: m.l, y: m.t, width: pw, height: ph, class: 'chart-hit' });
@@ -200,7 +200,7 @@ function niceStep(max) {
   return Math.max(1, (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pow);
 }
 
-/** Tabelle je Bearbeiter, nach jeder Spalte sortierbar, als CSV herunterladbar. */
+/** Table per agent, sortable by every column, downloadable as CSV. */
 function agentTable(data) {
   const cols = [
     ['displayName', t('reports.colAgent'), 'text'],

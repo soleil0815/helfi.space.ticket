@@ -1,5 +1,5 @@
-// Warteschlangen der Seitenleiste: feste Filter auf die Ticketliste (je Projekt).
-// count: Feld aus /api/queues
+// Sidebar queues: fixed filters on the ticket list (per project).
+// count: field from /api/queues
 export const QUEUES = [
   { id: 'open', label: 'queue.open', params: { status: 'unresolved' }, count: 'open' },
   { id: 'mine', label: 'queue.mine', params: { assignee: 'me', status: 'unresolved' }, count: 'mine' },
@@ -9,7 +9,7 @@ export const QUEUES = [
   { id: 'all', label: 'queue.all', params: {}, count: 'total' },
 ];
 
-// Weitere Ansichten mit Zahl: Serviceanfragen und Vorfälle (offen)
+// More views with a count: service requests and incidents (open)
 export const VIEWS = [
   { id: 'requests', label: 'nav.serviceRequests', icon: 'type-request', params: { type: 'request', status: 'unresolved' }, count: 'requests' },
   { id: 'incidents', label: 'nav.incidents', icon: 'type-incident', params: { type: 'incident', status: 'unresolved' }, count: 'incidents' },
@@ -26,7 +26,7 @@ export function queueHref(q, projectKey) {
   return `/issues?${p}`;
 }
 
-/** Welche Warteschlange/Ansicht entspricht den aktuellen Filtern? (Suche und Sortierung zählen nicht) */
+/** Which queue/view matches the current filters? (search and sorting do not count) */
 export function matchQueue(params) {
   const cur = {};
   for (const k of FILTER_KEYS) if (params.get(k)) cur[k] = params.get(k);

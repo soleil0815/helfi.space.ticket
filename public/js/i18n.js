@@ -1,4 +1,4 @@
-// Texte der Oberfläche (Deutsch / Englisch)
+// UI texts (German / English)
 const de = {
   'app.create': 'Erstellen',
   'app.search': 'Suchen',

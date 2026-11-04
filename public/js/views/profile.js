@@ -1,4 +1,4 @@
-// Eigenes Profil: Sprache, Kennwort (lokale Konten)
+// Own profile: language, password (local accounts)
 import { api } from '../api.js';
 import { h, mount, avatar, field, select, toast, icon } from '../dom.js';
 import { recoveryCodesBox } from './auth.js';
@@ -33,7 +33,7 @@ export function renderProfile(content) {
     h('button.btn.btn-primary', { type: 'submit' }, t('app.save')));
   }
 
-  // Name und E-Mail: lokale Konten selbst, sonst kommen sie aus AD/SSO
+  // Name and email: set by local accounts themselves, otherwise they come from AD/SSO
   let personal;
   if (u.source === 'local') {
     const name = h('input', { value: u.displayName, maxLength: 120, required: true, autocomplete: 'name' });
@@ -90,11 +90,11 @@ async function drawMfa(panel) {
     t(st.network.internal ? 'mfa.youAreInternal' : 'mfa.youAreExternal', { ip: st.network.ip }));
   const modeText = { off: t('mfa.modeOffInfo'), external: t('mfa.modeExternalInfo'), always: t('mfa.modeAlwaysInfo'), internal: t('mfa.modeInternalInfo') }[st.mode];
 
-  // SSO zählt immer als zweiter Faktor: hier nichts einzurichten
+  // SSO always counts as a second factor: nothing to set up here
   if (st.sso === 'always' && !st.enabled) {
     return mount(panel, h('h2', t('mfa.title')), h('p', t('mfa.ssoInfo')), where);
   }
-  // Nur wenn der Anbieter MFA meldet: Hinweis, Einrichtung bleibt möglich
+  // Only if the provider reports MFA: notice, setup remains possible
   const ssoNote = st.sso === 'confirmed' && !st.enabled ? h('p', t('mfa.ssoInfoConfirmed')) : null;
 
   if (!st.enabled) {

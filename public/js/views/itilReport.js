@@ -1,4 +1,4 @@
-// ITIL-Kennzahlen im Bericht: Qualität, SLA-Einhaltung, Changes, Probleme
+// ITIL metrics in the report: quality, SLA compliance, changes, problems
 import { api } from '../api.js';
 import { h } from '../dom.js';
 import { t, getLang } from '../i18n.js';

@@ -1,11 +1,11 @@
-// Major Incident: Hinweis im Ticket, Nachricht an alle Betroffenen
+// Major incident: notice in the ticket, message to everyone affected
 import { api } from '../api.js';
 import { h, icon, modal, toast, field } from '../dom.js';
 import { t } from '../i18n.js';
 import { withEmoji } from '../emoji.js';
 import { openTemplatePicker, fillPlaceholders } from './canned.js';
 
-/** Nachricht an alle Betroffenen (Major Incident oder Problem) */
+/** Message to everyone affected (major incident or problem) */
 export function openBroadcast(tk, refresh) {
   {
     const text = h('textarea', { rows: 7, required: true, maxLength: 20000, placeholder: t('major.messageHint') });

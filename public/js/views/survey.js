@@ -1,10 +1,10 @@
-// Zufriedenheit: öffentliche Bewertungsseite (Link aus der Mail), Bewertung im Ticket, Auswertung
+// Satisfaction: public rating page (link from the email), rating in the ticket, evaluation
 import { api } from '../api.js';
 import { h, mount, icon, toast, fmtDate } from '../dom.js';
 import { t } from '../i18n.js';
 import { authFrame } from './auth.js';
 
-/** Sternreihe; onPick(n) macht sie anklickbar */
+/** Row of stars; onPick(n) makes it clickable */
 export function stars(value, onPick = null, size = '') {
   const box = h(`span.stars${onPick ? '.stars-pick' : ''}${size ? `.stars-${size}` : ''}`, { role: onPick ? 'radiogroup' : 'img', 'aria-label': value ? `${value}/5` : t('survey.none') });
   for (let n = 1; n <= 5; n++) {
@@ -16,7 +16,7 @@ export function stars(value, onPick = null, size = '') {
   return box;
 }
 
-/** /rate/<token>?r=1..5 – ohne Anmeldung. Ein Klick in der Mail genügt: die Wahl wird sofort gespeichert. */
+/** /rate/<token>?r=1..5 – no login. One click in the email is enough: the choice is saved immediately. */
 export async function renderRate(root, path, params) {
   const token = path.split('/')[2] || '';
   const box = h('div', h('div.loading', t('app.loading')));
@@ -47,7 +47,7 @@ export async function renderRate(root, path, params) {
   draw();
 }
 
-/** Im Ticket: Melder bewertet, Bearbeiter sehen das Ergebnis */
+/** In the ticket: the reporter rates, agents see the result */
 export function ratingBox(tk, refresh, agent) {
   const r = tk.rating;
   if (!r) return null;
@@ -65,7 +65,7 @@ export function ratingBox(tk, refresh, agent) {
     r.value ? h('div.rating-form', comment, h('button.btn.btn-subtle.small', { type: 'button', onclick: () => save(r.value, true) }, t('survey.sendComment'))) : null);
 }
 
-/** Abschnitt im Bericht */
+/** Section in the report */
 export async function satisfactionPanel(range) {
   let d;
   try { d = await api.satisfaction(range); } catch { return null; }

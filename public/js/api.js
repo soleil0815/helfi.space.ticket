@@ -1,4 +1,4 @@
-// Zugriff auf die Helfi.Space-API.
+// Access to the Helfi.Space API.
 export class ApiError extends Error {
   constructor(status, body) {
     super(body?.error?.message || `HTTP ${status}`);
@@ -15,7 +15,7 @@ async function request(method, url, body, { raw = false } = {}) {
   const res = await fetch(url, opts);
   if (raw) return res;
   let data = null;
-  try { data = await res.json(); } catch { /* leer */ }
+  try { data = await res.json(); } catch { /* empty */ }
   if (!res.ok) {
     if (res.status === 401 && !url.includes('/auth/')) window.dispatchEvent(new CustomEvent('helfi:unauthorized'));
     throw new ApiError(res.status, data);

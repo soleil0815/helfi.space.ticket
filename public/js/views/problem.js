@@ -1,11 +1,11 @@
-// Problem-Management: Ursache, Workaround, bekannter Fehler; Hinweis in betroffenen Störungen
+// Problem management: root cause, workaround, known error; notice in affected incidents
 import { api } from '../api.js';
 import { h, icon, toast, field, richText } from '../dom.js';
 import { t } from '../i18n.js';
 import { navigate } from '../app.js';
 import { openBroadcast } from './major.js';
 
-/** Abschnitt im Problem-Ticket */
+/** Section in the problem ticket */
 export function problemSection(tk, refresh) {
   const f = tk.fields || {};
   const cause = h('textarea', { rows: 4, maxLength: 20000, placeholder: t('problem.rootCauseHint') });
@@ -29,7 +29,7 @@ export function problemSection(tk, refresh) {
     h('div.form-actions', h('button.btn.btn-primary', { type: 'button', onclick: save }, t('app.save'))));
 }
 
-/** Hinweis in einer Störung, deren Ursache ein bekanntes Problem ist */
+/** Notice in an incident whose cause is a known problem */
 export function problemHint(tk) {
   if (!tk.problems?.length) return null;
   return h('div.problem-hint', tk.problems.map((p) => h('div',
@@ -49,7 +49,7 @@ export function problemHint(tk) {
       }, t('problem.useWorkaround'))) : null)));
 }
 
-/** Knopf in Störungen: Problem anlegen und verknüpfen */
+/** Button in incidents: create and link a problem */
 export function createProblemButton(tk) {
   if (tk.type !== 'incident') return null;
   return h('button.btn.btn-subtle.small', {

@@ -1,9 +1,9 @@
-// Darstellung eines Textvergleichs (Wissensdatenbank-Versionen, frühere Fassung einer Ticketbeschreibung)
+// Rendering of a text diff (knowledge base versions, previous version of a ticket description)
 import { h } from './dom.js';
 import { t } from './i18n.js';
 import { diffLines } from './diff.js';
 
-/** Vergleich alt → neu; unveränderte Abschnitte werden zusammengeklappt (3 Zeilen Umgebung). null = gleich */
+/** Diff old → new; unchanged sections are collapsed (3 lines of context). null = identical */
 export function diffView(oldText, newText) {
   const lines = diffLines(oldText ?? '', newText ?? '');
   if (!lines.some((l) => l.op !== '=')) return null;

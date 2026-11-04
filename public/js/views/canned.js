@@ -1,4 +1,4 @@
-// Antwortvorlagen: Auswahl am Kommentarfeld, „Als Vorlage speichern“ und Verwaltung
+// Canned responses: picker at the comment field, “Save as template” and management
 import { api } from '../api.js';
 import { h, mount, icon, modal, toast, field } from '../dom.js';
 import { t } from '../i18n.js';
@@ -6,7 +6,7 @@ import { state } from '../app.js';
 import { fillPlaceholders as fill } from '../placeholders.js';
 import { withEmoji } from '../emoji.js';
 
-/** Platzhalter beim Einfügen ersetzen; Bearbeiter = angemeldete Person. */
+/** Replace placeholders on insert; agent = logged-in person. */
 export function fillPlaceholders(text, tk, user = state.user) {
   return fill(text, tk, user);
 }
@@ -17,7 +17,7 @@ async function load(force = false) {
   return cache;
 }
 
-/** Aufklappliste mit Suche; onPick(vorlage) beim Auswählen. */
+/** Dropdown list with search; onPick(template) on selection. */
 export async function openTemplatePicker(anchor, onPick) {
   document.querySelectorAll('.menu').forEach((m) => m.remove());
   const search = h('input.menu-search', { type: 'search', placeholder: t('canned.search'), autocomplete: 'off' });
@@ -36,7 +36,7 @@ export async function openTemplatePicker(anchor, onPick) {
   try { items = await load(); } catch (e) { toast(e.message, 'error'); close(); return; }
   const draw = () => {
     const q = search.value.trim().toLowerCase();
-    // Treffer im Namen vor Treffern im Text, Namensanfang zuerst
+    // Matches in the name before matches in the text, name prefix first
     const score = (x) => {
       const ti = x.title.toLowerCase();
       if (!q) return 0;
@@ -49,7 +49,7 @@ export async function openTemplatePicker(anchor, onPick) {
       type: 'button', role: 'menuitem', title: x.body,
       onclick: () => { close(); onPick(x); },
     }, h('span.template-title', x.title), h('span.template-preview', x.body.replace(/\s+/g, ' ').slice(0, 80))))] : []);
-    // Beim Suchen eine Liste nach Treffergüte, sonst nach „Für alle“/„Meine“ gruppiert
+    // When searching, one list by match quality, otherwise grouped by “For everyone”/“Mine”
     const nodes = q
       ? group(t('canned.results'), hits)
       : [...group(t('canned.shared'), hits.filter((x) => x.shared)), ...group(t('canned.personal'), hits.filter((x) => !x.shared))];
@@ -64,7 +64,7 @@ export async function openTemplatePicker(anchor, onPick) {
   search.focus();
 }
 
-/** Dialog zum Anlegen/Bearbeiten. shared: für alle (nur Admins). */
+/** Dialog for creating/editing. shared: for everyone (admins only). */
 export function templateDialog({ existing = null, body = '', shared = false, onSaved } = {}) {
   const title = h('input', { required: true, maxLength: 100, value: existing?.title || '' });
   const text = h('textarea', { rows: 8, required: true, maxLength: 10000 });
@@ -95,7 +95,7 @@ export function templateDialog({ existing = null, body = '', shared = false, onS
   setTimeout(() => title.focus(), 40);
 }
 
-/** Verwaltung: shared = Vorlagen für alle (Administration), sonst die eigenen (Profil). */
+/** Management: shared = templates for everyone (administration), otherwise own ones (profile). */
 export function templatesPanel({ shared }) {
   const panel = h('section.panel', h('div.loading', t('app.loading')));
   const draw = async () => {

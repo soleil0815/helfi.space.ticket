@@ -1,4 +1,4 @@
-// Geräte und Dienste: Liste, Eintrag mit Ticket-Verlauf, CSV-Import, Abschnitt im Ticket
+// Devices and services: list, entry with ticket history, CSV import, section in the ticket
 import { api } from '../api.js';
 import { h, mount, icon, toast, field, select, modal, lozenge, typeIcon, fmtDate } from '../dom.js';
 import { peoplePicker } from '../peoplepicker.js';
@@ -83,7 +83,7 @@ function editor(content, item) {
   const kindSel = select(CI_KINDS.map((k) => [k, kindLabel(k)]), v.kind); kindSel.addEventListener('change', () => { v.kind = kindSel.value; });
   const statusSel = select(CI_STATUS.map((s) => [s, t(`ci.status.${s}`)]), v.status); statusSel.addEventListener('change', () => { v.status = statusSel.value; });
   const desc = h('textarea', { rows: 3 }); desc.value = v.description; desc.addEventListener('input', () => { v.description = desc.value; });
-  // Verantwortlich: Personensuche (nur vorhandene Personen)
+  // Owner: people search (existing people only)
   const owner = h('input', { value: item?.owner?.displayName || '', placeholder: t('ci.ownerHint'), 'aria-label': t('ci.f.owner') });
   owner.addEventListener('input', () => { v.ownerId = null; });
   peoplePicker(owner, {
@@ -133,7 +133,7 @@ function importDialog() {
   });
 }
 
-/** Abschnitt „Geräte & Dienste“ in der Ticketansicht (nur Bearbeiter) */
+/** “Devices & services” section in the ticket view (agents only) */
 export function ciSection(tk, refresh) {
   const cis = tk.cis || [];
   const listId = `ci-${Math.random().toString(36).slice(2, 8)}`;
@@ -145,7 +145,7 @@ export function ciSection(tk, refresh) {
     const q = input.value.trim();
     if (q.length < 2) return;
     timer = setTimeout(async () => {
-      try { mount(dl, (await api.cis({ q })).items.slice(0, 15).map((x) => h('option', { value: x.name }, [t(`ci.kind.${x.kind}`), x.location].filter(Boolean).join(' · ')))); } catch { /* egal */ }
+      try { mount(dl, (await api.cis({ q })).items.slice(0, 15).map((x) => h('option', { value: x.name }, [t(`ci.kind.${x.kind}`), x.location].filter(Boolean).join(' · ')))); } catch { /* ignore */ }
     }, 200);
   });
   const form = h('form.link-form', {
