@@ -1,4 +1,4 @@
-// Platzhalter in Antwortvorlagen ersetzen (deutsch und englisch). Ohne Abhängigkeiten, damit testbar.
+// Replace placeholders in canned responses (German and English). No dependencies, so it is testable.
 export function fillPlaceholders(text, tk, user) {
   const values = {
     melder: tk?.reporter?.displayName || '', reporter: tk?.reporter?.displayName || '',

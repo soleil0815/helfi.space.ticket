@@ -1,4 +1,4 @@
-// Zusammenfassung eines Projekts: Kennzahlen, Verteilung, dringendste Tickets
+// Project summary: metrics, distribution, most urgent tickets
 import { api } from '../api.js';
 import { h, mount, lozenge, typeIcon, priorityIcon, relTime, avatar } from '../dom.js';
 import { t } from '../i18n.js';
@@ -19,7 +19,7 @@ export async function renderSummary(content) {
 
   const tile = (n, label, href, warn = false) => h('a.stat-tile.stat-link', { href, 'data-link': '', class: warn && n ? 'stat-warn' : '' },
     h('div.stat-value', String(n)), h('div.stat-label', label));
-  // Verteilung als waagerechte Balken (eine Farbe; der Wert steht daneben)
+  // Distribution as horizontal bars (one colour; the value sits next to it)
   const dist = (title, data, order, label, iconFn, params) => {
     const max = Math.max(1, ...order.map((k) => data[k] || 0));
     return h('section.panel.dist',

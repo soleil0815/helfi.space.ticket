@@ -1,4 +1,4 @@
-// Kleine DOM-Hilfen. Texte immer über textContent – nie Benutzerdaten als HTML.
+// Small DOM helpers. Text always via textContent – never user data as HTML.
 import { t, getLang } from './i18n.js';
 
 /** h('div.card#x', {onclick, title}, child1, 'text', ...) */
@@ -32,7 +32,7 @@ function append(el, children) {
 export function clear(el) { while (el.firstChild) el.firstChild.remove(); return el; }
 export function mount(el, ...children) { clear(el); append(el, children); return el; }
 
-/** SVG-Symbol aus dem Sprite in index.html */
+/** SVG icon from the sprite in index.html */
 export function icon(name, cls = '') {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
@@ -44,14 +44,14 @@ export function icon(name, cls = '') {
   return svg;
 }
 
-/** Text mit Zeilenumbrüchen und klickbaren Links – ohne HTML zu interpretieren. */
+/** Text with line breaks and clickable links – without interpreting HTML. */
 export function richText(text) {
   const wrap = h('div.rich');
   const re = /(https?:\/\/[^\s<>"')]+)/g;
-  // Eingefügte Bilder: nur Anhänge dieses Systems (/api/attachments/ID), nie fremde Adressen
+  // Pasted images: only attachments of this system (/api/attachments/ID), never external URLs
   const img = /!\[([^\]\n]{0,200})\]\(\/api\/attachments\/(\d+)\)/g;
-  // Links (http/https) und Mailadressen anklickbar, **fett** – alles als Text, nie als HTML
-  // Mailadresse nur am Wortanfang und mit begrenzter Länge – sonst quadratische Laufzeit bei langen Wörtern
+  // Links (http/https) and email addresses clickable, **bold** – all as text, never as HTML
+  // Email address only at word start and with limited length – otherwise quadratic runtime on long words
   const mail = /((?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}(?![A-Za-z]))/;
   const linksOnly = (p, part) => {
     let last = 0;
@@ -139,7 +139,7 @@ export function fmtSize(b) {
   return `${(b / 1048576).toFixed(1)} MB`;
 }
 
-// ---------- Rückmeldungen ----------
+// ---------- Feedback ----------
 export function toast(message, kind = 'info') {
   let host = document.getElementById('toasts');
   if (!host) { host = h('div#toasts'); document.body.append(host); }
@@ -149,7 +149,7 @@ export function toast(message, kind = 'info') {
   setTimeout(() => el.remove(), 4000);
 }
 
-/** Modal-Dialog. Liefert { el, close }. */
+/** Modal dialog. Returns { el, close }. */
 export function modal(title, body, { footer = null, wide = false, onClose } = {}) {
   const close = () => { overlay.remove(); document.removeEventListener('keydown', esc); onClose?.(); };
   const esc = (e) => { if (e.key === 'Escape') close(); };
@@ -165,7 +165,7 @@ export function modal(title, body, { footer = null, wide = false, onClose } = {}
   return { el: overlay, close };
 }
 
-/** Einfaches Aufklappmenü an einem Element. items: [{label, onClick, icon, active}] */
+/** Simple dropdown menu on an element. items: [{label, onClick, icon, active}] */
 export function dropdown(anchor, items, { align = 'left' } = {}) {
   document.querySelectorAll('.menu').forEach((m) => m.remove());
   const menu = h('div.menu', { role: 'menu' }, items.map((it) => it === '-' ? h('div.menu-sep') : h('button.menu-item', {
@@ -183,9 +183,9 @@ export function dropdown(anchor, items, { align = 'left' } = {}) {
   return menu;
 }
 
-/** Formularfeld mit Beschriftung */
+/** Form field with label */
 export function field(label, input, hint) {
-  // Bei einem Textfeld mit Zusatzknöpfen (z. B. Emoji) gehört das Label zum Textfeld selbst
+  // For a text field with extra buttons (e.g. emoji) the label belongs to the text field itself
   const target = input.classList?.contains('emoji-wrap') ? input.querySelector('textarea') : input;
   const id = target.id || `f-${Math.random().toString(36).slice(2, 9)}`;
   target.id = id;

@@ -1,4 +1,4 @@
-// Ticketansicht (zweispaltig) und Dialog "Ticket erstellen"
+// Ticket view (two columns) and "Create ticket" dialog
 import { api } from '../api.js';
 import {
   h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize,
@@ -29,7 +29,7 @@ const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderTicket(content, key) {
   let tk = (await api.ticket(key)).ticket;
-  // Inzwischen weiternavigiert (route() hat neu aufgebaut): keine Kürzel, keinen Titel, keine Adresse mehr setzen
+  // Navigated away meanwhile (route() has rebuilt): no longer set shortcuts, title or URL
   if (!content.isConnected) return;
   if (tk.key !== key) history.replaceState({}, '', `/browse/${tk.key}`);
   document.title = `[${tk.key}] ${tk.title} – Helfi.Space`;
@@ -40,20 +40,20 @@ export async function renderTicket(content, key) {
   const save = async (patch) => {
     try {
       tk = { ...tk, ...(await api.updateTicket(tk.key, patch)).ticket };
-      // Neuer Schlüssel nach Projektwechsel → Adresse anpassen
+      // New key after project change → update URL
       if (content.isConnected && location.pathname !== `/browse/${tk.key}`) history.replaceState({}, '', `/browse/${tk.key}`);
       await refresh();
     } catch (e) { toast(e.message, 'error'); }
   };
   const refresh = async () => { tk = (await api.ticket(tk.key)).ticket; draw(); };
 
-  // ---------- Bausteine ----------
+  // ---------- Building blocks ----------
   function titleEl() {
     const el = h('h1.ticket-title', { tabindex: canEditText ? 0 : -1, class: canEditText ? 'editable' : '' }, tk.title);
     if (!canEditText) return el;
     const edit = () => {
       const input = h('input.title-input', { value: tk.title, maxLength: 255 });
-      let finished = false; // Esc entfernt das Feld – das folgende „blur“ darf nicht mehr speichern
+      let finished = false; // Esc removes the field – the following “blur” must not save anymore
       const done = async (commit) => {
         if (finished) return;
         finished = true;
@@ -72,7 +72,7 @@ export async function renderTicket(content, key) {
   }
 
   function descriptionEl() {
-    // HTML-Mail: Umschalter „Formatiert | Text“; bearbeitet wird in der Textfassung
+    // HTML email: toggle “Formatted | Text”; editing happens in the text version
     if (tk.descriptionHtml) return mailView(plainDescriptionEl, `/api/tickets/${encodeURIComponent(tk.key)}/mail-html`);
     return plainDescriptionEl();
   }
@@ -131,7 +131,7 @@ export async function renderTicket(content, key) {
     const items = [];
     if (tab !== 'history') for (const c of tk.comments) items.push({ at: c.createdAt, el: commentEl(c) });
     if (tab !== 'comments') for (const a of tk.activity) items.push({ at: a.createdAt, el: historyEl(a) });
-    items.sort((a, b) => (a.at < b.at ? 1 : -1)); // neueste oben
+    items.sort((a, b) => (a.at < b.at ? 1 : -1)); // newest first
 
     return h('section.ticket-section',
       h('h3', t('ticket.activity')),
@@ -203,7 +203,7 @@ export async function renderTicket(content, key) {
     const modeBtns = agent ? h('div.composer-modes',
       h('button.mode.active', { type: 'button', onclick: (e) => setMode(false, e.currentTarget) }, t('ticket.reply')),
       h('button.mode', { type: 'button', onclick: (e) => setMode(true, e.currentTarget) }, icon('lock'), t('ticket.internalNote'))) : null;
-    // Antwortvorlagen (nur Bearbeiter): an der Cursorposition einfügen, Platzhalter ersetzen
+    // Canned responses (agents only): insert at the cursor position, replace placeholders
     const insertTemplate = (x) => {
       const text = fillPlaceholders(x.body, tk);
       ta.focus();
@@ -241,7 +241,7 @@ export async function renderTicket(content, key) {
     return box;
   }
 
-  // ---------- Rechte Spalte ----------
+  // ---------- Right column ----------
   function statusButton() {
     if (!agent) return lozenge(tk.status);
     return h(`button.status-btn.status-${tk.status}`, {
@@ -260,7 +260,7 @@ export async function renderTicket(content, key) {
     }, render(current));
   }
 
-  // Anfrage-Teilnehmer: sehen das Ticket, können kommentieren, werden benachrichtigt
+  // Request participants: see the ticket, can comment, get notified
   function participantsEl() {
     const list = tk.participants || [];
     const canRemove = (p) => agent || tk.reporter?.id === state.user.id || p.id === state.user.id;
@@ -314,7 +314,7 @@ export async function renderTicket(content, key) {
       const wrap = h('div.editable-inline', { tabindex: 0, 'data-shortcut': 'labels' }, view);
       const edit = () => {
         const input = h('input', { value: tk.labels.join(', '), placeholder: t('create.labelsHint') });
-        let finished = false; // Esc = abbrechen, auch wenn danach noch „blur“ kommt
+        let finished = false; // Esc = cancel, even if “blur” follows
         const done = (commit) => { if (finished) return; finished = true; if (commit) save({ labels: input.value }); else draw(); };
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); });
         input.addEventListener('blur', () => done(true));
@@ -333,11 +333,11 @@ export async function renderTicket(content, key) {
       h('div.side-top', statusButton(),
         h('button.btn-icon', {
           type: 'button', title: t('ticket.copyLink'),
-          onclick: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* egal */ } },
+          onclick: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* ignore */ } },
         }, icon('link')),
         agent && (tk.type === 'incident' || tk.major) ? h('button.btn.btn-subtle.small', {
           type: 'button', class: tk.major ? 'major-on' : '', title: t('major.toggleHint'),
-          onclick: async () => { await save({ major: !tk.major }); try { state.boot = await api.bootstrap(); } catch { /* egal */ } route(); },
+          onclick: async () => { await save({ major: !tk.major }); try { state.boot = await api.bootstrap(); } catch { /* ignore */ } route(); },
         }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null,
         agent ? createProblemButton(tk) : null,
         agent ? kbFromTicketButton(tk) : null),
@@ -345,7 +345,7 @@ export async function renderTicket(content, key) {
         h('button.details-head', {
           type: 'button', 'aria-expanded': String(detailsOpen),
           onclick: (e) => {
-            // nur auf dem Smartphone aufklappbar; am großen Bildschirm immer offen
+            // collapsible only on smartphones; always open on large screens
             detailsOpen = !detailsOpen;
             const box = e.currentTarget.closest('.details-box');
             box.classList.toggle('open', detailsOpen);
@@ -399,7 +399,7 @@ export async function renderTicket(content, key) {
         agent ? ciSection(tk, refresh) : null,
         activityEl()),
       sidePanel());
-    // Dateien per Drag & Drop auf die Seite
+    // Files via drag & drop onto the page
     page.addEventListener('dragover', (e) => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); page.classList.add('file-drop'); } });
     page.addEventListener('dragleave', (e) => { if (!page.contains(e.relatedTarget)) page.classList.remove('file-drop'); });
     page.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); page.classList.remove('file-drop'); uploadFiles(e.dataTransfer.files); } });
@@ -408,7 +408,7 @@ export async function renderTicket(content, key) {
 
   draw();
 
-  // ---------- Tastenkürzel ----------
+  // ---------- Keyboard shortcuts ----------
   const focusComment = () => {
     if (tab === 'history') { tab = 'comments'; draw(); }
     const ta = document.querySelector('.composer textarea');
@@ -436,7 +436,7 @@ export async function renderTicket(content, key) {
           { group: g('ticket.comments'), label: t('ticket.addComment'), hint: 'm', run: focusComment },
           { group: g('ticket.comments'), label: t('canned.insertHint'), run: () => { focusComment(); setTimeout(() => click('[data-shortcut=template]'), 50); } },
           { group: g('ticket.labels'), label: t('keys.labels'), hint: 'l', run: () => click('[data-shortcut=labels]') },
-          { group: g('ticket.details'), label: t('ticket.copyLink'), run: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* egal */ } } },
+          { group: g('ticket.details'), label: t('ticket.copyLink'), run: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* ignore */ } } },
         ].filter(Boolean));
       },
     });
@@ -444,7 +444,7 @@ export async function renderTicket(content, key) {
   if (content.isConnected) setPageShortcuts(keys);
 }
 
-// ---------- Ticket erstellen ----------
+// ---------- Create ticket ----------
 export function openCreateDialog(defaults = {}) {
   if (!state.isAgent && !state.boot.allowSelfService) return;
   const agent = state.isAgent;
@@ -453,7 +453,7 @@ export function openCreateDialog(defaults = {}) {
   const type = select(typesFor(agent).map((x) => [x, t(`type.${x}`)]), defaults.type || (agent ? 'task' : 'request'));
   const summary = h('input', { required: true, maxLength: 255, value: defaults.title || '' });
   const desc = h('textarea', { rows: 6, placeholder: t('create.descriptionHint') });
-  const descPaste = enableImagePaste(desc); // noch kein Ticket: Bilder nach dem Anlegen hochladen
+  const descPaste = enableImagePaste(desc); // no ticket yet: upload images after creation
   const prio = select(PRIOS.map((x) => [x, t(`priority.${x}`)]), 'medium');
   const assignee = select([['', t('app.unassigned')], ...state.agents.map((a) => [a.id, a.displayName])], '');
   const labels = h('input', { placeholder: t('create.labelsHint') });
@@ -471,11 +471,11 @@ export function openCreateDialog(defaults = {}) {
         const body = { projectId: Number(project.value), type: type.value, title: summary.value.trim(), description: desc.value, priority: prio.value };
         if (agent) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null });
         const pend = descPaste.takePending();
-        if (pend.length) body.description = replacePending(body.description, new Map()); // Platzhalter erst nach dem Hochladen ersetzen
+        if (pend.length) body.description = replacePending(body.description, new Map()); // replace placeholders only after uploading
         const r = await api.createTicket(body);
         if (files.files.length) await api.upload(r.ticket.key, [...files.files]);
         if (pend.length) {
-          // eingefügte Bilder hochladen und in die Beschreibung einsetzen
+          // upload pasted images and insert them into the description
           const { ids } = await api.upload(r.ticket.key, pend.map(([, f]) => f), { draft: true });
           const map = new Map(pend.map(([token], i) => [token, ids[i]]));
           await api.updateTicket(r.ticket.key, { description: replacePending(desc.value, map) });

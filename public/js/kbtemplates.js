@@ -1,4 +1,4 @@
-// Mitgelieferte Vorlagen für Wissensartikel (je Sprache). Eigene Vorlagen liegen in der Datenbank.
+// Built-in templates for knowledge articles (per language). Custom templates live in the database.
 import { getLang } from './i18n.js';
 
 const DE = [

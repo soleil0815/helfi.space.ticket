@@ -1,10 +1,10 @@
-// Administration → Import aus einem anderen Ticketsystem (REST-API, Cloud oder Server/Data Center)
+// Administration → import from another ticket system (REST API, Cloud or Server/Data Center)
 import { api } from '../api.js';
 import { h, mount, icon, field, select, toast } from '../dom.js';
 import { t } from '../i18n.js';
 import { reloadBase } from '../app.js';
 
-// Verbindungsdaten nur im Speicher der Seite – sie werden nirgends gespeichert
+// Connection data only in page memory – it is never stored
 let conn = { type: 'cloud', baseUrl: '', email: '', token: '', username: '', password: '', verifyTls: true, caPem: '' };
 let projects = [];
 let connInfo = { user: '', server: {} };
@@ -28,7 +28,7 @@ function header(step) {
     h('ol.steps-bar', steps.map((s, i) => h('li', { class: i === step ? 'active' : (i < step ? 'done' : '') }, h('span.n', String(i + 1)), t(s)))));
 }
 
-// ---------- 1. Verbinden ----------
+// ---------- 1. Connect ----------
 function connectStep(body, lastJob) {
   const err = h('div.form-error', { hidden: true });
   const bind = (key, attrs = {}) => {
@@ -86,7 +86,7 @@ function lastJobPanel(job) {
   return h('section.panel', h('h3', t('imp.lastRun')), summary(job));
 }
 
-// ---------- 2. Projekte ----------
+// ---------- 2. Projects ----------
 function projectsStep(body, info) {
   const err = h('div.form-error', { hidden: true });
   const rows = projects.map((p) => {
@@ -120,7 +120,7 @@ function projectsStep(body, info) {
       h('div.form-actions', h('button.btn.btn-subtle', { type: 'button', onclick: () => connectStep(body) }, t('imp.back')), next)));
 }
 
-// ---------- 3. Zuordnung ----------
+// ---------- 3. Mapping ----------
 function mappingStep(body, chosen, info) {
   const statusMap = Object.fromEntries(info.statuses.map((s) => [s.name, s.suggested]));
   const typeMap = Object.fromEntries(info.types.map((s) => [s.name, s.suggested]));
@@ -160,7 +160,7 @@ function mappingStep(body, chosen, info) {
       h('div.form-actions', h('button.btn.btn-subtle', { type: 'button', onclick: () => projectsStep(body, connInfo) }, t('imp.back')), start)));
 }
 
-// ---------- 4. Fortschritt ----------
+// ---------- 4. Progress ----------
 function summary(job) {
   const c = job.counts;
   return h('div',

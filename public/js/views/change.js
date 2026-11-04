@@ -1,4 +1,4 @@
-// Change-Management: Abschnitt im Change-Ticket, Genehmigung, Kalender, Einstellungen
+// Change management: section in the change ticket, approval, calendar, settings
 import { api } from '../api.js';
 import { h, mount, icon, toast, field, select, modal, fmtDate, richText, avatar } from '../dom.js';
 import { t, getLang } from '../i18n.js';
@@ -7,11 +7,11 @@ import { state } from '../app.js';
 const PHASES = ['draft', 'approval', 'approved', 'scheduled', 'implementing', 'review', 'closed'];
 const TEXT_FIELDS = ['reason', 'implementationPlan', 'backoutPlan', 'testPlan'];
 
-// ISO (UTC) ↔ Eingabefeld datetime-local (Ortszeit)
+// ISO (UTC) ↔ datetime-local input (local time)
 const toLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 const fromLocal = (v) => (v ? new Date(v).toISOString() : '');
 
-/** Fehlermeldung „bitte ausfüllen“ mit Feldnamen statt interner Namen */
+/** “Please fill in” error message with field labels instead of internal names */
 function errorText(e) {
   if (e.code === 'err.changeMissing' && e.detail) return t('change.missing', { fields: String(e.detail).split(',').map((n) => t(`change.f.${n}`)).join(', ') });
   return e.message;
@@ -59,7 +59,7 @@ export function changeSection(tk, refresh) {
     { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'change-close' }, t('change.go.closed'))] });
   };
 
-  // Vorlage für Standard-Changes
+  // Template for standard changes
   const templatePick = (f.changeType === 'standard' && c.phase === 'draft') ? (() => {
     const s = h('select', h('option', { value: '' }, t('change.templatePick')));
     api.changeTemplates().then((r) => {
@@ -114,7 +114,7 @@ function approvalsBox(tk, c, refresh) {
       h('button.btn.btn-danger.small', { type: 'button', onclick: () => decide('reject') }, t('change.reject'))) : null);
 }
 
-// ---------- Change-Kalender ----------
+// ---------- Change calendar ----------
 export async function renderChangeCalendar(content, params) {
   const now = new Date();
   const base = /^\d{4}-\d{2}$/.test(params.get('month') || '') ? new Date(`${params.get('month')}-01T00:00:00`) : new Date(now.getFullYear(), now.getMonth(), 1);
@@ -122,7 +122,7 @@ export async function renderChangeCalendar(content, params) {
   const next = new Date(base.getFullYear(), base.getMonth() + 1, 1);
   const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1);
   const ym = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  // Raster ab Montag
+  // Grid starting Monday
   const gridStart = new Date(first); gridStart.setDate(first.getDate() - ((first.getDay() + 6) % 7));
   const gridEnd = new Date(gridStart); gridEnd.setDate(gridStart.getDate() + 42);
   const { changes } = await api.changeCalendar({ from: gridStart.toISOString(), to: gridEnd.toISOString() });
@@ -160,7 +160,7 @@ export async function renderChangeCalendar(content, params) {
 // ---------- Administration → Change ----------
 export async function changeAdminPage(body, s, { saveBar, saveKeys }) {
   const { users } = await api.users();
-  const agents = users; // aktive Bearbeiter und Admins
+  const agents = users; // active agents and admins
   const chosen = new Set(String(s['change.approvers'] || '').split(/[\s,;]+/).map(Number).filter(Boolean));
   const sync = () => { s['change.approvers'] = [...chosen].join(','); };
   const boxes = agents.map((u) => {

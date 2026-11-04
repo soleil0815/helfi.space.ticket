@@ -1,4 +1,4 @@
-// Administration: Allgemein, Projekte, Benutzer, Active Directory, SSO, E-Mail, System
+// Administration: general, projects, users, Active Directory, SSO, email, system
 import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
@@ -34,7 +34,7 @@ export async function renderAdmin(content, section) {
     h('div.page-head', h('h1', t('admin.title'))),
     h('div.admin',
       h('nav.admin-nav', SECTIONS.map(([id, label, ic]) => h('a', { href: `/admin/${id}`, 'data-link': '', class: id === section ? 'active' : '' }, icon(ic), t(label)))),
-      // Smartphone: Auswahlliste statt Spalte
+      // Smartphone: select list instead of column
       select(SECTIONS.map(([id, label]) => [id, t(label)]), section, { class: 'admin-nav-select', 'aria-label': t('admin.section'), onchange: (e) => navigate(`/admin/${e.target.value}`) }),
       body));
 
@@ -51,7 +51,7 @@ export async function renderAdmin(content, section) {
   pages[section](body, s, { redirectUri });
 }
 
-// ---------- Formular-Bausteine (an Arbeitskopie s gebunden) ----------
+// ---------- Form building blocks (bound to working copy s) ----------
 function bindInput(s, key, attrs = {}) {
   const el = h('input', { value: s[key] ?? '', ...attrs });
   el.addEventListener('input', () => { s[key] = attrs.type === 'number' ? Number(el.value) : el.value; });
@@ -89,7 +89,7 @@ function showResult(el, ok, ...content) {
   mount(el, icon(ok ? 'check' : 'warning'), h('div', ...content));
 }
 
-// ---------- Allgemein ----------
+// ---------- General ----------
 function generalPage(body, s) {
   mount(body,
     h('section.panel',
@@ -103,7 +103,7 @@ function generalPage(body, s) {
     loginPagePanel(s));
 }
 
-// ---------- Erscheinungsbild: Logo, Hauptfarbe, Kopfzeile ----------
+// ---------- Branding: logo, main colour, header ----------
 const DEFAULT_COLOR = '#0C66E4';
 function contrastToWhite(hex) {
   const lum = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -206,7 +206,7 @@ function designPanel(s) {
     }, h('button.btn.btn-subtle', { type: 'button', onclick: reset }, t('brand.reset'))));
 }
 
-// Anmeldeseite: Überschrift, Begrüßungstext (de/en), Bezeichnung des Anmeldefelds – mit Vorschau
+// Login page: heading, welcome text (de/en), label of the login field – with preview
 function loginPagePanel(s) {
   const preview = h('div.auth-card.login-preview');
   const area = (key, rows, ph) => { const ta = h('textarea', { rows, maxLength: 4000, placeholder: ph }); ta.value = s[key] || ''; ta.addEventListener('input', () => { s[key] = ta.value; draw(); }); return ta; };
@@ -235,13 +235,13 @@ function loginPagePanel(s) {
       h('div', h('div.muted.small.preview-label', t('loginPage.preview')), preview)));
 }
 
-// ---------- Sicherheit (2FA) ----------
+// ---------- Security (2FA) ----------
 async function securityPage(body, s) {
   const [st, netInfo] = await Promise.all([api.mfaStatus(), api.admin.mfaNetwork()]);
-  // Ältere Installationen: Stufen aus dem bisherigen Modus übernehmen
+  // Older installations: derive levels from the previous mode
   if (!s['mfa.external']) s['mfa.external'] = netInfo.levels.external;
   if (!s['mfa.internal']) s['mfa.internal'] = netInfo.levels.internal;
-  // Eine Angabe pro Zeile (früher durch Komma getrennt)
+  // One entry per line (formerly comma-separated)
   const lines = (v) => String(v || '').split(/[\s,;]+/).filter(Boolean).join('\n');
   const textarea = (key, rows, placeholder) => {
     const ta = h('textarea.mono', { rows, placeholder, spellcheck: false });
@@ -284,7 +284,7 @@ async function securityPage(body, s) {
       saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })));
 }
 
-// ---------- Projekte ----------
+// ---------- Projects ----------
 async function projectsPage(body) {
   const { projects } = await api.projects(true);
   const { users } = await api.users();
@@ -328,7 +328,7 @@ async function projectsPage(body) {
           dlg.close();
           toast(r.moved ? t('projects.deletedMoved', { key: r.key, count: r.moved, target: r.target }) : t('projects.deleted', { key: r.key }), 'success');
           await reloadBase();
-          route(); // ganze Seite neu – die Seitenleiste darf kein gelöschtes Projekt mehr zeigen
+          route(); // rebuild the whole page – the sidebar must not show a deleted project anymore
         } catch (ex) { err.textContent = ex.message; err.hidden = false; submit.disabled = false; }
       },
     }, err, content, h('p.muted.small', t('projects.deleteBackup'))),
@@ -348,7 +348,7 @@ async function projectsPage(body) {
           projects.length > 1 ? h('button.btn-icon.small', { type: 'button', title: t('projects.delete'), 'aria-label': t('projects.delete'), onclick: () => removeProject(p) }, icon('trash')) : null)))))));
 }
 
-// ---------- Benutzer ----------
+// ---------- Users ----------
 async function usersPage(body, showContacts = false) {
   const { users } = await api.users(true);
   const list = users.filter((u) => showContacts || u.source !== 'email');
@@ -407,7 +407,7 @@ async function usersPage(body, showContacts = false) {
           u.id !== state.user.id ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => update(u, { active: !u.active }) }, u.active ? t('users.deactivate') : t('users.activate')) : null)))))));
 }
 
-// Schutz vor Mail-Schleifen: Absender-Regeln und gesperrte Empfänger
+// Mail loop protection: sender rules and blocked recipients
 function loopPanel(s) {
   let rules = [];
   try { rules = JSON.parse(s['imap.senderRules'] || '[]'); } catch { rules = []; }
@@ -465,7 +465,7 @@ function ldapPage(body, s) {
 
   function drawStoredCert() {
     let info = [];
-    try { info = JSON.parse(s['ldap.caInfo'] || '[]'); } catch { /* egal */ }
+    try { info = JSON.parse(s['ldap.caInfo'] || '[]'); } catch { /* ignore */ }
     if (!info.length) return mount(certInfo, h('p.muted', t('ldap.noCert')));
     mount(certInfo, h('div.cert-list', info.map(certCard)));
   }
@@ -619,7 +619,7 @@ function ssoPage(body, s, { redirectUri }) {
     }, t('app.test'))));
 }
 
-// ---------- E-Mail ----------
+// ---------- Email ----------
 async function mailPage(body, s) {
   const imapRes = result();
   const smtpRes = result();

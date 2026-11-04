@@ -1,6 +1,6 @@
-// Bilder aus der Zwischenablage (z. B. Screenshots) in Textfelder einfügen.
-// Das Bild wird als Entwurf hochgeladen und als ![Name](/api/attachments/ID) an der Cursorposition eingesetzt;
-// sichtbar für andere wird es erst, wenn der Text gespeichert ist.
+// Paste images from the clipboard (e.g. screenshots) into text fields.
+// The image is uploaded as a draft and inserted as ![Name](/api/attachments/ID) at the cursor position;
+// it only becomes visible to others once the text is saved.
 import { t, getLang } from './i18n.js';
 import { toast } from './dom.js';
 
@@ -11,7 +11,7 @@ function screenshotName(type, i) {
   return `${getLang() === 'en' ? 'Screenshot' : 'Bildschirmfoto'}-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${i ? `-${i + 1}` : ''}.${ext}`;
 }
 
-/** Bilder aus einem Paste-Ereignis (nur reine Bilder – kopierter Text mit Bild bleibt Text). */
+/** Images from a paste event (pure images only – copied text with an image stays text). */
 export function imagesFromPaste(e) {
   const items = [...(e.clipboardData?.items || [])];
   if (items.some((it) => it.type === 'text/plain' || it.type === 'text/html')) return [];
@@ -21,9 +21,9 @@ export function imagesFromPaste(e) {
 }
 
 /**
- * Einfügen für ein Textfeld aktivieren.
- * upload(files) → Promise<ids>; ohne upload (z. B. noch kein Ticket) merkt sich das Feld die Dateien
- * als „pending:n“ – mit takePending() abholen und später ersetzen.
+ * Enable pasting for a text field.
+ * upload(files) → Promise<ids>; without upload (e.g. no ticket yet) the field remembers the files
+ * as “pending:n” – fetch them with takePending() and replace later.
  */
 export function enableImagePaste(textarea, { upload } = {}) {
   const pending = new Map();
@@ -53,12 +53,12 @@ export function enableImagePaste(textarea, { upload } = {}) {
     }
   });
   return {
-    /** Noch nicht hochgeladene Bilder, die im Text noch vorkommen: [[token, file]] */
+    /** Images not yet uploaded that still occur in the text: [[token, file]] */
     takePending: () => [...pending].filter(([token]) => textarea.value.includes(`](${token})`)),
   };
 }
 
-/** Text mit „upload-n“-Platzhaltern auf hochgeladene IDs umschreiben. */
+/** Rewrite text with “upload-n” placeholders to the uploaded IDs. */
 export function replacePending(text, map) {
   let out = String(text);
   for (const [token, id] of map) out = out.split(`](${token})`).join(`](/api/attachments/${id})`);

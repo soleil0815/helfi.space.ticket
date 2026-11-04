@@ -1,5 +1,5 @@
-// Editor für Wissensartikel: Bearbeiten im fertigen Aussehen, Werkzeugleiste, Tastenkürzel,
-// Markdown-Kürzel, Bilder per Strg+V / Drag & Drop. Gespeichert wird Text (kbdoc.js), nie HTML.
+// Editor for knowledge articles: WYSIWYG editing, toolbar, keyboard shortcuts,
+// Markdown shortcuts, images via Ctrl+V / drag & drop. Stores text (kbdoc.js), never HTML.
 import { api } from './api.js';
 import { h, mount, icon, toast, modal, field, dropdown } from './dom.js';
 import { t } from './i18n.js';
@@ -18,9 +18,9 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   area.setAttribute('role', 'textbox');
   area.setAttribute('aria-multiline', 'true');
   area.dataset.placeholder = placeholder;
-  try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch { /* egal */ }
+  try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch { /* ignore */ }
 
-  // ---------- Auswahl merken (Menüs und Dialoge nehmen den Fokus) ----------
+  // ---------- Remember selection (menus and dialogs take the focus) ----------
   let saved = null;
   const inArea = (n) => !!n && (n === area || area.contains(n));
   const sel = () => window.getSelection();
@@ -36,14 +36,14 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   };
   const anchorEl = () => { const s = sel(); const n = s.rangeCount ? s.anchorNode : saved?.startContainer; return n ? (n.nodeType === 1 ? n : n.parentElement) : null; };
   const closest = (selector) => { const el = anchorEl(); const c = el && inArea(el) ? el.closest(selector) : null; return c && inArea(c) ? c : null; };
-  /** aktueller Block (Absatz, Überschrift, …) */
+  /** current block (paragraph, heading, …) */
   const currentBlock = () => {
     let el = anchorEl();
     while (el && el !== area && !/^(P|H[1-6]|PRE|LI|BLOCKQUOTE|DIV|TD|TH|FIGURE)$/.test(el.tagName)) el = el.parentElement;
     return el && el !== area && inArea(el) ? el : null;
   };
 
-  /** Knoten an der Schreibmarke einfügen (statt insertHTML: der Browser würde dabei style-Angaben ergänzen) */
+  /** Insert node at the caret (instead of insertHTML: the browser would add style attributes) */
   function insertNodes(...nodes) {
     restore();
     const s = sel();
@@ -57,12 +57,12 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     if (last) { r.setStartAfter(last); r.collapse(true); s.removeAllRanges(); s.addRange(r); saved = r.cloneRange(); }
   }
 
-  // ---------- Änderungen ----------
+  // ---------- Changes ----------
   let timer;
   const changed = () => { normalize(); updateState(); clearTimeout(timer); timer = setTimeout(() => onChange(getValue()), 300); };
   const exec = (cmd, val = null) => { restore(); document.execCommand(cmd, false, val); rememberSel(); changed(); };
 
-  /** Aufräumen nach jeder Änderung: leere Zeile am Ende, Checklisten-Attribute, Platzhalter */
+  /** Clean up after every change: empty line at the end, checklist attributes, placeholders */
   function normalize() {
     const last = area.lastElementChild;
     if (!last || !/^P$/.test(last.tagName) || last.classList.length) area.append(h('p', h('br')));
@@ -78,7 +78,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     area.querySelectorAll('[style]').forEach((x) => { if (!x.closest('.kb-figure')) x.removeAttribute('style'); });
     area.querySelectorAll('span:not([class])').forEach((x) => { if (!x.attributes.length) x.replaceWith(...x.childNodes); });
     area.querySelectorAll('.kb-panel').forEach((p) => { if (!p.firstElementChild) p.append(h('p', h('br'))); });
-    // Codeblöcke: Zeilenumbrüche als Text, am Ende immer ein \n (sonst ist die letzte leere Zeile unsichtbar)
+    // Code blocks: line breaks as text, always a trailing \n (otherwise the last empty line is invisible)
     area.querySelectorAll('pre').forEach((pre) => {
       pre.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
       if (!pre.textContent.endsWith('\n')) pre.append('\n');
@@ -89,7 +89,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   const getValue = () => toMarkdown(area);
   const setValue = (md) => { mount(area, ...renderDoc(md, { edit: true }).childNodes); normalize(); updateState(); };
 
-  // ---------- Block- und Inline-Formate ----------
+  // ---------- Block and inline formats ----------
   const BLOCKS = [['p', 'kb.ed.normal'], ['h1', 'kb.ed.h1'], ['h2', 'kb.ed.h2'], ['h3', 'kb.ed.h3'], ['blockquote', 'kb.ed.quote'], ['pre', 'kb.ed.code']];
   function setBlock(tag) {
     restore();
@@ -134,7 +134,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     const current = !list ? null : list.tagName === 'OL' ? 'ol' : isCheck ? 'check' : 'ul';
     if (current === kind) { document.execCommand(kind === 'ol' ? 'insertOrderedList' : 'insertUnorderedList'); changed(); return; }
     if ((current === 'ul' && kind === 'check') || (current === 'check' && kind === 'ul')) { list.classList.toggle('checklist', kind === 'check'); changed(); return; }
-    // ein einzelner Absatz → Liste selbst bauen (der Browser verschachtelt sonst <ol> in <p>)
+    // a single paragraph → build the list ourselves (otherwise the browser nests <ol> in <p>)
     const block = currentBlock();
     const r = sel().rangeCount ? sel().getRangeAt(0) : null;
     if (!list && block && /^(P|H[1-3])$/.test(block.tagName) && r && block.contains(r.startContainer) && block.contains(r.endContainer)) {
@@ -154,7 +154,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     changed();
   }
 
-  /** neues Blockelement hinter dem aktuellen Block einfügen (leerer Absatz wird ersetzt) */
+  /** Insert a new block element after the current block (an empty paragraph is replaced) */
   function insertBlock(el) {
     restore();
     let block = currentBlock();
@@ -166,7 +166,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     return el;
   }
 
-  // ---------- Infobox ----------
+  // ---------- Info box ----------
   function panel(kind) {
     restore();
     const existing = closest('.kb-panel');
@@ -180,7 +180,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     changed();
   }
 
-  // ---------- Tabelle ----------
+  // ---------- Table ----------
   function insertTable() {
     const wrapEl = renderDoc('| | | |\n| --- | --- | --- |\n| | | |\n| | | |', { edit: true }).firstElementChild;
     insertBlock(wrapEl);
@@ -227,7 +227,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     if (i >= 0) { const r = document.createRange(); r.selectNodeContents(cells[i]); const s = sel(); s.removeAllRanges(); s.addRange(r); saved = r.cloneRange(); }
   }
 
-  // ---------- Bilder ----------
+  // ---------- Images ----------
   function figureFor(src, { caption = '', size = 'full' } = {}) {
     return h('figure.kb-figure', { contenteditable: 'false', 'data-size': size }, h('img', { src, alt: caption, draggable: 'false' }), caption ? h('figcaption', caption) : null);
   }
@@ -257,7 +257,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     input.click();
   }
 
-  // Bild anklicken → Größe, Bildunterschrift, Entfernen
+  // Click an image → size, caption, remove
   let figBar = null;
   const closeFigBar = () => { figBar?.remove(); figBar = null; area.querySelectorAll('.kb-figure.selected').forEach((f) => f.classList.remove('selected')); };
   function openFigBar(fig) {
@@ -317,11 +317,11 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     setTimeout(() => (text.value ? target : text).focus(), 40);
   }
 
-  // ---------- Einfügen und Ziehen ----------
+  // ---------- Pasting and dragging ----------
   const pasteDoc = async (html) => {
-    // style-Angaben umbenennen: sonst meldet die Sicherheitsrichtlinie (CSP) jede einzelne
+    // rename style attributes: otherwise the content security policy (CSP) reports every single one
     const doc = new DOMParser().parseFromString(String(html).replace(/<[^>]+>/g, (tag) => tag.replace(/\sstyle\s*=/gi, ' data-s=')), 'text/html');
-    // eingebettete Bilder (data:) hochladen, fremde Adressen werden nicht übernommen
+    // upload embedded images (data:); external URLs are not taken over
     for (const img of [...doc.querySelectorAll('img')]) {
       const src = img.getAttribute('src') || '';
       const m = /^data:(image\/(?:png|jpeg|gif|webp));base64,(.+)$/i.exec(src);
@@ -340,7 +340,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     const frag = renderDoc(md, { edit: true });
     const nodes = [...frag.childNodes];
     restore();
-    // nur ein Absatz → als Inline-Inhalt einfügen (bleibt im aktuellen Block)
+    // only one paragraph → insert as inline content (stays in the current block)
     if (nodes.length === 1 && nodes[0].tagName === 'P') { insertNodes(...nodes[0].childNodes); changed(); return; }
     const s = sel();
     if (s.rangeCount && !s.isCollapsed) s.deleteFromDocument();
@@ -364,7 +364,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     if (files.length && !html.replace(/<[^>]*>/g, '').trim()) { await uploadImages(files.map((f, i) => new File([f], f.name || `bild-${i + 1}.png`, { type: f.type }))); return; }
     if (html) { insertMarkdown(await pasteDoc(html)); return; }
     if (text) {
-      // Text mit Markdown-Zeichen (z. B. aus einem anderen Artikel) wird als solcher gelesen
+      // text with Markdown characters (e.g. from another article) is parsed as such
       if (/(^|\n)(#{1,3} |[-*] |\d+\. |> |```|\|.+\|)/.test(text) || /\*\*[^*]+\*\*/.test(text)) insertMarkdown(text);
       else { document.execCommand('insertText', false, text); changed(); }
     }
@@ -383,7 +383,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     else { const txt = e.dataTransfer.getData('text/plain'); if (txt) { restore(); document.execCommand('insertText', false, txt); changed(); } }
   });
 
-  // ---------- Tastatur ----------
+  // ---------- Keyboard ----------
   const blockText = (b) => b.textContent.replace(/​/g, '');
   area.addEventListener('keydown', (e) => {
     const k = e.key;
@@ -409,7 +409,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
       const pre = closest('pre');
       if (pre) {
         e.preventDefault();
-        // Enter in einer leeren letzten Zeile verlässt den Codeblock
+        // Enter on an empty last line leaves the code block
         const r = sel().getRangeAt(0);
         const after = document.createRange(); after.selectNodeContents(pre); after.setStart(r.endContainer, r.endOffset);
         const before = document.createRange(); before.selectNodeContents(pre); before.setEnd(r.endContainer, r.endOffset);
@@ -429,14 +429,14 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
         if (txt === '```') { e.preventDefault(); const pre2 = h('pre', '\n'); block.replaceWith(pre2); caretTo(pre2); changed(); return; }
         if (/^(-{3,}|\*{3,})$/.test(txt)) { e.preventDefault(); const p = h('p', h('br')); block.replaceWith(h('hr'), p); caretTo(p); changed(); return; }
       }
-      // Leerer Absatz in Infobox/Zitat am Ende → raus
+      // Empty paragraph at the end of an info box/quote → leave it
       const box = closest('.kb-panel, blockquote');
       if (box && block && block !== box && !blockText(block).trim() && block === box.lastElementChild && box.children.length > 1) {
         e.preventDefault(); block.remove(); const p = h('p', h('br')); box.after(p); caretTo(p); changed(); return;
       }
     }
     if (k === 'Backspace' && block) {
-      // Am Anfang einer leeren Überschrift/eines Zitats → normaler Absatz
+      // At the start of an empty heading/quote → normal paragraph
       const s = sel();
       if (s.isCollapsed && /^H[1-3]$/.test(block.tagName) && !blockText(block)) { e.preventDefault(); setBlock('p'); return; }
       if (s.isCollapsed && block.tagName === 'P' && !blockText(block).trim() && block.previousElementSibling?.classList.contains('kb-figure')) {
@@ -463,7 +463,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   area.addEventListener('keyup', rememberSel);
   area.addEventListener('mouseup', rememberSel);
 
-  // Checkliste abhaken, Bild auswählen
+  // Tick checklist items, select images
   area.addEventListener('mousedown', (e) => {
     const li = e.target.closest?.('ul.checklist > li');
     if (li && inArea(li) && e.target === li && e.clientX - li.getBoundingClientRect().left < 24) {
@@ -485,7 +485,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   const onScroll = () => placeFigBar();
   window.addEventListener('scroll', onScroll, true);
 
-  // ---------- Werkzeugleiste ----------
+  // ---------- Toolbar ----------
   const btns = {};
   const tb = (key, ic, label, onClick, shortcut = '') => {
     const b = h('button.kb-tb-btn', {

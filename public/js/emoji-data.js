@@ -1,5 +1,5 @@
-// Emoji-Auswahl: kuratierte Liste, angezeigt mit der Emoji-Schrift des Systems (nichts wird geladen).
-// Aufbau je Zeile: Zeichen Kurzname Suchwörter (deutsch und englisch, durch Komma getrennt)
+// Emoji picker: curated list, shown with the system emoji font (nothing is loaded).
+// Format per line: character short name search words (German and English, comma-separated)
 
 const RAW = {
   smileys: `
