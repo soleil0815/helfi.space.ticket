@@ -1,4 +1,4 @@
-// Anmeldung und Ersteinrichtung
+// Login and initial setup
 import { api } from '../api.js';
 import { h, mount, field, icon, select, toast, richText } from '../dom.js';
 import { t, getLang, setLang } from '../i18n.js';
@@ -9,7 +9,7 @@ function langSwitch() {
   return h('div.lang-switch',
     ['de', 'en'].map((l) => h('button', {
       type: 'button', class: getLang() === l ? 'active' : '',
-      onclick: () => { try { localStorage.setItem('helfi.lang', l); } catch { /* egal */ } setLang(l); route(); },
+      onclick: () => { try { localStorage.setItem('helfi.lang', l); } catch { /* ignore */ } setLang(l); route(); },
     }, l.toUpperCase())));
 }
 
@@ -30,7 +30,7 @@ async function finishLogin(user) {
   navigate('/', { replace: true });
 }
 
-/** Wiederherstellungscodes anzeigen (nur einmal sichtbar) */
+/** Show recovery codes (visible only once) */
 export function recoveryCodesBox(codes) {
   const text = codes.join('\n');
   return h('div.recovery',
@@ -41,7 +41,7 @@ export function recoveryCodesBox(codes) {
       h('a.btn', { href: URL.createObjectURL(new Blob([`Helfi.Space – ${t('mfa.recoveryTitle')}\n\n${text}\n`], { type: 'text/plain' })), download: 'helfi-wiederherstellungscodes.txt' }, icon('download'), t('mfa.download'))));
 }
 
-/** Zweiter Schritt der Anmeldung: Code eingeben oder 2FA erstmals einrichten */
+/** Second login step: enter code or set up 2FA for the first time */
 async function renderMfaStep(root, step) {
   const err = h('div.form-error', { role: 'alert', hidden: true });
   const codeInput = h('input.code-input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxLength: 6, pattern: '[0-9]{6}', required: true, placeholder: '123456' });
@@ -81,7 +81,7 @@ async function renderMfaStep(root, step) {
       try {
         const r = await api.mfaVerify(useRecovery ? recoveryInput.value : codeInput.value);
         if (r.recoveryCodes) {
-          // Nach der Ersteinrichtung: Codes zeigen, dann weiter
+          // After initial setup: show codes, then continue
           return mount(root, authFrame(h('div', h('h1', t('mfa.enabledTitle')), recoveryCodesBox(r.recoveryCodes),
             h('button.btn.btn-primary.btn-block', { type: 'button', onclick: () => finishLogin(r.user) }, t('mfa.continue')))));
         }
@@ -159,14 +159,14 @@ export function renderLogin(root) {
   setTimeout(() => user.focus(), 0);
 }
 
-/** Eigener Text der Anmeldeseite in der passenden Sprache (Englisch fällt auf Deutsch zurück). */
+/** Custom login page text in the matching language (English falls back to German). */
 function pickLang(obj) {
   if (!obj) return '';
   return (getLang() === 'en' && obj.en) ? obj.en : (obj.de || obj.en || '');
 }
 export function loginUserLabel(login) { return pickLang(login?.userLabel).trim(); }
 
-/** Überschrift und Begrüßungstext (Text ohne HTML, **fett**, Links/Mailadressen anklickbar). */
+/** Heading and welcome text (text without HTML, **bold**, links/email addresses clickable). */
 export function loginIntro(login) {
   const title = String(login?.title || '').trim();
   const text = pickLang(login?.text).trim();

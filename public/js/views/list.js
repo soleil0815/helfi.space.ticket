@@ -1,4 +1,4 @@
-// Ticketliste mit Filtern, "Meine Arbeit" und "Meine Anfragen"
+// Ticket list with filters, "My work" and "My requests"
 import { api } from '../api.js';
 import { h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, relTime, fmtDate, select, dropdown, modal, toast, field } from '../dom.js';
 import { openTemplatePicker } from './canned.js';
@@ -21,7 +21,7 @@ export async function renderList(content, params, { requests = false } = {}) {
     navigate(`${location.pathname}?${p}`, { replace: true });
   };
 
-  // Smartphone: Filter hinter einem Knopf (mit Anzahl der gesetzten Filter)
+  // Smartphone: filters behind a button (with the number of active filters)
   const active = ['project', 'status', 'type', 'priority', 'assignee', 'participant'].filter((k) => f[k]).length + (requests && f.reporter === 'me' ? 0 : 0);
   const filterBtn = h('button.btn.btn-subtle.filter-btn', { type: 'button', 'aria-expanded': 'false', onclick: (e) => { const open = filters.classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', String(open)); } },
     icon('list'), t('list.filter'), active ? h('span.count', String(active)) : null);
@@ -60,7 +60,7 @@ export async function renderList(content, params, { requests = false } = {}) {
     tableHost,
   );
 
-  // Suche: Standard „beste Treffer zuerst“
+  // Search: default “best matches first”
   const sort = f.sort || (f.q ? 'relevance' : 'updated');
   const { tickets, searchTerms } = await api.tickets({ ...f, sort });
   mount(tableHost,
@@ -75,7 +75,7 @@ export async function renderList(content, params, { requests = false } = {}) {
   }));
 }
 
-/** Suchbegriffe im Text hervorheben (als Textknoten, nie als HTML) */
+/** Highlight search terms in the text (as text nodes, never as HTML) */
 export function highlight(text, terms = []) {
   const s = String(text ?? '');
   const low = terms.map((x) => x.toLowerCase()).filter(Boolean);
@@ -96,14 +96,14 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
   if (!tickets.length) return h('div.empty-state.small', t('list.empty'));
   const th = (label, key) => h('th', onSort && key ? h('button.th-sort', { type: 'button', class: sort === key ? 'active' : '', onclick: () => onSort(key) }, label, sort === key ? icon('arrow-down') : null) : label);
 
-  // ---------- Mehrfachauswahl ----------
+  // ---------- Multi-select ----------
   const sel = new Set();
   let last = -1;
   const bar = selectable ? h('div.bulk-bar', { hidden: true, role: 'toolbar', 'aria-label': t('bulk.toolbar') }) : null;
   const allBox = selectable ? h('input.row-check', { type: 'checkbox', 'aria-label': t('bulk.selectAll'), onclick: (e) => e.stopPropagation(), onchange: (e) => { tickets.forEach((tk) => (e.target.checked ? sel.add(tk.key) : sel.delete(tk.key))); sync(); } }) : null;
   const boxes = new Map();
   const touchMode = () => window.matchMedia('(max-width: 800px)').matches;
-  /** langes Drücken (Finger) → auswählen; danach unterdrückt ein Klick das Öffnen */
+  /** long press (finger) → select; afterwards a click suppresses opening */
   function longPress(fn) {
     let timer = null; let x = 0; let y = 0;
     return {
@@ -112,7 +112,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         x = e.clientX; y = e.clientY;
         timer = setTimeout(() => {
           timer = null;
-          // den Klick nach dem Loslassen schlucken (die Auswahlleiste verschiebt sonst, was darunter liegt)
+          // swallow the click after release (otherwise the selection bar shifts what lies beneath)
           const stop = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
           document.addEventListener('click', stop, { capture: true, once: true });
           setTimeout(() => document.removeEventListener('click', stop, { capture: true }), 800);
@@ -182,7 +182,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
       h('button.btn.btn-subtle', { type: 'button', onclick: () => { sel.clear(); sync(); } }, t('bulk.clear')));
   }
 
-  // SLA-Spalte nur für Bearbeiter, wenn SLAs eingeschaltet sind
+  // SLA column only for agents when SLAs are enabled
   const showSla = !requests && tickets.some((tk) => tk.sla !== undefined);
   return h('div.table-wrap',
     compact ? null : h('div.table-count', t('list.count', { n: tickets.length })),
@@ -203,7 +203,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
       h('tbody', tickets.map((tk, i) => h('tr', {
         'data-key': tk.key,
         onclick: (e) => {
-          // Auswahlmodus (Smartphone, nach langem Drücken): Antippen wählt aus statt zu öffnen
+          // Selection mode (smartphone, after long press): tapping selects instead of opening
           if (selectable && sel.size && touchMode()) { e.preventDefault(); e.stopPropagation(); toggle(i, !sel.has(tk.key), false); return; }
           if (!e.target.closest('a,.col-check')) navigate(`/browse/${tk.key}`);
         },

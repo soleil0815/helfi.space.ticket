@@ -1,4 +1,4 @@
-// Servicekatalog: Angebote, Formular, Genehmigung im Ticket, Verwaltung
+// Service catalog: offerings, form, approval in the ticket, management
 import { api } from '../api.js';
 import { h, mount, icon, toast, field, select, avatar } from '../dom.js';
 import { t } from '../i18n.js';
@@ -56,7 +56,7 @@ async function orderForm(content, id) {
     }, err, item.fields.map(fieldEl), h('div.form-actions', submit, h('a.btn.btn-subtle', { href: '/catalog', 'data-link': '' }, t('app.cancel')))));
 }
 
-/** Genehmigung einer Katalog-Anfrage in der Ticketansicht */
+/** Approval of a catalog request in the ticket view */
 export function catalogApprovalBox(tk, refresh) {
   const a = tk.approval;
   if (!a) return null;
@@ -73,7 +73,7 @@ export function catalogApprovalBox(tk, refresh) {
       h('button.btn.btn-danger.small', { type: 'button', onclick: () => decide('reject') }, t('change.reject'))) : null);
 }
 
-// ---------- Administration → Servicekatalog ----------
+// ---------- Administration → service catalog ----------
 export async function catalogAdminPage(body) {
   const [{ items }, { users }] = await Promise.all([api.catalog(true), api.users(true)]);
   const people = users.filter((u) => u.active && u.email);

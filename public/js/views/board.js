@@ -1,4 +1,4 @@
-// Kanban-Board mit Drag & Drop
+// Kanban board with drag & drop
 import { api } from '../api.js';
 import { h, mount, icon, avatar, typeIcon, priorityIcon, toast, select, dropdown } from '../dom.js';
 import { t } from '../i18n.js';
@@ -37,7 +37,7 @@ export async function renderBoard(content, params) {
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const r = await api.tickets({ project: project.key, sort: 'rank', limit: 1000 });
     tickets = r.tickets.filter((x) => x.status !== 'done' || (x.resolvedAt || x.updatedAt) >= since);
-    // Bearbeiter-Avatare als Filter
+    // Agent avatars as filters
     const people = new Map();
     for (const tk of tickets) if (tk.assignee) people.set(tk.assignee.id, tk.assignee);
     mount(assigneeAvatars, [...people.values()].map((p) => h('button.avatar-btn', {
@@ -91,7 +91,7 @@ export async function renderBoard(content, params) {
       h('span.spacer'),
       priorityIcon(tk.priority),
       avatar(tk.assignee, 'sm'),
-      // Smartphone: Ziehen klappt mit dem Finger nicht zuverlässig → Status über ein Menü
+      // Smartphone: dragging with a finger is unreliable → status via a menu
       h('button.btn-icon.card-move', {
         type: 'button', 'aria-label': t('board.moveTo'), title: t('board.moveTo'),
         onclick: (e) => {
@@ -121,7 +121,7 @@ export async function renderBoard(content, params) {
     const tk = tickets.find((x) => x.key === key);
     const marker = list.querySelector('.drop-marker');
     if (!tk) return;
-    // Rang zwischen den Nachbarn bestimmen
+    // Determine rank between the neighbours
     const order = [...list.children].filter((c) => c.classList.contains('drop-marker') || (c.classList.contains('card') && c.dataset.key !== key));
     const idx = order.indexOf(marker);
     marker?.remove();

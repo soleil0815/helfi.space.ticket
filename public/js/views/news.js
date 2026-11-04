@@ -1,4 +1,4 @@
-// Neuigkeiten: einmal nach einem Update als Hinweis, alle Versionen unter /news
+// News: shown once as a notice after an update, all versions under /news
 import { api } from '../api.js';
 import { h, mount, modal, fmtDate } from '../dom.js';
 import { t, getLang } from '../i18n.js';
@@ -10,14 +10,14 @@ function itemList(entry) {
   return h('ul.news-items', entry.items.map((i) => h('li', text(i))));
 }
 
-/** Hinweis „Neu in …“ – gilt als gesehen, sobald er geschlossen wird */
+/** “New in …” notice – counts as seen once it is closed */
 export function showNewsPopup(entry) {
   let done = false;
   const seen = () => {
     if (done) return;
     done = true;
     state.boot.news = null;
-    api.newsSeen().catch(() => { /* beim nächsten Laden erneut */ });
+    api.newsSeen().catch(() => { /* retry on next load */ });
   };
   const dlg = modal(t('news.popupTitle', { version: entry.version }), itemList(entry), {
     onClose: seen,

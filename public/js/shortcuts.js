@@ -1,24 +1,24 @@
-// Tastenkürzel: global (c, /, ?, g+b/i/m) und je Seite (Ticketansicht, Liste).
-// Greifen nie in Eingabefeldern, nie mit Strg/Alt/Cmd und nicht bei offenen Dialogen.
+// Keyboard shortcuts: global (c, /, ?, g+b/i/m) and per page (ticket view, list).
+// Never active in input fields, never with Ctrl/Alt/Cmd and not while dialogs are open.
 import { h, mount, modal } from './dom.js';
 import { t } from './i18n.js';
 
-let page = {}; // Kürzel der aktuellen Seite: { taste: () => void }
+let page = {}; // Shortcuts of the current page: { key: () => void }
 let pendingG = 0;
 
-/** Kürzel der aktuellen Seite setzen (beim Seitenwechsel wieder leeren). */
+/** Set shortcuts of the current page (cleared again on page change). */
 export function setPageShortcuts(map) { page = map || {}; }
 export function clearPageShortcuts() { page = {}; }
 
-// Kästchen und Auswahlknöpfe sind keine Texteingabe – dort greifen die Kürzel (z. B. x nach einem Klick)
+// Checkboxes and radio buttons are not text input – shortcuts work there (e.g. x after a click)
 const typing = (el) => !!el?.closest?.('input:not([type=checkbox]):not([type=radio]),textarea,select,[contenteditable],[contenteditable=""]');
-// Enter auf Links, Knöpfen & Co. gehört dem Browser (Link öffnen, Knopf auslösen)
+// Enter on links, buttons etc. belongs to the browser (open link, trigger button)
 const interactive = (el) => !!el?.closest?.('a[href],button,summary,[tabindex],[role=button],[role=link],[role=menuitem],[role=option],[role=tab]');
 
 export function installShortcuts({ isActive, global, isAgent }) {
   document.addEventListener('keydown', (e) => {
     if (!isActive() || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
-    if (document.querySelector('.overlay')) return; // Dialog offen: Esc regelt der Dialog selbst
+    if (document.querySelector('.overlay')) return; // Dialog open: the dialog handles Esc itself
     const key = e.key;
     if (pendingG && Date.now() - pendingG < 1500) {
       pendingG = 0;
@@ -32,17 +32,17 @@ export function installShortcuts({ isActive, global, isAgent }) {
     if (key === 'Enter' && interactive(e.target)) return;
     const fn = page[key] || global.keys?.[key];
     if (!fn) return;
-    // Enter nur abfangen, wenn tatsächlich etwas geöffnet wurde (sonst bleibt die Taste beim Browser)
+    // Only intercept Enter if something was actually opened (otherwise the key stays with the browser)
     if (key === 'Enter') { if (fn(e) === true) e.preventDefault(); return; }
-    // Nach j/k gehört Enter der markierten Zeile – einen zuvor angeklickten Knopf daher loslassen
+    // After j/k, Enter belongs to the highlighted row – so release a previously clicked button
     if ((key === 'j' || key === 'k') && interactive(document.activeElement)) document.activeElement.blur?.();
     e.preventDefault(); fn(e);
   });
 }
 
-/** Übersicht aller Kürzel. */
+/** Overview of all shortcuts. */
 export function showHelp(agent) {
-  // Tasten nacheinander („g dann b“) oder zusammen („Strg + Enter“)
+  // Keys in sequence (“g then b”) or together (“Ctrl + Enter”)
   const kbd = (keys, sep) => h('span.kbd-keys', keys.map((k, i) => [i ? h('span.muted.small', ` ${sep} `) : null, h('kbd', k)]).flat());
   const row = (keys, label, sep = t('keys.then')) => h('tr', h('td', kbd(keys, sep)), h('td', label));
   const section = (title, rows) => [h('h3', title), h('table.kbd-table', h('tbody', rows))];
@@ -75,8 +75,8 @@ export function showHelp(agent) {
 }
 
 /**
- * Aktionsmenü mit Suche (wie ein kleines Befehlsfenster).
- * items: [{ label, group, hint, run }] – Enter führt den ersten Treffer aus, Pfeiltasten wählen.
+ * Action menu with search (like a small command palette).
+ * items: [{ label, group, hint, run }] – Enter runs the first match, arrow keys select.
  */
 export function openPalette(items, { placeholder } = {}) {
   const search = h('input.palette-search', { type: 'search', placeholder: placeholder || t('keys.paletteSearch'), autocomplete: 'off', 'aria-label': t('keys.actions') });
@@ -107,7 +107,7 @@ export function openPalette(items, { placeholder } = {}) {
   setTimeout(() => search.focus(), 30);
 }
 
-/** Listen: j/k markieren das nächste/vorige Ticket, o/Enter öffnet es (alle Tabellen der Seite). */
+/** Lists: j/k highlight the next/previous ticket, o/Enter opens it (all tables on the page). */
 export function listKeys(open) {
   const rows = () => [...document.querySelectorAll('table.issues tbody tr[data-key]')];
   const move = (d) => {
@@ -120,7 +120,7 @@ export function listKeys(open) {
     next.scrollIntoView({ block: 'nearest' });
   };
   const go = () => { const r = document.querySelector('table.issues tr.kbd-focus[data-key]'); if (!r) return false; open(r.dataset.key); return true; };
-  // x: markiertes Ticket aus- bzw. abwählen (Mehrfachauswahl)
+  // x: select or deselect the highlighted ticket (multi-select)
   const pick = () => document.querySelector('table.issues tr.kbd-focus input.row-check')?.click();
   return { j: () => move(1), k: () => move(-1), o: go, Enter: go, x: pick };
 }

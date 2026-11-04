@@ -1,8 +1,8 @@
-// SLA: Anzeige im Ticket und in Listen, Einstellungsseite
+// SLA: display in the ticket and in lists, settings page
 import { h, mount, field, fmtDate } from '../dom.js';
 import { t } from '../i18n.js';
 
-/** Geschäftsminuten lesbar: „2 Std 10 Min“, „45 Min“ */
+/** Business minutes in readable form: “2 Std 10 Min”, “45 Min” */
 export function fmtMinutes(min) {
   const m = Math.abs(Math.round(min));
   const hh = Math.floor(m / 60); const mm = m % 60;
@@ -18,12 +18,12 @@ const label = (c) => {
   return t('sla.left', { time: fmtMinutes(c.remaining) });
 };
 
-/** Zeile im Ticket: Ampel + Restzeit, Fälligkeit als Tooltip */
+/** Line in the ticket: traffic light + remaining time, due date as tooltip */
 export function slaChip(c) {
   return h(`span.sla.sla-${c.paused ? 'paused' : c.state}`, { title: c.due ? t('sla.due', { when: fmtDate(c.due) }) : t('sla.target', { time: fmtMinutes(c.target) }) }, label(c));
 }
 
-/** Kurzform für Listen */
+/** Short form for lists */
 export function slaBadge(w) {
   if (!w || w.state === 'met') return h('span');
   if (w.state === 'missed') return h('span.sla.sla-missed', t('sla.missedShort'));

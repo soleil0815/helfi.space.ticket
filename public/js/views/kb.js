@@ -1,4 +1,4 @@
-// Wissensdatenbank: Suche, Artikel, Editor, bekannte Fehler, Vorschläge beim Melden
+// Knowledge base: search, articles, editor, known errors, suggestions when reporting
 import { api } from '../api.js';
 import { h, mount, icon, toast, fmtDate, relTime, modal, field, select, dropdown, avatar, richText } from '../dom.js';
 import { withEmoji } from '../emoji.js';
@@ -82,7 +82,7 @@ async function list(content, params) {
     return;
   }
   const [{ articles, categories }, { tree }] = await Promise.all([api.kb({ q, category: cat }), q || cat ? { tree: [] } : api.kbTree()]);
-  // Startseite: Seitenbaum + zuletzt geändert; bei Suche oder Kategorie die Trefferliste
+  // Start page: page tree + recently changed; for a search or category the result list
   const overview = !q && !cat && tree.length;
   mount(results,
     categories.length ? h('div.kb-cats',
@@ -102,13 +102,13 @@ async function list(content, params) {
 
 const reloadPage = () => navigate(location.pathname + location.search, { replace: true });
 
-/** Kopf des Seitenbaums; Bearbeiter können hier einen Ordner anlegen */
+/** Page tree header; agents can create a folder here */
 function treeHead(tree, currentId) {
   return h('div.kb-tree-title', icon('ed-toc'), h('span', t('kb.tree.title')), h('span.spacer'),
     state.isAgent ? h('button.btn.btn-subtle.small.kb-folder-btn', { type: 'button', onclick: () => folderDialog(tree, currentId) }, icon('plus'), t('kb.tree.newFolder')) : null);
 }
 
-/** Auswahl „Liegt unter“: eingerückt, optional ohne einen Artikel und seine Unterseiten */
+/** “Located under” select: indented, optionally without an article and its subpages */
 function parentOptions(tree, excludeId = null) {
   const opts = [['', t('kb.tree.noParent')]];
   const walk = (nodes, depth) => { for (const n of nodes) { if (n.id === excludeId) continue; opts.push([n.id, `${'\u2003'.repeat(depth)}${n.title}`]); walk(n.children, depth + 1); } };
@@ -116,7 +116,7 @@ function parentOptions(tree, excludeId = null) {
   return opts;
 }
 
-/** Ordner = kurze Sammelseite ohne eigenen Text; ihre Unterseiten werden aufgelistet */
+/** Folder = short collection page without its own text; its subpages are listed */
 function folderDialog(tree, parentId) {
   const name = h('input', { maxLength: 200, placeholder: t('kb.tree.folderHint') });
   const under = select(parentOptions(tree), parentId || '');
@@ -136,8 +136,8 @@ function folderDialog(tree, parentId) {
   });
 }
 
-/** Seitenbaum zum Auf- und Zuklappen; der aktuelle Artikel und seine Vorfahren sind offen.
- *  Bearbeiter ziehen Artikel auf einen anderen (wird Unterseite) oder auf „Oberste Ebene“. */
+/** Collapsible page tree; the current article and its ancestors are expanded.
+ *  Agents drag articles onto another one (becomes a subpage) or onto “Top level”. */
 function treeNav(nodes, currentId = null, openIds = new Set()) {
   const canDrag = state.isAgent && !window.matchMedia('(max-width: 800px)').matches;
   let dragId = null;
@@ -152,8 +152,8 @@ function treeNav(nodes, currentId = null, openIds = new Set()) {
   };
   const KEY = 'helfi.kbtree.open';
   let stored = new Set();
-  try { stored = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { /* egal */ }
-  const remember = () => { try { localStorage.setItem(KEY, JSON.stringify([...stored].slice(-200))); } catch { /* egal */ } };
+  try { stored = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { /* ignore */ }
+  const remember = () => { try { localStorage.setItem(KEY, JSON.stringify([...stored].slice(-200))); } catch { /* ignore */ } };
   const item = (n, depth) => {
     const open = openIds.has(n.id) || stored.has(n.id);
     const sub = n.children.length ? h('ul.kb-tree-list', { hidden: !open }, n.children.map((c) => item(c, depth + 1))) : null;
@@ -226,7 +226,7 @@ async function article(content, id) {
         !agent ? h('div.kb-help', t('kb.stillNeedHelp'), ' ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); import('./ticket.js').then((m) => m.openCreateDialog({ title: a.title })); } }, t('kb.reportProblem'))) : null)));
 }
 
-/** Kommentare unter einem Artikel */
+/** Comments below an article */
 function commentsSection(a) {
   const box = h('section.kb-comments.no-print', { id: 'comments' }, h('h3', icon('comment'), t('kb.cm.title')), h('div.loading', t('app.loading')));
   let showDone = false;
@@ -267,7 +267,7 @@ function commentsSection(a) {
   return box;
 }
 
-/** Druckansicht eines Artikels mit allen Unterseiten (danach „Als PDF speichern“) */
+/** Print view of an article with all subpages (then “Save as PDF”) */
 async function printBundle(content, id) {
   const { articles } = await api.kbBundle(id);
   const root = articles[0];
@@ -283,13 +283,13 @@ async function printBundle(content, id) {
         i ? h(`h1.kb-print-h.d${Math.min(x.depth, 3)}`, x.title) : null,
         h('div.kb-print-meta', t('kb.updated', { when: fmtDate(x.updatedAt), who: x.author || '—' })),
         (() => { const d = renderDoc(x.body); d.classList.add('kb-body'); return d; })()))));
-  // nach dem Laden der Bilder gleich den Druckdialog öffnen
+  // open the print dialog right after the images have loaded
   const imgs = [...content.querySelectorAll('img')];
   await Promise.all(imgs.map((im) => (im.complete ? null : new Promise((r) => { im.onload = r; im.onerror = r; }))));
   setTimeout(() => window.print(), 300);
 }
 
-/** Artikeltext mit Inhaltsverzeichnis (ab drei Überschriften) */
+/** Article text with table of contents (from three headings) */
 function articleBody(md) {
   const doc = renderDoc(md);
   doc.classList.add('kb-body');
@@ -302,13 +302,13 @@ function articleBody(md) {
 
 const draftKey = (id, fromKey) => `helfi.kbdraft.${id || 'new'}${fromKey && !id ? `.${fromKey}` : ''}`;
 const readDraft = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
-const writeDraft = (k, v) => { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch { /* egal */ } };
+const writeDraft = (k, v) => { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch { /* ignore */ } };
 
-/** Vorlage für einen neuen Artikel wählen */
+/** Choose a template for a new article */
 async function templatePicker(content, parent = null) {
   const pq = parent ? `&parent=${parent}` : '';
   let own = [];
-  try { own = (await api.kbTemplates()).templates; } catch { /* egal */ }
+  try { own = (await api.kbTemplates()).templates; } catch { /* ignore */ }
   const card = (href, emoji, title, desc) => h('a.kb-tpl-pick', { href, 'data-link': '' }, h('div.kb-tpl-emoji', emoji), h('div', h('div.kb-tpl-title', title), desc ? h('div.kb-tpl-desc', desc) : null));
   mount(content,
     h('div.breadcrumbs', h('a', { href: '/kb', 'data-link': '' }, t('kb.title')), ' / ', t('kb.new')),
@@ -320,8 +320,8 @@ async function templatePicker(content, parent = null) {
 }
 
 /**
- * Editor für Artikel und eigene Vorlagen.
- * opts: { id } Artikel bearbeiten · { fromKey } aus Ticket · { template } neuer Artikel aus Vorlage · { templateEdit: 'new'|id } Vorlage bearbeiten
+ * Editor for articles and custom templates.
+ * opts: { id } edit article · { fromKey } from ticket · { template } new article from template · { templateEdit: 'new'|id } edit template
  */
 async function editor(content, opts = {}) {
   const { id = null, fromKey = null } = opts;
@@ -334,10 +334,10 @@ async function editor(content, opts = {}) {
   else if (opts.template) {
     const [kind, ref] = String(opts.template).split(':');
     if (kind === 'builtin') a.body = builtinTemplates().find((x) => x.id === ref)?.body || '';
-    if (kind === 'tpl') { try { a.body = (await api.kbTemplate(ref)).template.body; } catch { /* Vorlage weg → leer */ } }
+    if (kind === 'tpl') { try { a.body = (await api.kbTemplate(ref)).template.body; } catch { /* template gone → empty */ } }
   }
   const [{ categories }, { tree }] = tplMode ? [{ categories: [] }, { tree: [] }] : await Promise.all([api.kb({}), api.kbTree()]);
-  // Auswahl des übergeordneten Artikels: eingerückt, ohne den Artikel selbst und seine Unterseiten
+  // Parent article select: indented, without the article itself and its subpages
   const parentSel = select(parentOptions(tree, id), a.parentId || '', { class: 'kb-parent', id: 'kb-parent' });
   const key = tplMode ? `helfi.kbtpl.${tplId || 'new'}` : draftKey(id, fromKey);
   const original = { title: a.title, body: a.body, category: a.category, visibility: a.visibility, description: a.description || '', parentId: a.parentId || null };
@@ -393,7 +393,7 @@ async function editor(content, opts = {}) {
     } catch (ex) { toast(ex.message, 'error'); saving = false; }
   };
   const cancel = () => navigate(tplMode ? '/kb?tab=templates' : (id ? `/kb/${id}` : (opts.parent ? `/kb/${opts.parent}` : '/kb')));
-  // aktuellen Inhalt als eigene Vorlage sichern
+  // save current content as a custom template
   const saveAsTemplate = () => {
     const name = h('input', { value: title.value, maxLength: 120 });
     const d = h('input', { maxLength: 300, placeholder: t('kb.tpl.descHint') });
@@ -409,7 +409,7 @@ async function editor(content, opts = {}) {
     });
   };
 
-  // ungespeicherter Entwurf aus einer früheren Sitzung?
+  // unsaved draft from an earlier session?
   const draft = readDraft(key);
   const banner = draft && (draft.body !== a.body || draft.title !== a.title) ? h('div.hint-box.kb-draft-banner', icon('info'),
     h('div', t('kb.draftFound', { when: fmtDate(draft.at) })),
@@ -442,7 +442,7 @@ async function editor(content, opts = {}) {
   if (!a.title) title.focus(); else ed.focus();
 }
 
-// ---------- Versionen ----------
+// ---------- Versions ----------
 async function history(content, id) {
   const [{ article: a }, { versions }] = await Promise.all([api.kbArticle(id), api.kbVersions(id)]);
   let pickA = versions[1]?.version ?? null; let pickB = versions[0]?.version ?? null;
@@ -504,7 +504,7 @@ async function compare(content, id, va, vb) {
     diff || meta.length ? (diff || null) : h('p.muted', t('kb.ver.same')));
 }
 
-/** Vorschläge beim Melden eines Problems (Dialog „Ticket erstellen“) */
+/** Suggestions when reporting an issue (“Create ticket” dialog) */
 export function kbSuggestions(input) {
   const box = h('div.kb-suggest', { hidden: true });
   let timer; let last = '';
@@ -532,7 +532,7 @@ export function kbSuggestions(input) {
   return box;
 }
 
-/** Knopf im Ticket: Wissensartikel aus diesem Ticket */
+/** Button in the ticket: knowledge article from this ticket */
 export function kbFromTicketButton(tk) {
   return h('a.btn.btn-subtle.small', { href: `/kb/new?from=${encodeURIComponent(tk.key)}`, 'data-link': '', title: t('kb.fromTicketHint') }, icon('file'), t('kb.article'));
 }
