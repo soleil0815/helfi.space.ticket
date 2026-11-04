@@ -1,4 +1,4 @@
-// Routen für SSO (OpenID Connect).
+// Routes for SSO (OpenID Connect).
 import express from 'express';
 import { config } from '../config.js';
 import { randomToken } from '../lib/crypto.js';
@@ -7,11 +7,11 @@ import { roleFromGroups } from '../users.js';
 import { log } from '../lib/log.js';
 
 const PENDING_COOKIE = 'helfi_oidc';
-// Offene Anmeldungen im Speicher begrenzen: /auth/oidc/start ist ohne Anmeldung erreichbar
+// Limit pending sign-ins in memory: /auth/oidc/start is reachable without signing in
 export const MAX_PENDING = 1000;
 export const MAX_PENDING_PER_IP = 20;
 
-/** Gilt diese SSO-Anmeldung als zweiter Faktor? never | confirmed (Anbieter meldet MFA) | always */
+/** Does this SSO sign-in count as a second factor? never | confirmed (provider reports MFA) | always */
 export function ssoSecondFactor(settings, info) {
   const mode = settings.get('mfa.ssoSecondFactor');
   if (mode === 'always') return true;
@@ -20,8 +20,8 @@ export function ssoSecondFactor(settings, info) {
 }
 
 /**
- * Offene Anmeldung merken: abgelaufene (10 min) entfernen, je Adresse höchstens perIp, insgesamt höchstens max –
- * die ältesten fallen heraus. So kann eine Flut von einer Adresse die Anmeldungen anderer nicht verdrängen.
+ * Remember a pending sign-in: remove expired ones (10 min), at most perIp per address, at most max in total –
+ * the oldest drop out. This way a flood from one address cannot push out other people's sign-ins.
  */
 export function rememberPending(pending, id, p, { max = MAX_PENDING, perIp = MAX_PENDING_PER_IP, now = Date.now() } = {}) {
   for (const [k, v] of pending) if (now - v.at > 10 * 60 * 1000) pending.delete(k);
@@ -34,20 +34,20 @@ export function rememberPending(pending, id, p, { max = MAX_PENDING, perIp = MAX
 }
 
 /**
- * AD-Konto zur AD-Kennung aus dem Claim. Ist das AD angebunden (Dienstkonto), wird bei JEDER SSO-Anmeldung
- * im AD nachgesehen – wie bei einer Kennwort-Anmeldung: deaktiviert, nicht (mehr) in der Gruppe oder
- * geänderte Rolle wirken sofort. Ohne Dienstkonto gilt das bekannte AD-Konto.
- * Ergebnis: { user } | { none: true } (nicht im AD) | { denied: 'notInGroup' | 'noAccount' }.
- * Wirft bei einer Störung des AD – dann wird die Anmeldung abgebrochen statt ein getrenntes Konto anzulegen.
+ * AD account for the AD identifier from the claim. If AD is connected (service account), AD is checked on EVERY
+ * SSO sign-in – as with a password sign-in: disabled, no longer in the group or a changed role take effect
+ * immediately. Without a service account the known AD account is used.
+ * Result: { user } | { none: true } (not in AD) | { denied: 'notInGroup' | 'noAccount' }.
+ * Throws if AD fails – then the sign-in is aborted instead of creating a separate account.
  */
 export async function adAccountFor(ctx, adId, { allowCreate = true } = {}) {
   const { settings, users } = ctx;
   const known = users.byAdId(adId);
   const ldapCfg = settings.group('ldap');
-  const directory = ctx.directory; // zur Laufzeit (in Tests austauschbar)
+  const directory = ctx.directory; // at runtime (replaceable in tests)
   if (!directory || !settings.get('ldap.enabled') || !ldapCfg.bindDn) return known ? { user: known } : { none: true };
   const info = adId.guid ? await directory.byGuid(ldapCfg, adId.guid) : await directory.bySid(ldapCfg, adId.sid);
-  if (!info) return known ? { denied: 'noAccount' } : { none: true }; // gelöscht oder deaktiviert
+  if (!info) return known ? { denied: 'noAccount' } : { none: true }; // deleted or disabled
   const role = roleFromGroups(info.groups, ldapCfg);
   if (!info.groups.user && role !== 'admin' && role !== 'agent') return { denied: 'notInGroup' };
   const user = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, sid: info.sid, role, allowCreate: !!known || allowCreate });
@@ -57,7 +57,7 @@ export async function adAccountFor(ctx, adId, { allowCreate = true } = {}) {
 export function createOidcRoutes(ctx) {
   const { settings, users, mfa } = ctx;
   const r = express.Router();
-  const pending = new Map(); // id → { verifier, state, nonce, at } – in Einfügereihenfolge (älteste zuerst)
+  const pending = new Map(); // id → { verifier, state, nonce, at } – in insertion order (oldest first)
 
   r.get('/start', async (req, res) => {
     if (!settings.get('oidc.enabled')) return res.redirect('/login?error=oidcDisabled');
@@ -68,7 +68,7 @@ export function createOidcRoutes(ctx) {
       res.cookie(PENDING_COOKIE, id, { httpOnly: true, sameSite: 'lax', secure: config.secureCookies, path: '/auth/oidc', maxAge: 10 * 60 * 1000 });
       res.redirect(url);
     } catch (e) {
-      log.error('SSO-Start fehlgeschlagen', { error: e.message });
+      log.error('SSO start failed', { error: e.message });
       res.redirect('/login?error=oidcFailed');
     }
   });
@@ -83,18 +83,18 @@ export function createOidcRoutes(ctx) {
       const cfg = settings.group('oidc');
       const currentUrl = new URL(req.originalUrl, config.baseUrl);
       const info = await finishLogin(cfg, currentUrl, p);
-      // Zusammenführung über die stabile AD-Kennung (wenn eingestellt): Anmeldung direkt als AD-Konto –
-      // auch wenn es schon ein getrenntes SSO-Konto gibt (z. B. von vor der Einstellung)
+      // Merge via the stable AD identifier (if configured): sign in directly as the AD account –
+      // even if a separate SSO account already exists (e.g. from before the setting)
       let u = null;
       if (info.adId) {
         let ad;
         try { ad = await adAccountFor(ctx, info.adId, { allowCreate: cfg.allowCreate }); }
         catch (e) {
-          log.warn('SSO: AD zur Kennung nicht erreichbar – Anmeldung abgebrochen', { error: e.message });
+          log.warn('SSO: AD not reachable for identifier – sign-in aborted', { error: e.message });
           return res.redirect('/login?error=ldapUnavailable');
         }
         if (ad.denied) {
-          log.warn(`SSO-Anmeldung abgewiesen: AD-Konto ${ad.denied === 'notInGroup' ? 'nicht in der Gruppe „Zugelassene Benutzer“' : 'deaktiviert, gelöscht oder nicht freigegeben'}`);
+          log.warn(`SSO sign-in rejected: AD account ${ad.denied === 'notInGroup' ? 'not in the "allowed users" group' : 'disabled, deleted or not permitted'}`);
           return res.redirect(`/login?error=${ad.denied === 'notInGroup' ? 'notInGroup' : 'oidcNoAccount'}`);
         }
         if (ad.user) u = ad.user;
@@ -105,13 +105,13 @@ export function createOidcRoutes(ctx) {
       }
       if (!u) return res.redirect('/login?error=oidcNoAccount');
       if (!u.active) return res.redirect('/login?error=accountDisabled');
-      // MFA beim Identitätsanbieter gilt je nach Einstellung als zweiter Faktor – sonst Code wie bei Kennwort
+      // MFA at the identity provider counts as a second factor depending on the setting – otherwise a code as with password
       let r;
       try { r = mfa.afterPrimary(req, res, u, 'oidc', { trustedSecondFactor: ssoSecondFactor(settings, info) }); }
       catch (e) { return res.redirect(`/login?error=${e.code === 'err.mfaEnrollInternal' ? 'mfaEnrollInternal' : 'oidcFailed'}`); }
       res.redirect(r.done ? '/' : `/login?mfa=${r.step}`);
     } catch (e) {
-      log.error('SSO-Anmeldung fehlgeschlagen', { error: e.message });
+      log.error('SSO sign-in failed', { error: e.message });
       res.redirect('/login?error=oidcFailed');
     }
   });

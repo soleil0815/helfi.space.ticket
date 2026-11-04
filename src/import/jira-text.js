@@ -1,8 +1,8 @@
-// Jira-Texte in einfachen Text umwandeln.
-// - Jira Cloud (API v3) liefert Beschreibungen/Kommentare als ADF (Atlassian Document Format, JSON)
-// - Jira Server/Data Center (API v2) liefert Wiki-Markup
+// Convert Jira texts to plain text.
+// - Jira Cloud (API v3) returns descriptions/comments as ADF (Atlassian Document Format, JSON)
+// - Jira Server/Data Center (API v2) returns wiki markup
 
-/** ADF → Text (Absätze, Listen, Code, Links, Erwähnungen, Tabellen) */
+/** ADF → text (paragraphs, lists, code, links, mentions, tables) */
 export function adfToText(node) {
   if (!node) return '';
   if (typeof node === 'string') return node;
@@ -74,7 +74,7 @@ function walk(node, out, ctx) {
   }
 }
 
-/** Jira-Wiki-Markup → Text (das Wichtigste lesbar machen, nichts verlieren) */
+/** Jira wiki markup → text (make the essentials readable, lose nothing) */
 export function wikiToText(s) {
   if (!s) return '';
   let t = String(s).replace(/\r\n/g, '\n');
@@ -97,7 +97,7 @@ export function wikiToText(s) {
   return t.replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/** Text aus Cloud (ADF) oder Server (Wiki) */
+/** Text from Cloud (ADF) or Server (wiki) */
 export function jiraText(value) {
   if (value && typeof value === 'object') return adfToText(value);
   return wikiToText(value);

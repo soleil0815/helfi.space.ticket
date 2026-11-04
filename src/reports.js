@@ -1,10 +1,10 @@
-// Berichte: Statistik je Bearbeiter (für alle Bearbeiter sichtbar) und Verlauf erstellt/erledigt.
+// Reports: statistics per agent (visible to all agents) and created/resolved over time.
 import { HttpError } from './lib/http.js';
 
 const DAY = 24 * 3600 * 1000;
 export const MAX_RANGE_DAYS = 3 * 366;
 
-/** Zeitraum aus YYYY-MM-DD (einschließlich). Standard: die letzten 30 Tage. */
+/** Period from YYYY-MM-DD (inclusive). Default: the last 30 days. */
 export function parseRange({ from, to } = {}, now = new Date()) {
   const day = (v) => {
     if (!v) return null;
@@ -23,19 +23,19 @@ export function parseRange({ from, to } = {}, now = new Date()) {
     from: start.toISOString().slice(0, 10),
     to: end.toISOString().slice(0, 10),
     fromIso: start.toISOString(),
-    toIso: new Date(end.getTime() + DAY).toISOString(), // exklusiv: Ende des letzten Tages
+    toIso: new Date(end.getTime() + DAY).toISOString(), // exclusive: end of the last day
     days,
   };
 }
 
 export function createReports(db) {
   /**
-   * Kennzahlen je Bearbeiter im Zeitraum, optional für ein Projekt.
-   * - resolved: Tickets, die die Person auf „Erledigt“ gesetzt hat (aus dem Verlauf)
-   * - openAssigned: aktuell zugewiesen und nicht erledigt (stichtagsunabhängig)
-   * - touched: Tickets, an denen sie im Zeitraum etwas getan hat (Änderung oder Kommentar)
-   * - replies / notes: öffentliche Antworten und interne Notizen
-   * - avgResolutionHours: Ø Zeit von „erstellt“ bis zu ihrem „Erledigt“
+   * Metrics per agent in the period, optionally for one project.
+   * - resolved: tickets the person set to "Resolved" (from the history)
+   * - openAssigned: currently assigned and not resolved (independent of the period)
+   * - touched: tickets they did something on in the period (change or comment)
+   * - replies / notes: public replies and internal notes
+   * - avgResolutionHours: avg. time from "created" to their "Resolved"
    */
   function agents(range, projectId = null) {
     const p = projectId ? 'AND t.project_id=?' : '';
@@ -64,14 +64,14 @@ export function createReports(db) {
       if (!byId.has(id)) byId.set(id, { id, resolved: 0, openAssigned: 0, touched: 0, replies: 0, notes: 0, avgResolutionHours: null });
       return byId.get(id);
     };
-    // Alle aktiven Bearbeiter erscheinen, auch mit 0
+    // All active agents appear, even with 0
     for (const u of db.prepare("SELECT id FROM users WHERE active=1 AND role IN ('agent','admin')").all()) row(u.id);
     for (const x of resolved) Object.assign(row(x.id), { resolved: x.n, avgResolutionHours: x.hours === null ? null : Math.round(x.hours * 10) / 10 });
     for (const x of open) row(x.id).openAssigned = x.n;
     for (const x of touched) row(x.id).touched = x.n;
     for (const x of comments) Object.assign(row(x.id), { replies: x.replies || 0, notes: x.notes || 0 });
 
-    // Nur Bearbeiter/Admins (auch ehemalige, wenn sie im Zeitraum etwas erledigt haben) – keine Melder
+    // Only agents/admins (including former ones if they resolved something in the period) – no reporters
     const users = db.prepare(`SELECT id, display_name, username, role, active FROM users WHERE id IN (${[...byId.keys()].map(() => '?').join(',') || 'NULL'})`).all(...byId.keys());
     return users
       .filter((u) => u.role === 'agent' || u.role === 'admin' || byId.get(u.id).resolved > 0)
@@ -79,7 +79,7 @@ export function createReports(db) {
       .sort((a, b) => b.resolved - a.resolved || b.touched - a.touched || a.displayName.localeCompare(b.displayName));
   }
 
-  /** Erstellt und erledigt je Tag (bis 92 Tage) bzw. je Woche (Montag) bei längeren Zeiträumen. */
+  /** Created and resolved per day (up to 92 days) or per week (Monday) for longer periods. */
   function series(range, projectId = null) {
     const weekly = range.days > 92;
     const p = projectId ? 'AND t.project_id=?' : '';

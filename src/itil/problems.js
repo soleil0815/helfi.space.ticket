@@ -1,9 +1,9 @@
-// Problem-Management: Ursache, Workaround, bekannter Fehler; betroffene Störungen über „verursacht“.
+// Problem management: root cause, workaround, known error; affected incidents via "causes".
 import { HttpError, forbidden } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 
 export function createProblems(db, tickets, fields) {
-  /** Problem aus einer Störung anlegen und verknüpfen */
+  /** Create a problem from an incident and link it */
   function fromIncident(user, key, { title } = {}) {
     if (!isAgent(user)) throw forbidden();
     const inc = tickets.load(user, key);
@@ -16,7 +16,7 @@ export function createProblems(db, tickets, fields) {
     return p;
   }
 
-  /** Probleme, die eine Störung verursachen (für den Hinweis in der Störung) */
+  /** Problems causing an incident (for the notice in the incident) */
   function causesOf(ticketId) {
     return db.prepare("SELECT l.from_id id FROM ticket_links l JOIN tickets t ON t.id=l.from_id WHERE l.to_id=? AND l.kind='causes' AND t.type='problem'")
       .all(ticketId).map((r) => {

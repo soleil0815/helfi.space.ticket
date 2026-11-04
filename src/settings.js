@@ -1,68 +1,68 @@
-// Einstellungen in der Datenbank. Vorgaben stehen hier im Programm,
-// damit die docker-compose.yml stabil bleibt.
+// Settings in the database. Defaults live here in the code
+// so that docker-compose.yml stays stable.
 import { encrypt, decrypt } from './lib/crypto.js';
 import { log } from './lib/log.js';
 import { HttpError } from './lib/http.js';
 
 export const DEFAULTS = {
-  // Allgemein
+  // General
   'general.title': 'Helfi.Space',
   'general.defaultProject': '',
-  'general.allowSelfService': true, // Benutzer (Rolle "user") dürfen Tickets anlegen
-  'general.defaultLanguage': 'de', // de | en – für E-Mails an Absender ohne Konto
+  'general.allowSelfService': true, // users (role "user") may create tickets
+  'general.defaultLanguage': 'de', // de | en – for emails to senders without an account
 
-  // Anmeldeseite (Text ohne HTML; **fett**, Links und Mailadressen werden erkannt)
+  // Sign-in page (text without HTML; **bold**, links and mail addresses are recognized)
   'login.title': '',
-  // Service Level (SLA): Ziele in Geschäftsminuten je Priorität
-  // Zufriedenheitsumfrage: Bewertungslinks in der „Erledigt“-Mail an den Melder
+  // Service level (SLA): targets in business minutes per priority
+  // Satisfaction survey: rating links in the "Resolved" mail to the reporter
   'survey.enabled': false,
-  'survey.days': 14, // so lange gilt der Link
+  'survey.days': 14, // how long the link is valid
   'sla.enabled': false,
   'sla.hours': '{"days":[1,2,3,4,5],"start":"08:00","end":"17:00"}',
-  'sla.holidays': '', // eine Zeile je Feiertag: JJJJ-MM-TT Name
+  'sla.holidays': '', // one line per holiday: YYYY-MM-DD name
   'sla.targets': '{"highest":{"response":30,"resolve":240},"high":{"response":120,"resolve":960},"medium":{"response":480,"resolve":2400},"low":{"response":960,"resolve":4800}}',
-  'sla.pauseWaiting': true, // „Wartet“ hält die Lösungsuhr an
+  'sla.pauseWaiting': true, // "Waiting" pauses the resolution clock
   'sla.warnPercent': 80,
 
-  // Change-Management
-  'change.approvers': '', // Benutzer-IDs der Genehmiger (CAB), durch Komma getrennt
-  'change.approvalMode': 'any', // any = eine Zustimmung genügt, all = alle müssen zustimmen
+  // Change management
+  'change.approvers': '', // user IDs of the approvers (CAB), comma-separated
+  'change.approvalMode': 'any', // any = one approval is enough, all = everyone must approve
   'change.standardTemplates': '[]', // JSON: [{ title, risk, services, implementationPlan, backoutPlan, testPlan }]
 
-  // Erscheinungsbild
-  'brand.color': '', // Hauptfarbe #RRGGBB (leer = Standardblau)
-  'brand.header': 'light', // light | color (Kopfzeile in der Hauptfarbe)
-  'brand.showTitle': true, // Titel neben dem Logo anzeigen
-  'brand.logo': '', // "png:<hash>" | "svg:<hash>" – nur über /api/admin/brand/logo änderbar
+  // Branding
+  'brand.color': '', // primary color #RRGGBB (empty = default blue)
+  'brand.header': 'light', // light | color (header in the primary color)
+  'brand.showTitle': true, // show title next to the logo
+  'brand.logo': '', // "png:<hash>" | "svg:<hash>" – changeable only via /api/admin/brand/logo
   'login.textDe': '',
   'login.textEn': '',
   'login.userLabelDe': '',
   'login.userLabelEn': '',
 
-  // Zwei-Faktor-Anmeldung (TOTP)
-  'mfa.mode': 'external', // off | external (nur von außerhalb Pflicht) | always
+  // Two-factor sign-in (TOTP)
+  'mfa.mode': 'external', // off | external (required only from outside) | always
   'mfa.internalNetworks': '10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7',
-  'mfa.enrollExternal': false, // Ersteinrichtung von außen erlauben (sonst nur im internen Netz)
-  'mfa.external': '', // Pflicht von außen: all | agents | admins | none (leer = aus mfa.mode abgeleitet)
-  'mfa.internal': '', // Pflicht im internen Netz: none | admins | agents | all (leer = aus mfa.mode abgeleitet)
-  'mfa.ownAddresses': '', // eigener Internetanschluss: öffentliche IPs/DynDNS-Namen, gelten als intern
-  'mfa.trustSso': true, // veraltet (bis 1.12): ersetzt durch mfa.ssoSecondFactor, Migration 24 übernimmt den Wert
-  // Gilt eine SSO-Anmeldung als zweiter Faktor? never | confirmed (nur wenn der Anbieter MFA meldet: amr/acr) | always
+  'mfa.enrollExternal': false, // allow initial enrollment from outside (otherwise only in the internal network)
+  'mfa.external': '', // required from outside: all | agents | admins | none (empty = derived from mfa.mode)
+  'mfa.internal': '', // required in the internal network: none | admins | agents | all (empty = derived from mfa.mode)
+  'mfa.ownAddresses': '', // own internet connection: public IPs/DynDNS names, treated as internal
+  'mfa.trustSso': true, // deprecated (up to 1.12): replaced by mfa.ssoSecondFactor, migration 24 carries over the value
+  // Does an SSO sign-in count as a second factor? never | confirmed (only if the provider reports MFA: amr/acr) | always
   'mfa.ssoSecondFactor': 'confirmed',
-  'general.defaultLanguage': 'de', // de | en – für E-Mails an Absender ohne Konto
+  'general.defaultLanguage': 'de', // de | en – for emails to senders without an account
 
   // Active Directory / LDAP
   'ldap.enabled': false,
   'ldap.host': '',
   'ldap.port': 636,
   'ldap.security': 'ldaps', // ldaps | starttls | none
-  'ldap.tlsMode': 'pinned', // pinned (abgerufenes Zertifikat) | system | insecure
+  'ldap.tlsMode': 'pinned', // pinned (fetched certificate) | system | insecure
   'ldap.verifyHostname': true,
   'ldap.caPem': '',
   'ldap.caInfo': '',
   'ldap.baseDn': '',
   'ldap.bindDn': '',
-  'ldap.bindPassword': '', // geheim
+  'ldap.bindPassword': '', // secret
   'ldap.userFilter': '(&(objectCategory=person)(objectClass=user)(sAMAccountName={{username}}))',
   'ldap.usernameAttr': 'sAMAccountName',
   'ldap.displayNameAttr': 'displayName',
@@ -70,30 +70,30 @@ export const DEFAULTS = {
   'ldap.nestedGroups': true,
   'ldap.adminGroup': '',
   'ldap.agentGroup': '',
-  'ldap.userGroup': '', // leer = alle Benutzer dürfen sich anmelden
+  'ldap.userGroup': '', // empty = all users may sign in
   'ldap.timeoutMs': 8000,
-  'ldap.peopleSearch': true, // Teilnehmer beim Hinzufügen im AD suchen (nur Bearbeiter, braucht Dienstkonto)
+  'ldap.peopleSearch': true, // search AD when adding participants (agents only, needs service account)
 
-  // SSO (OpenID Connect – z. B. Microsoft Entra ID, ADFS, Keycloak, Authentik)
+  // SSO (OpenID Connect – e.g. Microsoft Entra ID, ADFS, Keycloak, Authentik)
   'oidc.enabled': false,
   'oidc.issuer': '',
   'oidc.clientId': '',
-  'oidc.clientSecret': '', // geheim
+  'oidc.clientSecret': '', // secret
   'oidc.scopes': 'openid profile email',
   'oidc.buttonLabel': 'Mit Firmenkonto anmelden',
   'oidc.usernameClaim': 'preferred_username',
-  'oidc.mergeDomain': '', // z. B. firma.local: "m.muster@firma.local" = AD-Konto "m.muster"; leer = nie zusammenführen
+  'oidc.mergeDomain': '', // e.g. firma.local: "m.muster@firma.local" = AD account "m.muster"; empty = never merge
   'oidc.groupsClaim': 'groups',
   'oidc.adminGroup': '',
   'oidc.agentGroup': '',
   'oidc.autoRedirect': false,
   'oidc.allowCreate': true,
-  'oidc.mfaAcr': '', // acr-Werte, die als MFA gelten (Komma-getrennt), zusätzlich zu amr
-  'oidc.adIdClaim': '', // Claim mit der AD-Kennung (objectSid oder objectGUID), z. B. onprem_sid – dann Zusammenführung nur darüber
+  'oidc.mfaAcr': '', // acr values that count as MFA (comma-separated), in addition to amr
+  'oidc.adIdClaim': '', // claim with the AD identifier (objectSid or objectGUID), e.g. onprem_sid – then merge only via that
 
-  // E-Mail-Abruf (IMAP)
-  // Sicherung
-  'backup.keep': 10, // je Art so viele Sicherungen aufbewahren (1–100)
+  // Email fetching (IMAP)
+  // Backup
+  'backup.keep': 10, // keep this many backups per kind (1–100)
 
   'imap.enabled': false,
   'imap.host': '',
@@ -101,40 +101,40 @@ export const DEFAULTS = {
   'imap.security': 'tls', // tls | starttls | none
   'imap.verifyTls': true,
   'imap.user': '',
-  'imap.password': '', // geheim
+  'imap.password': '', // secret
   'imap.folder': 'INBOX',
-  'imap.processedFolder': '', // leer = nur als gelesen markieren
-  'imap.processedKeepDays': 0, // verarbeitete Mails im Ordner nach X Tagen löschen; 0 = nie, sonst mind. 7
-  'imap.senderRules': '[]', // JSON: [{ pattern, action: noreply|ignore, project }] – siehe src/mail/rules.js
-  'imap.ccParticipants': true, // An/CC-Empfänger neuer Mails werden Anfrage-Teilnehmer
-  'imap.adLookup': true, // unbekannte Absender im AD suchen (nur mit aktiver AD-Anmeldung und Dienstkonto)
+  'imap.processedFolder': '', // empty = only mark as read
+  'imap.processedKeepDays': 0, // delete processed mails in the folder after X days; 0 = never, otherwise at least 7
+  'imap.senderRules': '[]', // JSON: [{ pattern, action: noreply|ignore, project }] – see src/mail/rules.js
+  'imap.ccParticipants': true, // To/CC recipients of new mails become request participants
+  'imap.adLookup': true, // look up unknown senders in AD (only with active AD sign-in and service account)
   'imap.intervalSec': 60,
-  'imap.keywordSince': '', // intern: seit wann verarbeitete Mails ein eigenes Kennzeichen bekommen
+  'imap.keywordSince': '', // internal: since when processed mails get their own keyword
   'imap.project': '',
   'imap.maxAttachmentMb': 20,
 
-  // E-Mail-Versand (SMTP)
+  // Sending email (SMTP)
   'smtp.enabled': false,
   'smtp.host': '',
   'smtp.port': 587,
   'smtp.security': 'starttls', // tls | starttls | none
   'smtp.verifyTls': true,
   'smtp.user': '',
-  'smtp.password': '', // geheim
+  'smtp.password': '', // secret
   'smtp.from': '',
   'smtp.fromName': 'Helfi.Space',
   'notify.reporterOnCreate': true,
   'notify.reporterOnComment': true,
   'notify.reporterOnDone': true,
   'notify.assignee': true,
-  'notify.participantAdded': true, // Mail an Personen, die im Web als Teilnehmer hinzugefügt werden
+  'notify.participantAdded': true, // mail to people added as participants on the web
 };
 
 export const SECRET_KEYS = new Set(['ldap.bindPassword', 'oidc.clientSecret', 'imap.password', 'smtp.password']);
 
 const SECRET_PLACEHOLDER = '••••••••';
 
-// Felder, an die ein gespeichertes Geheimnis gebunden ist
+// Fields a stored secret is bound to
 const SECRET_BOUND = {
   ldap: ['host', 'port', 'security', 'bindDn'],
   imap: ['host', 'port', 'security', 'user'],
@@ -142,13 +142,13 @@ const SECRET_BOUND = {
   oidc: ['issuer', 'clientId'],
 };
 
-// Schwächere Zertifikatsprüfung bindet das Geheimnis ebenfalls (sonst ließe es sich per
-// Umleitung/Zwischenstelle abgreifen). Nur der Wechsel zur schwächeren Prüfung zählt –
-// Strenger stellen braucht kein neues Kennwort.
+// Weaker certificate validation also binds the secret (otherwise it could be captured via
+// redirection/man-in-the-middle). Only switching to weaker validation counts –
+// making it stricter does not need a new password.
 const TLS_RANK = { insecure: 0, system: 1, pinned: 2 };
 const SECRET_WEAKER = {
-  // pinned → system/insecure und system → insecure sind schwächer; ein anderes hinterlegtes
-  // Zertifikat ebenso (damit ließe sich eine eigene CA unterschieben) – dann Kennwort neu eingeben.
+  // pinned → system/insecure and system → insecure are weaker; so is a different stored
+  // certificate (that could slip in a custom CA) – then re-enter the password.
   ldap: {
     tlsMode: (o, n) => TLS_RANK[n ?? 'pinned'] < TLS_RANK[o ?? 'pinned'],
     verifyHostname: (o, n) => !!o && !n,
@@ -158,7 +158,7 @@ const SECRET_WEAKER = {
   smtp: { verifyTls: (o, n) => !!o && !n },
 };
 
-/** Ändert sich ein Feld, an das das gespeicherte Geheimnis eines Bereichs gebunden ist? */
+/** Does a field change that the stored secret of a section is bound to? */
 function secretBindingChanged(prefix, stored, next) {
   if ((SECRET_BOUND[prefix] || []).some((f) => String(next[f] ?? '') !== String(stored[f] ?? ''))) return true;
   return Object.entries(SECRET_WEAKER[prefix] || {}).some(([f, weaker]) => weaker(stored[f], next[f]));
@@ -185,8 +185,8 @@ export function createSettings(db) {
     if (row.secret) {
       try { value = decrypt(row.value); }
       catch {
-        // Falscher Schlüssel (HELFI_SECRET/secret.key geändert): nicht abstürzen, Kennwort neu eingeben lassen
-        log.warn(`Gespeichertes Geheimnis „${key}“ lässt sich nicht entschlüsseln (Schlüssel geändert?) – bitte neu eingeben.`);
+        // Wrong key (HELFI_SECRET/secret.key changed): do not crash, let the password be re-entered
+        log.warn(`Stored secret "${key}" cannot be decrypted (key changed?) – please enter it again.`);
         return '';
       }
     } else value = JSON.parse(row.value);
@@ -196,14 +196,14 @@ export function createSettings(db) {
   function set(key, value) {
     if (!(key in DEFAULTS)) throw new Error(`Unbekannte Einstellung ${key}`);
     if (SECRET_KEYS.has(key)) {
-      if (value === SECRET_PLACEHOLDER || value === undefined) return; // unverändert
+      if (value === SECRET_PLACEHOLDER || value === undefined) return; // unchanged
       setStmt.run(key, encrypt(String(value ?? '')), 1);
     } else {
       setStmt.run(key, JSON.stringify(coerce(key, value)), 0);
     }
   }
 
-  /** Alle Einstellungen eines Bereichs, z. B. group('ldap') → { host, port, ... } */
+  /** All settings of a section, e.g. group('ldap') → { host, port, ... } */
   function group(prefix) {
     const out = {};
     for (const key of Object.keys(DEFAULTS)) {
@@ -212,7 +212,7 @@ export function createSettings(db) {
     return out;
   }
 
-  /** Für die Oberfläche: Geheimnisse nur als Platzhalter. */
+  /** For the UI: secrets only as placeholders. */
   function publicView() {
     const out = {};
     for (const key of Object.keys(DEFAULTS)) {
@@ -223,9 +223,9 @@ export function createSettings(db) {
   }
 
   function setMany(obj) {
-    // Wird Server/Konto geändert (oder die Prüfung abgeschwächt), gilt das gespeicherte Geheimnis
-    // nicht mehr: es muss im selben Speichervorgang neu eingegeben werden – sonst würde es beim
-    // nächsten Verbindungsaufbau an den neuen (womöglich fremden) Server geschickt.
+    // If server/account is changed (or validation weakened), the stored secret no longer
+    // applies: it must be re-entered in the same save – otherwise it would be sent to the
+    // new (possibly foreign) server on the next connection.
     for (const prefix of Object.keys(SECRET_BOUND)) {
       const keys = Object.keys(obj).filter((k) => k.startsWith(prefix + '.') && k in DEFAULTS);
       if (!keys.length) continue;
@@ -245,9 +245,9 @@ export function createSettings(db) {
   }
 
   /**
-   * Gespeicherte Werte + (noch nicht gespeicherte) Formularwerte für Verbindungstests zusammenführen.
-   * Platzhalter = gespeichertes Geheimnis. Wird ein anderer Server/Benutzer eingetragen, wird das
-   * gespeicherte Geheimnis NICHT mitgeschickt (sonst ließe es sich über einen eigenen Server abgreifen).
+   * Merge stored values + (not yet saved) form values for connection tests.
+   * Placeholder = stored secret. If a different server/user is entered, the
+   * stored secret is NOT sent (otherwise it could be captured via one's own server).
    */
   function mergedGroup(prefix, form = {}) {
     const stored = group(prefix);

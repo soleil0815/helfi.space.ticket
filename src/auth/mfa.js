@@ -1,6 +1,6 @@
-// Ablauf der Zwei-Faktor-Anmeldung:
-// Kennwort (lokal/AD) oder SSO richtig → wenn für diese Anfrage nötig, "halbe" Anmeldung
-// (Cookie helfi_mfa, 5 Minuten) → Code aus der App bzw. Ersteinrichtung → volle Sitzung.
+// Two-factor sign-in flow:
+// password (local/AD) or SSO correct → if required for this request, "half" sign-in
+// (cookie helfi_mfa, 5 minutes) → code from the app or initial enrollment → full session.
 import { randomToken, encrypt, decrypt } from '../lib/crypto.js';
 import { config } from '../config.js';
 import { HttpError } from '../lib/http.js';
@@ -13,7 +13,7 @@ const MAX_ATTEMPTS = 5;
 
 export function createMfa({ db, settings, sessions, users, policy, limiter }) {
   const pending = new Map(); // id → { userId, method, enroll, secret, attempts, at }
-  const setups = new Map(); // userId → { secret, at } (Einrichtung im Profil)
+  const setups = new Map(); // userId → { secret, at } (enrollment in the profile)
 
   const cleanup = () => {
     const now = Date.now();
@@ -25,7 +25,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
 
   function secretOf(u) { return u.totp_secret ? decrypt(u.totp_secret) : null; }
 
-  /** Code (TOTP oder Wiederherstellungscode) für ein eingerichtetes Konto prüfen und verbrauchen */
+  /** Verify and consume a code (TOTP or recovery code) for an enrolled account */
   function checkCode(u, code) {
     const secret = secretOf(u);
     if (!secret) return false;
@@ -35,11 +35,11 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       return 'totp';
     }
     let hashes = [];
-    try { hashes = JSON.parse(u.recovery_codes || '[]'); } catch { /* leer */ }
+    try { hashes = JSON.parse(u.recovery_codes || '[]'); } catch { /* empty */ }
     const rest = useRecoveryCode(hashes, code);
     if (rest) {
       db.prepare('UPDATE users SET recovery_codes=? WHERE id=?').run(JSON.stringify(rest), u.id);
-      log.info(`Wiederherstellungscode benutzt von ${u.username} (${rest.length} übrig)`);
+      log.info(`Recovery code used by ${u.username} (${rest.length} left)`);
       return 'recovery';
     }
     return false;
@@ -49,25 +49,25 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
     const { codes, hashes } = generateRecoveryCodes();
     db.prepare('UPDATE users SET totp_secret=?, totp_enabled=1, totp_last_step=?, recovery_codes=? WHERE id=?')
       .run(encrypt(secret), currentStep(), JSON.stringify(hashes), userId);
-    log.info(`2FA eingerichtet für Benutzer #${userId}`);
+    log.info(`2FA enrolled for user #${userId}`);
     return codes;
   }
 
-  /** Darf das Konto von hier aus 2FA (erstmals) einrichten? */
-  // Ersteinrichtung nur intern (oder ausdrücklich erlaubt) – auch im Modus "nie", sonst könnte jemand
-  // mit erbeutetem Kennwort vorab einen eigenen Faktor hinterlegen, der nach dem Umstellen gilt
+  /** May the account enroll 2FA (for the first time) from here? */
+  // Initial enrollment only internally (or if explicitly allowed) – even in mode "never", otherwise someone
+  // with a stolen password could register their own factor in advance that applies after switching
   const canEnrollHere = (req) => policy.isInternal(req) || settings.get('mfa.enrollExternal');
-  // Eigener Zähler für den zweiten Faktor – wird durch ein richtiges Kennwort NICHT zurückgesetzt
-  // Über die Benutzer-ID: der Name würde normalisiert ("max@firma.local" = "max") und könnte mit
-  // einem anderen Konto zusammenfallen
+  // Separate counter for the second factor – NOT reset by a correct password
+  // By user ID: the name would be normalized ("max@firma.local" = "max") and could collide with
+  // another account
   const mfaKey = (u) => `mfa~#${u.id}`;
 
   return {
     /**
-     * Nach richtigem Kennwort/SSO aufrufen. Ergebnis:
-     *  { done: true }                 → Sitzung angelegt
-     *  { step: 'code' | 'enroll' }    → zweiter Schritt nötig (Cookie gesetzt)
-     * Wirft err.mfaEnrollInternal, wenn 2FA nötig, aber nicht eingerichtet und Einrichtung von hier nicht erlaubt.
+     * Call after correct password/SSO. Result:
+     *  { done: true }                 → session created
+     *  { step: 'code' | 'enroll' }    → second step required (cookie set)
+     * Throws err.mfaEnrollInternal if 2FA is required but not enrolled and enrollment from here is not allowed.
      */
     afterPrimary(req, res, u, method, { trustedSecondFactor = false } = {}) {
       cleanup();
@@ -91,7 +91,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       return { id, p };
     },
 
-    /** Ersteinrichtung während der Anmeldung: Schlüssel + QR-Code */
+    /** Initial enrollment during sign-in: key + QR code */
     async enrollInfo(req) {
       const { p } = this.getPending(req);
       if (!p.enroll) throw new HttpError(400, 'err.badRequest');
@@ -101,7 +101,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       return { secret: p.secret, uri, qr: await qrDataUrl(uri) };
     },
 
-    /** Zweiten Schritt abschließen */
+    /** Complete the second step */
     verify(req, res, code) {
       const { id, p } = this.getPending(req);
       const u = users.byId(p.userId);
@@ -110,8 +110,8 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       let recoveryCodes;
       let ok;
       if (p.enroll && u.totp_enabled) {
-        // Inzwischen (andere Anmeldung/Profil) eingerichtet: diesen Faktor nie überschreiben –
-        // neu anmelden, dann wird der eingerichtete Code abgefragt
+        // Enrolled in the meantime (other sign-in/profile): never overwrite this factor –
+        // sign in again, then the enrolled code is requested
         pending.delete(id); res.clearCookie(PENDING_COOKIE, { path: '/' });
         throw new HttpError(401, 'err.mfaExpired');
       }
@@ -136,23 +136,23 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       return { user: users.byId(u.id), recoveryCodes, usedRecovery: ok === 'recovery' };
     },
 
-    // ---------- Verwaltung im Profil ----------
+    // ---------- Management in the profile ----------
     status(req, u) {
       let left = 0;
-      try { left = JSON.parse(u.recovery_codes || '[]').length; } catch { /* leer */ }
+      try { left = JSON.parse(u.recovery_codes || '[]').length; } catch { /* empty */ }
       const net = policy.classify(req);
       return {
         enabled: !!u.totp_enabled, recoveryCodesLeft: left, mode: policy.userMode(u),
         network: { ip: net.ip, internal: net.internal, reason: net.reason },
         required: policy.mfaRequired(req, u),
         canSetup: canEnrollHere(req) || !!u.session_mfa,
-        // SSO-Konten: zählt die Anmeldung beim Anbieter als zweiter Faktor? (always | confirmed | never)
+        // SSO accounts: does the sign-in at the provider count as a second factor? (always | confirmed | never)
         sso: u.source === 'oidc' ? settings.get('mfa.ssoSecondFactor') : null,
       };
     },
 
     async startSetup(req, u) {
-      // Einen eingerichteten Faktor nie ohne den alten Code ersetzen: erst abschalten (braucht Code)
+      // Never replace an enrolled factor without the old code: disable first (requires code)
       if (u.totp_enabled) throw new HttpError(409, 'err.mfaAlreadyEnabled');
       if (!canEnrollHere(req) && !u.session_mfa) throw new HttpError(403, 'err.mfaEnrollInternal');
       const secret = generateSecret();
@@ -170,7 +170,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       if (verifyTotp(s.secret, code) === null) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
       setups.delete(u.id);
       const codes = enable(u.id, s.secret);
-      // Diese Sitzung hat den zweiten Faktor jetzt erbracht; alle anderen Sitzungen beenden
+      // This session has now provided the second factor; end all other sessions
       if (req.sessionId) {
         db.prepare('UPDATE sessions SET mfa=1 WHERE id=?').run(req.sessionId);
         db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
@@ -182,10 +182,10 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       limiter.check(req.ip, mfaKey(u));
       if (!checkCode(users.byId(u.id), code)) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
       db.prepare('UPDATE users SET totp_secret=NULL, totp_enabled=0, recovery_codes=NULL WHERE id=?').run(u.id);
-      // Sitzungen von außen ohne 2FA sind danach ungültig – alle anderen Sitzungen beenden
+      // External sessions without 2FA are invalid afterwards – end all other sessions
       db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId || '');
       db.prepare('UPDATE sessions SET mfa=0 WHERE id=?').run(req.sessionId || '');
-      log.info(`2FA abgeschaltet von ${u.username}`);
+      log.info(`2FA disabled by ${u.username}`);
     },
 
     newRecoveryCodes(req, u, code) {

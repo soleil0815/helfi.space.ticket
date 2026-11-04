@@ -1,15 +1,15 @@
-// Kennwort-Hashes (scrypt) und Verschlüsselung gespeicherter Geheimnisse (AES-256-GCM).
+// Password hashes (scrypt) and encryption of stored secrets (AES-256-GCM).
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { paths } from '../config.js';
 
 let masterKey = null;
 
-/** Lädt den Schlüssel aus HELFI_SECRET oder /data/secret.key (wird beim ersten Start erzeugt). */
+/** Loads the key from HELFI_SECRET or /data/secret.key (created on first start). */
 export function initMasterKey() {
   const env = process.env.HELFI_SECRET;
   if (env) {
-    // Zu kurze Werte nicht stillschweigend übergehen (sonst wechselt der Schlüssel unbemerkt)
+    // Do not silently ignore values that are too short (otherwise the key changes unnoticed)
     if (env.length < 16) throw new Error('HELFI_SECRET ist zu kurz (mindestens 16 Zeichen) – bitte ändern oder leer lassen.');
     masterKey = crypto.createHash('sha256').update(env).digest();
     return;

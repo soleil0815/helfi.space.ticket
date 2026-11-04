@@ -1,4 +1,4 @@
-// Wissensdatenbank: Artikel intern (nur Bearbeiter) oder öffentlich (alle Angemeldeten).
+// Knowledge base: articles internal (agents only) or public (all signed-in users).
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 import fs from 'node:fs';
@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { paths } from '../config.js';
 
-/** Markdown-Text eines Artikels als schlichter Text (für Kurztext und Suche) */
+/** Markdown text of an article as plain text (for summary and search) */
 export function plainText(md) {
   return String(md || '')
     .replace(/```[^\n]*\n?/g, ' ')
@@ -22,7 +22,7 @@ export function plainText(md) {
     .trim();
 }
 
-// Bilder: Dateityp an den ersten Bytes erkennen, nie an der Angabe des Browsers
+// Images: detect the file type from the first bytes, never from what the browser claims
 export function imageType(buf) {
   if (buf.length >= 8 && buf.readUInt32BE(0) === 0x89504e47) return { mime: 'image/png', ext: 'png' };
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
@@ -47,7 +47,7 @@ export function createKb(db, tickets) {
 
   const words = (q) => [...new Set(String(q || '').toLowerCase().split(/[^\p{L}\p{N}-]+/u).filter((w) => w.length >= 3 && !STOP.has(w)))].slice(0, 8);
 
-  /** Suche: Treffer im Titel zählen mehr als im Text */
+  /** Search: matches in the title count more than in the text */
   function search(user, q = '', { category = '', limit = 50 } = {}) {
     const agent = isAgent(user);
     const rows = db.prepare(`${SELECT} WHERE (? OR a.visibility='public') ${category ? 'AND a.category=?' : ''} ORDER BY a.updated_at DESC`)
@@ -66,14 +66,14 @@ export function createKb(db, tickets) {
     if (!a || (a.visibility !== 'public' && !isAgent(user))) throw notFound();
     if (count) db.prepare('UPDATE kb_articles SET views=views+1 WHERE id=?').run(a.id);
     const t = treeIndex(user);
-    // Pfad nur über sichtbare Vorfahren; Unterseiten nur sichtbare
+    // Path only via visible ancestors; only visible subpages
     const path = []; for (let p = t.parentOf(a.id); p; p = t.parentOf(p)) path.unshift({ id: p, title: t.byId.get(p).title });
     const children = t.childrenOf(a.id).map((c) => ({ id: c.id, title: c.title, visibility: c.visibility }));
     return { ...out(a), parentId: t.parentOf(a.id), path, children };
   }
 
-  // ---------- Seitenbaum ----------
-  /** Sichtbare Artikel mit „wirksamem“ Elternteil: nächster sichtbarer Vorfahr (Benutzer sehen keine internen Seiten) */
+  // ---------- Page tree ----------
+  /** Visible articles with "effective" parent: nearest visible ancestor (users do not see internal pages) */
   function treeIndex(user) {
     const agent = isAgent(user);
     const all = db.prepare('SELECT id, title, parent_id, visibility, category, updated_at FROM kb_articles').all();
@@ -90,13 +90,13 @@ export function createKb(db, tickets) {
     for (const list of kids.values()) list.sort((a, b) => a.title.localeCompare(b.title, 'de'));
     return { byId, parentOf, childrenOf: (id) => kids.get(id) || [] };
   }
-  /** ganzer Baum für die Navigation: [{ id, title, visibility, children: […] }] */
+  /** whole tree for navigation: [{ id, title, visibility, children: […] }] */
   function tree(user) {
     const t = treeIndex(user);
     const build = (id, depth) => t.childrenOf(id).map((x) => ({ id: x.id, title: x.title, visibility: x.visibility, children: depth < 20 ? build(x.id, depth + 1) : [] }));
     return build(null, 0);
   }
-  /** Artikel mit allen (sichtbaren) Unterseiten in Lesereihenfolge – zum Drucken */
+  /** Article with all (visible) subpages in reading order – for printing */
   function bundle(user, id) {
     const root = get(user, id);
     const t = treeIndex(user);
@@ -105,7 +105,7 @@ export function createKb(db, tickets) {
     walk(root.id, 1);
     return out2;
   }
-  /** nur den Platz im Baum ändern (Ziehen im Seitenbaum) – keine neue Version */
+  /** only change the position in the tree (dragging in the page tree) – no new version */
   function move(user, id, parentId) {
     if (!isAgent(user)) throw forbidden();
     get(user, id);
@@ -113,7 +113,7 @@ export function createKb(db, tickets) {
     db.prepare('UPDATE kb_articles SET parent_id=? WHERE id=?').run(parent, int(id));
     return get(user, id);
   }
-  /** neuer Elternteil prüfen: muss existieren, darf nicht der Artikel selbst oder einer seiner Nachfahren sein */
+  /** validate new parent: must exist, must not be the article itself or one of its descendants */
   function checkParent(user, id, parentId) {
     if (!parentId) return null;
     const p = db.prepare('SELECT id FROM kb_articles WHERE id=?').get(int(parentId));
@@ -153,13 +153,13 @@ export function createKb(db, tickets) {
     if (!isAgent(user)) throw forbidden();
     const cur = get(user, id);
     const d = clean(data);
-    // Verschieben im Baum ist keine inhaltliche Änderung → keine Version
+    // Moving within the tree is not a content change → no version
     if ('parentId' in data) {
       const parent = checkParent(user, id, data.parentId);
       const rawParent = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(int(id)).parent_id;
       if (parent !== rawParent) db.prepare('UPDATE kb_articles SET parent_id=? WHERE id=?').run(parent, int(id));
     }
-    // unverändert gespeichert → keine neue Version, kein neues Datum
+    // saved unchanged → no new version, no new date
     if (d.title === cur.title && d.body === cur.body && d.category === cur.category && d.visibility === cur.visibility) return get(user, id);
     db.transaction(() => {
       db.prepare("UPDATE kb_articles SET title=?, body=?, visibility=?, category=?, updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?")
@@ -170,7 +170,7 @@ export function createKb(db, tickets) {
     return get(user, id);
   }
 
-  // ---------- Versionen ----------
+  // ---------- Versions ----------
   function addVersion(articleId, d, user, note = '') {
     const next = (db.prepare('SELECT MAX(version) v FROM kb_versions WHERE article_id=?').get(articleId).v || 0) + 1;
     db.prepare('INSERT INTO kb_versions(article_id, version, title, body, category, visibility, note, author_id) VALUES(?,?,?,?,?,?,?,?)')
@@ -181,7 +181,7 @@ export function createKb(db, tickets) {
     version: v.version, title: v.title, category: v.category, visibility: v.visibility, note: v.note, author: v.u_name || null, createdAt: v.created_at,
     size: v.body.length, ...(withBody ? { body: v.body } : {}),
   });
-  /** Verlauf eines Artikels (nur Bearbeiter) */
+  /** History of an article (agents only) */
   function versions(user, id) {
     if (!isAgent(user)) throw forbidden();
     get(user, id);
@@ -195,13 +195,13 @@ export function createKb(db, tickets) {
     if (!v) throw notFound();
     return versionOut(v, true);
   }
-  /** Ältere Version zurückholen – als neue Version, der Verlauf bleibt vollständig */
+  /** Restore an older version – as a new version, the history stays complete */
   function restore(user, id, nr) {
     const v = version(user, id, nr);
     return update(user, id, { title: v.title, body: v.body, category: v.category, visibility: v.visibility, note: `↩ ${v.version}` });
   }
 
-  // ---------- Vorlagen (eigene; die mitgelieferten stecken in der Oberfläche) ----------
+  // ---------- Templates (custom ones; the built-in ones live in the UI) ----------
   const tplOut = (x) => ({ id: x.id, title: x.title, description: x.description, body: x.body, author: x.u_name || null, updatedAt: x.updated_at });
   function templates(user) {
     if (!isAgent(user)) throw forbidden();
@@ -236,7 +236,7 @@ export function createKb(db, tickets) {
     get(user, id);
     const imgs = db.prepare('SELECT token FROM kb_images WHERE article_id=?').all(int(id));
     db.transaction(() => {
-      // Unterseiten rücken eine Ebene hoch
+      // Subpages move up one level
       const parent = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(int(id)).parent_id;
       db.prepare('UPDATE kb_articles SET parent_id=? WHERE parent_id=?').run(parent ?? null, int(id));
       db.prepare('DELETE FROM kb_articles WHERE id=?').run(int(id));
@@ -244,20 +244,20 @@ export function createKb(db, tickets) {
     for (const i of imgs) dropImage(i.token);
   }
 
-  // ---------- Bilder ----------
+  // ---------- Images ----------
   const imgDir = path.join(paths.attachments, 'kb');
   const imgPath = (token) => path.join(imgDir, token);
   function dropImage(token) {
     db.prepare('DELETE FROM kb_images WHERE token=?').run(token);
     fs.rmSync(imgPath(token), { force: true });
   }
-  /** Bilder, die im Text vorkommen, gehören ab jetzt zu diesem Artikel */
+  /** Images that appear in the text now belong to this article */
   function claimImages(articleId, body) {
     const tokens = [...new Set([...String(body).matchAll(IMG_TOKEN)].map((m) => m[1]))];
     const st = db.prepare('UPDATE kb_images SET article_id=? WHERE token=? AND article_id IS NULL');
     for (const tk of tokens) st.run(articleId, tk);
   }
-  /** Hochladen (Bearbeiter); nicht gespeicherte Entwürfe verfallen nach zwei Tagen */
+  /** Upload (agents); unsaved drafts expire after two days */
   function addImage(user, { tmpPath, filename }) {
     if (!isAgent(user)) throw forbidden();
     const head = Buffer.alloc(16);
@@ -277,7 +277,7 @@ export function createKb(db, tickets) {
     for (const old of db.prepare("SELECT token FROM kb_images WHERE article_id IS NULL AND created_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 days')").all()) dropImage(old.token);
     return { url: `/api/kb/images/${token}`, token };
   }
-  /** Bild ausliefern: interne Artikel und Entwürfe nur für Bearbeiter */
+  /** Serve an image: internal articles and drafts for agents only */
   function imageFile(user, token) {
     const i = db.prepare('SELECT i.*, a.visibility FROM kb_images i LEFT JOIN kb_articles a ON a.id=i.article_id WHERE i.token=?').get(str(token, 80));
     if (!i) throw notFound();
@@ -288,7 +288,7 @@ export function createKb(db, tickets) {
   const categories = (user) => db.prepare(`SELECT category, COUNT(*) n FROM kb_articles WHERE category<>'' AND (? OR visibility='public') GROUP BY category ORDER BY category`)
     .all(isAgent(user) ? 1 : 0).map((r) => ({ name: r.category, count: r.n }));
 
-  /** Vorschlag für einen neuen Wissensartikel aus einem Ticket */
+  /** Suggestion for a new knowledge article from a ticket */
   function draftFromTicket(user, key) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);

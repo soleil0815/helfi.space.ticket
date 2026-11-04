@@ -1,5 +1,5 @@
-// Service Level Agreements: Ziele für erste Reaktion und Lösung je Priorität, in Geschäftszeiten.
-// „Wartet“ (auf den Melder) hält die Lösungsuhr an. Berechnet wird bei Bedarf aus Verlauf und Kommentaren.
+// Service level agreements: targets for first response and resolution per priority, in business hours.
+// "Waiting" (for the reporter) pauses the resolution clock. Computed on demand from history and comments.
 import { log } from '../lib/log.js';
 
 export const DEFAULT_TARGETS = {
@@ -15,10 +15,10 @@ const DAY = 86400000;
 const hm = (s, def) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '')); return m ? Math.min(24 * 60, Number(m[1]) * 60 + Number(m[2])) : def; };
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** Kalender aus den Einstellungen */
+/** Calendar from the settings */
 export function calendarFrom(hoursJson, holidaysText) {
   let h = DEFAULT_HOURS;
-  try { h = { ...DEFAULT_HOURS, ...JSON.parse(hoursJson || '{}') }; } catch { /* Standard */ }
+  try { h = { ...DEFAULT_HOURS, ...JSON.parse(hoursJson || '{}') }; } catch { /* default */ }
   const days = new Set((Array.isArray(h.days) ? h.days : DEFAULT_HOURS.days).map(Number).filter((d) => d >= 0 && d <= 6));
   const startMin = hm(h.start, 480);
   const endMin = Math.max(startMin, hm(h.end, 1020));
@@ -26,7 +26,7 @@ export function calendarFrom(hoursJson, holidaysText) {
   return { days, startMin, endMin, holidays };
 }
 
-/** Arbeitsfenster eines Tages [von, bis] in ms oder null */
+/** Working window of a day [from, to] in ms or null */
 function window(cal, day) {
   if (!cal.days.has(day.getDay()) || cal.holidays.has(ymd(day))) return null;
   const y = day.getFullYear(); const m = day.getMonth(); const d = day.getDate();
@@ -36,7 +36,7 @@ function window(cal, day) {
 }
 const nextDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
 
-/** Geschäftsminuten zwischen zwei Zeitpunkten */
+/** Business minutes between two points in time */
 export function businessMinutes(fromMs, toMs, cal) {
   if (!(toMs > fromMs)) return 0;
   let total = 0;
@@ -48,7 +48,7 @@ export function businessMinutes(fromMs, toMs, cal) {
   return total / 60000;
 }
 
-/** Zeitpunkt nach „minutes“ Geschäftsminuten ab fromMs */
+/** Point in time after "minutes" business minutes from fromMs */
 export function addBusinessMinutes(fromMs, minutes, cal) {
   let left = minutes * 60000;
   let day = new Date(fromMs); day = new Date(day.getFullYear(), day.getMonth(), day.getDate());
@@ -60,7 +60,7 @@ export function addBusinessMinutes(fromMs, minutes, cal) {
     if (start + left <= w[1]) return start + left;
     left -= w[1] - start;
   }
-  return null; // kein Arbeitstag in Sicht (falsch eingerichtet)
+  return null; // no working day in sight (misconfigured)
 }
 
 export function createSla(db, tickets, settings, { mailer = null, users = null, baseUrl = '', t = null } = {}) {
@@ -85,20 +85,20 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
     return { target, elapsed: Math.round(elapsed), remaining: Math.round(remaining), state, due: due ? new Date(due).toISOString() : null };
   }
 
-  /** SLA eines Tickets (Rohzeile) – null, wenn nicht anwendbar */
+  /** SLA of a ticket (raw row) – null if not applicable */
   function forRow(row, nowMs = Date.now()) {
-    // Importierte Tickets (Importer schreibt source='jira'; 'import' für ältere/andere Importe) ohne SLA
+    // Imported tickets (importer writes source='jira'; 'import' for older/other imports) have no SLA
     if (!enabled() || !SLA_TYPES.includes(row.type) || row.source === 'import' || row.source === 'jira') return null;
-    // Eigene Tickets der Bearbeiter (interne Arbeit) zählen nicht
+    // Agents' own tickets (internal work) do not count
     if (row.reporter_id && ['agent', 'admin'].includes(reporterRole.get(row.reporter_id)?.role)) return null;
     const cal = calendar();
     const tg = targets()[row.priority] || DEFAULT_TARGETS.medium;
     const created = Date.parse(row.created_at);
-    // Erste Reaktion: erste öffentliche Antwort eines Bearbeiters
+    // First response: first public reply by an agent
     const reply = firstReply.get(row.id);
     const respEnd = reply ? Date.parse(reply.created_at) : nowMs;
     const response = clock(tg.response, businessMinutes(created, respEnd, cal), !reply, nowMs, cal, warnAt());
-    // Lösung: Zeit ohne „Wartet“ und „Erledigt“
+    // Resolution: time excluding "Waiting" and "Resolved"
     const paused = new Set(['done', ...(settings.get('sla.pauseWaiting') ? ['waiting'] : [])]);
     let status = 'open'; let from = created; let elapsed = 0;
     for (const ch of statusChanges.all(row.id)) {
@@ -113,7 +113,7 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
     return { response, resolve };
   }
 
-  /** Zusammenfassung für Listen: der „schlechteste“ laufende Stand */
+  /** Summary for lists: the "worst" running state */
   const RANK = { breached: 3, warning: 2, ok: 1, missed: 0, met: 0 };
   function worst(s) {
     if (!s) return null;
@@ -130,7 +130,7 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
     return rows.filter((r) => ['warning', 'breached'].includes(worst(forRow(r))?.state)).map((r) => r.id);
   }
 
-  // ---------- Warnungen: Verlauf und Mail an Bearbeiter (bzw. Projektleitung), je Stufe einmal ----------
+  // ---------- Warnings: history and mail to the assignee (or project lead), once per level ----------
   const seen = db.prepare('INSERT OR IGNORE INTO sla_events(ticket_id, kind, level) VALUES(?,?,?)');
   function check(nowMs = Date.now()) {
     if (!enabled()) return 0;
@@ -145,7 +145,7 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
         if (!seen.run(row.id, kind, level).changes) continue;
         n++;
         tickets.logActivity(row.id, null, 'sla', kind, null, level);
-        notify(row, kind, level).catch((e) => log.warn('SLA-Benachrichtigung fehlgeschlagen', { error: e.message }));
+        notify(row, kind, level).catch((e) => log.warn('SLA notification failed', { error: e.message }));
       }
     }
     return n;
@@ -158,13 +158,13 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
     const vars = { key: `${row.project_key}-${row.number}`, title: row.title, kind: t(lang, `sla.kind.${kind}`), level: t(lang, `sla.level.${level}`), link: `${baseUrl}/browse/${row.project_key}-${row.number}`, app: settings.get('general.title') || 'Helfi.Space' };
     await mailer.send({ to: to.email, subject: t(lang, 'mail.sla.subject', vars), text: t(lang, 'mail.sla.body', vars), ticketId: row.id });
   }
-  // Ändert sich die Priorität, gelten neue Ziele – Warnstufen dürfen erneut ausgelöst werden
+  // If the priority changes, new targets apply – warning levels may be triggered again
   tickets.events.on('priorityChanged', ({ ticketId }) => db.prepare('DELETE FROM sla_events WHERE ticket_id=?').run(ticketId));
 
   let timer = null;
   function start(everyMs = 5 * 60 * 1000) {
     clearInterval(timer);
-    timer = setInterval(() => { try { check(); } catch (e) { log.warn('SLA-Prüfung fehlgeschlagen', { error: e.message }); } }, everyMs);
+    timer = setInterval(() => { try { check(); } catch (e) { log.warn('SLA check failed', { error: e.message }); } }, everyMs);
     timer.unref?.();
   }
 

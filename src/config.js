@@ -1,6 +1,6 @@
-// Zentrale Konfiguration aus Umgebungsvariablen.
-// Alles, was sich im Programm einstellen lässt (AD, SSO, E-Mail ...), liegt in der
-// Datenbank und wird über die Oberfläche gepflegt – nicht hier.
+// Central configuration from environment variables.
+// Everything configurable in the app (AD, SSO, email ...) lives in the
+// database and is managed through the UI – not here.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
 
-// Version der docker-compose.yml, die zu diesem Programmstand passt.
-// Wird erhöht, wenn die Datei sich ändern muss (neue Pflicht-Variablen o. Ä.).
+// Version of docker-compose.yml that matches this code.
+// Increased when the file has to change (new required variables or similar).
 export const COMPOSE_VERSION = 1;
 
 function bool(v, def = false) {
@@ -25,7 +25,7 @@ export const config = {
   dataDir: path.resolve(process.env.HELFI_DATA_DIR || '/data'),
   baseUrl,
   secureCookies: bool(process.env.HELFI_SECURE_COOKIES, baseUrl.startsWith('https://')),
-  // Nur ausdrücklich genannten Proxys die Client-IP glauben (X-Forwarded-For), sonst ist sie fälschbar
+  // Trust the client IP (X-Forwarded-For) only from explicitly listed proxies, otherwise it can be spoofed
   trustProxy: process.env.HELFI_TRUST_PROXY || 'loopback',
   composeVersion: Number(process.env.HELFI_COMPOSE_VERSION || 0),
   logLevel: process.env.HELFI_LOG_LEVEL || 'info',

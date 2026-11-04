@@ -1,10 +1,10 @@
-// Genehmigungen (Change, Servicekatalog): Runde je Anfrage, Entscheidung je Person.
+// Approvals (change, service catalog): one round per request, one decision per person.
 import { HttpError, forbidden, str } from '../lib/http.js';
 
 export function createApprovals(db, users) {
   const latestRound = (ticketId) => db.prepare('SELECT MAX(round) r FROM approvals WHERE ticket_id=?').get(ticketId).r || 0;
 
-  /** neue Runde anfragen; liefert die Rundennummer */
+  /** request a new round; returns the round number */
   function request(ticketId, approverIds) {
     const ids = [...new Set(approverIds.map(Number).filter(Boolean))];
     if (!ids.length) throw new HttpError(400, 'err.noApprovers');
@@ -23,7 +23,7 @@ export function createApprovals(db, users) {
     return { round, items };
   }
 
-  /** Ergebnis der aktuellen Runde: approved | rejected | pending | none */
+  /** Result of the current round: approved | rejected | pending | none */
   function outcome(ticketId, mode = 'any') {
     const { items } = current(ticketId);
     if (!items.length) return 'none';
@@ -46,7 +46,7 @@ export function createApprovals(db, users) {
   const isPendingApprover = (ticketId, userId) => !!db.prepare('SELECT 1 FROM approvals WHERE ticket_id=? AND round=? AND approver_id=? AND decision IS NULL')
     .get(ticketId, latestRound(ticketId), userId);
 
-  /** Tickets, die auf die Entscheidung dieser Person warten */
+  /** Tickets waiting for this person's decision */
   function pendingFor(userId) {
     return db.prepare(`SELECT a.ticket_id FROM approvals a WHERE a.approver_id=? AND a.decision IS NULL
       AND a.round=(SELECT MAX(round) FROM approvals b WHERE b.ticket_id=a.ticket_id)`).all(userId).map((r) => r.ticket_id);

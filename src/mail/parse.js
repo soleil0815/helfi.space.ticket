@@ -1,12 +1,12 @@
-// Hilfen zum Auswerten eingehender E-Mails.
+// Helpers for parsing incoming emails.
 
-/** Sucht "[HS-12]" im Betreff. Liefert { projectKey, number } oder null. */
+/** Looks for "[HS-12]" in the subject. Returns { projectKey, number } or null. */
 export function ticketKeyFromSubject(subject) {
   const m = /\[([A-Z][A-Z0-9]{1,9})-(\d{1,9})\]/i.exec(String(subject || ''));
   return m ? { projectKey: m[1].toUpperCase(), number: Number(m[2]) } : null;
 }
 
-/** Entfernt "AW:", "Re:", "WG:", "Fwd:" usw. und die Ticketnummer aus dem Betreff. */
+/** Removes "AW:", "Re:", "WG:", "Fwd:" etc. and the ticket number from the subject. */
 export function cleanSubject(subject) {
   let s = String(subject || '').trim();
   let prev;
@@ -18,28 +18,28 @@ export function cleanSubject(subject) {
   return s.trim();
 }
 
-export const MAX_QUOTE_LINE = 1000; // längere Zeilen sind nie eine Zitat-Kopfzeile (und würden die Prüfung verlangsamen)
+export const MAX_QUOTE_LINE = 1000; // longer lines are never a quote header (and would slow down the check)
 
-/** „Am … schrieb …:“ / „On … wrote …:“ – ohne Regex mit verschachtelten Wiederholungen (linear). */
+/** "Am … schrieb …:" / "On … wrote …:" – without a regex with nested repetition (linear). */
 function isReplyHeader(l, caseInsensitiveStart = true) {
   if (l.length > 2 * MAX_QUOTE_LINE + 1) return false;
   if (!(caseInsensitiveStart ? /^(Am|On)\s/i : /^(Am|On)\s/).test(l)) return false;
   const end = l.trimEnd();
   if (!end.endsWith(':')) return false;
-  // nach „Am “ mindestens ein Zeichen, dann schrieb/wrote, irgendwo vor dem letzten Doppelpunkt
+  // after "Am " at least one character, then schrieb/wrote, somewhere before the last colon
   const w = /(schrieb|wrote)/i.exec(l.slice(4));
   return !!w && 4 + w.index + w[0].length <= end.length - 1;
 }
 
 /**
- * Schneidet zitierten Verlauf aus Antworten ab (Outlook, Gmail, Apple Mail, Thunderbird – de/en).
- * Bleibt danach nichts übrig, wird der Originaltext zurückgegeben.
+ * Cuts quoted history from replies (Outlook, Gmail, Apple Mail, Thunderbird – de/en).
+ * If nothing is left afterwards, the original text is returned.
  */
 export function stripQuotedReply(text) {
   const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
   const markers = [
     /^-{2,}\s*(Original Message|Ursprüngliche Nachricht|Originalnachricht|Forwarded message|Weitergeleitete Nachricht)\s*-{2,}/i,
-    /^_{10,}\s*$/, // Outlook-Trennlinie
+    /^_{10,}\s*$/, // Outlook separator line
     (l) => isReplyHeader(l),
     /^(Von|From):\s.+$/i,
   ];
@@ -48,7 +48,7 @@ export function stripQuotedReply(text) {
     const l = lines[i].trim();
     if (l.length > MAX_QUOTE_LINE) continue;
     if (markers.some((re) => (typeof re === 'function' ? re(l) : re.test(l)))) {
-      // "Von:" nur als Kopf eines zitierten Blocks werten (folgende Zeile Gesendet/Sent/An/To/Datum)
+      // Treat "Von:" only as the header of a quoted block (next line Gesendet/Sent/An/To/Datum)
       if (/^(Von|From):/i.test(l)) {
         const next = (lines[i + 1] || '').trim();
         if (!/^(Gesendet|Sent|An|To|Datum|Date|Cc|Betreff|Subject):/i.test(next)) continue;
@@ -56,18 +56,18 @@ export function stripQuotedReply(text) {
       cut = i;
       break;
     }
-    // Zweizeilige Gmail-Variante: "Am Mo., 1. Jan. 2026 um 10:00 Uhr schrieb X <x@y>:" kann umbrechen
+    // Two-line Gmail variant: "Am Mo., 1. Jan. 2026 um 10:00 Uhr schrieb X <x@y>:" may wrap
     const next = (lines[i + 1] || '').trim();
     if (next.length <= MAX_QUOTE_LINE && isReplyHeader(`${l} ${next}`, false)) { cut = i; break; }
   }
   let body = lines.slice(0, cut);
-  // Zitatzeilen ">" am Ende entfernen
+  // Remove quote lines ">" at the end
   while (body.length && (/^\s*>/.test(body[body.length - 1]) || body[body.length - 1].trim() === '')) body.pop();
   const result = body.join('\n').trim();
   return result || String(text || '').trim();
 }
 
-/** Automatische Antworten, Bounces und Massenmails erkennen (keine Tickets daraus, keine Mail-Schleifen). */
+/** Detect auto-replies, bounces and bulk mail (no tickets from them, no mail loops). */
 export function isAutomated(headers, fromAddress) {
   const get = (k) => {
     const v = headers?.get ? headers.get(k) : headers?.[k];
@@ -82,15 +82,15 @@ export function isAutomated(headers, fromAddress) {
   return false;
 }
 
-/** Einfache Prüfung einer E-Mail-Adresse. */
+/** Simple check of an email address. */
 export function isEmail(v) {
   return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(v || ''));
 }
 
 /**
- * Unzustellbarkeitsbericht (Bounce/NDR) oder Lesebestätigung erkennen.
- * raw: Anfang der Rohmail als Text (für Kopfzeilen, die mailparser verwirft, und den Teil
- * message/delivery-status). Liefert null oder { kind: 'bounce'|'receipt', failed: [Adressen], refs: [Message-IDs] }.
+ * Detect a non-delivery report (bounce/NDR) or read receipt.
+ * raw: start of the raw mail as text (for headers that mailparser drops, and the part
+ * message/delivery-status). Returns null or { kind: 'bounce'|'receipt', failed: [addresses], refs: [Message-IDs] }.
  */
 export function deliveryReport(parsed, raw = '') {
   const ct = parsed?.headers?.get?.('content-type');
@@ -100,7 +100,7 @@ export function deliveryReport(parsed, raw = '') {
   const rp = parsed?.headers?.get?.('return-path');
   const nullSender = !!rp && !(rp.value || []).some((a) => a.address) && !/@/.test(String(rp.text || ''));
   const text = String(raw || '');
-  // Kopfzeilen der obersten Ebene – nie den Mailtext (sonst sperrt jede Mail mit solchen Zeilen beliebige Adressen)
+  // Top-level headers only – never the mail body (otherwise any mail with such lines would block arbitrary addresses)
   const head = topHeaders(text);
 
   const deliveryStatus = type === 'multipart/report' && reportType === 'delivery-status';
@@ -113,7 +113,7 @@ export function deliveryReport(parsed, raw = '') {
   if (!bounce) return null;
 
   const failed = new Set();
-  // Final-Recipient/Original-Recipient nur aus dem Teil message/delivery-status eines multipart/report
+  // Final-Recipient/Original-Recipient only from the message/delivery-status part of a multipart/report
   const status = deliveryStatus ? deliveryStatusParts(text, String(ct?.params?.boundary || '')) : '';
   for (const m of status.matchAll(/^(?:final|original)-recipient:\s*rfc822\s*;\s*<?([^\s<>;]+@[^\s<>;]+)>?/gim)) failed.add(m[1].toLowerCase());
   for (const m of head.matchAll(/^x-failed-recipients:[ \t]*(.+)$/gim)) {
@@ -123,18 +123,18 @@ export function deliveryReport(parsed, raw = '') {
   for (const r of [parsed?.inReplyTo, ...(Array.isArray(parsed?.references) ? parsed.references : [parsed?.references])]) {
     if (r) refs.add(String(r).replace(/[<>]/g, '').trim());
   }
-  // Die zurückgekommene Originalmail steckt meist im Bericht (Message-ID einer Helfi-Mail)
+  // The returned original mail is usually inside the report (Message-ID of a Helfi mail)
   for (const m of text.matchAll(/<(helfi\.\d+\.\d+\.[0-9a-f]+(?:\.agent)?@[^>\s]+)>/gi)) refs.add(m[1]);
   return { kind: 'bounce', failed: [...failed], refs: [...refs] };
 }
 
-/** Kopfzeilen der obersten Ebene (bis zur ersten Leerzeile). */
+/** Top-level headers (up to the first empty line). */
 function topHeaders(raw) {
   const m = /\r?\n\r?\n/.exec(raw);
   return m ? raw.slice(0, m.index) : raw;
 }
 
-/** Inhalt der Teile mit Content-Type message/delivery-status (bzw. message/global-delivery-status) eines multipart/report. */
+/** Content of the parts with Content-Type message/delivery-status (or message/global-delivery-status) of a multipart/report. */
 function deliveryStatusParts(raw, boundary) {
   if (!boundary) return '';
   const body = raw.slice(topHeaders(raw).length);

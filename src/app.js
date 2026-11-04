@@ -1,4 +1,4 @@
-// Baut die Express-Anwendung zusammen (ohne zu lauschen – so lässt sie sich testen).
+// Assembles the Express application (without listening – so it can be tested).
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
@@ -40,22 +40,22 @@ import { log } from './lib/log.js';
 import { randomToken } from './lib/crypto.js';
 
 /**
- * HELFI_TRUST_PROXY übernehmen: Liste von Adressen/Netzen bzw. loopback/linklocal/uniquelocal.
- * "true"/"false"/reine Zahlen (Hop-Anzahl) und ungültige Werte werden NICHT übernommen
- * ("true" hieße: jedem X-Forwarded-For glauben) – Warnung im Protokoll und Standard "loopback".
- * Liefert den tatsächlich verwendeten Wert.
+ * Apply HELFI_TRUST_PROXY: list of addresses/networks or loopback/linklocal/uniquelocal.
+ * "true"/"false"/plain numbers (hop count) and invalid values are NOT applied
+ * ("true" would mean: trust every X-Forwarded-For) – warning in the log and default "loopback".
+ * Returns the value actually used.
  */
 export function applyTrustProxy(app, raw) {
   const value = String(raw ?? '').trim();
   const fallback = (why) => {
-    log.warn(`HELFI_TRUST_PROXY="${value}" ${why} – es gilt "loopback". Bitte die Adresse(n) des Proxys angeben, z. B. "loopback, 10.0.10.5".`);
+    log.warn(`HELFI_TRUST_PROXY="${value}" ${why} – using "loopback". Please specify the proxy address(es), e.g. "loopback, 10.0.10.5".`);
     app.set('trust proxy', 'loopback');
     return 'loopback';
   };
   if (!value) { app.set('trust proxy', 'loopback'); return 'loopback'; }
-  if (/^(true|false|yes|no|ja|nein|on|off)$/i.test(value)) return fallback('ist kein gültiger Wert (Ja/Nein wird nicht unterstützt)');
-  if (/^\d+$/.test(value)) return fallback('ist kein gültiger Wert (Anzahl der Proxys wird nicht unterstützt)');
-  try { app.set('trust proxy', value); } catch (e) { return fallback(`ist ungültig (${e.message})`); }
+  if (/^(true|false|yes|no|ja|nein|on|off)$/i.test(value)) return fallback('is not a valid value (yes/no is not supported)');
+  if (/^\d+$/.test(value)) return fallback('is not a valid value (number of proxies is not supported)');
+  try { app.set('trust proxy', value); } catch (e) { return fallback(`is invalid (${e.message})`); }
   return value;
 }
 
@@ -74,7 +74,7 @@ export function createApp(db) {
   const poller = createImapPoller({ settings, processor });
   const limiter = createLoginLimiter();
   const mfa = createMfa({ db, settings, sessions, users, policy, limiter });
-  // vor den Mails registriert: die „Erledigt“-Mail braucht die frisch angelegte Umfrage
+  // registered before the mails: the "Resolved" mail needs the freshly created survey
   const survey = createSurvey(db, tickets, settings);
   wireNotifications({ tickets, mailer, settings, users, survey });
   const major = createMajor(db, tickets);
@@ -89,7 +89,7 @@ export function createApp(db) {
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const itilReports = createItilReports(db, sla);
 
-  // Ersteinrichtung: einmaliger Code, nur solange es keine Benutzer gibt
+  // Initial setup: one-time code, only as long as there are no users
   const setup = { token: null };
   if (db.prepare('SELECT COUNT(*) n FROM users').get().n === 0) {
     setup.token = process.env.HELFI_SETUP_TOKEN || randomToken(9);
@@ -102,7 +102,7 @@ export function createApp(db) {
   const news = createNews(db);
   const reports = createReports(db);
   const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, news, reports, suppressions, ldapCertWarning: null,
-    // Verzeichnis für Teilnehmer aus dem AD (in Tests austauschbar)
+    // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 
   const app = express();
@@ -134,11 +134,11 @@ export function createApp(db) {
   app.use(parseCookies);
   app.use(sessions.middleware);
   app.use(express.json({ limit: '2mb' }));
-  // Express 5: ohne JSON-Body ist req.body undefined → immer ein Objekt bereitstellen
+  // Express 5: without a JSON body req.body is undefined → always provide an object
   app.use((req, _res, next) => { if (!req.body || typeof req.body !== 'object') req.body = {}; next(); });
 
-  // CSRF-Schutz: schreibende API-Aufrufe brauchen einen eigenen Header (Browser senden ihn
-  // fremdseitig nur nach CORS-Freigabe, die es hier nicht gibt).
+  // CSRF protection: writing API calls need a custom header (browsers only send it
+  // cross-site after a CORS grant, which does not exist here).
   app.use('/api', (req, _res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
     if (req.get('X-Helfi-Request') !== '1') return next(new HttpError(403, 'err.csrf'));
@@ -149,10 +149,10 @@ export function createApp(db) {
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'err.notFound')));
   app.use('/auth/oidc', createOidcRoutes(ctx));
 
-  // Erscheinungsbild (Logo, Farben) – öffentlich, auch für die Anmeldeseite
+  // Branding (logo, colors) – public, also for the sign-in page
   brandRoutes(app, ctx.settings);
 
-  // Web-App-Manifest: „Zum Startbildschirm hinzufügen“ (Name aus den Einstellungen)
+  // Web app manifest: "Add to home screen" (name from the settings)
   app.get('/manifest.webmanifest', (_req, res) => {
     const name = String(ctx.settings.get('general.title') || 'Helfi.Space').slice(0, 60);
     res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
@@ -168,8 +168,8 @@ export function createApp(db) {
     }));
   });
 
-  // Statische Dateien + SPA
-  // Immer kurz nachfragen (ETag): nach einem Update kommt sofort die neue Oberfläche, Unverändertes wird nicht neu übertragen
+  // Static files + SPA
+  // Always revalidate (ETag): after an update the new UI arrives immediately, unchanged files are not re-sent
   app.use(express.static(config.publicDir, { index: false, maxAge: 0, setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));
   const indexHtml = path.join(config.publicDir, 'index.html');
   app.get(/^\/(?!api\/|auth\/).*/, (_req, res) => {
@@ -177,7 +177,7 @@ export function createApp(db) {
     res.sendFile(indexHtml);
   });
 
-  // Fehlerbehandlung: Code → Text in der Sprache des Benutzers
+  // Error handling: code → text in the user's language
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, _next) => {
     const lang = normalizeLang(req.user?.language || langFromHeader(req.get('accept-language')));

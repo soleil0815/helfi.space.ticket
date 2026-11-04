@@ -1,5 +1,5 @@
-// Single Sign-on per OpenID Connect (Authorization Code + PKCE).
-// Funktioniert mit Microsoft Entra ID, ADFS (Windows Server), Keycloak, Authentik u. a.
+// Single sign-on via OpenID Connect (Authorization Code + PKCE).
+// Works with Microsoft Entra ID, ADFS (Windows Server), Keycloak, Authentik and others.
 import * as oidc from 'openid-client';
 import { config } from '../config.js';
 import { normalizeUsername } from './ldap.js';
@@ -17,7 +17,7 @@ async function getConfiguration(cfg) {
     cfg.clientId,
     cfg.clientSecret || undefined,
     cfg.clientSecret ? undefined : oidc.None(),
-    // http:// nur zulassen, wenn ausdrücklich so eingetragen (z. B. Keycloak im LAN ohne TLS)
+    // allow http:// only if explicitly configured that way (e.g. Keycloak in the LAN without TLS)
     issuer.protocol === 'http:' ? { execute: [oidc.allowInsecureRequests] } : undefined,
   );
   cache = { key, conf, at: Date.now() };
@@ -26,7 +26,7 @@ async function getConfiguration(cfg) {
 
 export function resetOidcCache() { cache = { key: '', conf: null, at: 0 }; }
 
-/** Startet die Anmeldung: liefert die URL zum Identitätsanbieter und den zu merkenden Zustand. */
+/** Starts the sign-in: returns the URL to the identity provider and the state to remember. */
 export async function beginLogin(cfg) {
   const conf = await getConfiguration(cfg);
   const verifier = oidc.randomPKCECodeVerifier();
@@ -43,7 +43,7 @@ export async function beginLogin(cfg) {
   return { url: url.href, pending: { verifier, state, nonce, at: Date.now() } };
 }
 
-/** Schließt die Anmeldung ab und liefert die Benutzerdaten aus dem ID-Token. */
+/** Completes the sign-in and returns the user data from the ID token. */
 export async function finishLogin(cfg, currentUrl, pending) {
   const conf = await getConfiguration(cfg);
   const tokens = await oidc.authorizationCodeGrant(conf, currentUrl, {
@@ -52,7 +52,7 @@ export async function finishLogin(cfg, currentUrl, pending) {
     expectedNonce: pending.nonce,
   });
   let claims = tokens.claims() || {};
-  // Manche Anbieter liefern E-Mail/Gruppen nur über den UserInfo-Endpunkt
+  // Some providers return email/groups only via the UserInfo endpoint
   if ((!claims.email || !claims[cfg.groupsClaim]) && tokens.access_token) {
     try {
       const info = await oidc.fetchUserInfo(conf, tokens.access_token, claims.sub);
@@ -62,10 +62,10 @@ export async function finishLogin(cfg, currentUrl, pending) {
   return claimsToUser(claims, cfg);
 }
 
-// amr-Werte (RFC 8176), die eine Anmeldung mit mehreren Faktoren bzw. einem starken Faktor belegen
+// amr values (RFC 8176) that prove a sign-in with multiple factors or a strong factor
 const MFA_AMR = new Set(['mfa', 'mca', 'otp', 'hwk', 'sc', 'fido', 'face', 'fpt', 'iris', 'retina', 'vbm']);
 
-/** Hat der Identitätsanbieter eine MFA bestätigt? (amr, oder acr aus der eingestellten Liste) */
+/** Did the identity provider confirm MFA? (amr, or acr from the configured list) */
 export function mfaConfirmed(claims, cfg = {}) {
   const amr = Array.isArray(claims.amr) ? claims.amr : (claims.amr ? [claims.amr] : []);
   if (amr.some((v) => MFA_AMR.has(String(v).toLowerCase()))) return true;
@@ -74,9 +74,9 @@ export function mfaConfirmed(claims, cfg = {}) {
 }
 
 /**
- * AD-Kennung aus einem Claim → { sid } oder { guid } (objectGUID als Hex in Byte-Reihenfolge, wie bei der AD-Anmeldung).
- * Erkannt: SID „S-1-5-21-…“, GUID mit Bindestrichen (Textform, z. B. Keycloak), 32 Hex-Zeichen (Bytes),
- * Base64 der 16 Bytes (z. B. onPremisesImmutableId bei Entra ID). Sonst null.
+ * AD identifier from a claim → { sid } or { guid } (objectGUID as hex in byte order, as with AD sign-in).
+ * Recognized: SID "S-1-5-21-…", GUID with hyphens (text form, e.g. Keycloak), 32 hex characters (bytes),
+ * Base64 of the 16 bytes (e.g. onPremisesImmutableId in Entra ID). Otherwise null.
  */
 export function parseAdId(value) {
   const v = String(Array.isArray(value) ? value[0] ?? '' : value ?? '').trim();
@@ -84,7 +84,7 @@ export function parseAdId(value) {
   if (/^S-1-\d+(-\d+){1,15}$/i.test(v)) return { sid: v.toUpperCase() };
   const dashed = /^\{?([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})\}?$/i.exec(v);
   if (dashed) {
-    // Textform: die ersten drei Gruppen sind in den Bytes umgekehrt (little-endian)
+    // Text form: the first three groups are reversed in the bytes (little-endian)
     const rev = (x) => x.match(/../g).reverse().join('');
     return { guid: (rev(dashed[1]) + rev(dashed[2]) + rev(dashed[3]) + dashed[4] + dashed[5]).toLowerCase() };
   }
@@ -97,32 +97,32 @@ export function parseAdId(value) {
 }
 
 export function claimsToUser(claims, cfg) {
-  // Aus welchem Claim stammt der Name? (E-Mail-Adresse braucht eine Bestätigung, s. u.)
+  // Which claim does the name come from? (an email address needs verification, see below)
   const nameClaim = [cfg.usernameClaim, 'preferred_username', 'upn', 'email'].find((c) => c && claims[c]);
   const rawName = String(nameClaim ? claims[nameClaim] : claims.sub);
-  // Nur eine vom Anbieter bestätigte Adresse ist vertrauenswürdig (manche Anbieter lassen die
-  // E-Mail-Adresse im Profil frei eintragen)
+  // Only an address verified by the provider is trustworthy (some providers let users
+  // enter any email address in their profile)
   const emailVerified = claims.email_verified === true || claims.email_verified === 'true';
   let groups = claims[cfg.groupsClaim] || [];
   if (typeof groups === 'string') groups = groups.split(/[,;]/);
   const set = new Set(groups.map((g) => String(g).trim().toLowerCase()));
   const has = (value) => !!value && value.split(/[,;]/).map((v) => v.trim().toLowerCase()).some((v) => v && set.has(v));
 
-  // Zusammenführen mit AD-Konten nur, wenn der Admin eine Domäne dafür freigegeben hat –
-  // sonst könnte z. B. ein Gast "m.muster@fremd.example" das Konto "m.muster" übernehmen.
+  // Merge with AD accounts only if the admin has allowed a domain for it –
+  // otherwise e.g. a guest "m.muster@fremd.example" could take over the account "m.muster".
   const mergeDomain = String(cfg.mergeDomain || '').trim().toLowerCase().replace(/^@/, '');
-  // Mit eingestelltem Claim für die AD-Kennung wird NUR darüber zusammengeführt (siehe routes/oidc.js),
-  // nie über den Namen – der ist bei manchen Anbietern frei wählbar.
+  // With a configured claim for the AD identifier, merging happens ONLY via that claim (see routes/oidc.js),
+  // never via the name – some providers let users choose it freely.
   const adIdClaim = String(cfg.adIdClaim || '').trim();
   const adId = adIdClaim ? parseAdId(claims[adIdClaim]) : null;
-  // Nicht vertrauenswürdige Namen bekommen immer den Namensraum "oidc:" – so kann ein SSO-Konto
-  // nie einen Namen belegen, den später ein AD-Konto braucht (und umgekehrt). Namen ohne "@"
-  // gelten nie als vertrauenswürdig (bei manchen Anbietern frei wählbar).
+  // Untrusted names always get the namespace "oidc:" – so an SSO account can
+  // never take a name that an AD account needs later (and vice versa). Names without "@"
+  // are never trusted (freely choosable with some providers).
   let username = `oidc:${rawName}`;
   let trustName = false;
   if (mergeDomain && !adIdClaim) {
     const at = rawName.lastIndexOf('@');
-    // Name aus dem E-Mail-Rückfall nur mit bestätigter Adresse übernehmen
+    // Use the name from the email fallback only with a verified address
     const fromEmail = nameClaim === 'email';
     if (at > 0 && rawName.slice(at + 1).toLowerCase() === mergeDomain && (!fromEmail || emailVerified)) {
       username = normalizeUsername(rawName); trustName = true;
@@ -137,9 +137,9 @@ export function claimsToUser(claims, cfg) {
     externalId: `${claims.iss || ''}|${claims.sub}`,
     groups: { admin: has(cfg.adminGroup), agent: has(cfg.agentGroup) },
     trustName,
-    // Nur bestätigte Adressen dürfen gespeichert und mit E-Mail-Kontakten (und deren Tickets)
-    // zusammengeführt werden – oder die Adresse ist gleich dem vertrauenswürdigen Anmeldenamen
-    // der freigegebenen Domäne (z. B. Entra ID: UPN = Mail, ohne email_verified).
+    // Only verified addresses may be stored and merged with email contacts (and their tickets)
+    // – or the address equals the trusted login name
+    // of the allowed domain (e.g. Entra ID: UPN = mail, without email_verified).
     trustEmail: emailVerified || (trustName && !!email && email.toLowerCase() === rawName.toLowerCase()),
     adId,
     mfa: mfaConfirmed(claims, cfg),

@@ -1,4 +1,4 @@
-// REST-API für die Oberfläche.
+// REST API for the UI.
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
@@ -28,22 +28,22 @@ const MAX_BULK = 500;
 export function createApi(ctx) {
   const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions } = ctx;
   const r = express.Router();
-  // Zwischenablage im Datenordner: gleiches Dateisystem wie die Anhänge (kein EXDEV im Container)
+  // Staging area in the data folder: same file system as the attachments (no EXDEV in the container)
   const uploadTmp = path.join(paths.attachments, '.tmp');
-  // Reste abgebrochener Uploads beim Start entfernen
+  // Remove leftovers of aborted uploads at startup
   fs.rmSync(uploadTmp, { recursive: true, force: true });
   fs.mkdirSync(uploadTmp, { recursive: true });
   const upload = multer({ dest: uploadTmp, limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 10 } });
 
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-  // ---------- Öffentlich ----------
+  // ---------- Public ----------
   r.get('/bootstrap', (req, res) => {
     const userCount = db.prepare('SELECT COUNT(*) n FROM users').get().n;
     res.json({
       app: { title: settings.get('general.title'), version: config.version },
       brand: { logo: settings.get('brand.logo'), showTitle: settings.get('brand.showTitle'), header: settings.get('brand.header') },
-      // Eigene Texte der Anmeldeseite (Länge begrenzt; Darstellung ohne HTML)
+      // Custom texts of the sign-in page (length limited; rendered without HTML)
       login: {
         title: String(settings.get('login.title')).slice(0, 80),
         text: { de: String(settings.get('login.textDe')).slice(0, 4000), en: String(settings.get('login.textEn')).slice(0, 4000) },
@@ -53,8 +53,8 @@ export function createApi(ctx) {
       majorIncidents: req.user && isAgent(req.user) ? ctx.major.open() : [],
       sla: { enabled: ctx.sla.enabled() },
       pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
-      adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // Personensuche im AD verfügbar
-      // Neuigkeiten der aktuellen Version, die dieses Konto noch nicht gesehen hat
+      adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // people search in AD available
+      // News of the current version that this account has not seen yet
       news: req.user ? ctx.news.unseen(req.user) : null,
       hasCatalog: !!db.prepare('SELECT 1 FROM catalog_items WHERE active=1 LIMIT 1').get(),
       user: req.user ? publicUser(req.user) : null,
@@ -64,7 +64,7 @@ export function createApi(ctx) {
       },
       allowSelfService: settings.get('general.allowSelfService'),
       defaultLanguage: settings.get('general.defaultLanguage'),
-      // mode: Pflicht für dieses Konto (always/external/internal/off); ohne Anmeldung zählt „von außen“ für alle
+      // mode: requirement for this account (always/external/internal/off); without sign-in "external" applies to everyone
       mfa: {
         mode: req.user ? policy.userMode(req.user) : (policy.levels().external === 'none' ? 'off' : 'external'),
         internal: policy.isInternal(req), enabled: !!req.user?.totp_enabled,
@@ -109,8 +109,8 @@ export function createApi(ctx) {
       return u;
     })();
     setup.token = null;
-    log.info(`Ersteinrichtung abgeschlossen, lokaler Admin "${user.username}" angelegt`);
-    // Der Einrichtungscode aus dem Protokoll gilt als zweiter Faktor
+    log.info(`Initial setup completed, local admin "${user.username}" created`);
+    // The setup code from the log counts as a second factor
     sessions.create(res, user.id, req.ip, 'local', { mfa: true });
     res.json({ user: publicUser(user) });
   }));
@@ -121,13 +121,13 @@ export function createApi(ctx) {
     limiter.check(req.ip, username);
     if (!username || !password) throw new HttpError(401, 'err.invalidLogin');
 
-    // 1. Lokales Konto (z. B. Notfall-Admin)
+    // 1. Local account (e.g. emergency admin)
     const local = users.byName(username);
-    // Gleiche Antwortzeit, ob es das lokale Konto gibt oder nicht (keine Namenserkennung über die Zeit)
+    // Same response time whether the local account exists or not (no name detection via timing)
     if (!(local && local.source === 'local' && local.password_hash)) verifyPassword(password, DUMMY_HASH);
     if (local && local.source === 'local' && local.password_hash) {
       if (!verifyPassword(password, local.password_hash)) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
-      // Deaktiviert: dieselbe Antwort wie bei falschem Kennwort (sonst verrät sie, dass es stimmt)
+      // Disabled: same response as for a wrong password (otherwise it would reveal that it is correct)
       if (!local.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r1 = mfa.afterPrimary(req, res, local, 'local');
       if (r1.done) limiter.success(req.ip, username);
@@ -141,15 +141,15 @@ export function createApi(ctx) {
       try {
         info = await ldap.authenticate(cfg, username, password);
       } catch (e) {
-        log.error('AD-Anmeldung: Verbindungsproblem', { error: e.message });
-        // Lokale Konten funktionieren weiterhin – darauf hinweisen
+        log.error('AD sign-in: connection problem', { error: e.message });
+        // Local accounts still work – point that out
         throw new HttpError(503, 'err.ldapUnavailable');
       }
       if (!info) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const role = roleFromGroups(info.groups, cfg);
       if (!info.groups.user && role !== 'admin' && role !== 'agent') {
-        // Bewusst eigene Meldung (hilft dem Support); Admins sehen im Protokoll, wer abgewiesen wurde
-        log.warn(`AD-Anmeldung abgewiesen: ${info.username} ist nicht in der Gruppe „Zugelassene Benutzer“`);
+        // Deliberately a separate message (helps support); admins see in the log who was rejected
+        log.warn(`AD sign-in rejected: ${info.username} is not in the "allowed users" group`);
         throw new HttpError(403, 'err.notInGroup');
       }
       const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, sid: info.sid, role });
@@ -163,7 +163,7 @@ export function createApi(ctx) {
     throw new HttpError(401, 'err.invalidLogin');
   }));
 
-  // Zweiter Schritt der Anmeldung (ohne volle Sitzung, mit Cookie helfi_mfa)
+  // Second step of sign-in (without full session, with cookie helfi_mfa)
   r.post('/auth/mfa/enroll', wrap(async (req, res) => res.json(await mfa.enrollInfo(req))));
   r.post('/auth/mfa', wrap(async (req, res) => {
     const out = mfa.verify(req, res, str(req.body.code, 40));
@@ -175,22 +175,22 @@ export function createApi(ctx) {
     res.json({ ok: true });
   });
 
-  // Zufriedenheitsumfrage: Link aus der „Erledigt“-Mail, ohne Anmeldung (Token = Berechtigung)
+  // Satisfaction survey: link from the "Resolved" mail, without sign-in (token = authorization)
   r.get('/public/rating/:token', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json(ctx.survey.publicInfo(req.params.token)); });
   r.post('/public/rating/:token', (req, res) => res.json(ctx.survey.rateByToken(req.params.token, req.body.rating, req.body.comment)));
 
-  // Ab hier nur angemeldet
+  // From here on signed in only
   r.use(requireAuth);
   r.use(createItilRoutes(ctx));
 
-  // ---------- Eigenes Konto ----------
+  // ---------- Own account ----------
   r.get('/me', (req, res) => res.json({ user: publicUser(req.user) }));
 
   r.patch('/me', wrap(async (req, res) => {
     const u = req.user;
-    // Erst alles prüfen, dann speichern
+    // Validate everything first, then save
     let newHash = null;
-    // Name und Adresse: nur lokale Konten (bei AD/SSO kommen sie von dort und würden überschrieben)
+    // Name and address: local accounts only (for AD/SSO they come from there and would be overwritten)
     let displayName = null;
     let email;
     if (req.body.displayName !== undefined || req.body.email !== undefined) {
@@ -198,7 +198,7 @@ export function createApi(ctx) {
       if (req.body.displayName !== undefined) displayName = str(req.body.displayName, 120).trim() || null;
       if (req.body.email !== undefined) {
         email = normalizeEmail(str(req.body.email, 254));
-        // Neue Adresse = neue Zuordnung eingehender Mails → aktuelles Kennwort verlangen
+        // New address = new matching of incoming mails → require the current password
         if (email !== String(u.email || '').toLowerCase()) {
           limiter.check(req.ip, u.username);
           if (!u.password_hash || !verifyPassword(str(req.body.currentPassword, 1024), u.password_hash)) { limiter.fail(req.ip, u.username); throw new HttpError(400, 'err.invalidLogin'); }
@@ -221,21 +221,21 @@ export function createApi(ctx) {
       if (email !== undefined) users.setEmail(u.id, email);
       if (newHash) {
         db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
-        // Kennwort geändert → alle anderen (evtl. gestohlenen) Sitzungen beenden
+        // Password changed → end all other (possibly stolen) sessions
         db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
       }
     })();
     res.json({ user: publicUser(users.byId(u.id)) });
   }));
 
-  // ---------- Zwei-Faktor im Profil ----------
+  // ---------- Two-factor in the profile ----------
   r.get('/me/mfa', (req, res) => res.json(mfa.status(req, req.user)));
   r.post('/me/mfa/setup', wrap(async (req, res) => res.json(await mfa.startSetup(req, req.user))));
   r.post('/me/mfa/enable', wrap(async (req, res) => res.json({ recoveryCodes: mfa.confirmSetup(req, req.user, str(req.body.code, 40)) })));
   r.post('/me/mfa/disable', wrap(async (req, res) => { mfa.disable(req, req.user, str(req.body.code, 40)); res.json({ ok: true }); }));
   r.post('/me/mfa/recovery', wrap(async (req, res) => res.json({ recoveryCodes: mfa.newRecoveryCodes(req, req.user, str(req.body.code, 40)) })));
 
-  // ---------- Benutzer ----------
+  // ---------- Users ----------
   r.get('/users', requireRole('agent'), (req, res) => {
     const all = req.query.all === '1' && req.user.role === 'admin';
     const rows = all
@@ -244,9 +244,9 @@ export function createApi(ctx) {
     res.json({ users: rows.map(all ? publicUser : userRef) });
   });
 
-  // Personen suchen (z. B. Anfrage-Teilnehmer): nur Name/Anmeldename, ab 2 Zeichen, höchstens 10 Treffer.
-  // Benutzer finden nur echte Konten (keine E-Mail-Kontakte); Adressen sehen nur Bearbeiter.
-  // ---------- Personen suchen (Teilnehmer, Verantwortliche) ----------
+  // Search people (e.g. request participants): name/login name only, from 2 characters, at most 10 matches.
+  // Users only find real accounts (no email contacts); only agents see addresses.
+  // ---------- Search people (participants, owners) ----------
   const adPeopleOn = () => settings.get('ldap.enabled') && settings.get('ldap.peopleSearch') && !!settings.get('ldap.bindDn');
   const AD_TIMEOUT_MS = 5000;
   const withTimeout = (p) => new Promise((resolve, reject) => {
@@ -264,22 +264,22 @@ export function createApi(ctx) {
       ORDER BY display_name LIMIT 10`).all(...(agent ? [like, like, like] : [like, like]));
     const out = { people: [] };
     const ad = [];
-    // Bearbeiter: zusätzlich im AD suchen (nur Lesen; angelegt wird erst beim Hinzufügen)
+    // Agents: also search AD (read only; created only when added)
     if (agent && q.length >= 3 && req.query.ad !== '0' && adPeopleOn()) {
       try {
         const hits = await withTimeout(ctx.directory.search(settings.group('ldap'), q, { limit: 10 }));
         const byGuid = db.prepare("SELECT * FROM users WHERE source='ldap' AND external_id=?");
         for (const hit of hits) {
           const known = byGuid.get(hit.externalId);
-          if (known && !known.active) continue; // in Helfi.Space deaktiviert
+          if (known && !known.active) continue; // disabled in Helfi.Space
           ad.push({ adId: hit.externalId, id: known ? known.id : undefined, displayName: hit.displayName, username: hit.username, email: hit.email || known?.email || '', source: 'ad' });
         }
-        // Dieselbe Person nicht doppelt zeigen: vorhandenes AD-Konto oder E-Mail-Kontakt mit derselben Adresse
+        // Do not show the same person twice: existing AD account or email contact with the same address
         const ids = new Set(ad.map((a) => a.id).filter(Boolean));
         const mails = new Set(ad.map((a) => a.email.toLowerCase()).filter(Boolean));
         rows = rows.filter((u) => !ids.has(u.id) && !(u.source === 'email' && mails.has(String(u.email || '').toLowerCase())));
       } catch (e) {
-        log.warn('Personensuche im AD fehlgeschlagen', { error: e.message });
+        log.warn('People search in AD failed', { error: e.message });
         out.adError = true;
       }
     }
@@ -288,16 +288,16 @@ export function createApi(ctx) {
     res.json(out);
   }));
 
-  /** AD-Person (per objectGUID oder Mailadresse) als Benutzer anlegen bzw. aktualisieren. null = nicht im AD. */
+  /** Create or update an AD person (by objectGUID or mail address) as a user. null = not in AD. */
   async function personFromAd({ adId, email }) {
     const cfg = settings.group('ldap');
     let info;
     try {
       info = await withTimeout(adId ? ctx.directory.byGuid(cfg, adId) : ctx.directory.byEmail(cfg, email));
     } catch (e) {
-      log.warn('AD-Abfrage beim Hinzufügen eines Teilnehmers fehlgeschlagen', { error: e.message });
+      log.warn('AD lookup failed when adding a participant', { error: e.message });
       if (adId) throw new HttpError(503, 'err.adUnavailable');
-      return null; // per Mailadresse: wie bisher als E-Mail-Kontakt
+      return null; // by mail address: as an email contact, as before
     }
     if (!info || info.ambiguous) {
       if (adId) throw new HttpError(404, 'err.adPersonNotFound');
@@ -305,14 +305,14 @@ export function createApi(ctx) {
     }
     const role = roleFromGroups(info.groups, cfg);
     let mail = '';
-    try { mail = normalizeEmail(info.email || email || ''); } catch { /* ungültige Adresse im AD: ohne Adresse übernehmen */ }
+    try { mail = normalizeEmail(info.email || email || ''); } catch { /* invalid address in AD: import without address */ }
     if (!info.groups.user && role !== 'admin' && role !== 'agent') {
-      // Laut Gruppen nicht zur Anmeldung zugelassen: nur als E-Mail-Kontakt (wie bei der Absender-Suche)
+      // Not allowed to sign in according to groups: only as email contact (as with the sender lookup)
       if (!mail) throw new HttpError(400, 'err.adNotAllowed');
       return users.byEmail(mail) || users.contactForEmail(mail, info.displayName);
     }
     const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: mail, externalId: info.externalId, sid: info.sid, role });
-    log.info(`Teilnehmer aus dem AD übernommen: ${u.username}`);
+    log.info(`Participant imported from AD: ${u.username}`);
     return u;
   }
 
@@ -335,9 +335,9 @@ export function createApi(ctx) {
       throw new HttpError(400, 'err.lastAdmin');
     }
     const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (req.body.role !== undefined && role !== u.role ? 1 : u.role_locked);
-    // Erst alles prüfen, dann in einer Transaktion speichern (kein halbes Speichern bei Fehlern)
+    // Validate everything first, then save in one transaction (no partial save on errors)
     let newHash = null;
-    // Name und Adresse nur bei lokalen Konten (AD/SSO: kommen von dort, E-Mail-Kontakte: aus Mails)
+    // Name and address only for local accounts (AD/SSO: come from there, email contacts: from mails)
     let email;
     if ((req.body.displayName !== undefined || req.body.email !== undefined) && u.source !== 'local') throw new HttpError(400, 'err.managedExternally');
     if (req.body.email !== undefined) email = normalizeEmail(str(req.body.email, 254));
@@ -360,12 +360,12 @@ export function createApi(ctx) {
     if (req.body.resetMfa) {
       mfa.adminReset(u.id);
       sessions.destroyAllForUser(u.id);
-      log.info(`2FA von ${u.username} zurückgesetzt durch ${req.user.username}`);
+      log.info(`2FA of ${u.username} reset by ${req.user.username}`);
     }
     res.json({ user: publicUser(users.byId(u.id)) });
   }));
 
-  // ---------- Projekte ----------
+  // ---------- Projects ----------
   r.get('/projects', (req, res) => {
     res.json({ projects: tickets.projects.list(req.query.all === '1' && isAgent(req.user)) });
   });
@@ -382,8 +382,8 @@ export function createApi(ctx) {
     const p = tickets.projects.get(int(req.params.id) || 0);
     if (!p) throw notFound();
     const body = req.body || {};
-    // Tickets werden nie gelöscht: mit Tickets nur zusammen mit dem Verschieben (sonst archivieren)
-    // Erst prüfen, ob das Löschen erlaubt ist (wie projects.remove), dann sichern – sonst bliebe bei jeder Ablehnung eine Kopie liegen
+    // Tickets are never deleted: with tickets only together with moving them (otherwise archive)
+    // First check whether deleting is allowed (like projects.remove), then back up – otherwise every rejection would leave a copy behind
     if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
     if (db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) {
       if (!body.moveTo) throw new HttpError(400, 'err.projectHasTickets');
@@ -394,11 +394,11 @@ export function createApi(ctx) {
     await backupDatabase(db, `vor-loeschen-${p.key}`);
     pruneBackups(settings.get('backup.keep'));
     const out = tickets.projects.remove(req.user, p.id, { moveTo: body.moveTo || null });
-    // Einstellungen, die auf das Projekt zeigen, umstellen (auf das Zielprojekt bzw. „Standard“)
+    // Repoint settings that refer to the project (to the target project or "default")
     for (const k of ['general.defaultProject', 'imap.project']) {
       if (String(settings.get(k)).toUpperCase() === p.key) settings.set(k, out.target || '');
     }
-    log.info(`Projekt ${p.key} gelöscht von ${req.user.username}`, { moved: out.moved, target: out.target });
+    log.info(`Project ${p.key} deleted by ${req.user.username}`, { moved: out.moved, target: out.target });
     res.json(out);
   }));
 
@@ -418,12 +418,12 @@ export function createApi(ctx) {
   r.get('/tickets', (req, res) => {
     let list = tickets.list(req.user, req.query);
     const searchTerms = list.searchTerms;
-    // SLA-Stand für Bearbeiter; Filter „SLA gefährdet“
+    // SLA state for agents; filter "SLA at risk"
     if (isAgent(req.user) && ctx.sla.enabled()) {
       list = list.map((tk) => ({ ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) }));
       if (req.query.sla === 'risk') list = list.filter((tk) => ['warning', 'breached'].includes(tk.sla?.state));
     }
-    // Meine offenen Genehmigungen
+    // My open approvals
     if (req.query.approval === 'mine') {
       const ids = new Set(ctx.approvals.pendingFor(req.user.id));
       list = list.filter((tk) => ids.has(tk.id));
@@ -439,9 +439,9 @@ export function createApi(ctx) {
   }));
 
   /**
-   * Sammelaktionen (Bearbeiter): für jedes Ticket die normale Logik (Rechte, Verlauf, Benachrichtigungen).
-   * changes: { status, assigneeId, priority, projectId } · comment: Antwort an Melder/Teilnehmer
-   * (Platzhalter je Ticket ersetzt) · delete: nur Admins. Fehler einzelner Tickets brechen den Rest nicht ab.
+   * Bulk actions (agents): the normal logic for each ticket (permissions, history, notifications).
+   * changes: { status, assigneeId, priority, projectId } · comment: reply to reporter/participants
+   * (placeholders replaced per ticket) · delete: admins only. Errors on single tickets do not abort the rest.
    */
   r.post('/tickets/bulk', requireRole('agent'), wrap(async (req, res) => {
     const keys = [...new Set((Array.isArray(req.body.keys) ? req.body.keys : []).map((k) => str(k, 30)).filter(Boolean))];
@@ -450,7 +450,7 @@ export function createApi(ctx) {
     const c = req.body.changes || {};
     for (const k of ['status', 'assigneeId', 'priority', 'projectId']) if (c[k] !== undefined) changes[k] = c[k];
     const comment = str(req.body.comment, 100000).trim();
-    // Tickets werden nie gelöscht (Nachweis) – auch nicht per Sammelaktion
+    // Tickets are never deleted (records) – not even via bulk action
     if (req.body.delete) throw new HttpError(400, 'err.ticketDeleteDisabled');
     if (!comment && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
     const ok = [];
@@ -463,20 +463,20 @@ export function createApi(ctx) {
           const tk = tickets.ticketOut(row);
           tickets.addComment(req.user, row.id, { body: fillPlaceholders(comment, tk, { displayName: req.user.display_name }) });
         }
-        // Mit Antwort keine zweite „Erledigt“-Mail – die Antwort informiert bereits
+        // With a reply no second "Resolved" mail – the reply already informs
         if (Object.keys(changes).length) current = tickets.update(req.user, key, changes, { quietResolved: !!comment }).key;
         ok.push(current);
       } catch (e) {
         failed.push({ key, error: e instanceof HttpError ? (hasKey(e.code) ? t(normalizeLang(req.user?.language || langFromHeader(req.get('accept-language'))), e.code) : e.code) : 'error' });
       }
     }
-    log.info(`Sammelaktion von ${req.user.username}: ${ok.length} ok, ${failed.length} fehlgeschlagen`, { changes: Object.keys(changes), comment: !!comment });
+    log.info(`Bulk action by ${req.user.username}: ${ok.length} ok, ${failed.length} failed`, { changes: Object.keys(changes), comment: !!comment });
     res.json({ ok, failed });
   }));
 
   r.get('/tickets/:key', (req, res) => res.json({ ticket: tickets.detail(req.user, req.params.key) }));
 
-  // Formatierte Fassung einer HTML-Mail – nur im abgeschotteten Rahmen: kein Skript, keine fremden Inhalte
+  // Formatted version of an HTML mail – only in the isolated frame: no script, no foreign content
   r.get('/tickets/:key/mail-html', (req, res) => {
     const m = tickets.mailHtml(req.user, req.params.key, req.query.comment ? int(req.query.comment) || -1 : null);
     const lang = normalizeLang(req.user?.language || langFromHeader(req.get('accept-language')));
@@ -491,19 +491,19 @@ export function createApi(ctx) {
     res.json({ ticket: tickets.update(req.user, req.params.key, req.body) });
   }));
 
-  // Tickets werden nie gelöscht (Nachweis). Erledigen statt löschen; Spam per Absender-Regel „Ignorieren“.
+  // Tickets are never deleted (records). Resolve instead of delete; spam via sender rule "ignore".
   r.delete('/tickets/:key', (_req, _res) => { throw new HttpError(405, 'err.ticketDeleteDisabled'); });
 
-  // ---------- Berichte (alle Bearbeiter) ----------
+  // ---------- Reports (all agents) ----------
   r.get('/reports', requireRole('agent'), (req, res) => res.json(reports.report(req.query)));
 
-  // ---------- Antwortvorlagen (nur Bearbeiter) ----------
+  // ---------- Canned responses (agents only) ----------
   r.get('/canned', requireRole('agent'), (req, res) => res.json({ responses: canned.list(req.user) }));
   r.post('/canned', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ response: canned.create(req.user, req.body || {}) })));
   r.patch('/canned/:id', requireRole('agent'), wrap(async (req, res) => res.json({ response: canned.update(req.user, req.params.id, req.body || {}) })));
   r.delete('/canned/:id', requireRole('agent'), (req, res) => { canned.remove(req.user, req.params.id); res.json({ ok: true }); });
 
-  // ---------- Neuigkeiten ----------
+  // ---------- News ----------
   r.get('/news', (req, res) => res.json({ entries: ctx.news.list(req.user), version: ctx.news.version }));
   r.post('/news/seen', (req, res) => { ctx.news.markSeen(req.user); res.json({ ok: true }); });
 
@@ -511,19 +511,19 @@ export function createApi(ctx) {
     res.json(tickets.descriptionVersion(req.user, req.params.key, req.params.id));
   });
 
-  // ---------- Anfrage-Teilnehmer ----------
+  // ---------- Request participants ----------
   r.post('/tickets/:key/participants', wrap(async (req, res) => {
     let { userId, email } = req.body || {};
     const adId = typeof req.body?.adId === 'string' ? req.body.adId : '';
     if (adId || (email && typeof email === 'string')) {
-      tickets.load(req.user, req.params.key); // erst Zugriff prüfen, dann im AD nachschlagen
+      tickets.load(req.user, req.params.key); // check access first, then look up in AD
       if (adId && (!isAgent(req.user) || !adPeopleOn())) throw forbidden();
       if (adId && !/^[0-9a-f]{32}$/i.test(adId)) throw new HttpError(400, 'err.badRequest', 'adId');
       if (adId) userId = (await personFromAd({ adId })).id;
       else if (isAgent(req.user) && adPeopleOn()) {
         const e = normalizeEmail(email);
         const existing = users.byEmail(e);
-        // Nur nachschlagen, wenn es noch kein richtiges Konto mit dieser Adresse gibt
+        // Only look up if there is no real account with this address yet
         if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && (!existing || existing.source === 'email')) {
           const u = await personFromAd({ email: e });
           if (u) { userId = u.id; email = undefined; }
@@ -553,14 +553,14 @@ export function createApi(ctx) {
       }
       try {
         const row = tickets.load(req.user, req.params.key);
-        // draft=1: eingefügtes Bild – unsichtbar für andere, bis der Text mit dem Bild gespeichert ist
+        // draft=1: pasted image – invisible to others until the text with the image is saved
         const draft = req.body?.draft === '1';
         if (draft && (req.files || []).some((f) => !/^image\/(png|jpeg|gif|webp)$/.test(f.mimetype))) {
           for (const f of req.files || []) fs.rmSync(f.path, { force: true });
           throw new HttpError(400, 'err.badRequest', 'draft');
         }
         const ids = (req.files || []).map((f) => tickets.addAttachment(row.id, {
-          // Multer liefert Dateinamen als latin1 – in UTF-8 umwandeln
+          // Multer returns file names as latin1 – convert to UTF-8
           filename: Buffer.from(f.originalname, 'latin1').toString('utf8'), mime: f.mimetype, tmpPath: f.path, size: f.size,
         }, req.user.id, null, { draft }));
         res.status(201).json({ ids });
@@ -580,7 +580,7 @@ export function createApi(ctx) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
     fs.createReadStream(a.path)
-      .on('error', (e) => { log.warn('Anhang nicht lesbar', { error: e.message }); if (!res.headersSent) res.status(404); res.end(); })
+      .on('error', (e) => { log.warn('Attachment not readable', { error: e.message }); if (!res.headersSent) res.status(404); res.end(); })
       .pipe(res);
   });
 
@@ -593,7 +593,7 @@ export function createApi(ctx) {
   const admin = express.Router();
   admin.use(requireRole('admin'));
 
-  // Eigener Internetanschluss: aktuell aufgelöste Adressen (zur Kontrolle in der Oberfläche)
+  // Own internet connection: currently resolved addresses (for checking in the UI)
   admin.get('/mfa/network', wrap(async (req, res) => res.json({
     own: await policy.ownAddresses(), levels: policy.levels(),
     trustProxy: String(config.trustProxy), proxyWarning: policy.proxyWarning(),
@@ -611,7 +611,7 @@ export function createApi(ctx) {
       incoming['ldap.caPem'] = ldap.mergePem('', incoming['ldap.caPem']);
       incoming['ldap.caInfo'] = JSON.stringify(ldap.splitPem(incoming['ldap.caPem']).map((p) => { const { pem, ...rest } = ldap.describeCert(p); return rest; }));
     }
-    delete incoming['brand.logo']; // nur über den eigenen Upload
+    delete incoming['brand.logo']; // only via the dedicated upload
     if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
     if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     if (incoming['backup.keep'] !== undefined) incoming['backup.keep'] = clampBackupKeep(incoming['backup.keep']);
@@ -621,7 +621,7 @@ export function createApi(ctx) {
     if (Object.keys(incoming).some((k) => k.startsWith('imap.'))) poller.start();
     if (Object.keys(incoming).some((k) => k.startsWith('ldap.'))) ctx.ldapCertWarning = null;
     if (incoming['mfa.ownAddresses'] !== undefined) await policy.refreshOwn().catch(() => {});
-    log.info(`Einstellungen geändert von ${req.user.username}`, { keys: Object.keys(incoming) });
+    log.info(`Settings changed by ${req.user.username}`, { keys: Object.keys(incoming) });
     res.json({ settings: settings.publicView() });
   }));
 
@@ -677,16 +677,16 @@ export function createApi(ctx) {
     }
   }));
 
-  // Logo hochladen (data-URL, PNG oder geprüftes SVG) bzw. entfernen
+  // Upload (data URL, PNG or validated SVG) or remove the logo
   admin.put('/brand/logo', wrap(async (req, res) => {
     settings.set('brand.logo', saveLogo(req.body.data));
-    log.info(`Logo geändert von ${req.user.username}`);
+    log.info(`Logo changed by ${req.user.username}`);
     res.json({ logo: settings.get('brand.logo') });
   }));
   admin.delete('/brand/logo', (req, res) => {
     removeLogo();
     settings.set('brand.logo', '');
-    log.info(`Logo entfernt von ${req.user.username}`);
+    log.info(`Logo removed by ${req.user.username}`);
     res.json({ logo: '' });
   });
 
@@ -720,12 +720,12 @@ export function createApi(ctx) {
 
   admin.delete('/backups/:name', (req, res) => {
     if (!deleteBackup(req.params.name)) throw new HttpError(404, 'err.notFound');
-    log.info(`Sicherung ${req.params.name} gelöscht von ${req.user.username}`);
+    log.info(`Backup ${req.params.name} deleted by ${req.user.username}`);
     res.json({ ok: true });
   });
 
-  // ---------- Import aus Jira ----------
-  /** Verbindungsdaten prüfen; sie werden nie gespeichert, nur für den laufenden Import im Speicher gehalten */
+  // ---------- Import from Jira ----------
+  /** Validate connection data; it is never stored, only kept in memory for the running import */
   function jiraConn(body) {
     const c = body?.connection || {};
     const type = oneOf(c.type, ['cloud', 'server'], 'cloud');
@@ -740,7 +740,7 @@ export function createApi(ctx) {
   }
   const jiraFail = (res, e) => {
     if (e instanceof HttpError) throw e;
-    log.warn('Jira-Import', { error: e.message });
+    log.warn('Jira import', { error: e.message });
     res.json({ ok: false, error: e.message });
   };
 
@@ -753,7 +753,7 @@ export function createApi(ctx) {
   }));
   admin.post('/import/jira/start', wrap(async (req, res) => {
     const conn = jiraConn(req.body);
-    // Ein erneuter Import überschreibt geänderte Tickets → vorher sichern (erst prüfen, ob er überhaupt startet)
+    // Importing again overwrites changed tickets → back up first (after checking that it starts at all)
     if (jiraImporter.status()?.state === 'running') throw new HttpError(409, 'err.importRunning');
     if (!Array.isArray(req.body.projects) || !req.body.projects.length) throw new HttpError(400, 'err.badRequest', 'projects');
     await backupDatabase(db, 'vor-import');
@@ -761,10 +761,10 @@ export function createApi(ctx) {
     const job = jiraImporter.start(conn, {
       projects: req.body.projects, statusMap: req.body.statusMap || {}, typeMap: req.body.typeMap || {}, options: req.body.options || {},
     }, req.user.id);
-    log.info(`Jira-Import gestartet von ${req.user.username}`, { projects: job.projects.map((p) => p.key) });
+    log.info(`Jira import started by ${req.user.username}`, { projects: job.projects.map((p) => p.key) });
     res.status(202).json({ job });
   }));
-  // Gesperrte Empfänger (nach Unzustellbarkeitsberichten)
+  // Blocked recipients (after non-delivery reports)
   admin.get('/mail/suppressions', (req, res) => res.json({ suppressions: suppressions.list() }));
   admin.delete('/mail/suppressions/:address', (req, res) => { suppressions.remove(req.params.address); res.json({ suppressions: suppressions.list() }); });
 

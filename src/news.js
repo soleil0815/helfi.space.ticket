@@ -1,5 +1,5 @@
-// Neuigkeiten je Version (src/news.json): nach einem Update einmal anzeigen, alle Versionen nachlesbar.
-// Eintrag mit version "" = die gerade gebaute Version (config.version) – so muss beim Release nichts angepasst werden.
+// What's new per version (src/news.json): shown once after an update, all versions can be looked up.
+// Entry with version "" = the version currently built (config.version) – so nothing needs to be changed at release.
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
@@ -12,12 +12,12 @@ export function loadNews(file = fileURLToPath(new URL('./news.json', import.meta
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
     return Array.isArray(data.entries) ? data.entries : [];
   } catch (e) {
-    log.warn('Neuigkeiten nicht lesbar', { error: e.message });
+    log.warn('News not readable', { error: e.message });
     return [];
   }
 }
 
-/** Welche Zielgruppen sieht diese Rolle? Benutzer: all; Bearbeiter: + agent; Admins: alles */
+/** Which audiences does this role see? Users: all; agents: + agent; admins: everything */
 export function audiencesFor(role) {
   if (role === 'admin') return new Set(AUDIENCES);
   if (role === 'agent') return new Set(['all', 'agent']);
@@ -27,7 +27,7 @@ export function audiencesFor(role) {
 export function createNews(db, { entries = loadNews(), version = config.version } = {}) {
   const resolved = entries.map((e) => ({ ...e, version: e.version || version }));
 
-  /** Einträge für dieses Konto, neueste zuerst, nur passende Punkte; Texte in beiden Sprachen */
+  /** Entries for this account, newest first, only matching items; texts in both languages */
   function list(user) {
     const aud = audiencesFor(user.role);
     return resolved
@@ -35,7 +35,7 @@ export function createNews(db, { entries = loadNews(), version = config.version 
       .filter((e) => e.items.length);
   }
 
-  /** Neuigkeiten der aktuellen Version, die dieses Konto noch nicht gesehen hat (sonst null) */
+  /** News of the current version that this account has not seen yet (otherwise null) */
   function unseen(user) {
     if (!user || user.news_seen === version) return null;
     return list(user).find((e) => e.version === version) || null;

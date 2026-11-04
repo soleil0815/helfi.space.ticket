@@ -1,4 +1,4 @@
-// Schutz vor Mail-Schleifen: Absender-Regeln und vorübergehend gesperrte Empfänger.
+// Protection against mail loops: sender rules and temporarily blocked recipients.
 import { log } from '../lib/log.js';
 
 export const SUPPRESS_DAYS = 7;
@@ -6,10 +6,10 @@ export const RULE_ACTIONS = ['noreply', 'ignore'];
 const MAX_RULES = 200;
 
 /**
- * Absender-Regeln aus der Einstellung imap.senderRules (JSON-Liste).
- * pattern: Adresse oder Muster mit * (z. B. "*@zabbix.firma.local"), Groß-/Kleinschreibung egal.
- * action: noreply = Ticket anlegen, aber nie Mails an diese Adresse schicken; ignore = Mail nicht verarbeiten.
- * project: optional Projektschlüssel für neue Tickets.
+ * Sender rules from the setting imap.senderRules (JSON list).
+ * pattern: address or pattern with * (e.g. "*@zabbix.firma.local"), case-insensitive.
+ * action: noreply = create a ticket but never send mail to this address; ignore = do not process the mail.
+ * project: optional project key for new tickets.
  */
 export function parseRules(json) {
   let list;
@@ -27,7 +27,7 @@ function patternToRegExp(pattern) {
   return new RegExp(`^${esc}$`, 'i');
 }
 
-/** Erste passende Regel für eine Adresse (oder null). */
+/** First matching rule for an address (or null). */
 export function matchRule(rules, address) {
   const a = String(address || '').trim().toLowerCase();
   if (!a) return null;
@@ -37,14 +37,14 @@ export function matchRule(rules, address) {
 export function createSuppressions(db) {
   const getStmt = db.prepare('SELECT * FROM mail_suppressions WHERE address=? AND until>?');
   return {
-    /** Adresse für SUPPRESS_DAYS Tage sperren (verlängert eine bestehende Sperre). */
+    /** Block an address for SUPPRESS_DAYS days (extends an existing block). */
     add(address, reason = '') {
       const a = String(address || '').trim().toLowerCase();
       if (!a) return;
       const until = new Date(Date.now() + SUPPRESS_DAYS * 864e5).toISOString();
       db.prepare(`INSERT INTO mail_suppressions(address,reason,until) VALUES(?,?,?)
         ON CONFLICT(address) DO UPDATE SET reason=excluded.reason, until=excluded.until`).run(a, String(reason).slice(0, 300), until);
-      log.info(`Empfänger ${a} für ${SUPPRESS_DAYS} Tage gesperrt (unzustellbar)`);
+      log.info(`Recipient ${a} blocked for ${SUPPRESS_DAYS} days (undeliverable)`);
     },
     isBlocked(address) {
       return !!getStmt.get(String(address || '').trim().toLowerCase(), new Date().toISOString());

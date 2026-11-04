@@ -1,9 +1,9 @@
-// Verknüpfungen zwischen Tickets: bezieht sich auf, Duplikat, blockiert, verursacht, Unteraufgabe.
-// Gespeichert gerichtet (von → nach); die Gegenrichtung ergibt sich beim Anzeigen.
+// Links between tickets: relates to, duplicate, blocks, causes, subtask.
+// Stored directed (from → to); the reverse direction is derived when displaying.
 import { HttpError, notFound, forbidden, str } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 
-// kind: Bedeutung aus Sicht von „von“
+// kind: meaning from the point of view of "from"
 export const LINK_KINDS = ['relates', 'duplicates', 'blocks', 'causes', 'parent'];
 export const MAX_LINKS = 50;
 
@@ -25,7 +25,7 @@ export function createLinks(db, tickets) {
     }).filter(Boolean);
   }
 
-  /** Würde from → to als „parent“ einen Kreis ergeben? (to ist schon Vorfahre von from) */
+  /** Would from → to as "parent" create a cycle? (to is already an ancestor of from) */
   function wouldCycle(fromId, toId) {
     const seen = new Set();
     const stack = [fromId];
@@ -47,7 +47,7 @@ export function createLinks(db, tickets) {
     let b;
     try { b = tickets.load(user, str(target, 30).trim()); } catch { throw new HttpError(400, 'err.linkTarget'); }
     if (a.id === b.id) throw new HttpError(400, 'err.linkSelf');
-    // „parent“ wird als „a ist Unteraufgabe von b“ angelegt: Eltern stehen immer vorne
+    // "parent" is stored as "a is a subtask of b": parents always come first
     let [from, to, k] = [a, b, kind];
     if (kind === 'parent') [from, to] = [b, a];
     const exists = db.prepare('SELECT 1 FROM ticket_links WHERE ((from_id=? AND to_id=?) OR (from_id=? AND to_id=?))').get(from.id, to.id, to.id, from.id);
@@ -82,7 +82,7 @@ export function createLinks(db, tickets) {
     return list(a.id);
   }
 
-  /** Unteraufgabe anlegen: Aufgabe im selben Projekt, verknüpft */
+  /** Create a subtask: task in the same project, linked */
   function createSubtask(user, key, { title, assigneeId = null } = {}) {
     if (!isAgent(user)) throw forbidden();
     const parent = tickets.load(user, key);
@@ -95,7 +95,7 @@ export function createLinks(db, tickets) {
     return { ticket: t, links: list(parent.id) };
   }
 
-  // Ticketansicht: nur Bearbeiter sehen Verknüpfungen
+  // Ticket view: only agents see links
   tickets.addDetailExtra((user, row) => (isAgent(user) ? { links: list(row.id) } : {}));
 
   return { list, add, remove, createSubtask };

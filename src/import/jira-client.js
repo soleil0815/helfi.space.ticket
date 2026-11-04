@@ -1,13 +1,13 @@
-// Zugriff auf Jira Cloud (REST API v3) und Jira Server/Data Center (REST API v2).
-// Eigener kleiner HTTP-Client, damit auch interne Zertifikate (On-Prem) und
-// "nicht prüfen" möglich sind und Anmeldedaten bei Umleitungen zu fremden Hosts
-// (Cloud-Anhänge liegen bei api.media.atlassian.com) nicht mitgeschickt werden.
+// Access to Jira Cloud (REST API v3) and Jira Server/Data Center (REST API v2).
+// Own small HTTP client so that internal certificates (on-prem) and
+// "do not verify" are possible and credentials are not sent along on redirects to other hosts
+// (Cloud attachments are hosted at api.media.atlassian.com).
 import http from 'node:http';
 import https from 'node:https';
 import { log } from '../lib/log.js';
 
-const MAX_BODY = 512 * 1024 * 1024; // Anhänge
-const MAX_JSON = 64 * 1024 * 1024; // API-Antworten
+const MAX_BODY = 512 * 1024 * 1024; // attachments
+const MAX_JSON = 64 * 1024 * 1024; // API responses
 const MAX_PAGES = 100000;
 
 export class JiraError extends Error {
@@ -17,20 +17,20 @@ export class JiraError extends Error {
 /**
  * @param {object} c
  * @param {'cloud'|'server'} c.type
- * @param {string} c.baseUrl  z. B. https://firma.atlassian.net oder https://jira.firma.local
- * @param {string} [c.email]  Cloud: E-Mail des Kontos
- * @param {string} [c.token]  Cloud: API-Token · Server/DC: Personal Access Token
- * @param {string} [c.username] Server/DC: Benutzername (statt Token)
- * @param {string} [c.password] Server/DC: Kennwort (statt Token)
+ * @param {string} c.baseUrl  e.g. https://firma.atlassian.net or https://jira.firma.local
+ * @param {string} [c.email]  Cloud: email of the account
+ * @param {string} [c.token]  Cloud: API token · Server/DC: personal access token
+ * @param {string} [c.username] Server/DC: username (instead of token)
+ * @param {string} [c.password] Server/DC: password (instead of token)
  * @param {boolean} [c.verifyTls=true]
- * @param {string} [c.caPem] eigene Zertifizierungsstelle (On-Prem)
+ * @param {string} [c.caPem] custom certificate authority (on-prem)
  */
 export function createJiraClient(c) {
   const base = new URL(String(c.baseUrl || '').trim().replace(/\/+$/, '') + '/');
   if (!/^https?:$/.test(base.protocol)) throw new JiraError('Nur http:// oder https:// Adressen sind erlaubt.', 400);
   const cloud = c.type === 'cloud';
   const api = cloud ? '/rest/api/3' : '/rest/api/2';
-  const basePath = base.pathname.replace(/\/$/, ''); // Kontextpfad, z. B. /jira
+  const basePath = base.pathname.replace(/\/$/, ''); // context path, e.g. /jira
 
   let auth;
   if (cloud) auth = `Basic ${Buffer.from(`${c.email || ''}:${c.token || ''}`).toString('base64')}`;
@@ -59,7 +59,7 @@ export function createJiraClient(c) {
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
           res.resume();
           const next = new URL(res.headers.location, url);
-          // Anmeldedaten nur an denselben Host weitergeben
+          // Pass credentials only to the same host
           const sameOrigin = next.origin === base.origin;
           return resolve(raw(next.href, { method: res.statusCode === 303 ? 'GET' : method, body: res.statusCode === 303 ? undefined : body, headers, withAuth: withAuth && sameOrigin, redirects: redirects - 1, timeoutMs, maxBytes }));
         }
@@ -80,7 +80,7 @@ export function createJiraClient(c) {
     });
   }
 
-  /** JSON-Aufruf mit Wiederholung bei 429/503 (Retry-After) */
+  /** JSON request with retry on 429/503 (Retry-After) */
   async function json(path, opts = {}) {
     const url = path.startsWith('http') ? path : `${base.origin}${basePath}${path}`;
     for (let attempt = 0; ; attempt++) {
@@ -91,14 +91,14 @@ export function createJiraClient(c) {
         if (e.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || e.code === 'SELF_SIGNED_CERT_IN_CHAIN' || e.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
           throw new JiraError(`Zertifikat von ${base.host} wird nicht vertraut (${e.code}). Eigene CA eintragen oder Prüfung abschalten.`, 495);
         }
-        // Kurze Netzstörung: ein paar Mal wiederholen, statt den ganzen Import abzubrechen
+        // Brief network failure: retry a few times instead of aborting the whole import
         if (attempt < 3 && !(e instanceof JiraError && e.status === 413)) { await new Promise((res) => setTimeout(res, 1000 * (attempt + 1))); continue; }
         throw new JiraError(`${base.host} nicht erreichbar: ${e.message}`, 502);
       }
       if ([502, 504].includes(r.status) && attempt < 3) { await new Promise((res) => setTimeout(res, 1000 * (attempt + 1))); continue; }
       if ((r.status === 429 || r.status === 503) && attempt < 6) {
         const wait = Math.min(60, Number(r.headers['retry-after']) || 2 ** attempt) * 1000;
-        log.info(`Quellsystem bremst (HTTP ${r.status}), warte ${wait / 1000}s`);
+        log.info(`Source system is throttling (HTTP ${r.status}), waiting ${wait / 1000}s`);
         await new Promise((res) => setTimeout(res, wait));
         continue;
       }
@@ -107,7 +107,7 @@ export function createJiraClient(c) {
       if (r.status === 403) throw new JiraError('Keine Berechtigung im Quellsystem für diese Abfrage.', 403);
       if (r.status >= 400) {
         let msg = text.slice(0, 300);
-        try { const j = JSON.parse(text); msg = [...(j.errorMessages || []), ...Object.values(j.errors || {})].join('; ') || msg; } catch { /* kein JSON */ }
+        try { const j = JSON.parse(text); msg = [...(j.errorMessages || []), ...Object.values(j.errors || {})].join('; ') || msg; } catch { /* not JSON */ }
         throw new JiraError(`Quellsystem antwortet mit HTTP ${r.status}: ${msg}`, r.status);
       }
       try { return text ? JSON.parse(text) : null; }
@@ -121,7 +121,7 @@ export function createJiraClient(c) {
   return {
     type: cloud ? 'cloud' : 'server',
     host: base.host,
-    /** Eindeutige Kennung der Quelle für die Zuordnungstabelle */
+    /** Unique identifier of the source for the mapping table */
     sourceId: `jira:${base.host}${basePath}`,
 
     async serverInfo() { return json(`${api}/serverInfo`); },
@@ -148,7 +148,7 @@ export function createJiraClient(c) {
       return (await json(`${api}/search?jql=${encodeURIComponent(jql)}&maxResults=0`)).total;
     },
 
-    /** Status und Vorgangstypen eines Projekts (für die Zuordnung) */
+    /** Statuses and issue types of a project (for the mapping) */
     async projectStatuses(projectKey) {
       const r = await json(`${api}/project/${encodeURIComponent(projectKey)}/statuses`);
       const statuses = new Map();
@@ -160,7 +160,7 @@ export function createJiraClient(c) {
       return { statuses: [...statuses].map(([name, category]) => ({ name, category })), types: [...types] };
     },
 
-    /** Alle Vorgänge eines Projekts seitenweise (älteste zuerst) */
+    /** All issues of a project page by page (oldest first) */
     async *issues(projectKey) {
       const jql = `project = "${projectKey.replace(/"/g, '')}" ORDER BY created ASC`;
       if (cloud) {
@@ -170,14 +170,14 @@ export function createJiraClient(c) {
           const r = await json(`${api}/search/jql`, { method: 'POST', body: { jql, fields: FIELDS, maxResults: 100, ...(nextPageToken ? { nextPageToken } : {}) } });
           for (const i of r.issues || []) yield i;
           nextPageToken = r.nextPageToken;
-          // Schutz vor Endlosschleife: gleiches Token zweimal oder leere Seite mit Token
+          // Protection against an endless loop: same token twice or empty page with token
           if (nextPageToken && (seenTokens.has(nextPageToken) || !(r.issues || []).length)) throw new JiraError('Das Quellsystem liefert beim Blättern immer wieder dieselbe Seite – Abbruch.', 502);
           if (nextPageToken) seenTokens.add(nextPageToken);
           if (seenTokens.size > MAX_PAGES) throw new JiraError('Zu viele Seiten – Abbruch.', 502);
         } while (nextPageToken);
         return;
       }
-      // Server/DC: um die tatsächlich gelieferte Anzahl weiterblättern (Server können kleinere Seiten liefern)
+      // Server/DC: advance by the number actually returned (servers may return smaller pages)
       for (let startAt = 0, pages = 0; pages < MAX_PAGES; pages++) {
         const r = await json(`${api}/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=100&fields=${FIELDS.join(',')}`);
         const list = r.issues || [];
@@ -200,7 +200,7 @@ export function createJiraClient(c) {
       return out;
     },
 
-    /** Anhang herunterladen (folgt der Umleitung ohne Anmeldedaten zu fremden Hosts) */
+    /** Download an attachment (follows the redirect to other hosts without credentials) */
     async download(contentUrl, maxBytes) {
       const url = new URL(contentUrl, base);
       const r = await raw(url.href, { headers: { Accept: '*/*' }, withAuth: url.origin === base.origin, maxBytes, timeoutMs: 300000 });
@@ -210,7 +210,7 @@ export function createJiraClient(c) {
   };
 }
 
-/** Typ automatisch erkennen (Cloud: *.atlassian.net oder deploymentType "Cloud") */
+/** Detect the type automatically (Cloud: *.atlassian.net or deploymentType "Cloud") */
 export async function detectJira(conn) {
   const guessCloud = /\.atlassian\.net$|\.jira\.com$/i.test(new URL(conn.baseUrl).hostname);
   const type = conn.type && conn.type !== 'auto' ? conn.type : (guessCloud ? 'cloud' : 'server');

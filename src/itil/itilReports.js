@@ -1,4 +1,4 @@
-// ITIL-Kennzahlen: SLA-Einhaltung, Wiedereröffnungen, Lösung beim ersten Kontakt, Changes je Monat.
+// ITIL metrics: SLA compliance, reopenings, first contact resolution, changes per month.
 import { HttpError } from '../lib/http.js';
 import { parseRange } from '../reports.js';
 
@@ -18,8 +18,8 @@ export function createItilReports(db, sla) {
   const reporterIsAgent = db.prepare("SELECT 1 FROM users WHERE id=? AND role IN ('agent','admin')");
 
   /**
-   * Basis: Tickets (Service-Typen), die im Zeitraum auf „Erledigt“ gesetzt wurden – laut Verlauf.
-   * Eigene Tickets der Bearbeiter (interne Arbeit) zählen nicht mit.
+   * Basis: tickets (service types) set to "Resolved" in the period – according to the history.
+   * Agents' own tickets (internal work) are not counted.
    */
   function resolvedInRange(range, projectId) {
     return db.prepare(`SELECT DISTINCT t.* FROM tickets t JOIN activity a ON a.ticket_id=t.id
@@ -36,7 +36,7 @@ export function createItilReports(db, sla) {
       const i = ch.findIndex((c) => c.new_value === 'done' && c.created_at >= range.fromIso && c.created_at < range.toIso);
       const wasReopened = ch.slice(i + 1).some((c) => c.old_value === 'done');
       if (wasReopened) reopened++;
-      // Beim ersten Kontakt gelöst: nie wieder geöffnet, nie auf Rückfrage gewartet, höchstens eine Antwort der IT
+      // Resolved at first contact: never reopened, never waited for a reply, at most one reply from IT
       const everReopened = ch.some((c) => c.old_value === 'done');
       const waited = ch.some((c) => c.new_value === 'waiting');
       if (!everReopened && !waited && agentReplies.get(t.id).n <= 1) firstContact++;
@@ -70,7 +70,7 @@ export function createItilReports(db, sla) {
     };
   }
 
-  /** Changes je Monat (nach Erstellung): Anzahl, Arten, Ergebnis der abgeschlossenen */
+  /** Changes per month (by creation): count, types, outcome of closed ones */
   function changes(range, projectId) {
     const rows = db.prepare(`SELECT t.id, t.created_at,
         (SELECT value FROM ticket_fields f WHERE f.ticket_id=t.id AND f.name='changeType') kind,
@@ -95,7 +95,7 @@ export function createItilReports(db, sla) {
     return { months: list, totals: { ...sum, successRate: pct(sum.successful, sum.closed), emergencyShare: pct(sum.emergency, sum.total) } };
   }
 
-  /** Probleme: neu, gelöst, bekannte Fehler, verknüpfte Vorfälle */
+  /** Problems: new, resolved, known errors, linked incidents */
   function problems(range, projectId) {
     const p = projectId ? 'AND t.project_id=?' : ''; const pa = projectId ? [projectId] : [];
     const created = db.prepare(`SELECT COUNT(*) n FROM tickets t WHERE t.type='problem' AND t.created_at>=? AND t.created_at<? ${p}`).get(range.fromIso, range.toIso, ...pa).n;
