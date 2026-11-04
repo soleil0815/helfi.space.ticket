@@ -1,10 +1,10 @@
-# Helfi.Space – Container-Image
-# Gebaut von GitHub Actions für linux/amd64 und linux/arm64 (ghcr.io/soleil0815/helfi.space.ticket)
+# Helfi.Space – container image
+# Built by GitHub Actions for linux/amd64 and linux/arm64 (ghcr.io/soleil0815/helfi.space.ticket)
 
-# Basis-Image per Digest festgelegt (reproduzierbar); Dependabot schlägt neue Digests vor
+# Base image pinned by digest (reproducible); Dependabot proposes new digests
 FROM node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85 AS deps
 WORKDIR /app
-# Werkzeuge nur für den Fall, dass better-sqlite3 kein fertiges Binärpaket findet
+# Build tools only in case better-sqlite3 finds no prebuilt binary
 RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
@@ -12,12 +12,12 @@ RUN npm ci --omit=dev && npm cache clean --force
 FROM node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Helfi.Space" \
-      org.opencontainers.image.description="Ticketsystem mit Active-Directory-Anbindung, SSO und E-Mail-Abruf" \
+      org.opencontainers.image.description="Ticket system with Active Directory integration, SSO and email retrieval" \
       org.opencontainers.image.source="https://github.com/soleil0815/helfi.space.ticket" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${VERSION}"
 
-# npm/corepack werden zur Laufzeit nicht gebraucht – weg damit (weniger Angriffsfläche, weniger Schwachstellen-Funde)
+# npm/corepack are not needed at runtime – remove them (smaller attack surface, fewer vulnerability findings)
 RUN apk add --no-cache tini su-exec tzdata \
  && apk upgrade --no-cache \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
@@ -32,7 +32,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
 COPY public ./public
-# Aktuelle Betriebsdateien liegen im Image – update.sh übernimmt sie bei Bedarf
+# Current deployment files are shipped in the image – update.sh adopts them when needed
 COPY docker-compose.yml env.example update.sh docker/compose-hashes.txt ./deploy/
 COPY docker/entrypoint.sh /usr/local/bin/helfi-entrypoint
 

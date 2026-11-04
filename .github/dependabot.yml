@@ -1,4 +1,4 @@
-# Abhängigkeiten, Actions und Basis-Image wöchentlich prüfen
+# Check dependencies, actions and base image weekly
 version: 2
 updates:
   - package-ecosystem: npm
@@ -12,10 +12,10 @@ updates:
     directory: /
     schedule: { interval: weekly }
     ignore:
-      # Neue Node-Hauptversionen nicht automatisch vorschlagen: Ungerade Versionen bis 25
-      # bekommen keine Langzeitpflege. Der Wechsel auf die nächste LTS-Version (z. B. 26)
-      # erfolgt bewusst, zusammen mit node-version in .github/workflows/ci.yml.
-      # Sicherheitskorrekturen kommen trotzdem: Das Basis-Image ist per Digest festgelegt, Dependabot
-      # schlägt jede Woche den neuen Digest von node:24-alpine als Pull Request vor.
+      # Do not propose new Node major versions automatically: odd versions up to 25
+      # get no long-term support. Moving to the next LTS version (e.g. 26) is done
+      # deliberately, together with node-version in .github/workflows/ci.yml.
+      # Security fixes still arrive: the base image is pinned by digest, and Dependabot
+      # proposes the new node:24-alpine digest as a pull request every week.
       - dependency-name: node
         update-types: ['version-update:semver-major']

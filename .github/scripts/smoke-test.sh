@@ -1,6 +1,6 @@
 #!/bin/sh
-# Rauchtest eines Images – gestartet mit denselben Härtungen wie in docker-compose.yml.
-# Aufruf: sh .github/scripts/smoke-test.sh <image>
+# Smoke test of an image – started with the same hardening as in docker-compose.yml.
+# Usage: sh .github/scripts/smoke-test.sh <image>
 set -u
 IMG="$1"
 NAME="helfi-smoke-$$"
@@ -21,17 +21,18 @@ i=0
 while [ "$i" -lt 45 ]; do
   s="$(docker inspect -f '{{.State.Health.Status}}' "$NAME" 2>/dev/null)"
   [ "$s" = healthy ] && break
-  [ "$(docker inspect -f '{{.State.Status}}' "$NAME")" = running ] || fail "Container läuft nicht mehr"
+  [ "$(docker inspect -f '{{.State.Status}}' "$NAME")" = running ] || fail "container is no longer running"
   sleep 2
   i=$((i + 1))
 done
 docker logs "$NAME"
-[ "$(docker inspect -f '{{.State.Health.Status}}' "$NAME")" = healthy ] || fail "nicht healthy"
+[ "$(docker inspect -f '{{.State.Health.Status}}' "$NAME")" = healthy ] || fail "not healthy"
 curl -fsS http://localhost:18080/api/bootstrap | grep -q '"setupRequired":true' || fail "bootstrap"
-docker logs "$NAME" 2>&1 | grep -q 'Einrichtungscode' || fail "kein Einrichtungscode im Protokoll"
+# The setup code banner is bilingual ("Einrichtungscode / setup code"); accept either wording
+docker logs "$NAME" 2>&1 | grep -Eq 'Einrichtungscode|[Ss]etup code' || fail "no setup code in the log"
 owner="$(sudo stat -c %u "$DATA/helfi.sqlite")"
-[ "$owner" = 1000 ] || fail "Datenbank gehört $owner statt 1000"
+[ "$owner" = 1000 ] || fail "database is owned by $owner instead of 1000"
 mode="$(sudo stat -c %a "$DATA/helfi.sqlite")"
-[ "$mode" = 600 ] || fail "Datenbank hat Rechte $mode statt 600"
+[ "$mode" = 600 ] || fail "database has mode $mode instead of 600"
 docker rm -f "$NAME" >/dev/null
-echo "Rauchtest bestanden: $IMG"
+echo "Smoke test passed: $IMG"

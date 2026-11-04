@@ -42,7 +42,7 @@ function run(ctx, args = [], env = {}) {
     input: '',
     env: {
       PATH: `${ctx.bin}:${BASE_PATH}`, FAKE_LOG: ctx.log, FAKE_DIR: ctx.dir,
-      FAKE_IMAGE_COMPOSE: ctx.imageCompose, FAKE_IMAGE_HASHES: ctx.imageHashes, HELFI_UPDATE_WAIT: '3', ...env,
+      FAKE_IMAGE_COMPOSE: ctx.imageCompose, FAKE_IMAGE_HASHES: ctx.imageHashes, HELFI_UPDATE_WAIT: '3', LANG: 'de_DE.UTF-8', ...env,
     },
   });
   const calls = fs.existsSync(ctx.log) ? fs.readFileSync(ctx.log, 'utf8') : '';
@@ -279,4 +279,23 @@ test('--cleanup: docker nicht erreichbar → nichts löschen; angepasste docker-
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /Nichts aufzuräumen/);
   assert.ok(exists(ctx, 'docker-compose.yml.neu'));
+});
+
+test('update.sh output language follows the locale (default English)', () => {
+  const ctx = setup();
+  for (const env of [{ LANG: 'C' }, { LANG: undefined }, { LANG: 'de_DE.UTF-8', LC_ALL: 'C' }]) {
+    const r = run(ctx, ['--cleanup', '-y'], env);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Nothing to clean up/, JSON.stringify(env));
+    const h = run(ctx, ['--help'], env);
+    assert.match(h.stdout, /manual update/);
+  }
+  for (const env of [{ LANG: 'de_DE.UTF-8' }, { LANG: 'C', LC_MESSAGES: 'de_AT.UTF-8' }]) {
+    const r = run(ctx, ['--cleanup', '-y'], env);
+    assert.match(r.stdout, /Nichts aufzuräumen/, JSON.stringify(env));
+    assert.match(run(ctx, ['--help'], env).stdout, /Update von Hand/);
+  }
+  const bad = run(ctx, ['9'], { LANG: 'C' });
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /^ERROR: Invalid version: 9/);
 });
