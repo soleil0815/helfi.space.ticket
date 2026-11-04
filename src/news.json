@@ -5,6 +5,7 @@
       "version": "",
       "date": "",
       "items": [
+        { "audience": "all", "de": "Auf dem Handy öffnet sich Helfi.Space jetzt automatisch in einer eigenen, app-artigen Ansicht: Anfragen und Tickets, Suche und Ticketverlauf. Unter „Ich“ → „Desktop-Ansicht“ geht es zur gewohnten Ansicht, im Benutzermenü über „Handy-Ansicht“ zurück.", "en": "On phones Helfi.Space now opens automatically in its own app-like view: requests and tickets, search and ticket activity. “Me” → “Desktop view” switches to the familiar view, “Phone view” in the user menu switches back." },
         { "audience": "all", "de": "Neuigkeiten: Nach einem Update zeigt Helfi.Space einmal, was neu ist. Alle Versionen stehen im Benutzermenü unter „Neuigkeiten“.", "en": "What's new: after an update Helfi.Space shows once what has changed. All versions are listed in the user menu under “What's new”." },
         { "audience": "all", "de": "Die Suche findet für alle wieder Tickets über die Namen von Melder, Bearbeiter und Antwortenden – ohne Mailadressen.", "en": "Search again finds tickets by the names of reporter, assignee and repliers for everyone – without email addresses." },
         { "audience": "agent", "de": "Änderungen an der Beschreibung bleiben im Verlauf erhalten: „Änderung anzeigen“ zeigt frühere Fassung und Unterschiede.", "en": "Changes to the description are kept in the history: “Show change” shows the previous version and the differences." },

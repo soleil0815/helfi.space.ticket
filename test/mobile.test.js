@@ -1,4 +1,4 @@
-// Smartphone view: no page may overflow sideways, no errors in the console.
+// Smartphone view of the desktop UI (preference "desktop"): no page may overflow sideways, no errors in the console.
 // Needs Playwright with Chromium (not part of the dependencies) – if missing, the test is skipped:
 //   npm install --no-save playwright && npx playwright install chromium
 import { test, before, after } from 'node:test';
@@ -29,6 +29,8 @@ after(async () => { await browser?.close(); await S?.stop(); });
 
 async function page(username, width, height) {
   const c = await browser.newContext({ viewport: { width, height }, isMobile: true, hasTouch: true, extraHTTPHeaders: { 'X-Helfi-Request': '1' } });
+  // These tests check the responsive desktop UI: phones would otherwise get the mobile UI (/m, see mobile-app.test.js)
+  await c.addInitScript(() => { try { localStorage.setItem('helfi.ui', 'desktop'); } catch { /* ignore */ } });
   const p = await c.newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));

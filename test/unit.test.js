@@ -142,7 +142,10 @@ test('Translations: UI German/English complete and all used keys present', async
   assert.deepEqual(Object.keys(_dicts.en).sort(), Object.keys(_dicts.de).sort());
   const used = new Set();
   const dir = path.join(root, 'public/js');
-  const files = [...fs.readdirSync(dir).map((f) => path.join(dir, f)), ...fs.readdirSync(path.join(dir, 'views')).map((f) => path.join(dir, 'views', f))];
+  const mdir = path.join(root, 'public/m/js');
+  const files = [...fs.readdirSync(dir).map((f) => path.join(dir, f)), ...fs.readdirSync(path.join(dir, 'views')).map((f) => path.join(dir, 'views', f)),
+    // mobile UI
+    ...fs.readdirSync(mdir).map((f) => path.join(mdir, f)), ...fs.readdirSync(path.join(mdir, 'views')).map((f) => path.join(mdir, 'views', f))];
   for (const f of files.filter((x) => x.endsWith('.js'))) {
     for (const m of fs.readFileSync(f, 'utf8').matchAll(/\bt\('([a-zA-Z]+\.[\w.]+)'/g)) used.add(m[1]);
   }

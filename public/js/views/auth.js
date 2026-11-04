@@ -1,9 +1,10 @@
 // Login and initial setup
 import { api } from '../api.js';
-import { h, mount, field, icon, select, toast, richText } from '../dom.js';
+import { h, mount, field, icon, select, toast } from '../dom.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { state, navigate, reloadBase, route } from '../app.js';
 import { brandLogo, brandTitle } from '../brand.js';
+import { loginIntro, loginUserLabel } from '../logintext.js';
 
 function langSwitch() {
   return h('div.lang-switch',
@@ -159,23 +160,8 @@ export function renderLogin(root) {
   setTimeout(() => user.focus(), 0);
 }
 
-/** Custom login page text in the matching language (English falls back to German). */
-function pickLang(obj) {
-  if (!obj) return '';
-  return (getLang() === 'en' && obj.en) ? obj.en : (obj.de || obj.en || '');
-}
-export function loginUserLabel(login) { return pickLang(login?.userLabel).trim(); }
-
-/** Heading and welcome text (text without HTML, **bold**, links/email addresses clickable). */
-export function loginIntro(login) {
-  const title = String(login?.title || '').trim();
-  const text = pickLang(login?.text).trim();
-  if (!title && !text) return [h('h1', t('login.title'))];
-  return [
-    title ? h('h1.login-custom-title', title) : h('h1', t('login.title')),
-    text ? h('div.login-intro', richText(text)) : null,
-  ];
-}
+// Shared with the mobile sign-in (/m)
+export { loginIntro, loginUserLabel };
 
 export function renderSetup(root) {
   const params = new URLSearchParams(location.search);

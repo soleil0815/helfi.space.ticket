@@ -1,6 +1,6 @@
 // Ticket list with filters, "My work" and "My requests"
 import { api } from '../api.js';
-import { h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, relTime, fmtDate, select, dropdown, modal, toast, field } from '../dom.js';
+import { h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, relTime, fmtDate, select, dropdown, modal, toast, field, highlight } from '../dom.js';
 import { openTemplatePicker } from './canned.js';
 import { t } from '../i18n.js';
 import { state, navigate } from '../app.js';
@@ -73,23 +73,6 @@ export async function renderList(content, params, { requests = false } = {}) {
     selectable: state.isAgent && !requests,
     onChanged: () => navigate(`${location.pathname}${location.search}`, { replace: true }),
   }));
-}
-
-/** Highlight search terms in the text (as text nodes, never as HTML) */
-export function highlight(text, terms = []) {
-  const s = String(text ?? '');
-  const low = terms.map((x) => x.toLowerCase()).filter(Boolean);
-  if (!low.length) return s;
-  const out = []; let i = 0; const l = s.toLowerCase();
-  while (i < s.length) {
-    let best = -1; let len = 0;
-    for (const x of low) { const k = l.indexOf(x, i); if (k >= 0 && (best < 0 || k < best || (k === best && x.length > len))) { best = k; len = x.length; } }
-    if (best < 0) { out.push(s.slice(i)); break; }
-    if (best > i) out.push(s.slice(i, best));
-    out.push(h('mark', s.slice(best, best + len)));
-    i = best + len;
-  }
-  return out;
 }
 
 export function ticketTable(tickets, { requests = false, sort, onSort, compact = false, selectable = false, onChanged, terms = [] } = {}) {

@@ -13,6 +13,7 @@ import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
+import { activityFieldLabel, activityValue } from '../activity.js';
 import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
@@ -163,18 +164,8 @@ export async function renderTicket(content, key) {
   }
 
   function historyEl(a) {
-    const fieldLabel = a.field && !a.field.includes(':') && a.action === 'changed' ? t(`field.${a.field}`) : '';
-    const show = (v) => {
-      if (v === null || v === undefined || v === '') return t('app.none');
-      if (a.field === 'status') return t(`status.${v}`);
-      if (a.field === 'priority') return t(`priority.${v}`);
-      if (a.field === 'type') return t(`type.${v}`);
-      if (a.field === 'impact' || a.field === 'urgency') return t(`level.${v}`);
-      if (a.field === 'major' || a.field === 'knownError') return t(String(v) === '1' ? 'app.yes' : 'app.no');
-      if (['phase', 'changeType', 'risk', 'outcome'].includes(a.field)) return t(`change.${a.field}.${v}`);
-      if (a.field === 'plannedStart' || a.field === 'plannedEnd') return fmtDate(v);
-      return v;
-    };
+    const fieldLabel = activityFieldLabel(a);
+    const show = (v) => activityValue(a, v);
     return h('div.history',
       avatar(a.user, 'sm'),
       h('div',

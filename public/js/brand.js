@@ -1,6 +1,6 @@
 // Branding: logo and title from the settings, colours via /brand.css
 import { h } from './dom.js';
-import { state } from './app.js';
+import { state } from './state.js';
 
 const version = () => state.boot?.brand?.logo || 'default';
 export const logoUrl = () => `/brand/logo?v=${encodeURIComponent(version())}`;

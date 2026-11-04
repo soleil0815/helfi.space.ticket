@@ -1,7 +1,7 @@
 // UI entry point: state, router, base layout.
 import { installShortcuts, clearPageShortcuts, listKeys } from './shortcuts.js';
 import { api } from './api.js';
-import { h, mount, icon, avatar, dropdown, toast } from './dom.js';
+import { h, mount, icon, avatar, dropdown, toast, loadSprite } from './dom.js';
 import { t, setLang, getLang, browserLang } from './i18n.js';
 import { renderLogin, renderSetup } from './views/auth.js';
 import { renderBoard } from './views/board.js';
@@ -19,21 +19,11 @@ import { renderKb } from './views/kb.js';
 import { renderCatalog } from './views/catalog.js';
 import { renderCmdb } from './views/cmdb.js';
 import { renderRate } from './views/survey.js';
+import { state } from './state.js';
+import { isPhone, setUiPref, wantsMobile, mobileUrlFor, takeDesktopOnce } from './uimode.js';
 
-export const state = {
-  boot: null,
-  user: null,
-  projects: [],
-  agents: [],
-  get isAgent() { return this.user && (this.user.role === 'agent' || this.user.role === 'admin'); },
-  get isAdmin() { return this.user?.role === 'admin'; },
-  get project() {
-    let key = null;
-    try { key = localStorage.getItem('helfi.project'); } catch { /* ignore */ }
-    return this.projects.find((p) => p.key === key) || this.projects[0] || null;
-  },
-  set project(p) { try { localStorage.setItem('helfi.project', p?.key || ''); } catch { /* ignore */ } },
-};
+// Shared with the mobile UI (/m) – see state.js
+export { state };
 
 const root = document.getElementById('app');
 
@@ -86,7 +76,7 @@ export async function setLanguage(lang) {
 
 async function start() {
   try {
-    state.boot = await api.bootstrap();
+    [state.boot] = await Promise.all([api.bootstrap(), loadSprite()]);
   } catch {
     mount(root, h('div.fatal', 'Helfi.Space ist nicht erreichbar / not reachable.'));
     return;
@@ -215,6 +205,11 @@ function layout(content, path) {
       { label: 'Deutsch', active: getLang() === 'de', onClick: () => setLanguage('de') },
       { label: 'English', active: getLang() === 'en', onClick: () => setLanguage('en') },
       '-',
+      // Phone user who chose the desktop view: way back to the mobile UI
+      ...(isPhone() ? [{
+        label: t('m.switchToMobile'), icon: icon('smartphone'),
+        onClick: () => { setUiPref('mobile'); location.assign(mobileUrlFor(location.pathname, location.search) || '/m'); },
+      }, '-'] : []),
       { label: t('app.logout'), icon: icon('logout'), onClick: async () => { await api.logout(); state.user = null; navigate('/login'); } },
     ], { align: 'right' }),
   }, avatar(u, 'sm'));
@@ -323,4 +318,8 @@ export async function refreshQueueCounts(projectKey = state.project?.key) {
   } catch { /* ignore */ }
 }
 
-start().catch((e) => { console.error(e); toast(e.message, 'error'); });
+// Phones (or the preference "mobile") get the app-like UI under /m – decided before anything is rendered.
+// "?ui=desktop" shows this one page in the desktop UI anyway.
+const mobileTarget = !takeDesktopOnce() && wantsMobile() ? mobileUrlFor(location.pathname, location.search) : null;
+if (mobileTarget) location.replace(mobileTarget);
+else start().catch((e) => { console.error(e); toast(e.message, 'error'); });
