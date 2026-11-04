@@ -15,6 +15,8 @@ if (!chromium) {
   try { ({ chromium } = createRequire(import.meta.url)('/opt/npm-tools/node_modules/playwright')); } catch { /* not there either */ }
 }
 const skip = !chromium && 'Playwright missing';
+// CI sets HELFI_REQUIRE_BROWSER: there a missing Playwright fails the run instead of skipping the tests
+if (!chromium && process.env.HELFI_REQUIRE_BROWSER) throw new Error('Playwright with Chromium is required (HELFI_REQUIRE_BROWSER is set)');
 
 let S; let browser; let anna;
 before(async () => {

@@ -136,8 +136,39 @@ function defineRoutes() {
   route({ path: /^\/m\/.*$/, parent: '/m', render: renderNotFound });
 }
 
+/**
+ * On-screen keyboard: the visual viewport shrinks (iOS always; Android where the layout viewport
+ * is not resized). The app root and sheets follow it through CSS variables so the reply bar
+ * and sheet fields stay above the keyboard. Pinch zoom (scale ≠ 1) is left alone.
+ */
+function trackKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement;
+  let frame = 0;
+  const apply = () => {
+    frame = 0;
+    const kb = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+    if (Math.abs(vv.scale - 1) < 0.01 && kb > 0) {
+      root.style.setProperty('--m-vv-top', `${Math.round(vv.offsetTop)}px`);
+      root.style.setProperty('--m-vv-h', `${Math.round(vv.height)}px`);
+      root.style.setProperty('--m-kb', `${kb}px`);
+    } else {
+      for (const p of ['--m-vv-top', '--m-vv-h', '--m-kb']) root.style.removeProperty(p);
+    }
+    // A keyboard (not just a browser bar) is open: the safe area at the bottom is covered by it
+    root.classList.toggle('m-kb-open', kb > 120);
+  };
+  const schedule = () => { if (!frame) frame = requestAnimationFrame(apply); };
+  vv.addEventListener('resize', schedule);
+  vv.addEventListener('scroll', schedule);
+  window.addEventListener('resize', schedule);
+  apply();
+}
+
 async function start() {
   const app = document.getElementById('m-app');
+  trackKeyboard();
   try {
     [state.boot] = await Promise.all([api.bootstrap(), loadSprite()]);
   } catch {

@@ -1,6 +1,6 @@
 // Smartphone view of the desktop UI (preference "desktop"): no page may overflow sideways, no errors in the console.
 // Needs Playwright with Chromium (not part of the dependencies) – if missing, the test is skipped:
-//   npm install --no-save playwright && npx playwright install chromium
+//   npm install --no-save playwright && npx playwright install chromium   (CI installs it, see .github/workflows/ci.yml)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -11,6 +11,8 @@ try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /
 if (!chromium && process.env.NODE_PATH) {
   try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* not there either */ }
 }
+// CI sets HELFI_REQUIRE_BROWSER: there a missing Playwright fails the run instead of skipping the tests
+if (!chromium && process.env.HELFI_REQUIRE_BROWSER) throw new Error('Playwright with Chromium is required (HELFI_REQUIRE_BROWSER is set)');
 
 let S; let browser;
 before(async () => {

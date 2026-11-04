@@ -111,6 +111,37 @@ test('Other people\'s drafts cannot be taken over; only images as drafts', async
   assert.equal(db.prepare('SELECT draft FROM attachments WHERE id=?').get(oid).draft, 1);
 });
 
+test('Files for a reply (draft=file): any type, claimed via attachmentIds, internal notes keep them internal', async () => {
+  const fileForm = (name, type, data) => { const fd = new FormData(); fd.append('draft', 'file'); fd.append('files', new Blob([data], { type }), name); return fd; };
+  const up = await anna('POST', `/api/tickets/${key}/attachments`, fileForm('protokoll-PC-0001.txt', 'text/plain', Buffer.from('Fehler 49\n')));
+  assert.equal(up.status, 201, 'any file type as a reply draft');
+  const id = up.body.ids[0];
+  assert.equal(db.prepare('SELECT draft, comment_id FROM attachments WHERE id=?').get(id).draft, 1);
+  assert.ok(!(await karl('GET', `/api/tickets/${key}`)).body.ticket.attachments.some((a) => a.id === id), 'draft not listed');
+  assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 404, 'reporter does not see the draft');
+  // Internal note claims it: stays internal
+  const note = await anna('POST', `/api/tickets/${key}/comments`, { body: 'Protokoll anbei', internal: true, attachmentIds: [id, 'x', -3] });
+  assert.equal(note.status, 201);
+  const row = db.prepare('SELECT draft, comment_id FROM attachments WHERE id=?').get(id);
+  assert.deepEqual([row.draft, row.comment_id], [0, note.body.comment.id]);
+  assert.equal((await karl('GET', `/api/attachments/${id}`)).status, 404, 'internal attachment hidden from the reporter');
+  assert.ok(!(await karl('GET', `/api/tickets/${key}`)).body.ticket.attachments.some((a) => a.id === id));
+  assert.ok((await anna('GET', `/api/tickets/${key}`)).body.ticket.attachments.some((a) => a.id === id && a.commentId === note.body.comment.id));
+  // Someone else's draft cannot be claimed; a public reply makes its own file visible
+  const other = (await anna('POST', `/api/tickets/${key}/attachments`, fileForm('liste.csv', 'text/csv', Buffer.from('a;b\n')))).body.ids[0];
+  await karl('POST', `/api/tickets/${key}/comments`, { body: 'Meins?', attachmentIds: [other] });
+  assert.equal(db.prepare('SELECT draft FROM attachments WHERE id=?').get(other).draft, 1, 'stays Anna\'s draft');
+  const mine = (await karl('POST', `/api/tickets/${key}/attachments`, fileForm('bericht.pdf', 'application/pdf', Buffer.from('%PDF-1.4\n')))).body.ids[0];
+  const reply = await karl('POST', `/api/tickets/${key}/comments`, { body: 'Bericht anbei', attachmentIds: [mine] });
+  assert.equal(reply.status, 201);
+  assert.equal((await anna('GET', `/api/attachments/${mine}`)).status, 200);
+  assert.ok((await karl('GET', `/api/tickets/${key}`)).body.ticket.attachments.some((a) => a.id === mine && a.commentId === reply.body.comment.id));
+});
+
+test('Bootstrap tells the upload limit', async () => {
+  assert.equal(typeof (await karl('GET', '/api/bootstrap')).body.maxUploadMb, 'number');
+});
+
 test('In mails the image becomes a placeholder note', () => {
   assert.equal(inlineImagesAsText('Siehe:\n![schritt.png](/api/attachments/12)\nDanke', 'de'), 'Siehe:\n[Bild: schritt.png]\nDanke');
   assert.equal(inlineImagesAsText('![](/api/attachments/3)', 'en'), '[Image: …]');

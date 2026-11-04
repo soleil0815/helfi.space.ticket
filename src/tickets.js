@@ -392,7 +392,7 @@ export function createTickets(db, users) {
   }
 
   /** system: notice from Helfi.Space itself (e.g. delivery failure) – always internal, reopens nothing. */
-  function addComment(user, idOrKey, { body, internal = false }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false } = {}) {
+  function addComment(user, idOrKey, { body, internal = false, attachmentIds = [] }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false } = {}) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
     const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
@@ -401,7 +401,10 @@ export function createTickets(db, users) {
     const info = db.transaction(() => {
       const r = db.prepare('INSERT INTO comments(ticket_id,author_id,author_email,author_name,body,internal,source) VALUES(?,?,?,?,?,?,?)')
         .run(row.id, user ? user.id : null, authorEmail, authorName, text, isInternal, source);
-      if (user && source !== 'email') claimInlineImages(row.id, text, user.id, r.lastInsertRowid);
+      if (user && source !== 'email') {
+        claimInlineImages(row.id, text, user.id, r.lastInsertRowid);
+        claimDrafts(row.id, attachmentIds, user.id, r.lastInsertRowid);
+      }
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
       // Reply from the reporter to a waiting/resolved ticket → reopen
       const fromCustomer = !system && !agent && (user ? isCustomer(user, row) : true);
@@ -427,6 +430,13 @@ export function createTickets(db, users) {
     if (!ids.length || !userId) return;
     const stmt = db.prepare('UPDATE attachments SET draft=0, comment_id=COALESCE(?, comment_id) WHERE id=? AND ticket_id=? AND draft=1 AND uploaded_by=?');
     for (const id of ids) stmt.run(commentId, id, ticketId, userId);
+  }
+
+  /** Files picked for a reply (draft uploads of this person on this ticket) belong to the comment. */
+  function claimDrafts(ticketId, ids, userId, commentId) {
+    if (!Array.isArray(ids) || !ids.length) return;
+    const stmt = db.prepare('UPDATE attachments SET draft=0, comment_id=? WHERE id=? AND ticket_id=? AND draft=1 AND uploaded_by=?');
+    for (const id of ids) if (Number.isInteger(id) && id > 0) stmt.run(commentId, id, ticketId, userId);
   }
 
   // ---------- Attachments ----------

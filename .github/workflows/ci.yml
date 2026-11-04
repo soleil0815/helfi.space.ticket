@@ -38,6 +38,13 @@ env:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    env:
+      # Browser tests (test/mobile*.test.js, people-picker, UI audit) need Playwright with Chromium.
+      # It is not a dependency of the app: installed below at this exact version, outside the
+      # project tree, and found by the tests via NODE_PATH. HELFI_REQUIRE_BROWSER makes the tests
+      # fail instead of skipping when it is missing.
+      PLAYWRIGHT_VERSION: '1.63.0'
+      HELFI_REQUIRE_BROWSER: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,6 +56,23 @@ jobs:
       - run: npm ci
       - name: Tools for shell tests
         run: sudo apt-get update -q && sudo apt-get install -y -q shellcheck dash >/dev/null
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}-chromium
+      - name: Install Playwright with Chromium (pinned)
+        env:
+          CACHE_HIT: ${{ steps.pw-cache.outputs.cache-hit }}
+        run: |
+          set -eu
+          npm install --no-save --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/pw" "playwright@$PLAYWRIGHT_VERSION"
+          pw="$RUNNER_TEMP/pw/node_modules/.bin/playwright"
+          test "$("$pw" --version)" = "Version $PLAYWRIGHT_VERSION"
+          # Browser from the cache: only the system libraries are missing on a fresh runner
+          if [ "$CACHE_HIT" = "true" ]; then "$pw" install-deps chromium; else "$pw" install --with-deps chromium; fi
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Tests (incl. update.sh with dash, entrypoint.sh as root)
         run: npm test && sudo -E env "PATH=$PATH" node --test test/entrypoint.test.js
       - name: Check dependencies for known vulnerabilities

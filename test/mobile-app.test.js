@@ -1,6 +1,6 @@
-// App-like mobile UI under /m: automatic switching, sign-in, lists, read-only ticket view.
+// App-like mobile UI under /m: automatic switching, sign-in, lists, ticket view with reply bar and actions.
 // The browser tests need Playwright with Chromium (not part of the dependencies) – if missing, they are skipped:
-//   npm install --no-save playwright && npx playwright install chromium
+//   npm install --no-save playwright && npx playwright install chromium   (CI installs it, see .github/workflows/ci.yml)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -12,11 +12,15 @@ if (!chromium && process.env.NODE_PATH) {
   try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* not there either */ }
 }
 const skip = !chromium && 'Playwright missing';
+// CI sets HELFI_REQUIRE_BROWSER: there a missing Playwright fails the run instead of skipping the tests
+if (!chromium && process.env.HELFI_REQUIRE_BROWSER) throw new Error('Playwright with Chromium is required (HELFI_REQUIRE_BROWSER is set)');
 
 // Small valid PNG (2×2 pixels) for the attachment thumbnails
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
 
 let S; let browser;
+const who = {}; // API clients of the test accounts
+let approvalKey;
 before(async () => {
   S = await startServer('mobile-app');
   S.ctx.settings.set('sla.enabled', true);
@@ -25,6 +29,8 @@ before(async () => {
   const karl = await S.user('karl', 'user');
   await S.user('eva', 'user');
   await S.user('max', 'user');
+  await S.user('tom', 'agent');
+  Object.assign(who, { anna, karl });
   await karl('POST', '/api/tickets', { title: 'Drucker PR-0001 im 2. OG druckt nur leere Seiten', description: 'Seit heute früh, Drucker 10.0.10.40.\n\nhttps://firma.local/eine/sehr/lange/adresse/die/umbrechen/muss/damit/nichts/übersteht', type: 'incident', priority: 'high' });
   await karl('POST', '/api/tickets', { title: 'VPN bricht im Homeoffice ab', description: 'Notebook PC-0001', type: 'incident' });
   for (let i = 3; i <= 16; i++) await karl('POST', '/api/tickets', { title: `Monitor für Arbeitsplatz ${i} bestellen`, description: 'Bitte bestellen.', type: 'request' });
@@ -39,6 +45,11 @@ before(async () => {
   fd.append('files', new Blob(['Protokoll\n'], { type: 'text/plain' }), 'protokoll.txt');
   const up = await fetch(`${S.base}/api/tickets/IT-1/attachments`, { method: 'POST', headers: { 'X-Helfi-Request': '1', cookie: login.headers.get('set-cookie').split(';')[0] }, body: fd });
   assert.ok(up.ok, `upload ${up.status}`);
+  await anna('POST', '/api/canned', { title: 'Neustart', body: 'Hallo {melder}, bitte starte das Gerät einmal neu.' });
+  await S.admin('POST', '/api/canned', { title: 'Problem behoben', body: 'Hallo {melder}, das Problem ist behoben.', shared: true });
+  // Catalog request that waits for Anna's approval
+  const item = (await S.admin('POST', '/api/catalog', { title: 'Zweiter Monitor', fields: [], approverIds: [S.ids.anna], approvalMode: 'any' })).body.item;
+  approvalKey = (await karl('POST', `/api/catalog/${item.id}/order`, { answers: {} })).body.ticket.key;
   // No 2FA banner/prompts in the regular tests (the 2FA test switches this on itself)
   S.db.prepare("UPDATE users SET totp_enabled=1 WHERE username<>'max'").run();
   if (chromium) browser = await chromium.launch();
@@ -104,6 +115,8 @@ async function open(username, opts = PHONE) {
   const c = await browser.newContext({ ...opts, locale: 'de-DE' });
   const p = await c.newPage();
   const errors = [];
+  // CSP violations end up in the error list too
+  await p.addInitScript(() => document.addEventListener('securitypolicyviolation', (e) => console.error(`CSP violation: ${e.violatedDirective} ${e.blockedURI}`)));
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   if (username) {
@@ -362,7 +375,7 @@ test('Ticket view: internal note and history for the agent, never for the user',
   assert.ok(img > 0, 'image thumbnail loads');
   assert.equal(await agent.p.getAttribute('.m-att-file', 'href'), `/api/attachments/${await agent.p.$eval('.m-att-file', (a) => a.getAttribute('href').match(/\d+/)[0])}?download=1`);
   assert.equal(await agent.p.isVisible('.m-tabbar'), false, 'no tab bar on the ticket page');
-  assert.ok(await agent.p.locator('.m-reply-space').count());
+  assert.ok(await agent.p.locator('.m-reply').isVisible(), 'reply bar instead of the tab bar');
   assert.deepEqual(agent.errors, []);
   await agent.close();
 
@@ -560,5 +573,369 @@ for (const [w, hgt] of [[390, 844], [360, 740]]) {
       assert.deepEqual(errors, [], who);
       await close();
     }
+  });
+}
+
+// ---------- Part 2: reply bar, photos, actions ----------
+const newTicket = async (title, type = 'request') => (await who.karl('POST', '/api/tickets', { title, description: 'Bitte prüfen.', type })).body.ticket.key;
+const ticketApi = async (client, key) => (await client('GET', `/api/tickets/${key}`)).body.ticket;
+/** PNG of any size, drawn in the page (no image library needed in the tests) */
+const pngOf = async (p, w, hgt) => Buffer.from(await p.evaluate(({ w, hgt }) => {
+  const c = document.createElement('canvas'); c.width = w; c.height = hgt;
+  const g = c.getContext('2d');
+  g.fillStyle = '#5B8DEF'; g.fillRect(0, 0, w, hgt);
+  g.fillStyle = '#fff'; g.fillRect(w / 4, hgt / 4, w / 2, hgt / 2);
+  return c.toDataURL('image/png').split(',')[1];
+}, { w, hgt }), 'base64');
+/** Pick a file through the attach sheet ("Foto aufnehmen" or "Datei") */
+async function attach(p, which, file) {
+  const chooser = p.waitForEvent('filechooser');
+  await p.tap('.m-reply-attach');
+  await p.waitForSelector('.m-sheet-layer.open .m-action');
+  await p.locator('.m-sheet .m-action', { hasText: which }).tap();
+  await (await chooser).setFiles(file);
+  await p.waitForSelector('.m-sheet-layer', { state: 'detached' });
+  await p.waitForFunction((name) => [...document.querySelectorAll('.m-file')].some((f) => f.dataset.name.startsWith(name) && !f.classList.contains('processing')), file.name.replace(/\.[^.]+$/, ''));
+}
+const sendAndWait = async (p, text) => {
+  await p.tap('.m-reply-send');
+  await p.waitForFunction((x) => [...document.querySelectorAll('.m-msg')].some((m) => m.textContent.includes(x)), text);
+  await p.waitForFunction(() => !document.querySelector('.m-reply.busy'));
+};
+
+test('Reply bar: agent reply and internal note with photo and file; the user sees neither the note nor its files', { skip }, async () => {
+  const key = await newTicket('Notebook PC-0001 startet nicht');
+  const { p, errors, close } = await open('anna');
+  await p.goto(`${S.base}/m/t/${key}`);
+  await ready(p);
+  assert.ok(await p.isVisible('.m-reply'));
+  assert.equal(await p.isDisabled('.m-reply-send'), true, 'send disabled while empty');
+  assert.equal(await p.getAttribute('.m-reply-mode:not(.m-reply-mode-note)', 'aria-pressed'), 'true');
+  // Public reply
+  await p.fill('.m-reply-input', 'Ich komme gleich vorbei.');
+  assert.equal(await p.isDisabled('.m-reply-send'), false);
+  await sendAndWait(p, 'Ich komme gleich vorbei.');
+  assert.equal(await p.inputValue('.m-reply-input'), '');
+  assert.equal(await p.isDisabled('.m-reply-send'), true);
+  assert.ok(await p.locator('.m-msg.mine:not(.internal)', { hasText: 'Ich komme gleich vorbei.' }).isVisible());
+  // Internal note: yellow bar, a large photo (downscaled) and a text file
+  await p.tap('.m-reply-mode-note');
+  assert.ok(await p.isVisible('.m-reply.internal'));
+  assert.equal(await p.getAttribute('.m-reply-mode-note', 'aria-pressed'), 'true');
+  assert.ok(await p.locator('.m-reply-hint').isVisible());
+  await p.fill('.m-reply-input', 'Netzteil defekt, Ersatz ist bestellt.');
+  await attach(p, 'Foto aufnehmen', { name: 'typenschild.png', mimeType: 'image/png', buffer: await pngOf(p, 3200, 1800) });
+  await attach(p, 'Datei', { name: 'protokoll.txt', mimeType: 'text/plain', buffer: Buffer.from('Fehler 49\n') });
+  assert.equal(await p.locator('.m-file').count(), 2);
+  assert.match(await p.textContent('.m-file[data-name="typenschild.jpg"]'), /verkleinert/);
+  assert.ok(await p.$eval('.m-file[data-name="typenschild.jpg"] img', (i) => i.decode().then(() => i.naturalWidth)) > 0, 'thumbnail');
+  // Removing a chip works (and does not upload it)
+  await attach(p, 'Datei', { name: 'falsch.txt', mimeType: 'text/plain', buffer: Buffer.from('x') });
+  await p.tap('.m-file[data-name="falsch.txt"] .m-file-x');
+  assert.equal(await p.locator('.m-file').count(), 2);
+  await sendAndWait(p, 'Netzteil defekt');
+  assert.equal(await p.locator('.m-file').count(), 0, 'chips gone after sending');
+  const note = p.locator('.m-msg.internal', { hasText: 'Netzteil defekt' });
+  assert.ok(await note.locator('.inline-image img').count(), 'photo in the note');
+  assert.ok(await note.locator('.m-att-file', { hasText: 'protokoll.txt' }).count(), 'file in the note');
+  // Server: both files belong to the internal note, the photo is a 2560 px JPEG
+  const tk = await ticketApi(who.anna, key);
+  const c = tk.comments.find((x) => x.body.startsWith('Netzteil defekt'));
+  assert.equal(c.internal, true);
+  const files = tk.attachments.filter((a) => a.commentId === c.id);
+  assert.deepEqual(files.map((a) => a.filename).sort(), ['protokoll.txt', 'typenschild.jpg']);
+  assert.ok(!tk.attachments.some((a) => a.filename === 'falsch.txt'));
+  const photo = files.find((a) => a.mime === 'image/jpeg');
+  assert.ok(photo, 'photo stored as JPEG');
+  assert.deepEqual(await p.evaluate((id) => fetch(`/api/attachments/${id}`).then((r) => r.blob()).then(createImageBitmap).then((b) => [b.width, b.height]), photo.id), [2560, 1440]);
+  assert.deepEqual(errors, []);
+  await close();
+
+  // The user: no internal note, no files of it, no agent controls
+  const user = await open('karl');
+  await user.p.goto(`${S.base}/m/t/${key}`);
+  await ready(user.p);
+  const text = await user.p.textContent('.m-page');
+  assert.match(text, /Ich komme gleich vorbei/);
+  assert.doesNotMatch(text, /Netzteil|protokoll\.txt|typenschild/);
+  assert.equal(await user.p.locator('.m-msg.internal').count(), 0);
+  for (const a of files) assert.equal((await user.p.request.get(`${S.base}/api/attachments/${a.id}`)).status(), 404, a.filename);
+  const kt = await ticketApi(who.karl, key);
+  assert.ok(!kt.attachments.some((a) => files.some((f) => f.id === a.id)));
+  for (const sel of ['.m-reply-tools', '.m-reply-mode', '.m-reply-tpl', '.m-status-btn', '.m-pill-btn', '.m-person-btn', '.m-assign-me']) {
+    assert.equal(await user.p.locator(sel).count(), 0, sel);
+  }
+  await user.p.tap('.m-more-btn');
+  await user.p.waitForSelector('.m-sheet-layer.open .m-action');
+  for (const a of ['status', 'assign-me', 'assignee', 'priority', 'type']) assert.equal(await user.p.locator(`.m-action[data-action="${a}"]`).count(), 0, a);
+  assert.deepEqual(user.errors, []);
+  await user.close();
+});
+
+test('User: reply with an attachment, no internal notes', { skip }, async () => {
+  const key = await newTicket('Monitor flackert an PC-0001');
+  await who.anna('POST', `/api/tickets/${key}/comments`, { body: 'Kabel geprüft, intern notiert.', internal: true });
+  const { p, errors, close } = await open('karl');
+  await p.goto(`${S.base}/m/t/${key}`);
+  await ready(p);
+  assert.doesNotMatch(await p.textContent('.m-page'), /intern notiert/);
+  assert.equal(await p.locator('.m-reply-mode').count(), 0, 'users never see the mode toggle');
+  await p.fill('.m-reply-input', 'Hier ein Foto vom Bildschirm.');
+  await attach(p, 'Datei', { name: 'bildschirm.png', mimeType: 'image/png', buffer: await pngOf(p, 640, 480) });
+  assert.doesNotMatch(await p.textContent('.m-file'), /verkleinert/, 'small pictures stay as they are');
+  await sendAndWait(p, 'Hier ein Foto vom Bildschirm.');
+  const tk = await ticketApi(who.anna, key);
+  const c = tk.comments.find((x) => x.body.startsWith('Hier ein Foto'));
+  assert.equal(c.internal, false);
+  const a = tk.attachments.find((x) => x.commentId === c.id);
+  assert.equal(a.filename, 'bildschirm.png');
+  assert.equal(a.mime, 'image/png');
+  assert.equal((await who.anna('GET', `/api/attachments/${a.id}`)).status, 200);
+  assert.ok(await p.locator('.m-msg.mine .inline-image img').count());
+  assert.deepEqual(errors, []);
+  await close();
+});
+
+test('Canned response, status change and resolve with a closing reply', { skip }, async () => {
+  const key = await newTicket('Drucker im Besprechungsraum offline');
+  const { p, errors, close } = await open('anna');
+  await p.goto(`${S.base}/m/t/${key}`);
+  await ready(p);
+  // Template: inserted at the cursor, placeholders filled
+  await p.fill('.m-reply-input', 'Vorab: ');
+  await p.tap('.m-reply-tpl');
+  await p.waitForSelector('.m-sheet-layer.open .m-canned-item');
+  await p.fill('.m-sheet-search-input', 'neust');
+  assert.equal(await p.locator('.m-canned-item').count(), 1);
+  await p.locator('.m-canned-item').tap();
+  await p.waitForSelector('.m-sheet-layer', { state: 'detached' });
+  assert.equal(await p.inputValue('.m-reply-input'), 'Vorab: Hallo karl, bitte starte das Gerät einmal neu.');
+  assert.equal(await p.evaluate(() => document.activeElement?.classList.contains('m-reply-input')), true, 'focus back in the text field');
+  await p.fill('.m-reply-input', '');
+  // Status "waiting"
+  await p.tap('.m-status-btn');
+  await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
+  await p.locator('.m-choice-row', { hasText: 'Wartet' }).tap();
+  await p.waitForFunction(() => document.querySelector('.m-status-btn .lozenge')?.textContent === 'Wartet');
+  await p.waitForLoadState('networkidle');
+  assert.equal((await ticketApi(who.anna, key)).status, 'waiting');
+  // Resolve with a closing reply from a template
+  await p.tap('.m-status-btn');
+  await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
+  await p.locator('.m-choice-row', { hasText: 'Erledigt' }).tap();
+  await p.waitForSelector('.m-sheet-resolve textarea');
+  await p.locator('.m-sheet-resolve .m-btn-ghost').tap();
+  await p.waitForSelector('.m-sheet-canned .m-canned-item');
+  await p.locator('.m-canned-item', { hasText: 'Problem behoben' }).tap();
+  await p.waitForSelector('.m-sheet-resolve textarea');
+  assert.equal(await p.inputValue('.m-sheet-resolve textarea'), 'Hallo {melder}, das Problem ist behoben.', 'the server fills in the placeholders');
+  await p.locator('.m-sheet-resolve .m-btn-primary').tap();
+  await p.waitForSelector('.m-sheet-layer', { state: 'detached' });
+  await p.waitForFunction(() => document.querySelector('.m-status-btn .lozenge')?.textContent === 'Erledigt');
+  const tk = await ticketApi(who.anna, key);
+  assert.equal(tk.status, 'done');
+  const last = tk.comments.at(-1);
+  assert.equal(last.body, 'Hallo karl, das Problem ist behoben.');
+  assert.equal(last.internal, false);
+  assert.ok(await p.locator('.m-msg', { hasText: 'das Problem ist behoben' }).count(), 'closing reply in the timeline');
+  assert.deepEqual(errors, []);
+  await close();
+});
+
+test('Assign to me, assignee and priority pickers, add and remove participants', { skip }, async () => {
+  const key = await newTicket('Zugang zum Laufwerk S: fehlt');
+  const { p, errors, close } = await open('anna');
+  await p.goto(`${S.base}/m/t/${key}`);
+  await ready(p);
+  await p.tap('.m-assign-me');
+  await p.waitForSelector('.m-assign-me', { state: 'detached' });
+  await p.waitForLoadState('networkidle');
+  assert.equal((await ticketApi(who.anna, key)).assignee.id, S.ids.anna);
+  assert.match(await p.textContent('.m-person-btn'), /anna/);
+  // Assignee sheet: me first, search
+  await p.tap('.m-person-btn');
+  await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
+  assert.match(await p.textContent('.m-choice-row >> nth=0'), /anna.*Ich/s);
+  await p.fill('.m-sheet-search-input', 'tom');
+  assert.equal(await p.locator('.m-choice-row').count(), 1);
+  await p.locator('.m-choice-row').tap();
+  await p.waitForFunction(() => /tom/.test(document.querySelector('.m-person-btn')?.textContent));
+  await p.waitForLoadState('networkidle');
+  assert.equal((await ticketApi(who.anna, key)).assignee.id, S.ids.tom);
+  assert.ok(await p.isVisible('.m-assign-me'), '"assign to me" again');
+  // Priority
+  await p.tap('.m-pill-btn');
+  await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
+  await p.locator('.m-choice-row', { hasText: 'Sehr hoch' }).tap();
+  await p.waitForFunction(() => /Sehr hoch/.test(document.querySelector('.m-pill-btn')?.textContent));
+  await p.waitForLoadState('networkidle');
+  assert.equal((await ticketApi(who.anna, key)).priority, 'highest');
+  // Participants: search keeps the focus in the field, add, then remove
+  await p.tap('.m-more-btn');
+  await p.waitForSelector('.m-sheet-layer.open .m-action');
+  await p.locator('.m-action[data-action="participants"]').tap();
+  await p.waitForSelector('.m-sheet-people .m-sheet-search-input');
+  await p.locator('.m-sheet-search-input').focus();
+  await p.keyboard.type('ev');
+  await p.waitForSelector('.m-person-hit');
+  assert.match(await p.textContent('.m-person-hit'), /eva/);
+  await p.locator('.m-person-hit', { hasText: 'eva' }).tap();
+  await p.waitForSelector('.m-people-current .m-person-row[data-id]');
+  assert.equal(await p.evaluate(() => document.activeElement?.classList.contains('m-sheet-search-input')), true, 'focus stays in the field');
+  assert.deepEqual((await ticketApi(who.anna, key)).participants.map((x) => x.username), ['eva']);
+  // An email address can be added by agents
+  await p.keyboard.type('extern@firma.local');
+  await p.waitForSelector('.m-person-hit', { hasText: 'extern@firma.local' });
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => document.querySelectorAll('.m-people-current .m-person-row[data-id]').length === 2);
+  await p.locator('.m-people-current .m-person-row', { hasText: 'eva' }).locator('.m-person-x').tap();
+  await p.waitForFunction(() => document.querySelectorAll('.m-people-current .m-person-row[data-id]').length === 1);
+  assert.deepEqual((await ticketApi(who.anna, key)).participants.map((x) => x.email), ['extern@firma.local']);
+  assert.deepEqual(errors, []);
+  await close();
+});
+
+test('Approval card: approve a pending request', { skip }, async () => {
+  const { p, errors, close } = await open('anna');
+  await p.goto(`${S.base}/m/t/${approvalKey}`);
+  await ready(p);
+  assert.match(await p.textContent('.m-approval'), /Genehmigung erforderlich/);
+  await p.fill('.m-approval textarea', 'Passt, bitte bestellen.');
+  await p.locator('.m-approval .m-btn-success').tap();
+  await p.waitForSelector('.m-approval.m-approval-info');
+  assert.match(await p.textContent('.m-approval'), /genehmigt/);
+  const tk = await ticketApi(who.anna, approvalKey);
+  assert.equal(tk.approval.state, 'approved');
+  assert.equal(tk.approval.items[0].comment, 'Passt, bitte bestellen.');
+  assert.deepEqual(errors, []);
+  await close();
+  // The requester sees the state, but cannot decide
+  const user = await open('karl');
+  await user.p.goto(`${S.base}/m/t/${approvalKey}`);
+  await ready(user.p);
+  assert.equal(await user.p.locator('.m-approval .m-btn').count(), 0);
+  assert.match(await user.p.textContent('.m-approval'), /genehmigt/);
+  await user.close();
+});
+
+test('Keyboard: the reply bar stays visible when the visual viewport shrinks; the field grows up to 40 %', { skip }, async () => {
+  const key = await newTicket('Tastatur am Empfang klemmt');
+  const { p, errors, close } = await open('anna');
+  await p.goto(`${S.base}/m/t/${key}`);
+  await ready(p);
+  await p.tap('.m-reply-input');
+  for (const hgt of [844, 480, 360]) {
+    await p.setViewportSize({ width: 390, height: hgt });
+    await p.waitForTimeout(250);
+    const box = await p.evaluate(() => {
+      const r = document.querySelector('.m-reply').getBoundingClientRect();
+      const vh = window.visualViewport.height + window.visualViewport.offsetTop;
+      const input = document.querySelector('.m-reply-input').getBoundingClientRect();
+      const hit = document.elementFromPoint(input.left + input.width / 2, input.top + input.height / 2);
+      return { bottom: r.bottom, top: r.top, vh, hit: !!hit?.closest('.m-reply'), topbar: document.querySelector('.m-page .m-topbar').getBoundingClientRect().bottom };
+    });
+    assert.ok(box.bottom <= box.vh + 1 && box.top > box.topbar && box.hit, `${hgt}: ${JSON.stringify(box)}`);
+  }
+  // Long text: grows, but at most 40 % of the visible height
+  await p.fill('.m-reply-input', Array.from({ length: 20 }, (_, i) => `Zeile ${i + 1}`).join('\n'));
+  const grow = await p.evaluate(() => ({ h: document.querySelector('.m-reply-input').offsetHeight, vh: window.visualViewport.height }));
+  assert.ok(grow.h > 60 && grow.h <= grow.vh * 0.4 + 2, JSON.stringify(grow));
+  // Ctrl+Enter sends
+  await p.fill('.m-reply-input', 'Mit Tastenkürzel gesendet');
+  await p.press('.m-reply-input', 'Control+Enter');
+  await p.waitForFunction(() => [...document.querySelectorAll('.m-msg')].some((m) => m.textContent.includes('Mit Tastenkürzel gesendet')));
+  assert.deepEqual(errors, []);
+  await close();
+});
+
+test('Draft is kept per ticket when navigating away and back', { skip }, async () => {
+  const key = await newTicket('Headset knackt');
+  const { p, errors, close } = await open('anna');
+  await p.goto(`${S.base}/m/tickets?status=unresolved`);
+  await ready(p);
+  await p.locator(`.m-ticket[data-key="${key}"]`).tap();
+  await p.waitForURL(`**/m/t/${key}`);
+  await ready(p);
+  await p.tap('.m-reply-mode-note');
+  await p.fill('.m-reply-input', 'Entwurf: Ersatz-Headset liegt bereit');
+  await p.tap('.m-back');
+  await p.waitForURL('**/m/tickets?status=unresolved');
+  await ready(p);
+  await p.locator(`.m-ticket[data-key="${key}"]`).tap();
+  await p.waitForURL(`**/m/t/${key}`);
+  await ready(p);
+  assert.equal(await p.inputValue('.m-reply-input'), 'Entwurf: Ersatz-Headset liegt bereit');
+  assert.ok(await p.isVisible('.m-reply.internal'), 'mode kept');
+  await p.reload();
+  await ready(p);
+  assert.equal(await p.inputValue('.m-reply-input'), 'Entwurf: Ersatz-Headset liegt bereit', 'kept after reloading the page');
+  // Other tickets have their own (empty) draft
+  await p.goto(`${S.base}/m/t/IT-2`);
+  await ready(p);
+  assert.equal(await p.inputValue('.m-reply-input'), '');
+  assert.deepEqual(errors, []);
+  await close();
+});
+
+test('Going back to the list after a change shows the change; pull to refresh on the ticket', { skip }, async () => {
+  const key = await newTicket('Beamer im Raum 1.04 ohne Bild');
+  const { p, errors, close } = await open('anna');
+  await p.goto(`${S.base}/m/tickets?status=unresolved`);
+  await ready(p);
+  assert.match(await p.textContent(`.m-ticket[data-key="${key}"] .m-ticket-prio`), /Mittel/);
+  await p.locator(`.m-ticket[data-key="${key}"]`).tap();
+  await p.waitForURL(`**/m/t/${key}`);
+  await ready(p);
+  await p.tap('.m-pill-btn');
+  await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
+  await p.locator('.m-choice-row', { hasText: 'Niedrig' }).tap();
+  await p.waitForFunction(() => /Niedrig/.test(document.querySelector('.m-pill-btn')?.textContent));
+  await p.waitForLoadState('networkidle');
+  // Pull to refresh reloads the ticket
+  let calls = 0;
+  p.on('request', (r) => { if (r.url().endsWith(`/api/tickets/${key}`)) calls++; });
+  await touchDrag(p, '.m-page .m-scroll', 0, 300);
+  await p.waitForTimeout(800);
+  assert.equal(calls, 1);
+  await p.tap('.m-back');
+  await p.waitForURL('**/m/tickets?status=unresolved');
+  await p.waitForFunction((k) => /Niedrig/.test(document.querySelector(`.m-ticket[data-key="${k}"] .m-ticket-prio`)?.textContent), key);
+  assert.deepEqual(errors, []);
+  await close();
+});
+
+for (const [w, hgt] of [[390, 844], [360, 740]]) {
+  test(`Ticket view with reply bar, chips and sheets does not overflow sideways (${w} px)`, { skip }, async () => {
+    const { p, errors, close } = await open('anna', { ...PHONE, viewport: { width: w, height: hgt } });
+    await p.goto(`${S.base}/m/t/IT-1`);
+    await ready(p);
+    await p.tap('.m-reply-mode-note');
+    await p.fill('.m-reply-input', 'Eine längere interne Notiz mit https://firma.local/eine/sehr/lange/adresse/ohne/umbruch/bis/zum/ende');
+    await attach(p, 'Datei', { name: 'ein-sehr-langer-dateiname-fuer-das-protokoll-von-PC-0001.txt', mimeType: 'text/plain', buffer: Buffer.from('x') });
+    await attach(p, 'Datei', { name: 'foto.png', mimeType: 'image/png', buffer: await pngOf(p, 300, 200) });
+    assert.deepEqual(await p.evaluate(overflow), [], 'reply bar');
+    const sheets = [
+      ['.m-more-btn', null],
+      ['.m-status-btn', null],
+      ['.m-person-btn', null],
+      ['.m-reply-tpl', null],
+      ['.m-more-btn', '.m-action[data-action="participants"]'],
+      ['.m-details-btn', null],
+    ];
+    for (const [opener, then] of sheets) {
+      await p.tap(opener);
+      await p.waitForSelector('.m-sheet-layer.open');
+      if (then) { await p.tap(then); await p.waitForTimeout(450); await p.waitForSelector('.m-sheet-layer.open'); }
+      await p.waitForTimeout(350);
+      assert.deepEqual(await p.evaluate(overflow), [], opener);
+      await p.keyboard.press('Escape');
+      await p.waitForSelector('.m-sheet-layer', { state: 'detached' });
+    }
+    // Touch targets in the reply bar and sheets
+    const small = await p.evaluate(() => [...document.querySelectorAll('.m-reply-send, .m-reply-attach, .m-reply-mode, .m-reply-tpl')]
+      .filter((b) => b.getBoundingClientRect().height < 36).map((b) => b.className));
+    assert.deepEqual(small, []);
+    assert.deepEqual(errors, []);
+    await close();
   });
 }

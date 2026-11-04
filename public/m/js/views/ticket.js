@@ -1,16 +1,23 @@
-// Ticket view (read-only in this version): header, description, attachments, timeline, details sheet.
-// What a user may see is decided by the API (no internal notes, no history for users).
+// Ticket view: header with quick actions, approval and rating cards, description, attachments,
+// chat-like timeline, details sheet and the reply bar at the bottom.
+// What a user may see and do is decided by the API (no internal notes, no history, no agent
+// fields for users); the UI only offers what the API allows for this account.
 import { api } from '/js/api.js';
-import { h, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize, richText } from '/js/dom.js';
+import { h, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize, richText, toast } from '/js/dom.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
+import { typesFor } from '/js/types.js';
 import { slaChip } from '/js/views/sla.js';
 import { linkLabel } from '/js/views/links.js';
 import { activityFieldLabel, activityValue } from '/js/activity.js';
-import { replaceUrl } from '../router.js';
+import { replaceUrl, go, dataChanged } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
 import { openSheet } from '../sheet.js';
 import { section } from '../ui.js';
+import { replyBar } from '../reply.js';
+import {
+  openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet,
+} from '../actions.js';
 
 const isImage = (a) => /^image\/(png|jpeg|gif|webp)$/.test(a.mime);
 const desktopUrl = (tk) => `/browse/${encodeURIComponent(tk.key)}?ui=desktop`;
@@ -20,48 +27,188 @@ export async function renderTicket(page, ctx) {
   page.title(key);
   page.body.replaceChildren(skeleton());
   let tk;
+  let bar = null;
+  const agent = state.isAgent;
+
   const load = async () => {
-    tk = (await api.ticket(key)).ticket;
-    if (!page.isActive() && !page.el.isConnected) return;
-    if (tk.key !== key && page.isActive()) replaceUrl(`/m/t/${encodeURIComponent(tk.key)}`);
+    const fresh = (await api.ticket(tk?.key || key)).ticket;
+    if (!page.el.isConnected && !page.isActive()) { tk = fresh; return; }
+    if (tk && fresh.key !== tk.key) bar?.rekey(tk.key, fresh.key);
+    tk = fresh;
+    if (page.isActive() && location.pathname !== `/m/t/${encodeURIComponent(tk.key)}`) replaceUrl(`/m/t/${encodeURIComponent(tk.key)}`);
     page.title(tk.key);
     draw();
   };
-  const agent = state.isAgent;
 
+  /** Keep the scroll position when the content is rebuilt */
   function draw() {
-    page.action(h('button.m-iconbtn', { type: 'button', 'aria-label': t('m.ticket.details'), onclick: openDetails }, icon('info')));
-    page.body.replaceChildren(
+    const top = page.scroll.scrollTop;
+    page.action(
+      h('button.m-iconbtn', { type: 'button', 'aria-label': t('m.ticket.details'), onclick: openDetails }, icon('info')),
+      h('button.m-iconbtn.m-more-btn', { type: 'button', 'aria-label': t('m.act.more'), onclick: openActions }, icon('more')));
+    page.body.replaceChildren(...[
       header(),
+      approvalCard(),
+      ratingCard(),
       descriptionEl(),
       // Files of the ticket itself; files of a reply appear in its message
       tk.attachments.some((a) => !a.commentId) ? section(t('ticket.attachments'), attachmentsEl(tk.attachments.filter((a) => !a.commentId))) : null,
       section(t('ticket.activity'), timeline()),
-      // Room for the reply bar
-      h('div.m-reply-space'));
+    ].filter(Boolean));
+    page.scroll.scrollTop = top;
   }
 
+  // ---------- Changes ----------
+  /** Change fields: show at once (optimistic), then take what the server says; on error back + message */
+  async function save(patch, optimistic = {}) {
+    const before = tk;
+    tk = { ...tk, ...optimistic };
+    draw();
+    try {
+      tk = { ...tk, ...(await api.updateTicket(before.key, patch)).ticket };
+      dataChanged();
+      await load();
+    } catch (e) {
+      tk = before;
+      draw();
+      toast(e.message, 'error');
+    }
+  }
+  const reloadAfterChange = async () => { dataChanged(); try { await load(); } catch (e) { toast(e.message, 'error'); } };
+
+  function openActions() {
+    const canParticipants = tk.canManageParticipants || (tk.participants || []).length;
+    openActionSheet(`${tk.key} · ${t('m.act.title')}`, [
+      agent ? { id: 'status', icon: 'check', label: t('m.act.status'), hint: t(`status.${tk.status}`), onClick: statusSheet } : null,
+      agent && tk.assignee?.id !== state.user.id ? { id: 'assign-me', iconEl: avatar(state.user, 'sm'), label: t('ticket.assignToMe'), onClick: assignToMe } : null,
+      agent ? { id: 'assignee', icon: 'user', label: t('m.act.assignee'), hint: tk.assignee?.displayName || t('app.unassigned'), onClick: () => openAssigneeSheet(tk, save) } : null,
+      agent ? { id: 'priority', iconEl: priorityIcon(tk.priority), label: t('m.act.priority'), hint: t(`priority.${tk.priority}`), onClick: () => openPrioritySheet(tk, save) } : null,
+      agent ? { id: 'type', iconEl: typeIcon(tk.type), label: t('m.act.type'), hint: t(`type.${tk.type}`), onClick: () => openTypeSheet(tk, save, typesFor(true)) } : null,
+      canParticipants ? { id: 'participants', icon: 'users', label: t('m.act.participants'), hint: (tk.participants || []).map((p) => p.displayName).join(', ') || t('m.part.none'), onClick: participants } : null,
+      {
+        id: 'copy', icon: 'link', label: t('ticket.copyLink'),
+        onClick: async () => {
+          try { await navigator.clipboard.writeText(`${location.origin}/browse/${encodeURIComponent(tk.key)}`); toast(t('ticket.linkCopied')); } catch { /* not allowed here */ }
+        },
+      },
+      { id: 'desktop', icon: 'monitor', label: t('m.openDesktop'), onClick: () => location.assign(desktopUrl(tk)) },
+    ]);
+  }
+  const statusSheet = () => openStatusSheet(tk, { save, onResolved: reloadAfterChange });
+  const assignToMe = async () => {
+    await save({ assigneeId: state.user.id }, { assignee: { id: state.user.id, displayName: state.user.displayName, username: state.user.username } });
+    if (tk.assignee?.id === state.user.id) toast(t('m.act.assigned'), 'success');
+  };
+  const participants = () => openParticipantsSheet(() => tk, {
+    changed: reloadAfterChange,
+    left: () => { dataChanged(); go('/m', { replace: true, anim: 'none' }); },
+  });
+
   // ---------- Header ----------
-  function person(label, user, extra) {
-    return h('div.m-person',
-      avatar(user, 'md'),
-      h('div.m-person-text', h('span.m-person-label', label), h('span.m-person-name', user?.displayName || (user ? '—' : t('app.unassigned'))), extra ? h('span.m-person-extra', extra) : null));
+  function person(label, user, { onClick, extra } = {}) {
+    const kids = [avatar(user, 'md'),
+      h('span.m-person-text',
+        h('span.m-person-label', label, onClick ? icon('chevron-down', 'm-person-chevron') : null),
+        h('span.m-person-name', user?.displayName || (user ? '—' : t('app.unassigned'))), extra ? h('span.m-person-extra', extra) : null)];
+    return onClick ? h('button.m-person.m-person-btn', { type: 'button', onclick: onClick, 'aria-label': `${label}: ${user?.displayName || t('app.unassigned')} – ${t('m.act.assignee')}` }, kids) : h('div.m-person', kids);
   }
   function header() {
+    const statusEl = agent
+      ? h('button.m-status-btn', { type: 'button', onclick: statusSheet, 'aria-label': t('m.act.changeStatus', { status: t(`status.${tk.status}`) }) }, lozenge(tk.status), icon('chevron-down'))
+      : lozenge(tk.status);
+    const prioEl = agent
+      ? h('button.m-pill.m-pill-btn', { type: 'button', onclick: () => openPrioritySheet(tk, save), 'aria-label': `${t('ticket.priority')}: ${t(`priority.${tk.priority}`)} – ${t('m.act.priority')}` },
+        priorityIcon(tk.priority), t(`priority.${tk.priority}`), icon('chevron-down'))
+      : h('span.m-pill', priorityIcon(tk.priority), t(`priority.${tk.priority}`));
+    const mine = tk.assignee?.id === state.user.id;
     return h('header.m-ticket-head',
       agent && tk.major ? h('div.m-banner.m-banner-major', icon('warning'), h('strong', t('major.title'))) : null,
       h('div.m-ticket-crumb', typeIcon(tk.type), h('span', t(`type.${tk.type}`)), h('span.m-dot', '·'), h('span', tk.projectName)),
       h('h2.m-ticket-h1', tk.title),
       h('div.m-ticket-badges',
-        lozenge(tk.status),
-        h('span.m-pill', priorityIcon(tk.priority), t(`priority.${tk.priority}`)),
+        statusEl,
+        prioEl,
         tk.sla ? slaPill(tk.sla) : null,
         tk.dueDate ? h('span.m-pill', `${t('ticket.dueDate')} ${fmtDate(tk.dueDate, false)}`) : null),
       h('div.m-people',
-        person(agent ? t('ticket.assignee') : t('ticket.yourContact'), tk.assignee),
+        person(agent ? t('ticket.assignee') : t('ticket.yourContact'), tk.assignee, agent ? { onClick: () => openAssigneeSheet(tk, save) } : {}),
         person(t('ticket.reporter'), tk.reporter || { displayName: '—' })),
+      agent && !mine && tk.status !== 'done' ? h('button.m-btn.m-btn-block.m-assign-me', { type: 'button', onclick: assignToMe }, avatar(state.user, 'xs'), t('ticket.assignToMe')) : null,
       h('button.m-btn.m-btn-block.m-details-btn', { type: 'button', onclick: openDetails }, icon('list'), t('m.ticket.allDetails'), icon('chevron-right', 'm-push-right')),
       h('div.m-ticket-dates', `${t('ticket.created')} ${fmtDate(tk.createdAt)} · ${t('ticket.updated')} ${relTime(tk.updatedAt)}`));
+  }
+
+  // ---------- Approval (catalog request or change waiting for this person) ----------
+  function approvalCard() {
+    const catalog = tk.approval || null;
+    const change = agent && tk.type === 'change' ? tk.change : null;
+    const canDecide = (catalog?.canDecide) || (change?.canDecide && (change.approvals?.items || []).some((x) => !x.decision));
+    if (!canDecide) {
+      // Others only see the state of a catalog approval (as in the desktop box)
+      if (!catalog) return null;
+      return h('div.m-card.m-approval.m-approval-info', { class: `state-${catalog.state}` },
+        h('div.m-approval-head', icon('shield'), h('strong', t('catalog.approval')), h(`span.m-approval-state.${catalog.state}`, t(`catalog.state.${catalog.state}`))),
+        approverList(catalog.items));
+    }
+    const items = catalog?.canDecide ? catalog.items : change.approvals.items;
+    const comment = h('textarea.m-textarea', { rows: 2, maxLength: 2000, placeholder: t('change.commentHint'), 'aria-label': t('change.commentHint') });
+    let busy = false;
+    const decide = async (decision, btn) => {
+      if (busy) return;
+      busy = true;
+      for (const b of card.querySelectorAll('button')) b.disabled = true;
+      btn.classList.add('busy');
+      try {
+        await api.decideApproval(tk.key, { decision, comment: comment.value.trim() });
+        toast(t('m.approval.done'), 'success');
+        await reloadAfterChange();
+      } catch (e) {
+        busy = false;
+        for (const b of card.querySelectorAll('button')) b.disabled = false;
+        btn.classList.remove('busy');
+        toast(e.message, 'error');
+      }
+    };
+    const card = h('section.m-card.m-approval', { 'aria-labelledby': 'm-approval-title' },
+      h('div.m-approval-head', h('span.m-approval-icon', icon('shield')), h('div',
+        h('h2#m-approval-title', t('m.approval.title')),
+        h('p', catalog?.canDecide ? t('m.approval.textCatalog') : t('m.approval.textChange')))),
+      approverList(items),
+      comment,
+      h('div.m-approval-actions',
+        h('button.m-btn.m-btn-danger', { type: 'button', onclick: (e) => decide('reject', e.currentTarget) }, icon('close'), t('change.reject')),
+        h('button.m-btn.m-btn-success', { type: 'button', onclick: (e) => decide('approve', e.currentTarget) }, icon('check'), t('change.approve'))));
+    return card;
+  }
+  function approverList(items = []) {
+    if (!items.length) return null;
+    return h('ul.m-approvers', items.map((x) => h('li',
+      avatar({ displayName: x.name }, 'xs'), h('span.m-approver-name', x.name),
+      h(`span.m-approval-state.${x.decision || 'pending'}`, t(`change.decision.${x.decision || 'pending'}`)),
+      x.comment ? h('span.m-approver-comment', `„${x.comment}“`) : null)));
+  }
+
+  // ---------- Rating (reporter of a resolved ticket, as in the desktop UI) ----------
+  function ratingCard() {
+    const r = tk.rating;
+    if (agent || !r?.open) return null;
+    const rate = async (n, withComment = false) => {
+      try {
+        await api.rateTicket(tk.key, { rating: n, ...(withComment ? { comment: comment.value } : {}) });
+        if (withComment || !r.value) toast(t('m.rate.thanks'), 'success');
+        await reloadAfterChange();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    const comment = h('textarea.m-textarea', { rows: 2, maxLength: 2000, placeholder: t('survey.commentHint'), 'aria-label': t('survey.comment') });
+    comment.value = r.comment || '';
+    return h('section.m-card.m-rating',
+      h('h2', r.value ? t('survey.yourRating') : t('survey.question')),
+      h('div.m-stars', { role: 'radiogroup', 'aria-label': t('survey.question') }, [1, 2, 3, 4, 5].map((n) => h('button.m-star', {
+        type: 'button', role: 'radio', 'aria-checked': String(r.value === n), 'aria-label': `${t('m.rate.star', { n })} – ${t(`survey.label.${n}`)}`,
+        class: r.value && n <= r.value ? 'on' : '', onclick: () => rate(n),
+      }, icon('star')))),
+      r.value ? h('p.m-rating-label', t(`survey.label.${r.value}`)) : null,
+      r.value ? h('div.m-rating-form', comment, h('button.m-btn', { type: 'button', onclick: () => rate(r.value, true) }, t('survey.sendComment'))) : null);
   }
 
   // ---------- Description ----------
@@ -76,11 +223,11 @@ export async function renderTicket(page, ctx) {
 
   // ---------- Attachments ----------
   function attachmentsEl(list) {
-    return h('div.m-attachments', list.map((a) => isImage(a)
+    return h('div.m-attachments', list.map((a) => (isImage(a)
       ? h('a.m-att.m-att-img', { href: `/api/attachments/${a.id}`, target: '_blank', rel: 'noopener', 'aria-label': `${a.filename} (${fmtSize(a.size)})` },
         h('img', { src: `/api/attachments/${a.id}`, alt: '', loading: 'lazy' }))
       : h('a.m-att.m-att-file', { href: `/api/attachments/${a.id}?download=1`, title: a.filename },
-        icon('file'), h('span.m-att-name', a.filename), h('span.m-att-size', fmtSize(a.size)))));
+        icon('file'), h('span.m-att-name', a.filename), h('span.m-att-size', fmtSize(a.size))))));
   }
 
   // ---------- Timeline (oldest first, like a chat) ----------
@@ -95,8 +242,10 @@ export async function renderTicket(page, ctx) {
 
   function bubble(c) {
     const mine = c.author?.id && c.author.id === state.user.id;
-    const files = tk.attachments.filter((a) => a.commentId === c.id);
-    return h('article.m-msg', { class: [mine ? 'mine' : '', c.internal ? 'internal' : ''].filter(Boolean).join(' ') },
+    // Pictures shown in the text are not repeated below it
+    const inline = new Set([...String(c.body).matchAll(/\]\(\/api\/attachments\/(\d+)\)/g)].map((m) => Number(m[1])));
+    const files = tk.attachments.filter((a) => a.commentId === c.id && !inline.has(a.id));
+    return h('article.m-msg', { class: [mine ? 'mine' : '', c.internal ? 'internal' : ''].filter(Boolean).join(' '), 'data-id': String(c.id) },
       mine ? null : avatar(c.author, 'sm'),
       h('div.m-msg-bubble',
         h('div.m-msg-head',
@@ -126,21 +275,40 @@ export async function renderTicket(page, ctx) {
 
   // ---------- Details sheet ----------
   function openDetails() {
+    let after = null; // a change opens its own sheet only after this one is gone
     const row = (label, value) => (value === null || value === undefined ? null : h('div.m-drow', h('dt', label), h('dd', value)));
     const none = () => h('span.m-muted', t('app.none'));
     const withIcon = (ic, text) => h('span.m-inline', ic, h('span', text));
     const level = (v) => (v ? t(`level.${v}`) : none());
-    const people = (list) => (list.length ? h('div.m-chips-wrap', list.map((p) => h('span.m-person-chip', avatar(p, 'xs'), h('span', p.displayName)))) : none());
+    const canRemove = (p) => agent || tk.reporter?.id === state.user.id || p.id === state.user.id;
+    const list = tk.participants || [];
+    const people = h('div.m-stack',
+      list.length ? h('div.m-chips-wrap', list.map((p) => h('span.m-person-chip', avatar(p, 'xs'), h('span', p.displayName),
+        canRemove(p) ? h('button.m-chip-x', {
+          type: 'button', 'aria-label': t('m.reply.remove', { name: p.displayName }), title: t('ticket.removeParticipant'),
+          onclick: async () => {
+            try {
+              await api.removeParticipant(tk.key, p.id);
+              toast(t('m.part.removed', { name: p.displayName }));
+              if (p.id === state.user.id && !agent && tk.reporter?.id !== state.user.id) { sheet.close(); dataChanged(); setTimeout(() => go('/m', { replace: true, anim: 'none' }), 50); return; }
+              sheet.close();
+              await reloadAfterChange();
+            } catch (e) { toast(e.message, 'error'); }
+          },
+        }, icon('close')) : null))) : none(),
+      tk.canManageParticipants ? h('button.m-link.m-add-link', { type: 'button', onclick: () => { after = participants; sheet.close(); } }, icon('plus'), t('m.part.add')) : null);
     const links = tk.links || [];
     const cis = tk.cis || [];
+    const edit = (value, onClick, label) => (agent ? h('button.m-drow-edit', { type: 'button', onclick: () => { after = onClick; sheet.close(); }, 'aria-label': `${label} – ${t('app.edit')}` }, value, icon('chevron-right')) : value);
     const content = h('dl.m-details',
-      row(t('m.filter.status'), lozenge(tk.status)),
-      row(t('ticket.priority'), withIcon(priorityIcon(tk.priority), t(`priority.${tk.priority}`))),
-      row(t('ticket.type'), withIcon(typeIcon(tk.type), t(`type.${tk.type}`))),
-      row(agent ? t('ticket.assignee') : t('ticket.yourContact'), withIcon(avatar(tk.assignee, 'xs'), tk.assignee?.displayName || t('app.unassigned'))),
+      row(t('m.filter.status'), edit(lozenge(tk.status), statusSheet, t('m.filter.status'))),
+      row(t('ticket.priority'), edit(withIcon(priorityIcon(tk.priority), t(`priority.${tk.priority}`)), () => openPrioritySheet(tk, save), t('ticket.priority'))),
+      row(t('ticket.type'), edit(withIcon(typeIcon(tk.type), t(`type.${tk.type}`)), () => openTypeSheet(tk, save, typesFor(true)), t('ticket.type'))),
+      row(agent ? t('ticket.assignee') : t('ticket.yourContact'), edit(withIcon(avatar(tk.assignee, 'xs'), tk.assignee?.displayName || t('app.unassigned')), () => openAssigneeSheet(tk, save), t('ticket.assignee'))),
       row(t('ticket.reporter'), h('span.m-stack', withIcon(avatar(tk.reporter, 'xs'), tk.reporter?.displayName || '—'),
         tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.m-muted', tk.reporter.email) : null)),
-      row(t('ticket.participants'), people(tk.participants || [])),
+      row(t('ticket.participants'), people),
+      tk.approval ? row(t('catalog.approval'), h(`span.m-approval-state.${tk.approval.state}`, t(`catalog.state.${tk.approval.state}`))) : null,
       tk.sla ? row(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
       tk.sla ? row(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
       agent ? row(t('itil.impact'), level(tk.impact)) : null,
@@ -159,10 +327,27 @@ export async function renderTicket(page, ctx) {
       row(t('ticket.created'), fmtDate(tk.createdAt)),
       row(t('ticket.updated'), fmtDate(tk.updatedAt)),
       tk.resolvedAt ? row(t('ticket.resolved'), fmtDate(tk.resolvedAt)) : null);
-    openSheet({ title: `${tk.key} · ${t('ticket.details')}`, content, className: 'm-sheet-details' });
+    const sheet = openSheet({ title: `${tk.key} · ${t('ticket.details')}`, content, className: 'm-sheet-details', onClose: () => after?.() });
   }
 
   await load();
+  // Reply bar: built once, stays when the content is rebuilt (text, files, mode)
+  bar = replyBar({
+    getTicket: () => tk,
+    onSent: async (comment) => {
+      dataChanged();
+      try { await load(); } catch (e) { toast(e.message, 'error'); }
+      // Jump to the new message; pictures in it change the height once loaded
+      const msg = comment && page.body.querySelector(`.m-msg[data-id="${comment.id}"]`);
+      const sc = page.scroll;
+      const toEnd = () => { sc.scrollTop = sc.scrollHeight; };
+      toEnd();
+      for (const img of msg?.querySelectorAll('img') || []) if (!img.complete) img.addEventListener('load', toEnd, { once: true });
+      msg?.classList.add('m-msg-new');
+    },
+  });
+  page.el.classList.add('has-reply');
+  page.el.append(bar.el);
   pullToRefresh(page, load);
 }
 
