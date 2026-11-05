@@ -769,8 +769,12 @@ test('Assign to me, assignee and priority pickers, add and remove participants',
   const { p, errors, close } = await open('anna');
   await p.goto(`${S.base}/m/t/${key}`);
   await ready(p);
+  // The view updates at once (optimistic); wait for the server's answer before checking it
+  const patched = () => p.waitForResponse((r) => r.url().endsWith(`/api/tickets/${key}`) && r.request().method() === 'PATCH');
+  let saved = patched();
   await p.tap('.m-assign-me');
   await p.waitForSelector('.m-assign-me', { state: 'detached' });
+  await saved;
   await p.waitForLoadState('networkidle');
   assert.equal((await ticketApi(who.anna, key)).assignee.id, S.ids.anna);
   assert.match(await p.textContent('.m-person-btn'), /anna/);
@@ -780,16 +784,20 @@ test('Assign to me, assignee and priority pickers, add and remove participants',
   assert.match(await p.textContent('.m-choice-row >> nth=0'), /anna.*Ich/s);
   await p.fill('.m-sheet-search-input', 'tom');
   assert.equal(await p.locator('.m-choice-row').count(), 1);
+  saved = patched();
   await p.locator('.m-choice-row').tap();
   await p.waitForFunction(() => /tom/.test(document.querySelector('.m-person-btn')?.textContent));
+  await saved;
   await p.waitForLoadState('networkidle');
   assert.equal((await ticketApi(who.anna, key)).assignee.id, S.ids.tom);
   assert.ok(await p.isVisible('.m-assign-me'), '"assign to me" again');
   // Priority
   await p.tap('.m-pill-btn');
   await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
+  saved = patched();
   await p.locator('.m-choice-row', { hasText: 'Sehr hoch' }).tap();
   await p.waitForFunction(() => /Sehr hoch/.test(document.querySelector('.m-pill-btn')?.textContent));
+  await saved;
   await p.waitForLoadState('networkidle');
   assert.equal((await ticketApi(who.anna, key)).priority, 'highest');
   // Participants: search keeps the focus in the field, add, then remove

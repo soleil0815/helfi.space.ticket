@@ -7,25 +7,31 @@ import { openSheet } from './sheet.js';
 
 export const MAX_EDGE = 2560;
 export const JPEG_QUALITY = 0.85;
+export const JPEG_QUALITY_SAME = 0.9; // re-encoding at the original size (only to drop metadata)
 export const MAX_FILES = 10;
 // Re-encoding these is safe; GIFs (animation) and everything else stay untouched
 const SCALABLE = /^image\/(jpeg|png|webp)$/;
 export const isPicture = (type) => /^image\/(png|jpeg|gif|webp)$/.test(type || '');
 
 /**
- * Photos larger than MAX_EDGE on the long side become a JPEG of at most MAX_EDGE px.
- * Drawing into a canvas drops all metadata (EXIF incl. GPS position); the orientation from
- * EXIF is applied first so the picture stays upright. Returns { file, resized }.
+ * Prepare a picture for uploading. Drawing into a canvas drops all metadata (EXIF incl. the GPS
+ * position); the orientation from EXIF is applied first so the picture stays upright.
+ *  - JPEG (photos from a camera): always re-encoded – at the same size, or downscaled to MAX_EDGE
+ *    on the long side – so no location data leaves the phone.
+ *  - PNG/WebP: only re-encoded (as JPEG) when larger than MAX_EDGE; screenshots rarely carry GPS.
+ *  - GIF and anything the browser cannot decode (e.g. HEIC): uploaded unchanged.
+ * Returns { file, resized, stripped }.
  */
 export async function downscale(file) {
-  if (!SCALABLE.test(file.type) || typeof createImageBitmap !== 'function') return { file, resized: false };
+  if (!SCALABLE.test(file.type) || typeof createImageBitmap !== 'function') return { file, resized: false, stripped: false };
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
-  catch { return { file, resized: false }; } // not decodable here: upload as it is
+  catch { return { file, resized: false, stripped: false }; } // not decodable here: upload as it is
   try {
     const long = Math.max(bmp.width, bmp.height);
-    if (long <= MAX_EDGE) return { file, resized: false };
-    const f = MAX_EDGE / long;
+    const resize = long > MAX_EDGE;
+    if (!resize && file.type !== 'image/jpeg') return { file, resized: false, stripped: false };
+    const f = resize ? MAX_EDGE / long : 1;
     const w = Math.max(1, Math.round(bmp.width * f));
     const hgt = Math.max(1, Math.round(bmp.height * f));
     const canvas = document.createElement('canvas');
@@ -36,10 +42,10 @@ export async function downscale(file) {
     g.fillRect(0, 0, w, hgt);
     g.imageSmoothingQuality = 'high';
     g.drawImage(bmp, 0, 0, w, hgt);
-    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', JPEG_QUALITY));
-    if (!blob) return { file, resized: false };
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', resize ? JPEG_QUALITY : JPEG_QUALITY_SAME));
+    if (!blob) return { file, resized: false, stripped: false };
     const name = `${(file.name || 'foto').replace(/\.[^.]+$/, '') || 'foto'}.jpg`;
-    return { file: new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }), resized: true, width: w, height: hgt };
+    return { file: new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }), resized: resize, stripped: true, width: w, height: hgt };
   } finally {
     bmp.close?.();
   }

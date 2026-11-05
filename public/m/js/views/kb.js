@@ -14,17 +14,17 @@ import { emptyState, skeletonList, section, chip, chipRow } from '../ui.js';
 
 const RECENT_KEY = 'helfi.m.kbRecent';
 const RECENT_MAX = 5;
+// Stored with the account id: another account never sees this list (cleared on sign-out, see /js/userdata.js)
 export function recentArticles() {
-  try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); return Array.isArray(v) ? v.filter((x) => x && Number.isInteger(x.id)) : []; } catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY) || 'null');
+    if (!v || v.uid !== state.user?.id || !Array.isArray(v.items)) return [];
+    return v.items.filter((x) => x && Number.isInteger(x.id));
+  } catch { return []; }
 }
-function remember(a) {
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify([{ id: a.id, title: a.title }, ...recentArticles().filter((x) => x.id !== a.id)].slice(0, RECENT_MAX))); } catch { /* ignore */ }
-}
-function forget(id) {
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(recentArticles().filter((x) => x.id !== id))); } catch { /* ignore */ }
-}
-/** Sign-out: the list of viewed articles belongs to the account, not to the device */
-export function clearKbRecent() { try { localStorage.removeItem(RECENT_KEY); } catch { /* ignore */ } }
+const store = (items) => { try { localStorage.setItem(RECENT_KEY, JSON.stringify({ uid: state.user?.id, items })); } catch { /* ignore */ } };
+const remember = (a) => store([{ id: a.id, title: a.title }, ...recentArticles().filter((x) => x.id !== a.id)].slice(0, RECENT_MAX));
+const forget = (id) => store(recentArticles().filter((x) => x.id !== id));
 
 const kbTitle = () => (state.isAgent ? t('kb.title') : t('kb.titleUser'));
 

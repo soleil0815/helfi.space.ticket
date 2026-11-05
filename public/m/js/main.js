@@ -11,7 +11,9 @@ import { renderTickets } from './views/tickets.js';
 import { renderTicket } from './views/ticket.js';
 import { renderMe, renderNews, renderMfa } from './views/me.js';
 import { renderNew, renderReport, renderCatalogItem } from './views/new.js';
-import { renderKb, renderKbArticle, clearKbRecent } from './views/kb.js';
+import { renderKb, renderKbArticle } from './views/kb.js';
+import { resetActionCaches } from './actions.js';
+import { clearUserData, noteUser } from '/js/userdata.js';
 import { renderNotFound } from './views/misc.js';
 import { setupPwa } from './pwa.js';
 
@@ -42,7 +44,20 @@ export async function reloadBase() {
 }
 
 /** After sign-in: load everything again and continue where the user wanted to go */
+/**
+ * Everything of the previous account that lives in this page: rendered pages, module caches
+ * (personal templates …), lists. clearData also removes drafts and viewed articles.
+ */
+function resetAccountState({ clearData = false } = {}) {
+  clearCache();
+  resetActionCaches();
+  state.projects = []; state.agents = [];
+  if (clearData) clearUserData();
+}
+
 export async function signedIn(user) {
+  resetAccountState();
+  noteUser(user.id); // another account than before in this tab: its drafts go
   state.user = user;
   state.boot = await api.bootstrap();
   state.user = state.boot.user || user;
@@ -58,12 +73,8 @@ export async function signedIn(user) {
 export async function signOut() {
   try { await api.logout(); } catch { /* signed out anyway */ }
   state.user = null;
-  // Nothing of this account stays on the device: viewed articles, unsent drafts
-  clearKbRecent();
-  try {
-    for (const k of Object.keys(sessionStorage)) if (k.startsWith('helfi.m.')) sessionStorage.removeItem(k);
-  } catch { /* ignore */ }
-  state.projects = []; state.agents = [];
+  // Nothing of this account stays on the device: viewed articles, unsent drafts, caches
+  resetAccountState({ clearData: true });
   try { state.boot = await api.bootstrap(); } catch { /* ignore */ }
   clearCache();
   drawTabs();
@@ -190,6 +201,8 @@ async function start() {
   // Initial setup is only offered in the desktop UI
   if (state.boot.setupRequired && !state.boot.user) { location.replace('/setup'); return; }
   state.user = state.boot.user;
+  if (state.user) noteUser(state.user.id);
+  else clearUserData();
   document.body.dataset.appTitle = state.boot.app?.title || 'Helfi.Space';
   applyLanguage();
   if (state.user) {
@@ -208,7 +221,8 @@ async function start() {
   window.addEventListener('helfi:unauthorized', () => {
     if (!state.user) return;
     state.user = null;
-    clearCache();
+    // Session expired or signed out elsewhere: the next sign-in may be another account
+    resetAccountState({ clearData: true });
     drawTabs();
     try { sessionStorage.setItem(NEXT_KEY, location.pathname + location.search); } catch { /* ignore */ }
     go('/m/login', { replace: true, anim: 'none' });

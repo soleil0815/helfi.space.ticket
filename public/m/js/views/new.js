@@ -13,12 +13,19 @@ import { emptyState } from '../ui.js';
 import { PRIOS } from '../actions.js';
 import { downscale, uploadDraft, isPicture, pickFiles, MAX_FILES } from '../files.js';
 
-const DRAFT_KEY = 'helfi.m.newTicket';
-const readDraft = () => { try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } };
+// Unsent report: per account (never shown to another account, see /js/userdata.js)
+const draftKey = (uid) => `helfi.m.newTicket.${uid}`;
+const readDraft = () => {
+  const uid = state.user?.id;
+  if (!uid) return null;
+  try { const d = JSON.parse(sessionStorage.getItem(draftKey(uid)) || 'null'); return d && d.uid === uid ? d : null; } catch { return null; }
+};
 const writeDraft = (d) => {
+  const uid = state.user?.id;
+  if (!uid) return;
   try {
-    if (d && (d.title || d.description)) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
-    else sessionStorage.removeItem(DRAFT_KEY);
+    if (d && (d.title || d.description)) sessionStorage.setItem(draftKey(uid), JSON.stringify({ ...d, uid }));
+    else sessionStorage.removeItem(draftKey(uid));
   } catch { /* storage blocked: the text just is not kept */ }
 };
 

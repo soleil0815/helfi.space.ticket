@@ -24,6 +24,7 @@ import { log } from '../lib/log.js';
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
 const MAX_BULK = 500;
+const MAX_DRAFTS = 20; // unsent uploads per person and ticket
 
 export function createApi(ctx) {
   const { db, settings, sessions, users, tickets, mailer, poller, limiter, setup, jiraImporter, policy, mfa, canned, reports, suppressions } = ctx;
@@ -484,7 +485,7 @@ export function createApi(ctx) {
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Cache-Control', 'private, no-cache');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.type('html').send(viewerDocument(m.html, { blocked: m.blocked, blockedText: t(lang, 'mail.blockedImages', { n: m.blocked }), quoteText: t(lang, 'mail.showQuoted'), lang }));
   });
 
@@ -560,6 +561,11 @@ export function createApi(ctx) {
         // draft=file: any file for a reply – invisible until a comment claims it via attachmentIds
         // (an internal note keeps it internal).
         const draft = req.body?.draft === '1' || req.body?.draft === 'file';
+        // At most MAX_DRAFTS unsent uploads per person and ticket (they are removed after a day anyway)
+        if (draft && tickets.pendingDrafts(row.id, req.user.id) + (req.files || []).length > MAX_DRAFTS) {
+          for (const f of req.files || []) fs.rmSync(f.path, { force: true });
+          throw new HttpError(400, 'err.tooManyDrafts', String(MAX_DRAFTS));
+        }
         if (req.body?.draft === '1' && (req.files || []).some((f) => !/^image\/(png|jpeg|gif|webp)$/.test(f.mimetype))) {
           for (const f of req.files || []) fs.rmSync(f.path, { force: true });
           throw new HttpError(400, 'err.badRequest', 'draft');
@@ -584,9 +590,17 @@ export function createApi(ctx) {
     res.setHeader('Content-Disposition', `${inlineOk && req.query.download !== '1' ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.filename)}`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    // Ticket files are never kept in the browser cache (shared devices)
+    res.setHeader('Cache-Control', 'private, no-store');
     fs.createReadStream(a.path)
       .on('error', (e) => { log.warn('Attachment not readable', { error: e.message }); if (!res.headersSent) res.status(404); res.end(); })
       .pipe(res);
+  });
+
+  // Unsent upload of one's own (draft) – removed chip or discarded reply in the mobile UI
+  r.delete('/attachments/:id/draft', (req, res) => {
+    tickets.discardDraft(req.user, int(req.params.id));
+    res.json({ ok: true });
   });
 
   r.delete('/attachments/:id', (req, res) => {

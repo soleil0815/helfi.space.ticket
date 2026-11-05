@@ -125,6 +125,7 @@ export const api = {
     return request('POST', `/api/tickets/${encodeURIComponent(key)}/attachments`, fd);
   },
   deleteAttachment: (id) => request('DELETE', `/api/attachments/${id}`),
+  discardDraft: (id) => request('DELETE', `/api/attachments/${id}/draft`),
   people: (q, { ad = true } = {}) => request('GET', `/api/people${qs(ad ? { q } : { q, ad: '0' })}`),
   reports: (f) => request('GET', `/api/reports${qs(f)}`),
   canned: {

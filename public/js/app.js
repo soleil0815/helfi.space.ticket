@@ -21,6 +21,7 @@ import { renderCmdb } from './views/cmdb.js';
 import { renderRate } from './views/survey.js';
 import { state } from './state.js';
 import { isPhone, setUiPref, wantsMobile, mobileUrlFor, takeDesktopOnce } from './uimode.js';
+import { clearUserData, noteUser } from './userdata.js';
 
 // Shared with the mobile UI (/m) – see state.js
 export { state };
@@ -82,6 +83,8 @@ async function start() {
     return;
   }
   state.user = state.boot.user;
+  // Drafts of the mobile UI belong to one account (see userdata.js)
+  if (state.user) noteUser(state.user.id); else clearUserData();
   applyLanguage();
   if (state.user) await reloadBase();
   window.addEventListener('popstate', () => {
@@ -89,7 +92,7 @@ async function start() {
     leaveGuard = null;
     route();
   });
-  window.addEventListener('helfi:unauthorized', () => { state.user = null; navigate('/login', { replace: true }); });
+  window.addEventListener('helfi:unauthorized', () => { state.user = null; clearUserData(); navigate('/login', { replace: true }); });
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');
     if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
@@ -210,7 +213,7 @@ function layout(content, path) {
         label: t('m.switchToMobile'), icon: icon('smartphone'),
         onClick: () => { setUiPref('mobile'); location.assign(mobileUrlFor(location.pathname, location.search) || '/m/'); },
       }, '-'] : []),
-      { label: t('app.logout'), icon: icon('logout'), onClick: async () => { await api.logout(); state.user = null; navigate('/login'); } },
+      { label: t('app.logout'), icon: icon('logout'), onClick: async () => { await api.logout(); state.user = null; clearUserData(); navigate('/login'); } },
     ], { align: 'right' }),
   }, avatar(u, 'sm'));
 

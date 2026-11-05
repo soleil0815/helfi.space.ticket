@@ -148,7 +148,7 @@ test('User: "＋" offers "report a problem" and the catalog; report with knowled
   const img = tk.attachments.find((a) => a.filename === 'foto.jpg');
   assert.equal(img.mime, 'image/jpeg');
   // Draft gone after sending; back does not return to the filled form
-  assert.equal(await p.evaluate(() => sessionStorage.getItem('helfi.m.newTicket')), null);
+  assert.equal(await p.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('helfi.m.newTicket')).length), 0);
   await ready(p);
   assert.match(await p.textContent('.m-ticket-h1'), /VPN Homeoffice/);
   assert.equal(await p.locator('.m-att-img').count() + await p.locator('.m-att-file').count(), 2);

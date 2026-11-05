@@ -140,6 +140,8 @@ export function createApp(db) {
   // Express 5: without a JSON body req.body is undefined → always provide an object
   app.use((req, _res, next) => { if (!req.body || typeof req.body !== 'object') req.body = {}; next(); });
 
+  // API answers (ticket data) are never stored by the browser; file routes set their own header
+  app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   // CSRF protection: writing API calls need a custom header (browsers only send it
   // cross-site after a CORS grant, which does not exist here).
   app.use('/api', (req, _res, next) => {

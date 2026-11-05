@@ -44,6 +44,9 @@ async function main() {
     try {
       ctx.sessions.purgeExpired();
       ctx.suppressions.purgeExpired();
+      // Unsent uploads (pasted images, files for a reply) that nobody claimed within a day
+      const drafts = ctx.tickets.purgeDrafts();
+      if (drafts) log.info(`Removed ${drafts} unsent attachment draft(s)`);
       await backupDatabase(db, 'taeglich');
       pruneBackups(ctx.settings.get('backup.keep'));
     } catch (e) { log.error('Daily backup failed', { error: e.message }); }

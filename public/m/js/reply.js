@@ -7,15 +7,24 @@ import { state } from '/js/state.js';
 import { downscale, uploadDraft, isPicture, openAttachSheet as attachSheet, MAX_FILES } from './files.js';
 import { openCannedSheet } from './actions.js';
 
+// Drafts belong to the account and the ticket; a draft of another account is never restored
+// (an agent's internal note must not end up in the next user's reply bar). See /js/userdata.js.
 const DRAFT_PREFIX = 'helfi.m.draft.';
-const draftKey = (key) => `${DRAFT_PREFIX}${key}`;
+const draftKey = (uid, key) => `${DRAFT_PREFIX}${uid}.${key}`;
 function readDraft(key) {
-  try { return JSON.parse(sessionStorage.getItem(draftKey(key)) || 'null'); } catch { return null; }
+  const uid = state.user?.id;
+  if (!uid) return null;
+  try {
+    const d = JSON.parse(sessionStorage.getItem(draftKey(uid, key)) || 'null');
+    return d && d.uid === uid ? d : null;
+  } catch { return null; }
 }
 function writeDraft(key, d) {
+  const uid = state.user?.id;
+  if (!uid) return; // signed out meanwhile: keep nothing
   try {
-    if (d && d.text) sessionStorage.setItem(draftKey(key), JSON.stringify(d));
-    else sessionStorage.removeItem(draftKey(key));
+    if (d && d.text) sessionStorage.setItem(draftKey(uid, key), JSON.stringify({ ...d, uid }));
+    else sessionStorage.removeItem(draftKey(uid, key));
   } catch { /* storage full or blocked: the text just is not kept */ }
 }
 
@@ -142,6 +151,8 @@ export function replyBar({ getTicket, onSent }) {
 
   function removeFile(f) {
     files = files.filter((x) => x !== f);
+    // Already uploaded (e.g. after a failed send): remove the unsent draft on the server too
+    if (f.attId) api.discardDraft(f.attId).catch(() => { /* removed after a day anyway */ });
     if (f.url) URL.revokeObjectURL(f.url);
     drawFiles(); update();
     ta.focus({ preventScroll: true });
