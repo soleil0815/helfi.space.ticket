@@ -62,7 +62,7 @@ async function userHome(page, ctx) {
     active: filter?.id === f.id,
     onClick: () => {
       filter = filter?.id === f.id ? null : f;
-      replaceUrl(filter ? `/m?filter=${filter.id}` : '/m');
+      replaceUrl(filter ? `/m/?filter=${filter.id}` : '/m/');
       drawChips();
       load();
     },

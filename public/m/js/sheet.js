@@ -35,7 +35,8 @@ export function openSheet({ title, content, footer = null, onClose, className = 
   document.getElementById('m-app').inert = true;
   document.body.append(layer);
   requestAnimationFrame(() => requestAnimationFrame(() => layer.classList.add('open')));
-  setTimeout(() => sheet.focus({ preventScroll: true }), 30);
+  // Focus the sheet – unless a field inside already has it (do not steal it while someone types)
+  setTimeout(() => { if (!sheet.contains(document.activeElement)) sheet.focus({ preventScroll: true }); }, 30);
 
   const onKey = (e) => {
     if (active !== me) return;

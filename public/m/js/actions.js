@@ -122,6 +122,8 @@ export function openResolveSheet(tk, { onResolved }) {
 
 // ---------- Canned responses ----------
 let cannedCache = null;
+/** Per-account data kept in this module: dropped on sign-in, sign-out and expired sessions */
+export function resetActionCaches() { cannedCache = null; }
 /**
  * Template list with search (agents). onPick(text) gets the text with placeholders filled in
  * (opts.raw: unchanged, e.g. for the resolve reply where the server fills them in).

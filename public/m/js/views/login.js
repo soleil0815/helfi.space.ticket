@@ -7,6 +7,7 @@ import { brandLogo, brandTitle } from '/js/brand.js';
 import { loginIntro, loginUserLabel } from '/js/logintext.js';
 import { replaceUrl } from '../router.js';
 import { signedIn } from '../main.js';
+import { mfaSetupSteps } from '../mfa.js';
 
 function frame(page, ...children) {
   const langs = h('div.m-login-lang', { role: 'group', 'aria-label': t('app.language') },
@@ -121,12 +122,34 @@ function renderCode(page) {
   setTimeout(() => code.focus(), 50);
 }
 
-/** Two-factor sign-in has to be set up first: that (QR code) happens in the desktop view for now */
-function renderEnroll(page) {
-  frame(page, h('div.m-form',
+/** Two-factor sign-in has to be set up first: right here on the phone (key + app link, QR for another device) */
+async function renderEnroll(page) {
+  const back = () => h('div.m-center', h('button.m-link', { type: 'button', onclick: () => renderLogin(page) }, t('mfa.back')));
+  frame(page, h('div.m-form', h('div.m-spinner', { 'aria-label': t('app.loading') })));
+  let info;
+  try { info = await api.mfaEnrollInfo(); } catch (ex) {
+    frame(page, h('div.m-form', h('h1', t('mfa.enrollTitle')), h('div.m-alert.m-alert-error', { role: 'alert' }, ex.message), back()));
+    return;
+  }
+  let user = null;
+  frame(page, h('div.m-form.m-enroll',
     h('div.m-login-icon', icon('shield')),
     h('h1', t('mfa.enrollTitle')),
     h('p.m-muted', t('m.login.enrollText')),
-    h('a.m-btn.m-btn-primary.m-btn-block', { href: '/login?mfa=enroll&ui=desktop' }, icon('monitor'), t('m.login.enrollButton')),
-    h('div.m-center', h('button.m-link', { type: 'button', onclick: () => renderLogin(page) }, t('mfa.back')))));
+    mfaSetupSteps(info, {
+      confirm: async (code) => {
+        try {
+          const r = await api.mfaVerify(code);
+          user = r.user;
+          if (!r.recoveryCodes) { await signedIn(r.user); return []; }
+          return r.recoveryCodes;
+        } catch (ex) {
+          if (ex.code === 'err.mfaExpired') setTimeout(() => renderLogin(page), 2500);
+          throw ex;
+        }
+      },
+      onDone: () => signedIn(user),
+      doneLabel: t('mfa.continue'),
+    }),
+    back()));
 }

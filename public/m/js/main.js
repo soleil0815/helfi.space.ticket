@@ -9,8 +9,13 @@ import { renderLogin } from './views/login.js';
 import { renderHome } from './views/home.js';
 import { renderTickets } from './views/tickets.js';
 import { renderTicket } from './views/ticket.js';
-import { renderMe, renderNews } from './views/me.js';
-import { renderSoonNew, renderKbSoon, renderNotFound } from './views/misc.js';
+import { renderMe, renderNews, renderMfa } from './views/me.js';
+import { renderNew, renderReport, renderCatalogItem } from './views/new.js';
+import { renderKb, renderKbArticle } from './views/kb.js';
+import { resetActionCaches } from './actions.js';
+import { clearUserData, noteUser } from '/js/userdata.js';
+import { renderNotFound } from './views/misc.js';
+import { setupPwa } from './pwa.js';
 
 const NEXT_KEY = 'helfi.m.next';
 
@@ -39,7 +44,20 @@ export async function reloadBase() {
 }
 
 /** After sign-in: load everything again and continue where the user wanted to go */
+/**
+ * Everything of the previous account that lives in this page: rendered pages, module caches
+ * (personal templates …), lists. clearData also removes drafts and viewed articles.
+ */
+function resetAccountState({ clearData = false } = {}) {
+  clearCache();
+  resetActionCaches();
+  state.projects = []; state.agents = [];
+  if (clearData) clearUserData();
+}
+
 export async function signedIn(user) {
+  resetAccountState();
+  noteUser(user.id); // another account than before in this tab: its drafts go
   state.user = user;
   state.boot = await api.bootstrap();
   state.user = state.boot.user || user;
@@ -55,7 +73,8 @@ export async function signedIn(user) {
 export async function signOut() {
   try { await api.logout(); } catch { /* signed out anyway */ }
   state.user = null;
-  state.projects = []; state.agents = [];
+  // Nothing of this account stays on the device: viewed articles, unsent drafts, caches
+  resetAccountState({ clearData: true });
   try { state.boot = await api.bootstrap(); } catch { /* ignore */ }
   clearCache();
   drawTabs();
@@ -68,8 +87,8 @@ const TAB_DEFS = () => {
   const canCreate = state.isAgent || state.boot?.allowSelfService;
   return [
     state.isAgent
-      ? { id: 'home', href: '/m', icon: 'home', label: t('m.tab.home') }
-      : { id: 'home', href: '/m', icon: 'inbox', label: t('m.tab.requests') },
+      ? { id: 'home', href: '/m/', icon: 'home', label: t('m.tab.home') }
+      : { id: 'home', href: '/m/', icon: 'inbox', label: t('m.tab.requests') },
     state.isAgent ? { id: 'tickets', href: '/m/tickets?status=unresolved', icon: 'tickets', label: t('m.tab.tickets') } : null,
     canCreate ? { id: 'new', href: '/m/new', icon: 'plus', label: t('m.newTicket'), center: true } : null,
     { id: 'kb', href: '/m/kb', icon: 'book', label: t('m.tab.kb') },
@@ -127,10 +146,13 @@ function defineRoutes() {
   route({ path: /^\/m$/, tab: 'home', root: always, render: authed(renderHome) });
   route({ path: /^\/m\/tickets$/, tab: 'tickets', root: (s) => s.isAgent, parent: '/m', render: authed(renderTickets) });
   route({ path: /^\/m\/t\/([^/]+)$/, parent: '/m', render: authed(renderTicket) });
-  route({ path: /^\/m\/new$/, parent: '/m', render: authed(renderSoonNew) });
-  route({ path: /^\/m\/kb$/, tab: 'kb', root: always, render: authed(renderKbSoon) });
-  route({ path: /^\/m\/kb\/(\d+)$/, parent: '/m/kb', render: authed(renderKbSoon) });
+  route({ path: /^\/m\/new$/, parent: '/m', render: authed(renderNew) });
+  route({ path: /^\/m\/new\/report$/, parent: '/m/new', render: authed(renderReport) });
+  route({ path: /^\/m\/new\/c\/(\d+)$/, parent: '/m/new', render: authed(renderCatalogItem) });
+  route({ path: /^\/m\/kb$/, tab: 'kb', root: always, render: authed(renderKb) });
+  route({ path: /^\/m\/kb\/(\d+)$/, parent: '/m/kb', render: authed(renderKbArticle) });
   route({ path: /^\/m\/me$/, tab: 'me', root: always, render: authed(renderMe) });
+  route({ path: /^\/m\/me\/2fa$/, parent: '/m/me', render: authed(renderMfa) });
   route({ path: /^\/m\/news$/, parent: '/m/me', render: authed(renderNews) });
   route({ path: /^\/m\/404$/, parent: '/m', render: renderNotFound });
   route({ path: /^\/m\/.*$/, parent: '/m', render: renderNotFound });
@@ -169,6 +191,7 @@ function trackKeyboard() {
 async function start() {
   const app = document.getElementById('m-app');
   trackKeyboard();
+  setupPwa();
   try {
     [state.boot] = await Promise.all([api.bootstrap(), loadSprite()]);
   } catch {
@@ -178,6 +201,8 @@ async function start() {
   // Initial setup is only offered in the desktop UI
   if (state.boot.setupRequired && !state.boot.user) { location.replace('/setup'); return; }
   state.user = state.boot.user;
+  if (state.user) noteUser(state.user.id);
+  else clearUserData();
   document.body.dataset.appTitle = state.boot.app?.title || 'Helfi.Space';
   applyLanguage();
   if (state.user) {
@@ -196,7 +221,8 @@ async function start() {
   window.addEventListener('helfi:unauthorized', () => {
     if (!state.user) return;
     state.user = null;
-    clearCache();
+    // Session expired or signed out elsewhere: the next sign-in may be another account
+    resetAccountState({ clearData: true });
     drawTabs();
     try { sessionStorage.setItem(NEXT_KEY, location.pathname + location.search); } catch { /* ignore */ }
     go('/m/login', { replace: true, anim: 'none' });

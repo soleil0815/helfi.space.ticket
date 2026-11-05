@@ -54,7 +54,7 @@ export function mobileUrlFor(pathname, search = '') {
   if (pathname === '/login') return `/m/login${search}`;
   if (pathname === '/' || pathname === '/my' || pathname === '/requests' || pathname === '/issues') {
     const term = (q.get('q') || '').trim();
-    return term ? `/m/tickets?q=${encodeURIComponent(term)}` : '/m';
+    return term ? `/m/tickets?q=${encodeURIComponent(term)}` : '/m/';
   }
   let m = /^\/browse\/([^/]+)$/.exec(pathname);
   if (m) return `/m/t/${m[1]}`;
@@ -63,6 +63,9 @@ export function mobileUrlFor(pathname, search = '') {
   if (m) return `/m/kb/${m[1]}`;
   if (pathname === '/news') return '/m/news';
   if (pathname === '/profile') return '/m/me';
+  if (pathname === '/catalog') return '/m/new';
+  m = /^\/catalog\/(\d+)$/.exec(pathname);
+  if (m) return `/m/new/c/${m[1]}`;
   return null;
 }
 
@@ -78,6 +81,8 @@ export function desktopUrlFor(pathname, search = '') {
   m = /^\/m\/kb\/(\d+)$/.exec(p);
   if (m) return `/kb/${m[1]}`;
   if (p === '/m/news') return '/news';
-  if (p === '/m/me') return '/profile';
+  if (p === '/m/me' || p === '/m/me/2fa') return '/profile';
+  m = /^\/m\/new\/c\/(\d+)$/.exec(p);
+  if (m) return `/catalog/${m[1]}`;
   return '/';
 }

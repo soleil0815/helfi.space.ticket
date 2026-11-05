@@ -4,34 +4,28 @@ import { api } from '/js/api.js';
 import { h, icon, toast, fmtSize } from '/js/dom.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
-import { openSheet } from './sheet.js';
-import { downscale, uploadDraft, isPicture, MAX_FILES } from './files.js';
+import { downscale, uploadDraft, isPicture, openAttachSheet as attachSheet, MAX_FILES } from './files.js';
 import { openCannedSheet } from './actions.js';
 
+// Drafts belong to the account and the ticket; a draft of another account is never restored
+// (an agent's internal note must not end up in the next user's reply bar). See /js/userdata.js.
 const DRAFT_PREFIX = 'helfi.m.draft.';
-const draftKey = (key) => `${DRAFT_PREFIX}${key}`;
+const draftKey = (uid, key) => `${DRAFT_PREFIX}${uid}.${key}`;
 function readDraft(key) {
-  try { return JSON.parse(sessionStorage.getItem(draftKey(key)) || 'null'); } catch { return null; }
+  const uid = state.user?.id;
+  if (!uid) return null;
+  try {
+    const d = JSON.parse(sessionStorage.getItem(draftKey(uid, key)) || 'null');
+    return d && d.uid === uid ? d : null;
+  } catch { return null; }
 }
 function writeDraft(key, d) {
+  const uid = state.user?.id;
+  if (!uid) return; // signed out meanwhile: keep nothing
   try {
-    if (d && d.text) sessionStorage.setItem(draftKey(key), JSON.stringify(d));
-    else sessionStorage.removeItem(draftKey(key));
+    if (d && d.text) sessionStorage.setItem(draftKey(uid, key), JSON.stringify({ ...d, uid }));
+    else sessionStorage.removeItem(draftKey(uid, key));
   } catch { /* storage full or blocked: the text just is not kept */ }
-}
-
-/**
- * File inputs outside the app root: while a sheet is open the app is inert, and an inert
- * input would not open the camera/file chooser. One pair is shared; each use sets onchange.
- */
-let inputs = null;
-function fileInputs() {
-  if (inputs?.camInput.isConnected) return inputs;
-  const camInput = h('input.m-file-input', { type: 'file', accept: 'image/*', capture: 'environment', tabindex: '-1', 'aria-hidden': 'true' });
-  const fileInput = h('input.m-file-input', { type: 'file', multiple: true, tabindex: '-1', 'aria-hidden': 'true' });
-  document.body.append(h('div.m-file-inputs', camInput, fileInput));
-  inputs = { camInput, fileInput };
-  return inputs;
 }
 
 /** Text for the image link in the comment: no brackets/newlines (they would end the markdown) */
@@ -53,7 +47,6 @@ export function replyBar({ getTicket, onSent }) {
   });
   const sendBtn = h('button.m-reply-send', { type: 'button', 'aria-label': t('m.reply.send'), title: t('m.reply.send'), onclick: () => send() }, icon('send'));
   const attachBtn = h('button.m-reply-attach', { type: 'button', 'aria-label': t('m.reply.attach'), title: t('m.reply.attach'), onclick: () => openAttachSheet() }, icon('plus'));
-  const { camInput, fileInput } = fileInputs();
   const filesEl = h('div.m-reply-files', { role: 'list', 'aria-label': t('m.reply.attachments'), hidden: true });
   const hint = h('div.m-reply-hint', { hidden: true }, icon('lock'), h('span', t('m.reply.internalHint')));
 
@@ -126,26 +119,9 @@ export function replyBar({ getTicket, onSent }) {
   }
 
   // ---------- Attachments ----------
-  function openAttachSheet() {
-    const row = (ic, label, text, input) => h('button.m-action', {
-      type: 'button',
-      onclick: () => { input.value = ''; input.onchange = () => pick(input); input.click(); sheet.close(); },
-    }, h('span.m-action-icon', icon(ic)), h('span.m-action-text', h('span.m-action-label', label), h('span.m-action-hint', text)));
-    const max = state.boot?.maxUploadMb;
-    const sheet = openSheet({
-      title: t('m.reply.attachTitle'),
-      className: 'm-sheet-actions',
-      content: h('div.m-actions-list',
-        row('camera', t('m.reply.photo'), t('m.reply.photoText'), camInput),
-        row('paperclip', t('m.reply.file'), t('m.reply.fileText'), fileInput),
-        h('p.m-sheet-note', icon('image'), h('span', t('m.reply.photoHint'), max ? ` ${t('m.reply.maxSize', { max, n: MAX_FILES })}` : ''))),
-    });
-  }
+  const openAttachSheet = () => attachSheet(pick);
 
-  async function pick(input) {
-    const list = [...(input.files || [])];
-    input.value = '';
-    if (!list.length) return;
+  function pick(list) {
     const room = MAX_FILES - files.length;
     if (list.length > room) toast(t('m.reply.tooMany', { n: MAX_FILES }), 'error');
     for (const file of list.slice(0, Math.max(0, room))) addFile(file);
@@ -175,6 +151,8 @@ export function replyBar({ getTicket, onSent }) {
 
   function removeFile(f) {
     files = files.filter((x) => x !== f);
+    // Already uploaded (e.g. after a failed send): remove the unsent draft on the server too
+    if (f.attId) api.discardDraft(f.attId).catch(() => { /* removed after a day anyway */ });
     if (f.url) URL.revokeObjectURL(f.url);
     drawFiles(); update();
     ta.focus({ preventScroll: true });

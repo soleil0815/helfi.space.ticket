@@ -24,7 +24,7 @@ export function startRouter(stageEl, { changed } = {}) {
   stage = stageEl;
   onChange = changed || onChange;
   idx = Number(history.state?.idx) || 0;
-  history.replaceState({ idx }, '', location.href);
+  history.replaceState({ idx }, '', canon(location.pathname) + location.search + location.hash);
   window.addEventListener('popstate', (e) => {
     // A bottom sheet has its own history entry: "back" closes it
     if (sheetOpen()) { dismissSheet({ fromHistory: true }); return; }
@@ -38,10 +38,13 @@ export function startRouter(stageEl, { changed } = {}) {
 }
 
 const sameOrigin = (url) => /^\/m(\/|$|\?)/.test(url);
+/** The start page is "/m/" (not "/m"): only addresses below /m/ are inside the service worker's scope */
+export const canon = (url) => String(url).replace(/^\/m(?=$|\?|#)/, '/m/');
 
 /** Go to an address of the mobile UI. anim: 'auto' | 'none' | 'forward' */
 export function go(url, { replace = false, anim = 'auto' } = {}) {
   if (!sameOrigin(url)) { location.assign(url); return; }
+  url = canon(url);
   if (sheetOpen()) {
     // Navigating from inside a sheet: its history entry becomes the new page
     dismissSheet({ fromHistory: true });
@@ -73,6 +76,7 @@ export const canGoBack = () => !!current && !isRoot(current.route);
 
 /** Update the address of the current page (filters, search) without rebuilding it */
 export function replaceUrl(url) {
+  url = canon(url);
   history.replaceState({ idx }, '', url);
   if (current) { current.url = url; const c = cache.get(idx); if (c) c.url = url; }
 }
@@ -178,7 +182,11 @@ export function errorState(e, retry) {
 }
 
 // ---------- Transitions ----------
+// A new transition (e.g. "back" tapped while the page is still sliding in) first ends the running one;
+// a finished transition never removes the page that is current by then.
+let running = null;
 function transition(oldEl, newEl, dir) {
+  if (running) running();
   if (!newEl.isConnected) stage.append(newEl);
   newEl.classList.remove('m-leaving');
   newEl.style.transform = '';
@@ -198,11 +206,13 @@ function transition(oldEl, newEl, dir) {
   const finish = () => {
     if (done) return;
     done = true;
+    if (running === finish) running = null;
     oldEl.classList.remove('m-anim-out', 'm-anim-under-out', 'm-front', 'm-leaving');
     newEl.classList.remove('m-anim-in', 'm-anim-under-in', 'm-front');
-    oldEl.remove();
-    cleanupStage(newEl);
+    if (current?.el !== oldEl) oldEl.remove();
+    if (current?.el === newEl) cleanupStage(newEl);
   };
+  running = finish;
   front.addEventListener('animationend', finish, { once: true });
   setTimeout(finish, 450);
 }

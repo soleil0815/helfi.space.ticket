@@ -317,15 +317,18 @@ Einschalten unter *Administration → E-Mail → Zufriedenheitsumfrage* (Standar
 
 ## Auf dem Smartphone
 
-Die Oberfläche passt sich an schmale Bildschirme an:
+Auf dem Handy öffnet sich Helfi.Space automatisch in einer eigenen, app-artigen Oberfläche (unter `/m`). Tablets und Computer bekommen weiter die gewohnte Ansicht.
 
-- **Menü** ☰ als Schublade mit allen Bereichen, Suche hinter der Lupe, runder ＋-Knopf zum Erstellen.
-- **Listen als Karten**, Filter hinter einem Knopf, Mehrfachauswahl durch langes Drücken.
-- **Ticket:** Titel und Status zuerst, Details als aufklappbare Zeile, dann Beschreibung und Aktivität.
-- **Board** mit Spalten zum Wischen, Status über ⋯ auf der Karte.
-- **Dialoge im Vollbild**, Eingabefelder ohne automatisches Hineinzoomen (iPhone), große Tippflächen, Notch und Home-Leiste berücksichtigt.
-- Change-Kalender als Liste, Administration mit Auswahlliste, breite Tabellen scrollen innerhalb ihres Kastens.
-- **Zum Startbildschirm hinzufügen:** Web-App-Manifest mit Symbol, Helfi.Space startet dann im Vollbild wie eine App.
+- **Unten eine Tab-Leiste:** *Meine Arbeit* bzw. *Anfragen*, *Tickets* (Bearbeiter), der runde **＋**-Knopf, *Wissen* und *Ich*. Seiten schieben sich wie in einer App herein; Zurück per Knopf, Wisch vom linken Rand oder Zurück-Taste. Listen lassen sich nach unten ziehen zum Aktualisieren.
+- **Melden (＋):** Problem melden mit Titel, Beschreibung, **Foto aufnehmen** oder **Datei**; Bearbeiter wählen zusätzlich Projekt, Typ und Priorität (wie am PC). Schon beim Tippen des Titels schlägt Helfi.Space passende Wissensartikel vor. Gibt es einen Servicekatalog, stehen seine Angebote als große Kacheln daneben – mit allen Feldarten, Pflichtfeldern und Genehmigung. Ein nicht abgeschickter Entwurf bleibt erhalten, bis der Tab geschlossen wird.
+- **Ticket:** Verlauf wie ein Chat, Antwortleiste unten mit Fotos und Dateien; Bearbeiter schreiben auch interne Notizen, nutzen Vorlagen, ändern Status, Bearbeiter, Priorität, Typ und Teilnehmer und genehmigen Anfragen. Titel und Beschreibung ändern Bearbeiter und der Melder selbst.
+- **Wissen:** Suche, Kategorien, *Zuletzt angesehen*, *Meistgelesen* und der Seitenbaum zum Durchklicken. Artikel mit Inhaltsverzeichnis, seitlich scrollenden Tabellen und Kommentaren. Bearbeitet werden Artikel am PC (*Im Desktop bearbeiten*). Benutzer sehen nur öffentliche Artikel.
+- **Ich:** Name, E-Mail und Kennwort (lokale Konten), Sprache, **Zwei-Faktor-Anmeldung** direkt auf dem Handy (geheimer Schlüssel zum Kopieren und Knopf *In Authenticator-App öffnen* statt QR-Code, der QR-Code bleibt für ein zweites Gerät; danach die Wiederherstellungscodes zum Kopieren oder Teilen), Neuigkeiten und *Desktop-Ansicht*.
+- **Als App installieren:** iPhone/iPad: in Safari *Teilen* → *Zum Home-Bildschirm*. Android: in Chrome ⋮ → *App installieren* (oder der Knopf unter *Ich → App installieren*). Helfi.Space startet dann im Vollbild mit eigenem Symbol; ein kleiner Service Worker hält nur die Programmdateien bereit und zeigt ohne Verbindung eine Hinweisseite. Neue Versionen kommen automatisch („Neue Version – Neu laden“).
+- **Umschalten:** *Ich → Desktop-Ansicht* wechselt dauerhaft zur gewohnten Ansicht, im Benutzermenü führt *Handy-Ansicht* zurück. Seiten, die es nur am PC gibt (Administration, Berichte, Board …), öffnen sich in der Desktop-Ansicht.
+- **Datenschutz:** Fotos werden ohne Standortdaten hochgeladen: Kamerafotos (JPEG) werden auf dem Handy immer neu gespeichert, dabei fallen Metadaten wie der Aufnahmeort (EXIF/GPS) weg; große Bilder (über 2560 px) werden zusätzlich verkleinert. Bilder, die der Browser nicht lesen kann (z. B. HEIC), gehen unverändert hoch. Ticketdaten, Anhänge und Antworten des Servers werden **nicht** auf dem Gerät zwischengespeichert (`Cache-Control: no-store`) – nur die Programmdateien. Nicht gesendete Entwürfe gehören zum Konto und werden beim Abmelden, bei abgelaufener Sitzung und bei einem Kontowechsel gelöscht; nicht gesendete Uploads löscht der Server nach einem Tag. Es wird nichts aus dem Internet geladen.
+
+Die Desktop-Ansicht bleibt auch auf schmalen Bildschirmen benutzbar (Menü als Schublade, Listen als Karten, Dialoge im Vollbild).
 
 ## Emojis
 

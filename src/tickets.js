@@ -487,6 +487,36 @@ export function createTickets(db, users) {
     logActivity(a.ticket_id, user.id, 'detached', null, a.filename, null);
   }
 
+  // ---------- Unsent uploads (drafts) ----------
+  // Pasted images (draft=1 via the text) and files picked for a reply wait as drafts until the
+  // text or comment claims them. Unclaimed ones are discarded by their uploader or after a day.
+  const DRAFT_MAX_AGE_MS = 24 * 3600 * 1000;
+  const removeFile = (a) => fs.rmSync(path.join(paths.attachments, String(a.ticket_id), a.storage_name), { force: true });
+
+  /** Pending drafts of one person on one ticket (limit per upload) */
+  function pendingDrafts(ticketId, userId) {
+    return db.prepare('SELECT COUNT(*) n FROM attachments WHERE ticket_id=? AND uploaded_by=? AND draft=1').get(ticketId, userId).n;
+  }
+
+  /** Discard one's own unclaimed draft (removed chip, discarded reply). No history entry: it was never visible. */
+  function discardDraft(user, attId) {
+    const a = db.prepare('SELECT * FROM attachments WHERE id=?').get(attId);
+    if (!a) throw notFound();
+    load(user, a.ticket_id); // the ticket must be visible to this person
+    if (!a.draft || a.uploaded_by !== user.id) throw forbidden();
+    db.prepare('DELETE FROM attachments WHERE id=? AND draft=1').run(a.id);
+    removeFile(a);
+  }
+
+  /** Delete drafts older than a day (daily job). Returns the number removed. */
+  function purgeDrafts(now = Date.now()) {
+    const cutoff = new Date(now - DRAFT_MAX_AGE_MS).toISOString();
+    const old = db.prepare('SELECT id, ticket_id, storage_name FROM attachments WHERE draft=1 AND created_at < ?').all(cutoff);
+    const del = db.prepare('DELETE FROM attachments WHERE id=? AND draft=1');
+    for (const a of old) { del.run(a.id); removeFile(a); }
+    return old.length;
+  }
+
   // ---------- Request participants ----------
   /** Participant list. Email addresses only for agents (or one's own). */
   function participants(ticketId, viewer = null) {
@@ -683,7 +713,7 @@ export function createTickets(db, users) {
   return {
     search,
     events, projects, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
-    addAttachment, attachmentFile, deleteAttachment, ticketOut, rawById, logActivity, stats, userRef,
+    addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
     descriptionVersion, participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
 }

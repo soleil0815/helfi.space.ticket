@@ -5,6 +5,7 @@ import { t, getLang, setLang } from '../i18n.js';
 import { state, navigate, reloadBase, route } from '../app.js';
 import { brandLogo, brandTitle } from '../brand.js';
 import { loginIntro, loginUserLabel } from '../logintext.js';
+import { noteUser } from '../userdata.js';
 
 function langSwitch() {
   return h('div.lang-switch',
@@ -24,6 +25,7 @@ export function authFrame(...children) {
 }
 
 async function finishLogin(user) {
+  noteUser(user.id);
   state.user = user;
   state.boot = await api.bootstrap();
   if (user.language) setLang(user.language);
