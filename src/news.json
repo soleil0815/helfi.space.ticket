@@ -2,8 +2,8 @@
   "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
-      "version": "",
-      "date": "",
+      "version": "1.19.0",
+      "date": "2026-11-05",
       "items": [
         { "audience": "agent", "de": "KI-Unterstützung (wenn eingerichtet): Ticket zusammenfassen lassen und im Antwortfeld unter „KI“ eine Antwort vorschlagen, Text glätten, kürzen oder übersetzen. Alles ist nur ein Vorschlag – bitte vor dem Senden prüfen.", "en": "AI assistance (if set up): have a ticket summarized and, under “AI” in the reply field, suggest a reply, polish, shorten or translate text. Everything is only a suggestion – please check before sending." },
         { "audience": "admin", "de": "Neu unter Administration → KI: Anbindung an jede OpenAI-kompatible Schnittstelle (z. B. Ollama). Standardmäßig aus; für den Echtbetrieb wird ein selbst gehostetes Modell empfohlen.", "en": "New under Administration → AI: connection to any OpenAI-compatible API (e.g. Ollama). Off by default; a self-hosted model is recommended for production." }
