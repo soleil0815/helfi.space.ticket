@@ -84,6 +84,10 @@ export function rerender() {
 }
 export function clearCache() { cache.clear(); }
 
+// Data changed (e.g. a ticket was edited): pages kept in the cache refresh themselves when shown again
+let changedAt = 0;
+export function dataChanged() { changedAt = Date.now(); }
+
 let rootCheck = () => false;
 export function setRootCheck(fn) { rootCheck = fn; }
 const isRoot = (r) => !!r && rootCheck(r);
@@ -133,7 +137,7 @@ async function show(url, dir, { fresh = false } = {}) {
   } else {
     page = createPage(r);
     el = page.el;
-    cache.set(idx, { url, el, scroll: 0, page });
+    cache.set(idx, { url, el, scroll: 0, page, at: Date.now() });
     while (cache.size > CACHE_MAX) cache.delete(Math.min(...cache.keys()));
   }
   current = { idx, url, el, route: r };
@@ -156,6 +160,11 @@ async function show(url, dir, { fresh = false } = {}) {
     const sc = el.querySelector('.m-scroll');
     if (sc && c) sc.scrollTop = c.scroll || 0;
     if (c?.page && c.page.el === el) document.title = c.page.el.querySelector('.m-title')?.textContent || document.title;
+    // Shown again after a change elsewhere: reload quietly (keeps the scroll position)
+    if (c && c.at < changedAt && c.page?.refresh) {
+      c.at = Date.now();
+      c.page.refresh().catch(() => { /* the page keeps its content; pull to refresh retries */ });
+    }
   }
 }
 

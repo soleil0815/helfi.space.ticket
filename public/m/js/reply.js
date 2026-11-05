@@ -1,0 +1,277 @@
+// Reply bar at the bottom of the ticket view: text, reply/internal note (agents), templates,
+// photos and files (uploaded as drafts, linked to the comment), draft text per ticket.
+import { api } from '/js/api.js';
+import { h, icon, toast, fmtSize } from '/js/dom.js';
+import { t } from '/js/i18n.js';
+import { state } from '/js/state.js';
+import { openSheet } from './sheet.js';
+import { downscale, uploadDraft, isPicture, MAX_FILES } from './files.js';
+import { openCannedSheet } from './actions.js';
+
+const DRAFT_PREFIX = 'helfi.m.draft.';
+const draftKey = (key) => `${DRAFT_PREFIX}${key}`;
+function readDraft(key) {
+  try { return JSON.parse(sessionStorage.getItem(draftKey(key)) || 'null'); } catch { return null; }
+}
+function writeDraft(key, d) {
+  try {
+    if (d && d.text) sessionStorage.setItem(draftKey(key), JSON.stringify(d));
+    else sessionStorage.removeItem(draftKey(key));
+  } catch { /* storage full or blocked: the text just is not kept */ }
+}
+
+/**
+ * File inputs outside the app root: while a sheet is open the app is inert, and an inert
+ * input would not open the camera/file chooser. One pair is shared; each use sets onchange.
+ */
+let inputs = null;
+function fileInputs() {
+  if (inputs?.camInput.isConnected) return inputs;
+  const camInput = h('input.m-file-input', { type: 'file', accept: 'image/*', capture: 'environment', tabindex: '-1', 'aria-hidden': 'true' });
+  const fileInput = h('input.m-file-input', { type: 'file', multiple: true, tabindex: '-1', 'aria-hidden': 'true' });
+  document.body.append(h('div.m-file-inputs', camInput, fileInput));
+  inputs = { camInput, fileInput };
+  return inputs;
+}
+
+/** Text for the image link in the comment: no brackets/newlines (they would end the markdown) */
+const altText = (name) => String(name || '').replace(/[[\]\n\r]/g, ' ').slice(0, 120);
+
+/**
+ * getTicket(): current ticket; onSent(comment): after a successful send (reload + scroll).
+ * Returns { el, focus(), setMode(internal) }.
+ */
+export function replyBar({ getTicket, onSent }) {
+  const agent = state.isAgent;
+  const key = () => getTicket().key;
+  let internal = false;
+  let busy = false;
+  let files = []; // { id, file, url, resized, state: 'processing'|'ready'|'uploading'|'error', progress, attId, el }
+
+  const ta = h('textarea.m-reply-input', {
+    rows: 1, enterkeyhint: 'enter', autocomplete: 'off', 'aria-label': t('m.reply.placeholder'), placeholder: t('m.reply.placeholder'),
+  });
+  const sendBtn = h('button.m-reply-send', { type: 'button', 'aria-label': t('m.reply.send'), title: t('m.reply.send'), onclick: () => send() }, icon('send'));
+  const attachBtn = h('button.m-reply-attach', { type: 'button', 'aria-label': t('m.reply.attach'), title: t('m.reply.attach'), onclick: () => openAttachSheet() }, icon('plus'));
+  const { camInput, fileInput } = fileInputs();
+  const filesEl = h('div.m-reply-files', { role: 'list', 'aria-label': t('m.reply.attachments'), hidden: true });
+  const hint = h('div.m-reply-hint', { hidden: true }, icon('lock'), h('span', t('m.reply.internalHint')));
+
+  const modeReply = agent ? h('button.m-reply-mode', { type: 'button', 'aria-pressed': 'true', onclick: () => setMode(false) }, t('m.reply.reply')) : null;
+  const modeNote = agent ? h('button.m-reply-mode.m-reply-mode-note', { type: 'button', 'aria-pressed': 'false', onclick: () => setMode(true) }, icon('lock'), t('m.reply.internal')) : null;
+  const tplBtn = agent ? h('button.m-reply-tpl', {
+    type: 'button',
+    onclick: () => {
+      const sel = [ta.selectionStart, ta.selectionEnd];
+      let picked = null;
+      openCannedSheet(getTicket(), (text) => { picked = text; }, () => {
+        if (picked === null) return;
+        ta.focus({ preventScroll: true });
+        ta.setRangeText(picked, sel[0], sel[1], 'end');
+        changed();
+      });
+    },
+  }, icon('comment'), t('m.reply.template')) : null;
+  const tools = agent ? h('div.m-reply-tools',
+    h('div.m-reply-modes', { role: 'group', 'aria-label': t('m.reply.mode') }, modeReply, modeNote),
+    h('span.spacer'), tplBtn) : null;
+
+  const el = h('div.m-reply', { role: 'region', 'aria-label': t('m.reply.placeholder') },
+    tools, filesEl,
+    h('div.m-reply-row', attachBtn, h('div.m-reply-field', ta), sendBtn),
+    hint);
+
+  // ---------- Text: auto-grow, draft, keyboard ----------
+  const maxHeight = () => Math.round((window.visualViewport?.height || window.innerHeight) * 0.4);
+  function grow() {
+    ta.style.height = 'auto';
+    const max = maxHeight();
+    ta.style.height = `${Math.min(ta.scrollHeight + 2, max)}px`;
+    ta.style.overflowY = ta.scrollHeight + 2 > max ? 'auto' : 'hidden';
+  }
+  let saveTimer = null;
+  function changed() {
+    grow();
+    update();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDraft, 250);
+  }
+  const saveDraft = () => writeDraft(key(), { text: ta.value, internal });
+  ta.addEventListener('input', changed);
+  ta.addEventListener('blur', saveDraft);
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+  });
+  window.visualViewport?.addEventListener('resize', () => { if (el.isConnected) grow(); });
+
+  function setMode(isInternal) {
+    if (!agent) return;
+    internal = isInternal;
+    el.classList.toggle('internal', internal);
+    modeReply.setAttribute('aria-pressed', String(!internal));
+    modeNote.setAttribute('aria-pressed', String(internal));
+    hint.hidden = !internal;
+    ta.placeholder = internal ? t('m.reply.placeholderInternal') : t('m.reply.placeholder');
+    ta.setAttribute('aria-label', ta.placeholder);
+    if (ta.value) saveDraft();
+  }
+
+  const ready = () => files.filter((f) => f.state !== 'error');
+  function update() {
+    const pending = files.some((f) => f.state === 'processing');
+    sendBtn.disabled = busy || pending || (!ta.value.trim() && !ready().length);
+    attachBtn.disabled = busy;
+    el.classList.toggle('busy', busy);
+    ta.readOnly = busy;
+  }
+
+  // ---------- Attachments ----------
+  function openAttachSheet() {
+    const row = (ic, label, text, input) => h('button.m-action', {
+      type: 'button',
+      onclick: () => { input.value = ''; input.onchange = () => pick(input); input.click(); sheet.close(); },
+    }, h('span.m-action-icon', icon(ic)), h('span.m-action-text', h('span.m-action-label', label), h('span.m-action-hint', text)));
+    const max = state.boot?.maxUploadMb;
+    const sheet = openSheet({
+      title: t('m.reply.attachTitle'),
+      className: 'm-sheet-actions',
+      content: h('div.m-actions-list',
+        row('camera', t('m.reply.photo'), t('m.reply.photoText'), camInput),
+        row('paperclip', t('m.reply.file'), t('m.reply.fileText'), fileInput),
+        h('p.m-sheet-note', icon('image'), h('span', t('m.reply.photoHint'), max ? ` ${t('m.reply.maxSize', { max, n: MAX_FILES })}` : ''))),
+    });
+  }
+
+  async function pick(input) {
+    const list = [...(input.files || [])];
+    input.value = '';
+    if (!list.length) return;
+    const room = MAX_FILES - files.length;
+    if (list.length > room) toast(t('m.reply.tooMany', { n: MAX_FILES }), 'error');
+    for (const file of list.slice(0, Math.max(0, room))) addFile(file);
+  }
+
+  let seq = 0;
+  async function addFile(original) {
+    const f = { id: ++seq, file: original, url: null, resized: false, state: 'processing', progress: 0, attId: null, error: null };
+    files.push(f);
+    drawFiles(); update();
+    try {
+      if (isPicture(original.type)) {
+        const r = await downscale(original);
+        f.file = r.file; f.resized = r.resized;
+        f.url = URL.createObjectURL(f.file);
+      }
+    } catch { /* keep the original */ }
+    if (!files.includes(f)) { if (f.url) URL.revokeObjectURL(f.url); return; } // removed meanwhile
+    const max = state.boot?.maxUploadMb;
+    if (max && f.file.size > max * 1024 * 1024) {
+      f.state = 'error';
+      f.error = t('m.reply.tooLarge', { name: f.file.name, max });
+      toast(f.error, 'error');
+    } else f.state = 'ready';
+    drawFiles(); update();
+  }
+
+  function removeFile(f) {
+    files = files.filter((x) => x !== f);
+    if (f.url) URL.revokeObjectURL(f.url);
+    drawFiles(); update();
+    ta.focus({ preventScroll: true });
+  }
+
+  function drawFiles() {
+    filesEl.hidden = !files.length;
+    filesEl.replaceChildren(...files.map((f) => {
+      const pic = isPicture(f.file.type);
+      const meta = f.state === 'processing' ? t('m.reply.processing')
+        : f.state === 'uploading' ? t('m.reply.uploading', { pct: Math.round(f.progress * 100) })
+          : f.state === 'error' ? f.error
+            : [fmtSize(f.file.size), f.resized ? t('m.reply.resized') : null].filter(Boolean).join(' · ');
+      const bar = h('span.m-file-progress', { 'aria-hidden': 'true' }, h('span', { style: { width: `${Math.round(f.progress * 100)}%` } }));
+      f.el = h('div.m-file', { role: 'listitem', class: [f.state, pic ? 'pic' : ''].filter(Boolean).join(' '), 'data-name': f.file.name },
+        h('span.m-file-thumb', f.url ? h('img', { src: f.url, alt: '' }) : icon(pic ? 'image' : 'file')),
+        h('span.m-file-text', h('span.m-file-name', f.file.name), h('span.m-file-meta', meta)),
+        f.state === 'uploading' ? bar : null,
+        h('button.m-file-x', {
+          type: 'button', 'aria-label': t('m.reply.remove', { name: f.file.name }), disabled: busy, onclick: () => removeFile(f),
+        }, icon('close')));
+      return f.el;
+    }));
+  }
+
+  function setProgress(f, p) {
+    f.progress = p;
+    const meta = f.el?.querySelector('.m-file-meta');
+    if (meta) meta.textContent = t('m.reply.uploading', { pct: Math.round(p * 100) });
+    const bar = f.el?.querySelector('.m-file-progress > span');
+    if (bar) bar.style.width = `${Math.round(p * 100)}%`;
+  }
+
+  // ---------- Send ----------
+  async function send() {
+    if (sendBtn.disabled) return;
+    const k = key();
+    busy = true;
+    update(); drawFiles();
+    try {
+      const list = ready();
+      // Upload one by one (progress per file); ids already uploaded are kept for a retry
+      for (const f of list) {
+        if (f.attId) continue;
+        f.state = 'uploading'; f.progress = 0;
+        drawFiles();
+        try {
+          f.attId = await uploadDraft(k, f.file, isPicture(f.file.type) ? '1' : 'file', (p) => setProgress(f, p));
+          f.state = 'ready';
+        } catch (e) {
+          f.state = 'error'; f.error = e.message;
+          drawFiles();
+          throw new Error(`${t('m.reply.uploadFailed', { name: f.file.name })} – ${e.message}`);
+        }
+      }
+      // Pictures appear in the text (as in the desktop UI), other files are linked to the comment
+      const pics = list.filter((f) => isPicture(f.file.type));
+      const others = list.filter((f) => !isPicture(f.file.type));
+      let text = ta.value.trim();
+      if (!text && !pics.length) text = others.map((f) => `📎 ${f.file.name}`).join('\n');
+      const body = [text, ...pics.map((f) => `![${altText(f.file.name)}](/api/attachments/${f.attId})`)].filter(Boolean).join('\n');
+      const r = await api.comment(k, body, agent && internal, others.map((f) => f.attId));
+      // Sent: empty the bar
+      for (const f of files) if (f.url) URL.revokeObjectURL(f.url);
+      files = [];
+      ta.value = '';
+      writeDraft(k, null);
+      busy = false;
+      drawFiles(); grow(); update();
+      await onSent?.(r.comment);
+    } catch (e) {
+      busy = false;
+      drawFiles(); update();
+      toast(e.message, 'error');
+    }
+  }
+
+  // Toasts sit above the bar: its height as a CSS variable
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => {
+      if (el.isConnected && el.offsetHeight) document.documentElement.style.setProperty('--m-reply-h', `${el.offsetHeight}px`);
+    }).observe(el);
+  }
+
+  // ---------- Start: restore the draft of this ticket ----------
+  const d = readDraft(key());
+  if (d?.text) ta.value = d.text;
+  if (agent && d?.internal) setMode(true);
+  else if (agent) setMode(false);
+  requestAnimationFrame(grow);
+  update();
+
+  return {
+    el,
+    focus: () => ta.focus(),
+    setMode,
+    /** After a project move the key changes: keep the draft under the new key */
+    rekey(oldKey, newKey) { if (oldKey !== newKey && ta.value) { writeDraft(oldKey, null); writeDraft(newKey, { text: ta.value, internal }); } },
+  };
+}

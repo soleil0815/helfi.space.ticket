@@ -1,10 +1,12 @@
-// Pull-to-refresh for list pages: drag down at the top of the list, release to reload.
+// Pull-to-refresh for list and ticket pages: drag down at the top, release to reload.
 import { h, icon } from '/js/dom.js';
 
 const THRESHOLD = 64;
 const MAX = 96;
 
 export function pullToRefresh(page, onRefresh) {
+  // The router calls this when a cached page is shown again after data changed elsewhere
+  page.refresh = async () => { await onRefresh(); };
   const sc = page.scroll;
   const spin = h('div.m-ptr-spin', icon('refresh'));
   const ind = h('div.m-ptr', { 'aria-hidden': 'true' }, spin);

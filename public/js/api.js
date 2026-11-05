@@ -116,7 +116,8 @@ export const api = {
   createTicket: (d) => request('POST', '/api/tickets', d),
   updateTicket: (key, d) => request('PATCH', `/api/tickets/${encodeURIComponent(key)}`, d),
   bulk: (d) => request('POST', '/api/tickets/bulk', d),
-  comment: (key, body, internal) => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal }),
+  // attachmentIds: draft uploads (draft=file) that belong to this comment (mobile UI)
+  comment: (key, body, internal, attachmentIds) => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, attachmentIds?.length ? { body, internal, attachmentIds } : { body, internal }),
   upload: (key, files, { draft = false } = {}) => {
     const fd = new FormData();
     if (draft) fd.append('draft', '1');

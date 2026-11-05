@@ -56,6 +56,7 @@ export function createApi(ctx) {
       adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // people search in AD available
       // News of the current version that this account has not seen yet
       news: req.user ? ctx.news.unseen(req.user) : null,
+      maxUploadMb: config.maxUploadMb, // upload limit per file (the mobile UI checks it before uploading)
       hasCatalog: !!db.prepare('SELECT 1 FROM catalog_items WHERE active=1 LIMIT 1').get(),
       user: req.user ? publicUser(req.user) : null,
       auth: {
@@ -539,7 +540,9 @@ export function createApi(ctx) {
   });
 
   r.post('/tickets/:key/comments', wrap(async (req, res) => {
-    const c = tickets.addComment(req.user, req.params.key, { body: req.body.body, internal: !!req.body.internal });
+    // attachmentIds: own drafts of this ticket (uploaded with draft=file/1) that belong to this comment
+    const ids = Array.isArray(req.body.attachmentIds) ? req.body.attachmentIds.slice(0, 20).map((x) => int(x)).filter(Boolean) : [];
+    const c = tickets.addComment(req.user, req.params.key, { body: req.body.body, internal: !!req.body.internal, attachmentIds: ids });
     res.status(201).json({ comment: c });
   }));
 
@@ -553,9 +556,11 @@ export function createApi(ctx) {
       }
       try {
         const row = tickets.load(req.user, req.params.key);
-        // draft=1: pasted image – invisible to others until the text with the image is saved
-        const draft = req.body?.draft === '1';
-        if (draft && (req.files || []).some((f) => !/^image\/(png|jpeg|gif|webp)$/.test(f.mimetype))) {
+        // draft=1: pasted image – invisible to others until the text with the image is saved.
+        // draft=file: any file for a reply – invisible until a comment claims it via attachmentIds
+        // (an internal note keeps it internal).
+        const draft = req.body?.draft === '1' || req.body?.draft === 'file';
+        if (req.body?.draft === '1' && (req.files || []).some((f) => !/^image\/(png|jpeg|gif|webp)$/.test(f.mimetype))) {
           for (const f of req.files || []) fs.rmSync(f.path, { force: true });
           throw new HttpError(400, 'err.badRequest', 'draft');
         }

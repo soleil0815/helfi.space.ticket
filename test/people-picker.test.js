@@ -11,6 +11,8 @@ if (!chromium && process.env.NODE_PATH) {
   try { ({ chromium } = createRequire(`${process.env.NODE_PATH}/`)('playwright')); } catch { /* not there either */ }
 }
 const skip = !chromium && 'Playwright missing';
+// CI sets HELFI_REQUIRE_BROWSER: there a missing Playwright fails the run instead of skipping the tests
+if (!chromium && process.env.HELFI_REQUIRE_BROWSER) throw new Error('Playwright with Chromium is required (HELFI_REQUIRE_BROWSER is set)');
 
 let S; let browser;
 let adDelay = 0;
@@ -113,4 +115,65 @@ test('Users: no AD search, no AD hint', { skip }, async () => {
   assert.doesNotMatch(text, /Active Directory/);
   assert.equal(await p.$('.picker-menu .badge-ad'), null);
   assert.ok(await focused(p));
+});
+
+// Mobile UI (/m): the same behaviour in the participants sheet
+async function phone(username) {
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'de-DE' });
+  const p = await c.newPage();
+  const errors = [];
+  p.on('pageerror', (e) => errors.push(e.message));
+  p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  const r = await p.request.post(`${S.base}/api/auth/login`, { data: { username, password: 'Sehrgeheim123' }, headers: { 'X-Helfi-Request': '1' } });
+  assert.equal(r.status(), 200);
+  return { p, errors, close: () => c.close() };
+}
+const sheetFocused = (p) => p.evaluate(() => document.activeElement?.matches('.m-sheet-people .m-sheet-search-input') || false);
+async function openPeopleSheet(p, key) {
+  await p.goto(`${S.base}/m/t/${key}`);
+  await p.waitForSelector('.m-more-btn');
+  await p.tap('.m-more-btn');
+  await p.waitForSelector('.m-action[data-action="participants"]');
+  await p.tap('.m-action[data-action="participants"]');
+  await p.waitForSelector('.m-sheet-people .m-sheet-search-input');
+  await p.locator('.m-sheet-people .m-sheet-search-input').focus();
+}
+
+test('Mobile: participants sheet keeps the focus, AD results arrive later, tap picks', { skip }, async () => {
+  const { p, errors, close } = await phone('anna');
+  // Desktop preference must not interfere: the phone context opens /m directly
+  await openPeopleSheet(p, 'IT-2');
+  adDelay = 400;
+  for (const ch of 'e.be') {
+    await p.keyboard.type(ch);
+    await p.waitForTimeout(350);
+    assert.ok(await sheetFocused(p), `focus after "${ch}"`);
+  }
+  await p.waitForSelector('.m-sheet-people .m-badge-ad');
+  assert.ok(await sheetFocused(p), 'focus after the AD results');
+  const names = await p.$$eval('.m-person-hit', (x) => x.map((i) => i.textContent));
+  assert.ok(names.some((x) => x.includes('Erika Beispiel')) && names.some((x) => x.includes('Emil Beck')), names.join('|'));
+  await p.locator('.m-person-hit', { hasText: 'Erika Beispiel' }).tap();
+  await p.waitForSelector('.m-people-current .m-person-row[data-id]');
+  assert.ok(await sheetFocused(p), 'focus stays for the next person');
+  assert.match(await p.textContent('.m-people-current'), /Erika Beispiel/);
+  adDelay = 0;
+  assert.deepEqual(errors, []);
+  await close();
+});
+
+test('Mobile: users get no AD search and no email entry', { skip }, async () => {
+  const { p, errors, close } = await phone('karl');
+  await openPeopleSheet(p, 'IT-1');
+  await p.keyboard.type('ebe');
+  await p.waitForSelector('.m-sheet-people .m-people-results .m-person-hit, .m-sheet-people .m-people-results .m-sheet-empty');
+  await p.waitForTimeout(300);
+  const text = await p.textContent('.m-people-results');
+  assert.doesNotMatch(text, /Active Directory/);
+  assert.equal(await p.$('.m-badge-ad'), null);
+  await p.fill('.m-sheet-people .m-sheet-search-input', 'jemand@firma.local');
+  await p.waitForTimeout(500);
+  assert.doesNotMatch(await p.textContent('.m-people-results'), /hinzufügen/);
+  assert.deepEqual(errors, []);
+  await close();
 });
