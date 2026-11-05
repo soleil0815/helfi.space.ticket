@@ -208,7 +208,7 @@ function layout(content, path) {
       // Phone user who chose the desktop view: way back to the mobile UI
       ...(isPhone() ? [{
         label: t('m.switchToMobile'), icon: icon('smartphone'),
-        onClick: () => { setUiPref('mobile'); location.assign(mobileUrlFor(location.pathname, location.search) || '/m'); },
+        onClick: () => { setUiPref('mobile'); location.assign(mobileUrlFor(location.pathname, location.search) || '/m/'); },
       }, '-'] : []),
       { label: t('app.logout'), icon: icon('logout'), onClick: async () => { await api.logout(); state.user = null; navigate('/login'); } },
     ], { align: 'right' }),

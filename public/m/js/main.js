@@ -9,8 +9,11 @@ import { renderLogin } from './views/login.js';
 import { renderHome } from './views/home.js';
 import { renderTickets } from './views/tickets.js';
 import { renderTicket } from './views/ticket.js';
-import { renderMe, renderNews } from './views/me.js';
-import { renderSoonNew, renderKbSoon, renderNotFound } from './views/misc.js';
+import { renderMe, renderNews, renderMfa } from './views/me.js';
+import { renderNew, renderReport, renderCatalogItem } from './views/new.js';
+import { renderKb, renderKbArticle, clearKbRecent } from './views/kb.js';
+import { renderNotFound } from './views/misc.js';
+import { setupPwa } from './pwa.js';
 
 const NEXT_KEY = 'helfi.m.next';
 
@@ -55,6 +58,11 @@ export async function signedIn(user) {
 export async function signOut() {
   try { await api.logout(); } catch { /* signed out anyway */ }
   state.user = null;
+  // Nothing of this account stays on the device: viewed articles, unsent drafts
+  clearKbRecent();
+  try {
+    for (const k of Object.keys(sessionStorage)) if (k.startsWith('helfi.m.')) sessionStorage.removeItem(k);
+  } catch { /* ignore */ }
   state.projects = []; state.agents = [];
   try { state.boot = await api.bootstrap(); } catch { /* ignore */ }
   clearCache();
@@ -68,8 +76,8 @@ const TAB_DEFS = () => {
   const canCreate = state.isAgent || state.boot?.allowSelfService;
   return [
     state.isAgent
-      ? { id: 'home', href: '/m', icon: 'home', label: t('m.tab.home') }
-      : { id: 'home', href: '/m', icon: 'inbox', label: t('m.tab.requests') },
+      ? { id: 'home', href: '/m/', icon: 'home', label: t('m.tab.home') }
+      : { id: 'home', href: '/m/', icon: 'inbox', label: t('m.tab.requests') },
     state.isAgent ? { id: 'tickets', href: '/m/tickets?status=unresolved', icon: 'tickets', label: t('m.tab.tickets') } : null,
     canCreate ? { id: 'new', href: '/m/new', icon: 'plus', label: t('m.newTicket'), center: true } : null,
     { id: 'kb', href: '/m/kb', icon: 'book', label: t('m.tab.kb') },
@@ -127,10 +135,13 @@ function defineRoutes() {
   route({ path: /^\/m$/, tab: 'home', root: always, render: authed(renderHome) });
   route({ path: /^\/m\/tickets$/, tab: 'tickets', root: (s) => s.isAgent, parent: '/m', render: authed(renderTickets) });
   route({ path: /^\/m\/t\/([^/]+)$/, parent: '/m', render: authed(renderTicket) });
-  route({ path: /^\/m\/new$/, parent: '/m', render: authed(renderSoonNew) });
-  route({ path: /^\/m\/kb$/, tab: 'kb', root: always, render: authed(renderKbSoon) });
-  route({ path: /^\/m\/kb\/(\d+)$/, parent: '/m/kb', render: authed(renderKbSoon) });
+  route({ path: /^\/m\/new$/, parent: '/m', render: authed(renderNew) });
+  route({ path: /^\/m\/new\/report$/, parent: '/m/new', render: authed(renderReport) });
+  route({ path: /^\/m\/new\/c\/(\d+)$/, parent: '/m/new', render: authed(renderCatalogItem) });
+  route({ path: /^\/m\/kb$/, tab: 'kb', root: always, render: authed(renderKb) });
+  route({ path: /^\/m\/kb\/(\d+)$/, parent: '/m/kb', render: authed(renderKbArticle) });
   route({ path: /^\/m\/me$/, tab: 'me', root: always, render: authed(renderMe) });
+  route({ path: /^\/m\/me\/2fa$/, parent: '/m/me', render: authed(renderMfa) });
   route({ path: /^\/m\/news$/, parent: '/m/me', render: authed(renderNews) });
   route({ path: /^\/m\/404$/, parent: '/m', render: renderNotFound });
   route({ path: /^\/m\/.*$/, parent: '/m', render: renderNotFound });
@@ -169,6 +180,7 @@ function trackKeyboard() {
 async function start() {
   const app = document.getElementById('m-app');
   trackKeyboard();
+  setupPwa();
   try {
     [state.boot] = await Promise.all([api.bootstrap(), loadSprite()]);
   } catch {

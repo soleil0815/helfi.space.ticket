@@ -45,6 +45,7 @@ before(async () => {
   fd.append('files', new Blob(['Protokoll\n'], { type: 'text/plain' }), 'protokoll.txt');
   const up = await fetch(`${S.base}/api/tickets/IT-1/attachments`, { method: 'POST', headers: { 'X-Helfi-Request': '1', cookie: login.headers.get('set-cookie').split(';')[0] }, body: fd });
   assert.ok(up.ok, `upload ${up.status}`);
+  await anna('POST', '/api/kb', { title: 'Drucker einrichten', body: '# Schritt 1\n\nTreiber von https://firma.local installieren.', visibility: 'public' });
   await anna('POST', '/api/canned', { title: 'Neustart', body: 'Hallo {melder}, bitte starte das Gerät einmal neu.' });
   await S.admin('POST', '/api/canned', { title: 'Problem behoben', body: 'Hallo {melder}, das Problem ist behoben.', shared: true });
   // Catalog request that waits for Anna's approval
@@ -58,7 +59,11 @@ after(async () => { await browser?.close(); await S?.stop(); });
 
 // ---------- Server ----------
 test('Server: /m and /m/… return the mobile entry page, the sprite is a static file', async () => {
-  for (const url of ['/m', '/m/', '/m/t/IT-1', '/m/tickets', '/m/kb/3']) {
+  // "/m" forwards to "/m/" (the start page lies inside the service worker's scope /m/)
+  const red = await fetch(`${S.base}/m?filter=done`, { redirect: 'manual' });
+  assert.equal(red.status, 302);
+  assert.equal(red.headers.get('location'), '/m/?filter=done');
+  for (const url of ['/m', '/m/', '/m/t/IT-1', '/m/tickets', '/m/kb/3', '/m/new/c/1', '/m/me/2fa']) {
     const r = await fetch(S.base + url);
     assert.equal(r.status, 200, url);
     assert.match(r.headers.get('content-type'), /text\/html/, url);
@@ -87,17 +92,21 @@ test('Server: /m and /m/… return the mobile entry page, the sprite is a static
 test('Address mapping desktop ↔ mobile', async () => {
   const { mobileUrlFor, desktopUrlFor } = await import('../public/js/uimode.js');
   assert.equal(mobileUrlFor('/browse/IT-12', ''), '/m/t/IT-12');
-  assert.equal(mobileUrlFor('/', ''), '/m');
-  assert.equal(mobileUrlFor('/my', ''), '/m');
-  assert.equal(mobileUrlFor('/requests', '?participant=me'), '/m');
+  assert.equal(mobileUrlFor('/', ''), '/m/');
+  assert.equal(mobileUrlFor('/my', ''), '/m/');
+  assert.equal(mobileUrlFor('/requests', '?participant=me'), '/m/');
+  assert.equal(mobileUrlFor('/catalog', ''), '/m/new');
+  assert.equal(mobileUrlFor('/catalog/5', ''), '/m/new/c/5');
   assert.equal(mobileUrlFor('/issues', '?status=open&q=Drucker%20PR'), '/m/tickets?q=Drucker%20PR');
   assert.equal(mobileUrlFor('/login', '?error=oidcFailed&mfa=code'), '/m/login?error=oidcFailed&mfa=code');
   assert.equal(mobileUrlFor('/kb', ''), '/m/kb');
   assert.equal(mobileUrlFor('/kb/7', ''), '/m/kb/7');
   assert.equal(mobileUrlFor('/news', ''), '/m/news');
   assert.equal(mobileUrlFor('/profile', ''), '/m/me');
-  for (const p of ['/setup', '/rate/abc', '/admin', '/admin/users', '/reports', '/board', '/changes', '/cis', '/cis/3', '/catalog', '/summary', '/kb/7/edit']) assert.equal(mobileUrlFor(p, ''), null, p);
+  for (const p of ['/setup', '/rate/abc', '/admin', '/admin/users', '/reports', '/board', '/changes', '/cis', '/cis/3', '/summary', '/kb/7/edit']) assert.equal(mobileUrlFor(p, ''), null, p);
   assert.equal(desktopUrlFor('/m', ''), '/');
+  assert.equal(desktopUrlFor('/m/new/c/5', ''), '/catalog/5');
+  assert.equal(desktopUrlFor('/m/me/2fa', ''), '/profile');
   assert.equal(desktopUrlFor('/m/', ''), '/');
   assert.equal(desktopUrlFor('/m/t/IT-12', ''), '/browse/IT-12');
   assert.equal(desktopUrlFor('/m/tickets', '?q=VPN'), '/issues?q=VPN');
@@ -132,7 +141,7 @@ const scrollTop = (p) => p.evaluate(() => document.querySelector('.m-page:not(.m
 test('Phone: desktop addresses open the mobile UI', { skip }, async () => {
   const { p, errors, close } = await open('anna');
   await p.goto(`${S.base}/`);
-  await p.waitForURL('**/m');
+  await p.waitForURL('**/m/');
   await p.goto(`${S.base}/browse/IT-1`);
   await p.waitForURL('**/m/t/IT-1');
   await ready(p);
@@ -235,7 +244,7 @@ test('Sign-in on /m/login: error from the address, wrong password, continue to t
   await close();
 });
 
-test('Sign-in with two-factor code; first-time setup points to the desktop view', { skip }, async () => {
+test('Sign-in with two-factor code; first-time setup happens on the phone', { skip }, async () => {
   const { totpAt, currentStep } = await import('../src/auth/totp.js');
   const max = await S.client().login('max');
   const setup = (await max('POST', '/api/me/mfa/setup')).body;
@@ -251,27 +260,40 @@ test('Sign-in with two-factor code; first-time setup points to the desktop view'
     await p.tap('button[type=submit]');
     await p.waitForSelector('input.m-code');
     await p.fill('input.m-code', totpAt(setup.secret, currentStep()));
-    await p.waitForURL((u) => u.pathname === '/m');
+    await p.waitForURL((u) => u.pathname === '/m/');
     await ready(p);
     assert.equal(await p.textContent('.m-page:not(.m-leaving) .m-title'), 'Meine Anfragen');
     await close();
     assert.deepEqual(errors, []);
 
-    // Account without 2FA where it is required: setup happens in the desktop view
-    S.db.prepare("UPDATE users SET totp_enabled=0 WHERE username='eva'").run();
+    // Account without 2FA where it is required: setup right here on the phone
+    // (secret key with copy button, otpauth:// link, QR only for another device, then recovery codes)
+    S.db.prepare("UPDATE users SET totp_enabled=0, totp_secret=NULL WHERE username='eva'").run();
     const second = await open(null);
     await second.p.goto(`${S.base}/m/login`);
     await ready(second.p);
     await second.p.fill('input[name=username]', 'eva');
     await second.p.fill('input[name=password]', 'Sehrgeheim123');
     await second.p.tap('button[type=submit]');
-    const link = second.p.locator('a.m-btn', { hasText: 'In Desktop-Ansicht einrichten' });
-    await link.waitFor();
-    assert.equal(await link.getAttribute('href'), '/login?mfa=enroll&ui=desktop');
-    await link.tap();
-    await second.p.waitForURL('**/login');
-    await second.p.waitForSelector('img.qr');
-    assert.deepEqual(second.errors, []);
+    await second.p.waitForSelector('.m-secret');
+    const secret = (await second.p.textContent('.m-secret')).replace(/\s+/g, '');
+    assert.match(secret, /^[A-Z2-7]{16,}$/);
+    const href = await second.p.getAttribute('a.m-otpauth', 'href');
+    assert.match(href, /^otpauth:\/\/totp\//);
+    assert.ok(href.includes(`secret=${secret}`), href);
+    assert.equal(await second.p.isVisible('img.m-qr'), false, 'QR code folded away');
+    await second.p.tap('.m-qr-details summary');
+    assert.ok(await second.p.isVisible('img.m-qr'));
+    assert.equal(await second.p.locator('a.m-btn', { hasText: 'Desktop' }).count(), 0, 'no detour via the desktop view');
+    await second.p.fill('.m-mfa-setup input.m-code', '000000');
+    await second.p.waitForSelector('.m-mfa-setup .m-alert-error:not([hidden])');
+    await second.p.fill('.m-mfa-setup input.m-code', totpAt(secret, currentStep()));
+    await second.p.waitForSelector('.m-recovery-codes li');
+    assert.equal(await second.p.locator('.m-recovery-codes li').count(), 10);
+    await second.p.tap('.m-recovery-done');
+    await second.p.waitForURL((u) => u.pathname === '/m/');
+    assert.equal(S.db.prepare("SELECT totp_enabled FROM users WHERE username='eva'").get().totp_enabled, 1);
+    assert.deepEqual(second.errors.filter((e) => !/40[01]/.test(e)), []);
     await second.close();
   } finally {
     S.ctx.settings.set('mfa.internal', '');
@@ -306,7 +328,7 @@ test('Agent home: counter chips and assigned tickets', { skip }, async () => {
 test('User home: own requests with filter chips, no agent counters', { skip }, async () => {
   const { p, errors, close } = await open('eva');
   await p.goto(`${S.base}/requests`);
-  await p.waitForURL('**/m');
+  await p.waitForURL('**/m/');
   await ready(p);
   assert.equal(await p.textContent('.m-title'), 'Meine Anfragen');
   assert.equal(await p.locator('.m-stat').count(), 0);
@@ -315,7 +337,7 @@ test('User home: own requests with filter chips, no agent counters', { skip }, a
   assert.deepEqual(await p.$$eval('.m-ticket', (x) => x.map((c) => c.dataset.key)), ['IT-1']);
   await p.locator('.m-chip', { hasText: 'Erledigt' }).tap();
   await p.waitForSelector('.m-empty');
-  assert.equal(path(p), '/m?filter=done');
+  assert.equal(path(p), '/m/?filter=done');
   await p.locator('.m-chip', { hasText: 'Ich bin Teilnehmer' }).tap();
   await p.waitForSelector('.m-ticket[data-key="IT-1"]');
   assert.deepEqual(errors, []);
@@ -496,7 +518,7 @@ test('Back navigation: history, back button, edge swipe, scroll position kept', 
   await p.goto(`${S.base}/m/t/IT-2`);
   await ready(p);
   await p.tap('.m-back');
-  await p.waitForURL((u) => u.pathname === '/m');
+  await p.waitForURL((u) => u.pathname === '/m/');
   assert.deepEqual(errors, []);
   await close();
 });
@@ -888,8 +910,11 @@ test('Going back to the list after a change shows the change; pull to refresh on
   await ready(p);
   await p.tap('.m-pill-btn');
   await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
+  // The change reloads the ticket once (PATCH, then GET): wait for it before counting below
+  const reloaded = p.waitForResponse((r) => r.url().endsWith(`/api/tickets/${key}`) && r.request().method() === 'GET');
   await p.locator('.m-choice-row', { hasText: 'Niedrig' }).tap();
   await p.waitForFunction(() => /Niedrig/.test(document.querySelector('.m-pill-btn')?.textContent));
+  await reloaded;
   await p.waitForLoadState('networkidle');
   // Pull to refresh reloads the ticket
   let calls = 0;

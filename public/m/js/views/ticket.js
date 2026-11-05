@@ -76,6 +76,42 @@ export async function renderTicket(page, ctx) {
   }
   const reloadAfterChange = async () => { dataChanged(); try { await load(); } catch (e) { toast(e.message, 'error'); } };
 
+  // Title and description: agents and the reporter (as in the desktop UI; the API checks it)
+  const canEditText = () => agent || tk.reporter?.id === state.user.id;
+  function openEdit() {
+    const title = h('input', { id: 'm-edit-title', value: tk.title, maxLength: 255, required: true, autocomplete: 'off', enterkeyhint: 'next' });
+    const desc = h('textarea.m-textarea.m-edit-desc', { id: 'm-edit-desc', rows: 8 });
+    desc.value = tk.description || '';
+    const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
+    const ok = h('button.m-btn.m-btn-primary', { type: 'submit', form: 'm-edit-form' }, t('app.save'));
+    const form = h('form#m-edit-form.m-form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const nt = title.value.trim();
+        if (!nt) { err.textContent = t('m.new.titleMissing'); err.hidden = false; title.focus(); return; }
+        const patch = {};
+        if (nt !== tk.title) patch.title = nt;
+        if (desc.value !== (tk.description || '')) patch.description = desc.value;
+        if (!Object.keys(patch).length) { sheet.close(); return; }
+        ok.disabled = true;
+        try {
+          await api.updateTicket(tk.key, patch);
+          sheet.close();
+          toast(t('app.saved'), 'success');
+          await reloadAfterChange();
+        } catch (ex) { err.textContent = ex.message; err.hidden = false; ok.disabled = false; }
+      },
+    }, err,
+    h('div.m-field', h('label', { for: 'm-edit-title' }, t('create.summary')), title),
+    h('div.m-field', h('label', { for: 'm-edit-desc' }, t('create.description')), desc),
+    tk.descriptionHtml ? h('p.m-muted.m-small', t('m.edit.mailHint')) : null);
+    title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); desc.focus(); } });
+    const sheet = openSheet({
+      title: t('m.edit.title'), content: form, className: 'm-sheet-tall m-sheet-edit',
+      footer: [h('button.m-btn', { type: 'button', onclick: () => sheet.close() }, t('app.cancel')), ok],
+    });
+  }
+
   function openActions() {
     const canParticipants = tk.canManageParticipants || (tk.participants || []).length;
     openActionSheet(`${tk.key} · ${t('m.act.title')}`, [
@@ -84,6 +120,7 @@ export async function renderTicket(page, ctx) {
       agent ? { id: 'assignee', icon: 'user', label: t('m.act.assignee'), hint: tk.assignee?.displayName || t('app.unassigned'), onClick: () => openAssigneeSheet(tk, save) } : null,
       agent ? { id: 'priority', iconEl: priorityIcon(tk.priority), label: t('m.act.priority'), hint: t(`priority.${tk.priority}`), onClick: () => openPrioritySheet(tk, save) } : null,
       agent ? { id: 'type', iconEl: typeIcon(tk.type), label: t('m.act.type'), hint: t(`type.${tk.type}`), onClick: () => openTypeSheet(tk, save, typesFor(true)) } : null,
+      canEditText() ? { id: 'edit', icon: 'pencil', label: t('m.edit.title'), hint: t('m.edit.hint'), onClick: openEdit } : null,
       canParticipants ? { id: 'participants', icon: 'users', label: t('m.act.participants'), hint: (tk.participants || []).map((p) => p.displayName).join(', ') || t('m.part.none'), onClick: participants } : null,
       {
         id: 'copy', icon: 'link', label: t('ticket.copyLink'),
@@ -216,7 +253,8 @@ export async function renderTicket(page, ctx) {
     return h('div.m-mail-note', icon('mail'), h('span', t('m.ticket.mailText')), h('a', { href }, t('m.ticket.mailOriginal')));
   }
   function descriptionEl() {
-    return section(t('ticket.description'), h('div.m-card.m-desc',
+    const edit = canEditText() ? h('button.m-link.m-section-action', { type: 'button', onclick: openEdit, 'aria-label': t('m.edit.title') }, icon('pencil'), t('app.edit')) : null;
+    return section(h('span.m-section-row', h('span', t('ticket.description')), edit), h('div.m-card.m-desc',
       tk.description ? richText(tk.description) : h('p.m-muted', t('m.ticket.noDescription')),
       tk.descriptionHtml ? mailNote(desktopUrl(tk)) : null));
   }

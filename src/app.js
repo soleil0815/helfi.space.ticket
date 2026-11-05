@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import helmet from 'helmet';
-import { brandRoutes } from './brand.js';
+import { brandRoutes, isHexColor } from './brand.js';
+import { createMobileSw } from './pwa.js';
 import { createLinks } from './itil/links.js';
 import { createMajor } from './itil/major.js';
 import { createSla } from './itil/sla.js';
@@ -117,6 +118,8 @@ export function createApp(db) {
         'style-src': ["'self'"],
         'img-src': ["'self'", 'data:', 'blob:'],
         'connect-src': ["'self'"],
+        // Service worker of the installable mobile app (/m/sw.js)
+        'worker-src': ["'self'"],
         'form-action': ["'self'"],
         'upgrade-insecure-requests': config.baseUrl.startsWith('https://') ? [] : null,
       },
@@ -152,14 +155,21 @@ export function createApp(db) {
   // Branding (logo, colors) – public, also for the sign-in page
   brandRoutes(app, ctx.settings);
 
-  // Web app manifest: "Add to home screen" (name from the settings)
+  // Web app manifest: "Add to home screen" / "Install app" (name and colour from the settings).
+  // The app starts in the mobile UI (/m/, inside the service worker's scope, so a start without
+  // connection shows the offline page); on tablets and computers /m/ forwards to the desktop UI.
+  // id "/" keeps the identity of installations made before start_url pointed to /m/.
   app.get('/manifest.webmanifest', (_req, res) => {
     const name = String(ctx.settings.get('general.title') || 'Helfi.Space').slice(0, 60);
+    const color = isHexColor(ctx.settings.get('brand.color')) ? ctx.settings.get('brand.color').toUpperCase() : null;
+    // The mobile UI has a white top bar; a coloured header (brand setting) colours the window bar too
+    const theme = color && ctx.settings.get('brand.header') === 'color' ? color : '#FFFFFF';
     res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.send(JSON.stringify({
-      name, short_name: name.length <= 15 ? name : 'Helfi.Space', start_url: '/', scope: '/', display: 'standalone',
-      background_color: '#ffffff', theme_color: '#ffffff',
+      id: '/', name, short_name: name.length <= 15 ? name : 'Helfi.Space',
+      start_url: '/m/', scope: '/', display: 'standalone', orientation: 'any',
+      background_color: '#FFFFFF', theme_color: theme,
       icons: [
         { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -168,9 +178,22 @@ export function createApp(db) {
     }));
   });
 
+  // Service worker of the mobile app: generated (shell list + version), never cached by the HTTP cache
+  const mobileSw = createMobileSw(config.publicDir, () => config.version);
+  app.get('/m/sw.js', (_req, res) => {
+    res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(mobileSw.script());
+  });
+
   // Mobile UI (phones): own entry page for /m and /m/… (app paths without a file extension;
   // its CSS/JS under /m/ come from the static files below)
   const mobileHtml = path.join(config.publicDir, 'm', 'index.html');
+  // Start page with a slash: only /m/… lies inside the service worker's scope (offline page)
+  app.get(/^\/m$/, (req, res) => {
+    const q = req.originalUrl.indexOf('?');
+    res.redirect(302, `/m/${q >= 0 ? req.originalUrl.slice(q) : ''}`);
+  });
   app.get(/^\/m(?:\/(?:[^.]*))?$/, (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(mobileHtml);

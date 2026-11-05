@@ -317,15 +317,18 @@ Switch it on under *Administration → Email → Satisfaction survey* (default: 
 
 ## On a smartphone
 
-The interface adapts to narrow screens:
+On phones Helfi.Space opens automatically in its own app-like interface (under `/m`). Tablets and computers keep the familiar view.
 
-- **Menu** ☰ as a drawer with all areas, search behind the magnifier, round ＋ button to create.
-- **Lists as cards**, filters behind a button, multiple selection by pressing and holding.
-- **Ticket:** title and status first, details as an expandable line, then description and activity.
-- **Board** with columns to swipe through, status via ⋯ on the card.
-- **Full-screen dialogs**, inputs without automatic zoom (iPhone), large tap targets, notch and home bar respected.
-- Change calendar as a list, administration with a drop-down, wide tables scroll inside their box.
-- **Add to Home Screen:** web app manifest with icon, Helfi.Space then starts full screen like an app.
+- **Tab bar at the bottom:** *My work* or *Requests*, *Tickets* (agents), the round **＋** button, *Knowledge* and *Me*. Pages slide in like in an app; go back with the button, a swipe from the left edge or the back key. Pull lists down to refresh.
+- **Report (＋):** report a problem with title, description, **Take photo** or **File**; agents also choose project, type and priority (as on the PC). While you type the title, Helfi.Space suggests matching knowledge articles. If there is a service catalog, its offerings appear as large tiles next to it – with all field types, required fields and approval. An unsent draft is kept until the tab is closed.
+- **Ticket:** activity like a chat, reply bar at the bottom with photos and files; agents also write internal notes, use templates, change status, assignee, priority, type and participants and approve requests. Title and description can be changed by agents and by the reporter.
+- **Knowledge:** search, categories, *Recently viewed*, *Most read* and the page tree to browse. Articles with a table of contents, sideways-scrolling tables and comments. Articles are edited on the PC (*Edit on desktop*). Users only see public articles.
+- **Me:** name, email and password (local accounts), language, **two-factor authentication** right on the phone (secret key to copy and an *Open in authenticator app* button instead of a QR code, the QR code stays available for a second device; then the recovery codes to copy or share), what's new and *Desktop view*.
+- **Install as an app:** iPhone/iPad: in Safari *Share* → *Add to Home Screen*. Android: in Chrome ⋮ → *Install app* (or the button under *Me → Install app*). Helfi.Space then starts full screen with its own icon; a small service worker keeps only the program files ready and shows a notice page without a connection. New versions arrive automatically ("New version – Reload").
+- **Switching:** *Me → Desktop view* switches to the familiar view for good, *Phone view* in the user menu switches back. Pages that only exist on the PC (administration, reports, board …) open in the desktop view.
+- **Privacy:** large photos (over 2560 px) are downscaled on the phone before uploading; metadata such as the location (EXIF/GPS) is dropped. Ticket data, attachments and server responses are **not** cached on the device – only the program files. Nothing is loaded from the internet.
+
+The desktop view stays usable on narrow screens too (menu as a drawer, lists as cards, full-screen dialogs).
 
 ## Emojis
 
