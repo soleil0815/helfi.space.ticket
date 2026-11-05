@@ -20,6 +20,7 @@ import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
 import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep } from '../db.js';
 import { log } from '../lib/log.js';
+import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -63,6 +64,8 @@ export function createApi(ctx) {
       auth: {
         ldap: settings.get('ldap.enabled'),
         oidc: settings.get('oidc.enabled') ? { label: settings.get('oidc.buttonLabel'), autoRedirect: settings.get('oidc.autoRedirect') } : null,
+        // Self-registration and "forgot password" (only with working mail sending)
+        ...(req.user ? {} : ctx.selfService.status()),
       },
       allowSelfService: settings.get('general.allowSelfService'),
       defaultLanguage: settings.get('general.defaultLanguage'),
@@ -80,6 +83,8 @@ export function createApi(ctx) {
     if (config.composeVersion && config.composeVersion < COMPOSE_VERSION) w.push({ code: 'composeOutdated', have: config.composeVersion, want: COMPOSE_VERSION });
     if (!config.composeVersion) w.push({ code: 'composeUnknown', want: COMPOSE_VERSION });
     if (ctx.ldapCertWarning) w.push(ctx.ldapCertWarning);
+    const pendingAccounts = db.prepare('SELECT COUNT(*) n FROM users WHERE approval_pending=1').get().n;
+    if (pendingAccounts) w.push({ code: 'accountsPending', count: pendingAccounts });
     const ps = poller.status();
     if (settings.get('imap.enabled') && ps.lastError) w.push({ code: 'imapError', message: ps.lastError });
     if (!config.baseUrl.startsWith('https://')) w.push({ code: 'noHttps' });
@@ -129,6 +134,8 @@ export function createApi(ctx) {
     if (!(local && local.source === 'local' && local.password_hash)) verifyPassword(password, DUMMY_HASH);
     if (local && local.source === 'local' && local.password_hash) {
       if (!verifyPassword(password, local.password_hash)) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
+      // Self-registered, not approved yet: the password is right, so say why (no guessing aid)
+      if (!local.active && local.approval_pending) throw new HttpError(403, 'err.approvalPending');
       // Disabled: same response as for a wrong password (otherwise it would reveal that it is correct)
       if (!local.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r1 = mfa.afterPrimary(req, res, local, 'local');
@@ -172,6 +179,12 @@ export function createApi(ctx) {
     res.json({ user: publicUser(out.user), recoveryCodes: out.recoveryCodes, usedRecovery: out.usedRecovery });
   }));
 
+  // Self-registration and "forgot password": one-time links by mail (src/auth/selfservice.js)
+  r.post('/auth/register', wrap(async (req, res) => res.json(ctx.selfService.register(req))));
+  r.post('/auth/register/confirm', wrap(async (req, res) => res.json(ctx.selfService.confirmRegistration(req.body.token))));
+  r.post('/auth/password/forgot', wrap(async (req, res) => res.json(ctx.selfService.requestReset(req))));
+  r.post('/auth/password/reset', wrap(async (req, res) => res.json(ctx.selfService.resetPassword(req))));
+
   r.post('/auth/logout', (req, res) => {
     sessions.destroy(req, res);
     res.json({ ok: true });
@@ -200,6 +213,9 @@ export function createApi(ctx) {
       if (req.body.displayName !== undefined) displayName = str(req.body.displayName, 120).trim() || null;
       if (req.body.email !== undefined) {
         email = normalizeEmail(str(req.body.email, 254));
+        // Self-registered: the confirmed address is the sign-in name and decides which mails and
+        // contact tickets belong to the account – only an admin may change it
+        if (u.self_registered && email !== String(u.email || '').toLowerCase()) throw new HttpError(400, 'err.emailFixed');
         // New address = new matching of incoming mails → require the current password
         if (email !== String(u.email || '').toLowerCase()) {
           limiter.check(req.ip, u.username);
@@ -339,6 +355,7 @@ export function createApi(ctx) {
     const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (req.body.role !== undefined && role !== u.role ? 1 : u.role_locked);
     // Validate everything first, then save in one transaction (no partial save on errors)
     let newHash = null;
+    let approvedNow = false;
     // Name and address only for local accounts (AD/SSO: come from there, email contacts: from mails)
     let email;
     if ((req.body.displayName !== undefined || req.body.email !== undefined) && u.source !== 'local') throw new HttpError(400, 'err.managedExternally');
@@ -350,6 +367,9 @@ export function createApi(ctx) {
       newHash = hashPassword(pw);
     }
     db.transaction(() => {
+      // Activating or deactivating ends the wait for approval of a self-registered account
+      if (req.body.active !== undefined) db.prepare('UPDATE users SET approval_pending=0 WHERE id=?').run(u.id);
+      if (u.approval_pending && active) approvedNow = true;
       db.prepare('UPDATE users SET role=?, active=?, role_locked=?, display_name=? WHERE id=?').run(
         role, active, roleLocked,
         req.body.displayName !== undefined ? str(req.body.displayName, 120).trim() || u.display_name : u.display_name,
@@ -363,6 +383,10 @@ export function createApi(ctx) {
       mfa.adminReset(u.id);
       sessions.destroyAllForUser(u.id);
       log.info(`2FA of ${u.username} reset by ${req.user.username}`);
+    }
+    if (approvedNow) {
+      log.info(`Self-registered account "${u.username}" approved by ${req.user.username}`);
+      ctx.selfService.notifyApproved(users.byId(u.id));
     }
     res.json({ user: publicUser(users.byId(u.id)) });
   }));
@@ -634,6 +658,8 @@ export function createApi(ctx) {
     if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
     if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     if (incoming['backup.keep'] !== undefined) incoming['backup.keep'] = clampBackupKeep(incoming['backup.keep']);
+    if (incoming['register.passwordReset'] !== undefined && !RESET_MODES.includes(incoming['register.passwordReset'])) throw new HttpError(400, 'err.badRequest', 'register.passwordReset');
+    if (incoming['register.domains'] !== undefined) incoming['register.domains'] = parseDomains(incoming['register.domains']).join('\n');
     settings.setMany(incoming);
     if (incoming['backup.keep'] !== undefined) pruneBackups(incoming['backup.keep']);
     if (Object.keys(incoming).some((k) => k.startsWith('oidc.'))) oidcAuth.resetOidcCache();

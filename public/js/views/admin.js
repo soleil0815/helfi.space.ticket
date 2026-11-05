@@ -281,7 +281,31 @@ async function securityPage(body, s) {
       field(t('mfa.enrollExternal'), bindCheck(s, 'mfa.enrollExternal'), t('mfa.enrollExternalHint')),
       field(t('mfa.ssoSecondFactor'), bindSelect(s, 'mfa.ssoSecondFactor', ['confirmed', 'always', 'never'].map((v) => [v, t(`mfa.sso.${v}`)])), t('mfa.ssoSecondFactorHint')),
       s['oidc.enabled'] && s['mfa.ssoSecondFactor'] === 'always' ? h('div.hint-box.hint-warn', icon('warning'), h('p', t('mfa.ssoAlwaysWarn'))) : null,
-      saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })));
+      saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })),
+    registrationPanel(s, netInfo.levels));
+}
+
+// Self-registration and "forgot password"
+function registrationPanel(s, levels) {
+  const domains = h('textarea.mono', { rows: 3, placeholder: 'partner.example\nfirma.example', spellcheck: false });
+  domains.value = String(s['register.domains'] || '');
+  domains.addEventListener('input', () => { s['register.domains'] = domains.value; });
+  const opts = h('div', { hidden: !s['register.enabled'] },
+    field(t('register.domains'), domains, t('register.domainsHint')),
+    field(t('register.approval'), bindCheck(s, 'register.approval'), t('register.approvalHint')));
+  const noMail = !s['smtp.enabled'] || !s['smtp.host'] || !s['smtp.from'];
+  // 2FA required from outside for users, but enrollment only allowed inside: external people could never sign in
+  const mfaBlocks = (levels?.external === 'all') && !s['mfa.enrollExternal'];
+  const mfaWarn = h('div.hint-box.hint-warn', { hidden: !s['register.enabled'] || !mfaBlocks }, icon('warning'), h('div', t('register.mfaWarn')));
+  return h('section.panel',
+    h('h2', t('register.title')),
+    h('p.muted', t('register.intro')),
+    noMail ? h('div.hint-box.hint-warn', icon('warning'), h('div', t('register.needsMail'))) : null,
+    field(t('register.enabled'), bindCheck(s, 'register.enabled', (on) => { opts.hidden = !on; mfaWarn.hidden = !on || !mfaBlocks; })),
+    opts,
+    mfaWarn,
+    field(t('register.passwordReset'), bindSelect(s, 'register.passwordReset', ['users', 'all', 'off'].map((v) => [v, t(`register.reset.${v}`)])), t('register.passwordResetHint')),
+    saveBar(async () => { if (await saveKeys(s, ['register.'])) route(); }));
 }
 
 // ---------- Projects ----------
@@ -396,7 +420,9 @@ async function usersPage(body, showContacts = false) {
       h('tbody', list.map((u) => h('tr', { class: u.active ? '' : 'muted' },
         h('td.col-person', h('span.person', avatar(u, 'sm'), h('span', u.displayName, u.email ? h('span.muted.block', u.email) : null))),
         h('td', u.username),
-        h('td', t(`profile.source.${u.source}`)),
+        h('td', t(`profile.source.${u.source}`),
+          u.selfRegistered ? h('span.muted.block.small', t('users.selfRegistered')) : null,
+          u.approvalPending ? h('div', h('span.lozenge.lozenge-waiting', t('users.approvalPending'))) : null),
         h('td', select(['user', 'agent', 'admin'].map((r) => [r, t(`role.${r}`)]), u.role, { class: 'select-sm', disabled: u.source === 'email', onchange: (e) => update(u, { role: e.target.value }) })),
         h('td', u.source === 'local' || u.source === 'email' ? '' : h('input', { type: 'checkbox', checked: u.roleLocked, title: t('users.roleLockedHint'), onchange: (e) => update(u, { roleLocked: e.target.checked }) })),
         h('td', u.mfaEnabled ? h('span.badge.badge-ok', { title: t('mfa.statusOn') }, icon('check')) : h('span.muted', '—')),
@@ -404,7 +430,8 @@ async function usersPage(body, showContacts = false) {
         h('td.actions-cell',
           u.source === 'local' ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => editUser(u) }, t('app.edit')) : null,
           u.mfaEnabled ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => { if (confirm(t('mfa.resetConfirm', { name: u.displayName }))) update(u, { resetMfa: true }); } }, t('mfa.reset')) : null,
-          u.id !== state.user.id ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => update(u, { active: !u.active }) }, u.active ? t('users.deactivate') : t('users.activate')) : null)))))));
+          u.approvalPending ? h('button.btn.btn-primary.small', { type: 'button', onclick: () => update(u, { active: true }) }, t('users.approve')) : null,
+          u.id !== state.user.id && !u.approvalPending ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => update(u, { active: !u.active }) }, u.active ? t('users.deactivate') : t('users.activate')) : null)))))));
 }
 
 // Mail loop protection: sender rules and blocked recipients

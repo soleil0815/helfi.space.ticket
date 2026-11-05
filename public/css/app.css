@@ -1217,3 +1217,20 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
 .news-entry h2 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .news-date { font-size: 13px; font-weight: 400; }
 .history button.link { margin-left: 6px; }
+
+/* Support link for admins (sidebar foot, mobile "Me") */
+a.coffee-btn, .sidebar-foot a.coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 10px; margin-bottom: 8px; border-radius: 999px;
+  background: #FFDD00; color: #1D1D1F; border: 2px solid #1D1D1F; font-size: 12px; font-weight: 600; line-height: 1.2; text-decoration: none; white-space: nowrap; }
+a.coffee-btn .icon { width: 16px; height: 16px; }
+a.coffee-btn:hover, .sidebar-foot a.coffee-btn:hover { background: #FFE433; color: #1D1D1F; text-decoration: none; }
+a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* Sign-in page: account links; account pages (register, forgot password) */
+.login-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; font-size: 13px; }
+.login-links a:only-child { margin: 0 auto; }
+.account-done { text-align: center; }
+.account-done-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--blue-subtle); color: var(--blue); margin-bottom: 12px; }
+.account-done-icon .icon { width: 24px; height: 24px; }
+.account-done p { margin-bottom: 20px; color: var(--text-subtle); }
+/* Field for bots: off-screen for people and screen readers */
+.hp-field { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }

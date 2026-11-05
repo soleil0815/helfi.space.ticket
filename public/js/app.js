@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { h, mount, icon, avatar, dropdown, toast, loadSprite } from './dom.js';
 import { t, setLang, getLang, browserLang } from './i18n.js';
 import { renderLogin, renderSetup } from './views/auth.js';
+import { renderRegister, renderRegisterConfirm, renderForgot, renderReset } from './views/account.js';
 import { renderBoard } from './views/board.js';
 import { renderList, renderMyWork } from './views/list.js';
 import { renderTicket, openCreateDialog } from './views/ticket.js';
@@ -33,8 +34,14 @@ let leaveGuard = null;
 let guardUrl = null;
 /** Sidebar footer: link to the website (new tab) and version (→ news) */
 export const HOME_URL = 'https://helfi.space';
+/** Support link for the developer – shown to admins only */
+export const COFFEE_URL = 'https://buymeacoffee.com/soleil0815';
+export function coffeeButton(cls = 'a.coffee-btn') {
+  return h(cls, { href: COFFEE_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.coffeeTitle') }, icon('coffee'), h('span', 'Buy me a coffee'));
+}
 function sidebarFoot() {
   return h('div.sidebar-foot',
+    state.isAdmin ? coffeeButton() : null,
     h('a.home-link', { href: HOME_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.website') }, 'Helfi.Space'), ' ',
     h('a.version-link', { href: '/news', 'data-link': '', title: t('news.title') }, state.boot.app.version));
 }
@@ -129,6 +136,12 @@ export async function route() {
   // Rating link from the email: no login required
   if (path.startsWith('/rate/')) return renderRate(root, path, url.searchParams);
   if (state.boot.setupRequired && !state.user) return renderSetup(root);
+  // Account pages from the sign-in page and from mails (only without sign-in)
+  const accountPage = { '/register': renderRegister, '/register/confirm': renderRegisterConfirm, '/forgot': renderForgot, '/reset': renderReset }[path];
+  if (accountPage) {
+    if (!state.user) return accountPage(root);
+    return navigate('/', { replace: true });
+  }
   if (!state.user) {
     if (path !== '/login') history.replaceState({}, '', `/login${location.search}`);
     return renderLogin(root);

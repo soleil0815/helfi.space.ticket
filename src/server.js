@@ -44,6 +44,7 @@ async function main() {
     try {
       ctx.sessions.purgeExpired();
       ctx.suppressions.purgeExpired();
+      ctx.selfService.purgeExpired(); // unconfirmed registrations and unused reset links
       // Unsent uploads (pasted images, files for a reply) that nobody claimed within a day
       const drafts = ctx.tickets.purgeDrafts();
       if (drafts) log.info(`Removed ${drafts} unsent attachment draft(s)`);

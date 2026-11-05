@@ -4,7 +4,7 @@ import { h, icon, toast } from '/js/dom.js';
 import { t, getLang, setLang } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { brandLogo, brandTitle } from '/js/brand.js';
-import { loginIntro, loginUserLabel } from '/js/logintext.js';
+import { loginIntro, loginUserLabel, loginUserHint, accountLinks } from '/js/logintext.js';
 import { replaceUrl } from '../router.js';
 import { signedIn } from '../main.js';
 import { mfaSetupSteps } from '../mfa.js';
@@ -69,10 +69,11 @@ export function renderLogin(page) {
   ...loginIntro(state.boot.login),
   mfaHint,
   err,
-  fieldEl(loginUserLabel(state.boot.login) || t('login.username'), user, state.boot.auth.ldap ? t('login.usernameHint') : null),
+  fieldEl(loginUserLabel(state.boot.login) || t('login.username'), user, loginUserHint(state.boot.auth)),
   fieldEl(t('login.password'), pass),
   btn,
-  oidc ? [h('div.m-divider', h('span', t('login.or'))), h('a.m-btn.m-btn-block.m-btn-sso', { href: '/auth/oidc/start' }, icon('key'), oidc.label)] : null);
+  oidc ? [h('div.m-divider', h('span', t('login.or'))), h('a.m-btn.m-btn-block.m-btn-sso', { href: '/auth/oidc/start' }, icon('key'), oidc.label)] : null,
+  accountLinks(state.boot.auth, 'div.m-login-links', 'a.m-link'));
   if (error) replaceUrl('/m/login');
   frame(page, form);
 }

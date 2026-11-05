@@ -86,6 +86,19 @@ helfi.firma.local {
 
 *Administration → General → Sign-in page*: your own heading (e.g. "Help center"), welcome text in German and optionally English, e.g. how to get help, and your own label for the user name field ("Windows user name"). Text only: `**bold**`, links and email addresses become clickable, HTML is never executed. A preview shows the result right away.
 
+## Self-registration and forgotten passwords
+
+*Administration → Security → Registration and forgotten passwords* (registration is off by default)
+
+Without AD or SSO, external people simply send an email and are kept as an email contact; they cannot sign in with it. With **self-registration** they create a local account themselves via "Create account" on the sign-in page (role "User") and then also see their requests in the browser.
+
+- **Confirmation link:** enter name, email address and password, then a link arrives (valid for 24 hours). Only then is the account created. If there already is an email contact for the address, it becomes the account, with all previous requests. Unconfirmed registrations expire on their own.
+- **Sign-in** with the email address as user name. Afterwards only an admin can change the address.
+- **Allowed mail domains** (optional, subdomains included) and **approval by an admin** (optional: admins get an email and approve the account under *Users*; the person is notified).
+- **Forgot password:** link by email, valid for 60 minutes and usable once; afterwards all sessions are ended. By default for local accounts with the role "User", optionally for all local accounts or off. The link only appears if such accounts exist. Accounts from AD or SSO change their password there; two-factor sign-in stays in place.
+- **Requires** outgoing mail. The page never says whether an address is already known (the person learns it by email). Requests per IP and address are limited, an invisible field keeps simple bots away; there is no captcha because it would have to load something from the internet.
+- **Two-factor:** if 2FA is required for everyone from outside but enrollment is only allowed inside the company network, external people could never sign in. The settings page points this out.
+
 ## Setting up Active Directory
 
 *Administration → Active Directory*

@@ -4,7 +4,7 @@ import { h, mount, field, icon, select, toast } from '../dom.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { state, navigate, reloadBase, route } from '../app.js';
 import { brandLogo, brandTitle } from '../brand.js';
-import { loginIntro, loginUserLabel } from '../logintext.js';
+import { loginIntro, loginUserLabel, loginUserHint, accountLinks } from '../logintext.js';
 import { noteUser } from '../userdata.js';
 
 function langSwitch() {
@@ -153,10 +153,11 @@ export function renderLogin(root) {
   ...loginIntro(state.boot.login),
   mfaHint,
   err,
-  field(loginUserLabel(state.boot.login) || t('login.username'), user, state.boot.auth.ldap ? t('login.usernameHint') : null),
+  field(loginUserLabel(state.boot.login) || t('login.username'), user, loginUserHint(state.boot.auth)),
   field(t('login.password'), pass),
   btn,
   oidc ? [h('div.divider', h('span', t('login.or'))), h('a.btn.btn-block.btn-sso', { href: '/auth/oidc/start' }, icon('key'), oidc.label)] : null,
+  accountLinks(state.boot.auth, 'div.login-links', 'a.link'),
   );
   mount(root, authFrame(form));
   setTimeout(() => user.focus(), 0);
