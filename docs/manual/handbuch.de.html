@@ -29,7 +29,7 @@
     <li><a href="#benutzer">Für alle: Anmelden und Anfragen stellen</a>
       <ol><li><a href="#anmelden">Anmelden</a></li><li><a href="#melden">Ein Problem melden</a></li><li><a href="#anfragen">Meine Anfragen</a></li><li><a href="#antworten">Antworten und Dateien</a></li><li><a href="#teilnehmer">Anfrage-Teilnehmer</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profil">Profil, Sprache und Kennwort</a></li><li><a href="#2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</a></li><li><a href="#katalog">Service anfordern</a></li><li><a href="#genehmigen">Genehmigen</a></li><li><a href="#hilfe-wissen">Hilfe &amp; Wissen</a></li><li><a href="#bewerten">Bewerten</a></li><li><a href="#smartphone">Auf dem Smartphone</a></li></ol></li>
     <li><a href="#bearbeiter">Für Bearbeiter</a>
-      <ol><li><a href="#warteschlangen">Warteschlangen und Zusammenfassung</a></li><li><a href="#board">Board</a></li><li><a href="#liste">Ticketliste und Filter</a></li><li><a href="#ticket">Ein Ticket bearbeiten</a></li><li><a href="#notizen">Antworten und interne Notizen</a></li><li><a href="#html-mails">HTML-Mails</a></li><li><a href="#vorlagen">Antwortvorlagen</a></li><li><a href="#mehrfach">Mehrere Tickets auf einmal</a></li><li><a href="#berichte">Berichte</a></li><li><a href="#kuerzel">Tastenkürzel</a></li><li><a href="#nie-loeschen">Tickets werden nie gelöscht</a></li></ol></li>
+      <ol><li><a href="#warteschlangen">Warteschlangen und Zusammenfassung</a></li><li><a href="#board">Board</a></li><li><a href="#liste">Ticketliste und Filter</a></li><li><a href="#ticket">Ein Ticket bearbeiten</a></li><li><a href="#notizen">Antworten und interne Notizen</a></li><li><a href="#html-mails">HTML-Mails</a></li><li><a href="#vorlagen">Antwortvorlagen</a></li><li><a href="#ki">KI-Unterstützung</a></li><li><a href="#mehrfach">Mehrere Tickets auf einmal</a></li><li><a href="#berichte">Berichte</a></li><li><a href="#kuerzel">Tastenkürzel</a></li><li><a href="#nie-loeschen">Tickets werden nie gelöscht</a></li></ol></li>
     <li><a href="#itil">IT-Service-Management (ITIL)</a>
       <ol><li><a href="#verknuepfungen">Verknüpfungen und Unteraufgaben</a></li><li><a href="#major">Auswirkung, Dringlichkeit und Major Incident</a></li><li><a href="#sla">Service Level (SLA)</a></li><li><a href="#probleme">Probleme und bekannte Fehler</a></li><li><a href="#changes">Change-Management</a></li><li><a href="#wissen">Wissensdatenbank</a></li><li><a href="#servicekatalog">Servicekatalog einrichten</a></li><li><a href="#geraete">Geräte &amp; Dienste</a></li><li><a href="#zufriedenheit">Zufriedenheitsumfrage</a></li><li><a href="#kennzahlen">ITIL-Kennzahlen</a></li></ol></li>
     <li><a href="#admin">Für Administratoren: Einrichtung</a>
@@ -231,6 +231,14 @@
 <ul>
   <li><strong>Platzhalter</strong> werden beim Einfügen ersetzt: <code>{melder}</code>, <code>{ticket}</code>, <code>{titel}</code>, <code>{bearbeiter}</code>.</li>
   <li><strong>Neue Vorlage:</strong> Text im Kommentarfeld schreiben und <em>Als Vorlage speichern</em> wählen. Persönliche Vorlagen verwaltest du im <em>Profil</em>, Vorlagen für alle pflegen Admins unter <em>Administration → Antwortvorlagen</em>.</li>
+</ul>
+
+<h2 id="ki">KI-Unterstützung</h2>
+<p>Hat ein Admin die KI-Unterstützung eingerichtet, gibt es für Bearbeiter zwei Helfer. Alles, was die KI liefert, ist ein <strong>Vorschlag</strong>: Nichts wird automatisch gesendet oder gespeichert, Anfragende sehen davon nichts.</p>
+<ul>
+  <li><strong>KI-Zusammenfassung</strong> unter der Beschreibung: <em>Zusammenfassen</em> erstellt eine Übersicht „Worum es geht – Bisher passiert – Offen / nächster Schritt“. Sie bleibt gespeichert; ändert sich das Ticket, steht ein Hinweis dabei und <em>Neu erstellen</em> holt eine aktuelle.</li>
+  <li><strong>KI</strong> im Antwortfeld (auf dem Handy das Funkeln-Symbol): <em>Antwort vorschlagen</em> schreibt einen Entwurf aus dem Ticketverlauf. Stehen schon Stichpunkte im Feld, baut die KI daraus die Antwort. Mit Text im Feld gibt es außerdem <em>Text glätten</em>, <em>Kürzen</em> und <em>Übersetzen</em> (Deutsch/Englisch).</li>
+  <li>Der Vorschlag ersetzt den Text im Feld; <em>Rückgängig</em> holt den vorherigen zurück. Anrede und Grußformel fügt Helfi beim Mailversand selbst hinzu – bitte den Vorschlag vor dem Speichern lesen und anpassen.</li>
 </ul>
 
 <h2 id="mehrfach">Mehrere Tickets auf einmal</h2>
@@ -483,6 +491,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <h2 id="benutzerverwaltung">Benutzer</h2>
 <p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten und setzt die 2FA zurück. Selbst registrierte Konten sind gekennzeichnet; ist unter <em>Sicherheit → Registrierung und Kennwort vergessen</em> die Freigabe eingeschaltet, steht bei neuen Konten „Wartet auf Freigabe“ mit dem Knopf <strong>Freigeben</strong>.</p>
 <p><strong>Registrierung und Kennwort vergessen</strong> (<em>Administration → Sicherheit</em>, Registrierung standardmäßig aus): Externe legen sich selbst ein lokales Konto mit der Rolle „Benutzer“ an; die E-Mail-Adresse wird per Link bestätigt, ein vorhandener E-Mail-Kontakt wird dabei mit seinen Anfragen zum Konto. Optional: erlaubte Mail-Domains und Freigabe durch einen Admin. „Kennwort vergessen“ gilt standardmäßig für lokale Konten mit der Rolle „Benutzer“, wahlweise für alle lokalen Konten oder gar nicht. Beides braucht den E-Mail-Versand.</p>
+<p><strong>KI</strong> (<em>Administration → KI</em>, standardmäßig aus): Adresse einer OpenAI-kompatiblen Schnittstelle (z. B. Ollama: <code>http://&lt;host&gt;:11434/v1</code>), Modellname, optional API-Schlüssel (verschlüsselt gespeichert). Empfohlen für den Echtbetrieb ist ein selbst gehostetes Modell im eigenen Netz; bei Cloud-Modellen oder externen Adressen weist die Seite darauf hin, dass Ticketinhalte das Haus verlassen. Interne Notizen gehen nur mit, wenn eingeschaltet; Anhänge nie. <em>Testen</em> prüft die Verbindung.</p>
 <figure><img src="img/de/admin-users.jpg" alt=""><figcaption>Benutzerverwaltung</figcaption></figure>
 
 <h2 id="design">Erscheinungsbild</h2>

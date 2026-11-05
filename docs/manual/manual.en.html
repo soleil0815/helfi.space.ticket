@@ -29,7 +29,7 @@
     <li><a href="#users">For everyone: signing in and making requests</a>
       <ol><li><a href="#signin">Signing in</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li><li><a href="#catalog">Requesting a service</a></li><li><a href="#approving">Approving</a></li><li><a href="#help-knowledge">Help &amp; knowledge</a></li><li><a href="#rating">Rating</a></li><li><a href="#smartphone">On a smartphone</a></li></ol></li>
     <li><a href="#agents">For agents</a>
-      <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
+      <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#ai">AI assistance</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
     <li><a href="#itil">IT service management (ITIL)</a>
       <ol><li><a href="#links">Links and subtasks</a></li><li><a href="#major">Impact, urgency and major incident</a></li><li><a href="#sla">Service levels (SLA)</a></li><li><a href="#problems">Problems and known errors</a></li><li><a href="#changes">Change management</a></li><li><a href="#knowledge">Knowledge base</a></li><li><a href="#servicecatalog">Setting up the service catalog</a></li><li><a href="#devices">Devices &amp; services</a></li><li><a href="#satisfaction">Satisfaction survey</a></li><li><a href="#kpis">ITIL key figures</a></li></ol></li>
     <li><a href="#admin">For administrators: setup</a>
@@ -231,6 +231,14 @@
 <ul>
   <li><strong>Placeholders</strong> are replaced on insertion: <code>{reporter}</code>, <code>{ticket}</code>, <code>{title}</code>, <code>{agent}</code>.</li>
   <li><strong>New template:</strong> write the text in the comment field and choose <em>Save as template</em>. Personal templates are managed in your <em>Profile</em>; templates for everyone are maintained by admins under <em>Administration → Reply templates</em>.</li>
+</ul>
+
+<h2 id="ai">AI assistance</h2>
+<p>If an admin has set up AI assistance, agents get two helpers. Everything the AI returns is a <strong>suggestion</strong>: nothing is sent or saved automatically, and requesters see none of it.</p>
+<ul>
+  <li><strong>AI summary</strong> below the description: <em>Summarize</em> creates an overview “What it is about – What happened so far – Open / next step”. It is kept; if the ticket changes, a note says so and <em>Create again</em> fetches a current one.</li>
+  <li><strong>AI</strong> in the reply field (the sparkle icon on phones): <em>Suggest a reply</em> drafts an answer from the ticket history. If you have already typed notes, the AI builds the reply from them. With text in the field there are also <em>Polish text</em>, <em>Shorten</em> and <em>Translate</em> (German/English).</li>
+  <li>The suggestion replaces the text in the field; <em>Undo</em> brings back the previous text. Helfi adds the salutation and closing itself when sending the mail – please read and adjust the suggestion before saving.</li>
 </ul>
 
 <h2 id="bulk">Several tickets at once</h2>
@@ -483,6 +491,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <h2 id="usermgmt">Users</h2>
 <p><em>Administration → Users</em> lists all accounts with origin (local, AD, SSO, email contact), role, 2FA status and last sign-in. Here you create local users, change roles (“Role locked” prevents AD groups from overriding them), deactivate accounts and reset 2FA. Self-registered accounts are marked; if approval is switched on under <em>Security → Registration and forgotten passwords</em>, new accounts show “Awaiting approval” with an <strong>Approve</strong> button.</p>
 <p><strong>Registration and forgotten passwords</strong> (<em>Administration → Security</em>, registration off by default): external people create a local account with the role “User” themselves; the email address is confirmed via a link, and an existing email contact becomes the account with its requests. Optional: allowed mail domains and approval by an admin. “Forgot password” applies by default to local accounts with the role “User”, optionally to all local accounts or not at all. Both require outgoing mail.</p>
+<p><strong>AI</strong> (<em>Administration → AI</em>, off by default): address of an OpenAI-compatible API (e.g. Ollama: <code>http://&lt;host&gt;:11434/v1</code>), model name, optional API key (stored encrypted). Recommended for production is a self-hosted model in your own network; for cloud models or external addresses the page points out that ticket content leaves the house. Internal notes are only sent if switched on; attachments never. <em>Test</em> checks the connection.</p>
 <figure><img src="img/en/admin-users.jpg" alt=""><figcaption>User management</figcaption></figure>
 
 <h2 id="design">Appearance</h2>

@@ -5,6 +5,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import { log } from '../lib/log.js';
+import { normalizeBaseUrl } from '../lib/http.js';
 
 const MAX_BODY = 512 * 1024 * 1024; // attachments
 const MAX_JSON = 64 * 1024 * 1024; // API responses
@@ -26,7 +27,7 @@ export class JiraError extends Error {
  * @param {string} [c.caPem] custom certificate authority (on-prem)
  */
 export function createJiraClient(c) {
-  const base = new URL(String(c.baseUrl || '').trim().replace(/\/+$/, '') + '/');
+  const base = new URL(normalizeBaseUrl(c.baseUrl) + '/');
   if (!/^https?:$/.test(base.protocol)) throw new JiraError('Nur http:// oder https:// Adressen sind erlaubt.', 400);
   const cloud = c.type === 'cloud';
   const api = cloud ? '/rest/api/3' : '/rest/api/2';

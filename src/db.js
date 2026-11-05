@@ -586,6 +586,21 @@ export const MIGRATIONS = [
     CREATE INDEX idx_account_tokens_exp ON account_tokens(expires_at);
     `,
   },
+  {
+    id: 26,
+    name: 'KI-Zusammenfassungen',
+    sql: `
+    -- Last AI summary per ticket; "basis" = fingerprint of the text it was made from (outdated if it differs)
+    CREATE TABLE ai_summaries (
+      ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      model TEXT NOT NULL,
+      lang TEXT NOT NULL,
+      basis TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

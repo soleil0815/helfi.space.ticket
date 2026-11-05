@@ -21,6 +21,13 @@ export function str(v, max = 10000) {
   return '';
 }
 
+/** Address without spaces and trailing slashes (no regex: linear even for "////…x") */
+export function normalizeBaseUrl(value) {
+  let s = String(value ?? '').trim().slice(0, 2048);
+  while (s.endsWith('/')) s = s.slice(0, -1);
+  return s;
+}
+
 /** YYYY-MM-DD or null */
 export function isoDate(v) {
   const s = str(v, 10);

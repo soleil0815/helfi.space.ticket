@@ -19,6 +19,7 @@ const SECTIONS = [
   ['ldap', 'admin.ldap', 'server'],
   ['sso', 'admin.sso', 'key'],
   ['mail', 'admin.mail', 'mail'],
+  ['ai', 'admin.ai', 'sparkle'],
   ['sla', 'admin.sla', 'chart'],
   ['change', 'admin.change', 'refresh'],
   ['catalog', 'admin.catalog', 'inbox'],
@@ -47,7 +48,7 @@ export async function renderAdmin(content, section) {
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };
-  const pages = { general: generalPage, security: securityPage, ldap: ldapPage, sso: ssoPage, mail: mailPage, sla: (b, x) => slaPage(b, x, { saveBar, saveKeys, bindCheck }), change: (b, x) => changeAdminPage(b, x, { saveBar, saveKeys }) };
+  const pages = { general: generalPage, security: securityPage, ldap: ldapPage, sso: ssoPage, mail: mailPage, ai: aiPage, sla: (b, x) => slaPage(b, x, { saveBar, saveKeys, bindCheck }), change: (b, x) => changeAdminPage(b, x, { saveBar, saveKeys }) };
   pages[section](body, s, { redirectUri });
 }
 
@@ -647,6 +648,61 @@ function ssoPage(body, s, { redirectUri }) {
 }
 
 // ---------- Email ----------
+// ---------- AI assistance ----------
+/** Model on someone else's servers? (same rule as src/ai.js looksRemote) */
+function aiLooksRemote(baseUrl, model) {
+  if (/(^|[-:])cloud$/i.test(String(model || ''))) return true;
+  let host;
+  try { host = new URL(baseUrl).hostname.toLowerCase(); } catch { return false; }
+  if (!host.includes('.') || host === 'localhost' || /\.(local|lan|internal|home\.arpa)$/.test(host)) return false;
+  if (/^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(host)) return false;
+  if (/^\[?(::1|f[cd][0-9a-f]{2}:|fe80:)/.test(host)) return false;
+  return true;
+}
+
+function aiPage(body, s) {
+  const res = result();
+  const remoteHint = h('div.hint-box.hint-warn', icon('warning'), h('div', t('ai.remoteHint')));
+  const updateHint = () => { remoteHint.hidden = !aiLooksRemote(s['ai.baseUrl'], s['ai.model']); };
+  const baseUrl = bindInput(s, 'ai.baseUrl', { placeholder: 'http://ollama:11434/v1', spellcheck: false, autocomplete: 'off' });
+  const model = bindInput(s, 'ai.model', { placeholder: 'qwen3:14b', spellcheck: false, autocomplete: 'off' });
+  baseUrl.addEventListener('input', updateHint);
+  model.addEventListener('input', updateHint);
+  updateHint();
+  mount(body,
+    h('section.panel',
+      h('h2', t('ai.title')),
+      h('p.muted', t('ai.intro')),
+      h('div.hint-box', icon('info'), h('div', t('ai.selfHostHint'))),
+      field(t('ai.enabled'), bindCheck(s, 'ai.enabled')),
+      h('div.grid-2',
+        field(t('ai.baseUrl'), baseUrl, t('ai.baseUrlHint')),
+        field(t('ai.model'), model, t('ai.modelHint'))),
+      remoteHint,
+      h('div.grid-2',
+        field(t('ai.apiKey'), bindInput(s, 'ai.apiKey', { type: 'password', autocomplete: 'new-password' }), t('ai.apiKeyHint')),
+        field(t('ai.reasoning'), bindSelect(s, 'ai.reasoning', ['low', 'medium', 'high', 'off'].map((v) => [v, t(`ai.reasoning.${v}`)])), t('ai.reasoningHint'))),
+      h('div.grid-2',
+        field(t('ai.maxChars'), bindInput(s, 'ai.maxChars', { type: 'number', min: 2000, max: 200000, step: 1000 }), t('ai.maxCharsHint')),
+        field(t('ai.timeout'), bindInput(s, 'ai.timeout', { type: 'number', min: 10, max: 600 }))),
+      field(t('ai.includeInternal'), bindCheck(s, 'ai.includeInternal'), t('ai.includeInternalHint')),
+      res,
+      saveBar(() => saveKeys(s, ['ai.']),
+        h('button.btn', {
+          type: 'button',
+          onclick: async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            showResult(res, true, t('ai.testing'));
+            try {
+              const r = await api.admin.testAi(pick(s, 'ai.'));
+              showResult(res, r.ok, r.ok ? t('ai.testOk', { model: r.model, ms: r.ms, answer: r.answer }) : r.error);
+            } catch (ex) { showResult(res, false, ex.message); }
+            btn.disabled = false;
+          },
+        }, t('app.test')))));
+}
+
 async function mailPage(body, s) {
   const imapRes = result();
   const smtpRes = result();
