@@ -42,9 +42,6 @@ docker compose logs helfi   # zeigt den Einrichtungscode
 
 Dann `HELFI_BASE_URL` im Browser öffnen. Der Einrichtungsassistent fragt nach dem **Einrichtungscode** aus dem Protokoll und legt den **lokalen Administrator** und das erste Projekt an. Danach geht es direkt zur AD-Einrichtung.
 
-> **Repository noch privat?** Dann braucht der Server einmalig eine Anmeldung bei ghcr.io:
-> `docker login ghcr.io -u <GitHub-Name>` mit einem Personal Access Token (Recht `read:packages`).
-
 Auf dem Host liegen nur vier Dinge:
 
 | | |
@@ -496,6 +493,17 @@ Jedes Release enthält die Image-Datei (`helfi-<Version>-amd64.tar.gz` bzw. `-ar
 
 Ein relativer Pfad zur Image-Datei gilt ab dem aktuellen Ordner. Ohne Versionsangabe übernimmt `update.sh` die Version aus dem Image und hält sie in der `.env` fest; ist sie dort nicht erkennbar, bricht es ab, ohne etwas zu ändern.
 
+### Herkunft prüfen (optional)
+
+Jedes Release ist mit einem Herkunftsnachweis (Build-Provenance) signiert: Image und Image-Dateien stammen nachweislich aus dem CI-Lauf dieses Repositorys. Prüfen mit der GitHub-CLI:
+
+```sh
+gh attestation verify oci://ghcr.io/soleil0815/helfi.space.ticket:1.2.0 --owner soleil0815
+gh attestation verify helfi-1.2.0-amd64.tar.gz --owner soleil0815
+```
+
+Die Image-Dateien lassen sich außerdem mit `sha256sum -c SHA256SUMS` gegen die Prüfsummen aus dem Release prüfen.
+
 ### Eigene Anpassungen an der docker-compose.yml
 
 `update.sh` ersetzt die `docker-compose.yml` nur, wenn sie unverändert ist. Hast du sie angepasst (z. B. einen anderen Datenpfad), bleibt sie, wie sie ist. Die neue Fassung liegt dann als `docker-compose.yml.neu` daneben. Nach einem fehlgeschlagenen Update stellt `update.sh` die vorherige Version, deren Datenbanksicherung und die alte `docker-compose.yml` wieder her. Die alte Version hält es außerdem in der `.env` fest, damit Watchtower oder Dockhand die defekte nicht gleich wieder holen.
@@ -528,6 +536,7 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 - Anhänge werden zum Herunterladen ausgeliefert (nur Bilder werden direkt angezeigt), damit hochgeladene Dateien nie im Kontext von Helfi.Space ausgeführt werden.
 - Gespeicherte Kennwörter bleiben an ihre Verbindung gebunden: Wer bei AD, IMAP, SMTP oder SSO Server, Port, Verschlüsselung, Dienstkonto bzw. Benutzer, Issuer oder Client-ID ändert die Zertifikatsprüfung abschwächt (auch „Abgerufenes Zertifikat“ → „System-Zertifizierungsstellen“) oder ein anderes AD-Zertifikat hinterlegt, muss das Kennwort bzw. Geheimnis im selben Schritt neu eingeben, sonst wird nicht gespeichert. So geht ein gespeichertes Geheimnis nie an einen anderen Server. Verbindungstests mit geändertem Server oder abgeschwächter Prüfung senden das gespeicherte Kennwort ebenfalls nicht.
 - Deaktivierte Konten bekommen bei der Anmeldung dieselbe Meldung wie bei einem falschen Kennwort.
+- **Sicherheitslücke gefunden?** Bitte nicht als öffentliches Issue, sondern vertraulich melden – siehe [SECURITY.md](SECURITY.md).
 
 ## Entwicklung
 

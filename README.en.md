@@ -42,9 +42,6 @@ docker compose logs helfi   # shows the setup code
 
 Then open `HELFI_BASE_URL` in the browser. The setup wizard asks for the **setup code** from the log and creates the **local administrator** and the first project. After that it takes you straight to the AD setup.
 
-> **Repository still private?** Then the server needs a one-time login to ghcr.io:
-> `docker login ghcr.io -u <GitHub name>` with a personal access token (scope `read:packages`).
-
 The host only holds a few things:
 
 | | |
@@ -496,6 +493,17 @@ Every release contains the image file (`helfi-<version>-amd64.tar.gz` or `-arm64
 
 A relative path to the image file is taken from the current folder. Without a version, `update.sh` takes the version from the image and records it in `.env`; if it cannot be determined, it aborts without changing anything.
 
+### Verify the origin (optional)
+
+Every release is signed with build provenance: the image and the image files provably come from the CI run of this repository. Check with the GitHub CLI:
+
+```sh
+gh attestation verify oci://ghcr.io/soleil0815/helfi.space.ticket:1.2.0 --owner soleil0815
+gh attestation verify helfi-1.2.0-amd64.tar.gz --owner soleil0815
+```
+
+The image files can also be checked against the release checksums with `sha256sum -c SHA256SUMS`.
+
 ### Your own changes to docker-compose.yml
 
 `update.sh` only replaces `docker-compose.yml` if it is unchanged. If you have customized it (e.g. a different data path), it stays as it is. The new version is then placed next to it as `docker-compose.yml.neu`. After a failed update, `update.sh` restores the previous version, its database backup and the old `docker-compose.yml`. It also records the old version in `.env`, so Watchtower or Dockhand do not immediately pull the broken one again.
@@ -528,6 +536,7 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 - Attachments are served as downloads (only images are shown directly), so uploaded files never run in the context of Helfi.Space.
 - Stored passwords stay bound to their connection: anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, weakens the certificate check (including “Fetched certificate” → “System certificate authorities”) or stores a different AD certificate, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server. Connection tests with a changed server or a weakened check do not send the stored password either.
 - Disabled accounts get the same message at sign-in as for a wrong password.
+- **Found a vulnerability?** Please do not open a public issue, report it confidentially – see [SECURITY.md](SECURITY.md).
 
 ## Development
 
