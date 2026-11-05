@@ -5,7 +5,9 @@
 // nothing is sent to customers or changed in a ticket automatically. Ticket content is never
 // written to the log (only ticket key, task, model and duration).
 import crypto from 'node:crypto';
-import { HttpError, str } from './lib/http.js';
+import { HttpError, str, normalizeBaseUrl } from './lib/http.js';
+
+export { normalizeBaseUrl };
 import { normalizeLang } from './i18n.js';
 import { log } from './lib/log.js';
 import { createRateLimit } from './auth/selfservice.js';
@@ -96,7 +98,7 @@ export function createAi({ db, settings, tickets }) {
     const reasoning = settings.get('ai.reasoning');
     return {
       enabled: !!settings.get('ai.enabled'),
-      baseUrl: String(settings.get('ai.baseUrl') || '').trim().replace(/\/+$/, ''),
+      baseUrl: normalizeBaseUrl(settings.get('ai.baseUrl')),
       model: String(settings.get('ai.model') || '').trim(),
       apiKey: settings.get('ai.apiKey') || '',
       reasoning: REASONING.includes(reasoning) ? reasoning : 'low',

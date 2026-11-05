@@ -21,7 +21,7 @@ import { DEFAULTS } from '../settings.js';
 import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep } from '../db.js';
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
-import { REASONING } from '../ai.js';
+import { REASONING, normalizeBaseUrl } from '../ai.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -672,7 +672,7 @@ export function createApi(ctx) {
       let u = null;
       try { u = new URL(String(incoming['ai.baseUrl']).trim()); } catch { /* checked below */ }
       if (!u || !/^https?:$/.test(u.protocol) || u.username || u.password) throw new HttpError(400, 'err.badRequest', 'ai.baseUrl');
-      incoming['ai.baseUrl'] = String(incoming['ai.baseUrl']).trim().replace(/\/+$/, '');
+      incoming['ai.baseUrl'] = normalizeBaseUrl(incoming['ai.baseUrl']);
     }
     if (incoming['register.domains'] !== undefined) incoming['register.domains'] = parseDomains(incoming['register.domains']).join('\n');
     settings.setMany(incoming);
@@ -726,7 +726,7 @@ export function createApi(ctx) {
       const u = new URL(cfg.baseUrl);
       if (!/^https?:$/.test(u.protocol)) throw new HttpError(400, 'err.badRequest', 'baseUrl');
       res.json(await ctx.ai.test({
-        baseUrl: String(cfg.baseUrl).trim().replace(/\/+$/, ''), model: String(cfg.model || '').trim(), apiKey: cfg.apiKey || '',
+        baseUrl: normalizeBaseUrl(cfg.baseUrl), model: String(cfg.model || '').trim(), apiKey: cfg.apiKey || '',
         reasoning: REASONING.includes(cfg.reasoning) ? cfg.reasoning : 'low', timeoutMs: 60000,
       }));
     } catch (e) {

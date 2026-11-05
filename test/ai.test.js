@@ -15,7 +15,7 @@ const { openDatabase } = await import('../src/db.js');
 const { initMasterKey } = await import('../src/lib/crypto.js');
 const { createApp } = await import('../src/app.js');
 const { paths } = await import('../src/config.js');
-const { cleanAnswer, looksRemote, ticketContext } = await import('../src/ai.js');
+const { cleanAnswer, looksRemote, ticketContext, normalizeBaseUrl } = await import('../src/ai.js');
 
 // ---------- Fake model server ----------
 const calls = [];
@@ -167,6 +167,11 @@ test('Requesters cannot use it', async () => {
 });
 
 test('Helpers: think blocks, remote detection, context shortening', () => {
+  assert.equal(normalizeBaseUrl(' http://ollama:11434/v1/// '), 'http://ollama:11434/v1');
+  // No regex backtracking: many slashes followed by another character stay fast
+  const start = Date.now();
+  normalizeBaseUrl(`http://x/${'/'.repeat(100000)}x`);
+  assert.ok(Date.now() - start < 200);
   assert.equal(cleanAnswer('<think>a\nb</think>\n Antwort '), 'Antwort');
   assert.equal(cleanAnswer('reasoning…</think>Antwort'), 'Antwort');
   assert.equal(looksRemote('http://ollama:11434/v1', 'llama3'), false);
