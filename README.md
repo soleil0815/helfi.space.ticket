@@ -536,6 +536,7 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 - Anhänge werden zum Herunterladen ausgeliefert (nur Bilder werden direkt angezeigt), damit hochgeladene Dateien nie im Kontext von Helfi.Space ausgeführt werden.
 - Gespeicherte Kennwörter bleiben an ihre Verbindung gebunden: Wer bei AD, IMAP, SMTP oder SSO Server, Port, Verschlüsselung, Dienstkonto bzw. Benutzer, Issuer oder Client-ID ändert die Zertifikatsprüfung abschwächt (auch „Abgerufenes Zertifikat“ → „System-Zertifizierungsstellen“) oder ein anderes AD-Zertifikat hinterlegt, muss das Kennwort bzw. Geheimnis im selben Schritt neu eingeben, sonst wird nicht gespeichert. So geht ein gespeichertes Geheimnis nie an einen anderen Server. Verbindungstests mit geändertem Server oder abgeschwächter Prüfung senden das gespeicherte Kennwort ebenfalls nicht.
 - Deaktivierte Konten bekommen bei der Anmeldung dieselbe Meldung wie bei einem falschen Kennwort.
+- Das Image enthält nur, was läuft: keine Paketwerkzeuge von Node (npm, yarn, corepack), vom Datenbanktreiber nur die Datei für die eigene Plattform. Jedes Release wird vor der Freigabe mit Trivy geprüft; zusätzlich prüft die CI jeden Montag das veröffentlichte Image und legt ein Issue an, sobald behebbare Lücken (hoch/kritisch) auftauchen – dann hilft ein neues Release.
 - **Sicherheitslücke gefunden?** Bitte nicht als öffentliches Issue, sondern vertraulich melden – siehe [SECURITY.md](SECURITY.md).
 
 ## Entwicklung
