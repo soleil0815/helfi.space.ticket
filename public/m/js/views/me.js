@@ -62,7 +62,9 @@ export function renderMe(page) {
       listRow({ icon: 'monitor', label: t('m.me.desktop'), hint: t('m.me.desktopHint'), onClick: () => switchToDesktop('/m/me') })),
     group(null,
       listRow({ icon: 'logout', label: t('app.logout'), danger: true, onClick: () => signOut() })),
-    h('p.m-version', `Helfi.Space ${state.boot.app.version}`));
+    h('p.m-version', `Helfi.Space ${state.boot.app.version}`),
+    // Support link for the developer – admins only
+    u.role === 'admin' ? h('div.m-coffee', h('a.coffee-btn', { href: 'https://buymeacoffee.com/soleil0815', target: '_blank', rel: 'noopener noreferrer', title: t('app.coffeeTitle') }, icon('coffee'), h('span', 'Buy me a coffee'))) : null);
   // Shown again after a change (e.g. two-factor switched on): draw anew
   page.refresh = async () => renderMe(page);
 }
@@ -71,7 +73,7 @@ export function renderMe(page) {
 function openPersonal() {
   const u = state.user;
   const name = h('input', { value: u.displayName, maxLength: 120, required: true, autocomplete: 'name' });
-  const email = h('input', { type: 'email', value: u.email || '', maxLength: 254, autocomplete: 'email', inputmode: 'email', autocapitalize: 'off' });
+  const email = h('input', { type: 'email', value: u.email || '', maxLength: 254, autocomplete: 'email', inputmode: 'email', autocapitalize: 'off', disabled: !!u.selfRegistered });
   const pw = h('input', { type: 'password', autocomplete: 'current-password' });
   const pwRow = fieldEl(t('profile.currentPassword'), pw, t('profile.emailNeedsPassword'));
   const sync = () => { const changed = email.value.trim().toLowerCase() !== (u.email || '').toLowerCase(); pwRow.hidden = !changed; pw.required = changed; };
@@ -96,7 +98,7 @@ function openPersonal() {
         rerender();
       } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
     },
-  }, err, fieldEl(t('users.displayName'), name), fieldEl(t('users.email'), email, t('profile.emailHint')), pwRow);
+  }, err, fieldEl(t('users.displayName'), name), fieldEl(t('users.email'), email, t(u.selfRegistered ? 'profile.emailFixed' : 'profile.emailHint')), pwRow);
   const sheet = openSheet({ title: t('profile.personal'), content: form, footer: [h('button.m-btn', { type: 'button', onclick: () => sheet.close() }, t('app.cancel')), btn] });
 }
 

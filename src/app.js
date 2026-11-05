@@ -34,6 +34,7 @@ import { createReports } from './reports.js';
 import { findByEmail as ldapFindByEmail, searchPeople as ldapSearchPeople, findByGuid as ldapFindByGuid, findBySid as ldapFindBySid } from './auth/ldap.js';
 import { createJiraImporter } from './import/jira-import.js';
 import { createApi } from './routes/api.js';
+import { createSelfService } from './auth/selfservice.js';
 import { createOidcRoutes } from './routes/oidc.js';
 import { HttpError } from './lib/http.js';
 import { t, langFromHeader, normalizeLang, hasKey } from './i18n.js';
@@ -102,7 +103,8 @@ export function createApp(db) {
   const canned = createCanned(db);
   const news = createNews(db);
   const reports = createReports(db);
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, news, reports, suppressions, ldapCertWarning: null,
+  const selfService = createSelfService({ db, settings, users, sessions, mailer, baseUrl: config.baseUrl });
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, news, reports, suppressions, selfService, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 

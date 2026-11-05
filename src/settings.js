@@ -39,6 +39,12 @@ export const DEFAULTS = {
   'login.userLabelDe': '',
   'login.userLabelEn': '',
 
+  // Self-registration (local accounts with role "user", confirmed by mail) and "forgot password"
+  'register.enabled': false,
+  'register.domains': '', // allowed mail domains (one per line, subdomains included); empty = all
+  'register.approval': false, // new accounts stay inactive until an admin approves them
+  'register.passwordReset': 'users', // off | users (local accounts with role "user") | all (also agents/admins)
+
   // Two-factor sign-in (TOTP)
   'mfa.mode': 'external', // off | external (required only from outside) | always
   'mfa.internalNetworks': '10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7',

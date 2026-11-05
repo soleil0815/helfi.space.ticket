@@ -561,6 +561,31 @@ export const MIGRATIONS = [
       WHERE EXISTS (SELECT 1 FROM settings WHERE key='mfa.trustSso' AND value='false');
     `,
   },
+  {
+    id: 25,
+    name: 'Selbstregistrierung und Kennwort vergessen',
+    sql: `
+    -- Self-registered account (shown in the user list) and waiting for approval by an admin
+    ALTER TABLE users ADD COLUMN self_registered INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN approval_pending INTEGER NOT NULL DEFAULT 0;
+    -- One-time links from mails: confirm a registration, reset a password.
+    -- Only the SHA-256 of the token is stored; a pending registration has no user row yet.
+    CREATE TABLE account_tokens (
+      id INTEGER PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('register','reset')),
+      token_hash TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL COLLATE NOCASE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      display_name TEXT,
+      password_hash TEXT,
+      language TEXT,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX idx_account_tokens_email ON account_tokens(email, kind);
+    CREATE INDEX idx_account_tokens_exp ON account_tokens(expires_at);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

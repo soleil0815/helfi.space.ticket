@@ -828,3 +828,10 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 /* Installed app (no browser bar) */
 .m-standalone .m-login-lang { padding-bottom: 4px; }
 .m-edit-desc { min-height: 180px; }
+
+/* Sign-in: "Forgot password?" / "Create account" */
+.m-login-links { display: flex; justify-content: space-between; flex-wrap: wrap; margin-top: 8px; }
+.m-login-links .m-link:only-child { margin: 0 auto; }
+/* Support link for admins (coffee button styles come from app.css) */
+.m-coffee { display: flex; justify-content: center; margin: 12px 0 0; }
+.m-coffee .coffee-btn { font-size: 14px; padding: 8px 16px 8px 12px; min-height: 44px; }

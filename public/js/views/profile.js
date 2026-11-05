@@ -37,7 +37,8 @@ export function renderProfile(content) {
   let personal;
   if (u.source === 'local') {
     const name = h('input', { value: u.displayName, maxLength: 120, required: true, autocomplete: 'name' });
-    const email = h('input', { type: 'email', value: u.email || '', maxLength: 254, autocomplete: 'email' });
+    // Self-registered: the confirmed address is the sign-in name (only an admin changes it)
+    const email = h('input', { type: 'email', value: u.email || '', maxLength: 254, autocomplete: 'email', disabled: !!u.selfRegistered });
     const pwField = h('input', { type: 'password', autocomplete: 'current-password' });
     const pwRow = field(t('profile.currentPassword'), pwField, t('profile.emailNeedsPassword'));
     const syncPw = () => { const changed = email.value.trim().toLowerCase() !== (u.email || '').toLowerCase(); pwRow.hidden = !changed; pwField.required = changed; };
@@ -55,7 +56,7 @@ export function renderProfile(content) {
         } catch (ex) { toast(ex.message, 'error'); }
       },
     }, h('h2', t('profile.personal')),
-    h('div.grid-2', field(t('users.displayName'), name), field(t('users.email'), email, t('profile.emailHint'))),
+    h('div.grid-2', field(t('users.displayName'), name), field(t('users.email'), email, t(u.selfRegistered ? 'profile.emailFixed' : 'profile.emailHint'))),
     pwRow,
     h('button.btn.btn-primary', { type: 'submit' }, t('app.save')));
     syncPw();

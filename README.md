@@ -86,6 +86,19 @@ helfi.firma.local {
 
 *Administration → Allgemein → Anmeldeseite*: eigene Überschrift (z. B. „Hilfecenter“), Begrüßungstext auf Deutsch und optional Englisch, z. B. wie man Hilfe bekommt, und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: `**fett**`, Links und Mailadressen werden automatisch anklickbar, HTML wird nie ausgeführt. Eine Vorschau zeigt das Ergebnis sofort.
 
+## Selbstregistrierung und Kennwort vergessen
+
+*Administration → Sicherheit → Registrierung und Kennwort vergessen* (Registrierung standardmäßig aus)
+
+Ohne AD oder SSO schreiben Externe einfach eine Mail und werden als E-Mail-Kontakt geführt; anmelden können sie sich damit nicht. Mit **Selbstregistrierung** legen sie sich über „Konto erstellen“ auf der Anmeldeseite selbst ein lokales Konto an (Rolle „Benutzer“) und sehen ihre Anfragen dann auch im Browser.
+
+- **Bestätigung per Link:** Name, E-Mail-Adresse und Kennwort eingeben, dann kommt ein Link (24 Stunden gültig). Erst danach entsteht das Konto. Gibt es zur Adresse schon einen E-Mail-Kontakt, wird er zum Konto, mit allen bisherigen Anfragen. Unbestätigte Registrierungen verfallen von selbst.
+- **Anmeldung** mit der E-Mail-Adresse als Benutzername. Die Adresse lässt sich danach nur von einem Admin ändern.
+- **Erlaubte Mail-Domains** (optional, Subdomains eingeschlossen) und **Freigabe durch einen Admin** (optional: Admins bekommen eine Mail und geben das Konto unter *Benutzer* frei; die Person wird benachrichtigt).
+- **Kennwort vergessen:** Link per Mail, 60 Minuten gültig und nur einmal nutzbar; danach sind alle Sitzungen beendet. Standardmäßig für lokale Konten mit der Rolle „Benutzer“, wahlweise für alle lokalen Konten oder aus. Der Link erscheint nur, wenn es solche Konten gibt. Konten aus AD oder SSO ändern ihr Kennwort dort; die Zwei-Faktor-Anmeldung bleibt bestehen.
+- **Voraussetzung** ist der E-Mail-Versand. Die Seite sagt nie, ob eine Adresse schon bekannt ist (die Person erfährt es per Mail). Anfragen pro IP und Adresse sind begrenzt, ein unsichtbares Feld hält einfache Bots ab; ein Captcha gibt es nicht, weil dafür etwas aus dem Internet geladen werden müsste.
+- **Zwei-Faktor:** Ist 2FA von außen für alle Pflicht, die Ersteinrichtung aber nur im Firmennetz erlaubt, könnten sich Externe nie anmelden. Die Einstellungsseite weist darauf hin.
+
 ## Active Directory einrichten
 
 *Administration → Active Directory*

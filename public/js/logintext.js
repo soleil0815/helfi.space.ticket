@@ -19,3 +19,18 @@ export function loginIntro(login) {
     text ? h('div.login-intro', richText(text)) : null,
   ];
 }
+
+/** Hint below the user name: AD logon name and/or email address of a self-created account */
+export function loginUserHint(auth) {
+  if (auth.register) return t(auth.ldap ? 'login.usernameOrEmailHint' : 'login.emailHint');
+  return auth.ldap ? t('login.usernameHint') : null;
+}
+
+/** "Forgot password?" and "Create account" below the sign-in form (shared with the mobile UI) */
+export function accountLinks(auth, wrap, link) {
+  if (!auth.passwordReset && !auth.register) return null;
+  // Full page loads: these pages exist in the desktop UI only (also used on phones)
+  return h(wrap,
+    auth.passwordReset ? h(link, { href: '/forgot' }, t('login.forgot')) : null,
+    auth.register ? h(link, { href: '/register' }, t('login.register')) : null);
+}

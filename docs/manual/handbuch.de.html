@@ -80,6 +80,7 @@
 <h2 id="anmelden">Anmelden</h2>
 <p>Öffne die Adresse, die deine IT dir genannt hat, z. B. <code>https://helfi.firma.local</code>. Mit Active Directory meldest du dich mit deinem Windows-Konto an – als <code>m.muster</code>, <code>FIRMA\m.muster</code> oder <code>m.muster@firma.local</code>. Ist Single Sign-on eingerichtet, gibt es zusätzlich einen Knopf „Mit Firmenkonto anmelden“, oder du wirst direkt weitergeleitet.</p>
 <figure class="medium"><img src="img/de/login.jpg" alt=""><figcaption>Anmeldeseite mit eigenem Begrüßungstext</figcaption></figure>
+<p><strong>Ohne Firmenkonto:</strong> Steht unter dem Anmelden „Konto erstellen“, kannst du dir selbst ein Konto anlegen: Name, E-Mail-Adresse und Kennwort eingeben und den Link in der Bestätigungsmail öffnen. Hast du schon per Mail Anfragen gestellt, nimm dieselbe Adresse – sie erscheinen dann im Konto. Angemeldet wird mit der E-Mail-Adresse. „Kennwort vergessen?“ schickt dir einen Link, mit dem du ein neues Kennwort festlegst.</p>
 <p>Meldest du dich <strong>von außerhalb des Firmennetzes</strong> an, fragt Helfi.Space je nach Einstellung nach dem Kennwort zusätzlich einen 6-stelligen Code aus deiner Authenticator-App ab (siehe <a href="#2fa-einrichten">2.8</a>).</p>
 
 <h2 id="melden">Ein Problem melden</h2>
@@ -480,7 +481,8 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <figure><img src="img/de/admin-projects.jpg" alt=""><figcaption>Projekte</figcaption></figure>
 
 <h2 id="benutzerverwaltung">Benutzer</h2>
-<p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten und setzt die 2FA zurück.</p>
+<p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten und setzt die 2FA zurück. Selbst registrierte Konten sind gekennzeichnet; ist unter <em>Sicherheit → Registrierung und Kennwort vergessen</em> die Freigabe eingeschaltet, steht bei neuen Konten „Wartet auf Freigabe“ mit dem Knopf <strong>Freigeben</strong>.</p>
+<p><strong>Registrierung und Kennwort vergessen</strong> (<em>Administration → Sicherheit</em>, Registrierung standardmäßig aus): Externe legen sich selbst ein lokales Konto mit der Rolle „Benutzer“ an; die E-Mail-Adresse wird per Link bestätigt, ein vorhandener E-Mail-Kontakt wird dabei mit seinen Anfragen zum Konto. Optional: erlaubte Mail-Domains und Freigabe durch einen Admin. „Kennwort vergessen“ gilt standardmäßig für lokale Konten mit der Rolle „Benutzer“, wahlweise für alle lokalen Konten oder gar nicht. Beides braucht den E-Mail-Versand.</p>
 <figure><img src="img/de/admin-users.jpg" alt=""><figcaption>Benutzerverwaltung</figcaption></figure>
 
 <h2 id="design">Erscheinungsbild</h2>

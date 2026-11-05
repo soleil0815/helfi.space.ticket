@@ -220,7 +220,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     }
 
     const sender = opts.sender || users.byEmail(fromAddr) || users.contactForEmail(fromAddr, from?.name || '');
-    if (!sender.active) { remember.run(messageId, null); return { action: 'skipped', reason: 'inactive', from: fromAddr, messageId }; }
+    // Waiting for approval after self-registration: mails keep working as before (like an email contact)
+    if (!sender.active && !sender.approval_pending) { remember.run(messageId, null); return { action: 'skipped', reason: 'inactive', from: fromAddr, messageId }; }
 
     // Convert HTML-only mails (e.g. from Outlook) into readable text
     const text = String(parsed.text || '').trim()
@@ -264,7 +265,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       const names = recipientNames(parsed);
       for (const addr of recipientAddresses(parsed)) {
         const u = opts.participants?.get(addr) || users.byEmail(addr) || users.contactForEmail(addr, names.get(addr) || '');
-        if (!u.active || u.role === 'agent' || u.role === 'admin') continue;
+        if ((!u.active && !u.approval_pending) || u.role === 'agent' || u.role === 'admin') continue;
         try { tickets.addParticipant(sender, ticketId, { userId: u.id }, { system: true, notify: false }); }
         catch (e) { log.warn(`Participant ${addr} not added`, { error: e.message }); break; }
       }

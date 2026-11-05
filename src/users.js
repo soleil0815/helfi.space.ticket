@@ -17,6 +17,8 @@ export function publicUser(u) {
     lastLogin: u.last_login || null,
     hasPassword: !!u.password_hash,
     mfaEnabled: !!u.totp_enabled,
+    selfRegistered: !!u.self_registered,
+    approvalPending: !!u.approval_pending,
   };
 }
 
@@ -204,7 +206,7 @@ export function createUsers(db) {
     return null;
   }
 
-  return { byAdId, byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, countActiveAdmins, setEmail };
+  return { byAdId, byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
 }
 
 /** Derive the role from group membership. No groups configured → null (role stays). */
