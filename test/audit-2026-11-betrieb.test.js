@@ -265,8 +265,13 @@ test('CI: release only via button from main – not "Run workflow" from a tag, n
   // Publishing: unique candidate per run, release by digest, environment
   const pub = yml.slice(yml.indexOf('\n  publish:'));
   assert.match(pub, /environment: release/);
-  // Build provenance is not available for private repositories of personal accounts (the release failed on it)
-  assert.doesNotMatch(pub, /attest-build-provenance/);
+  // Build provenance (public repository): for the checked digest and the offline images, before any tag is set
+  assert.match(pub, /attest-build-provenance@[0-9a-f]{40}/);
+  assert.match(pub, /subject-digest: \$\{\{ steps\.cand\.outputs\.digest \}\}/);
+  assert.match(pub, /subject-path: release\/helfi-\*\.tar\.gz/);
+  assert.match(pub, /id-token: write/);
+  assert.ok(pub.indexOf('Build provenance (image digest)') > pub.indexOf('Release files'));
+  assert.ok(pub.indexOf('Build provenance (offline images)') < pub.indexOf('Publish the checked image'), 'signed before publishing');
   // Set tags only after the release files (otherwise an error leaves a half release in the registry)
   assert.ok(pub.indexOf('Publish the checked image') > pub.indexOf('Release files'), 'publish after the release files');
   assert.ok(pub.indexOf('Publish the checked image') < pub.indexOf('GitHub release'));

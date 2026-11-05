@@ -6,9 +6,9 @@
 # - Flow: build the image natively for amd64/arm64 (no QEMU), test per architecture, merge into a
 #   candidate (unique per run), scan EXACTLY THIS digest for vulnerabilities, only then publish as
 #   1.2.3 (+ latest if highest version), GitHub release with offline images and checksums.
-#   (No provenance attestation via actions/attest-build-provenance: GitHub does not offer it for
-#   private repositories of personal accounts.) Publishing happens in the environment "release"
-#   (branch main only). Only one release runs at a time.
+#   Build provenance (actions/attest-build-provenance) is signed for the image digest and the offline
+#   images before anything is published – check with: gh attestation verify oci://ghcr.io/… --owner soleil0815
+#   Publishing happens in the environment "release" (branch main only). Only one release runs at a time.
 # Actions are pinned to commit SHAs (Dependabot keeps them current).
 name: CI
 
@@ -221,6 +221,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write      # sign the build provenance (public repository)
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -295,6 +297,17 @@ jobs:
           done
           cp docker-compose.yml env.example update.sh release/
           (cd release && sha256sum -- * > SHA256SUMS)
+      # Provenance before the tags: if signing fails, nothing has been published yet
+      - name: Build provenance (image digest)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.cand.outputs.digest }}
+          push-to-registry: true
+      - name: Build provenance (offline images)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/helfi-*.tar.gz
       # Publish only at the very end: if anything fails before, no half release is left in the registry
       - name: Publish the checked image (same digest)
         env:
