@@ -42,8 +42,11 @@ export function coffeeButton(cls = 'a.coffee-btn') {
 function sidebarFoot() {
   return h('div.sidebar-foot',
     state.isAdmin ? coffeeButton() : null,
-    h('a.home-link', { href: HOME_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.website') }, 'Helfi.Space'), ' ',
-    h('a.version-link', { href: '/news', 'data-link': '', title: t('news.title') }, state.boot.app.version));
+    // Website and version always together on their own line
+    h('div.sidebar-meta',
+      h('a.home-link', { href: HOME_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.website') }, 'Helfi.Space'),
+      h('span', { 'aria-hidden': 'true' }, '·'),
+      h('a.version-link', { href: '/news', 'data-link': '', title: t('news.title') }, state.boot.app.version)));
 }
 
 export function setLeaveGuard(isDirty) { leaveGuard = isDirty; guardUrl = isDirty ? location.pathname + location.search : null; }
