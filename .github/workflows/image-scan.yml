@@ -1,0 +1,61 @@
+# Weekly check of the PUBLISHED image (latest): are there fixable HIGH/CRITICAL vulnerabilities
+# that a new build would fix (new Alpine/Node packages, updated dependencies)?
+# If so, an issue is opened (or updated) – publishing stays manual (Actions → CI → Run workflow).
+# The issue is closed automatically once the published image is clean again.
+name: Image scan
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'   # Mondays 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-scan
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan latest (amd64)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:latest
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: json
+          output: trivy-amd64.json
+          exit-code: '0'
+      - name: Scan latest (arm64)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ env.IMAGE }}:latest
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: json
+          output: trivy-arm64.json
+          exit-code: '0'
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sh .github/scripts/scan-issue.sh trivy-amd64.json trivy-arm64.json

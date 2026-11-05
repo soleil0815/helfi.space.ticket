@@ -5,6 +5,7 @@
       "version": "",
       "date": "",
       "items": [
+        { "audience": "admin", "de": "Schlankeres Image (rund 35 MB weniger): yarn aus dem Node-Basis-Image entfernt, vom Datenbanktreiber nur noch die Datei für die eigene Plattform. Weniger Ballast heißt auch weniger Meldungen von Sicherheitsscannern.", "en": "Slimmer image (about 35 MB less): yarn from the Node base image removed, only the database driver binary for its own platform. Less ballast also means fewer reports from security scanners." },
         { "audience": "admin", "de": "Releases tragen wieder einen signierten Herkunftsnachweis (Build-Provenance) für Image und Image-Dateien; prüfen mit „gh attestation verify“ (siehe README → Updates).", "en": "Releases carry signed build provenance again for the image and the image files; check with “gh attestation verify” (see README → Updates)." }
       ]
     },

@@ -35,4 +35,15 @@ owner="$(sudo stat -c %u "$DATA/helfi.sqlite")"
 mode="$(sudo stat -c %a "$DATA/helfi.sqlite")"
 [ "$mode" = 600 ] || fail "database has mode $mode instead of 600"
 docker rm -f "$NAME" >/dev/null
+
+# Slim image: no package tools of the Node base image, only one SQLite binary, no sources
+extra="$(docker run --rm --entrypoint /bin/sh "$IMG" -c '
+  for f in /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg; do
+    [ -e "$f" ] && echo "$f"
+  done
+  ls -d /opt/yarn-* /app/node_modules/better-sqlite3/deps /app/node_modules/better-sqlite3/src 2>/dev/null
+  n="$(ls /app/node_modules/better-sqlite3/prebuilds 2>/dev/null | wc -l)"
+  [ "$n" -le 1 ] || echo "better-sqlite3: $n prebuilt binaries"
+  true' 2>&1)"
+[ -z "$extra" ] || fail "left in the image: $(echo "$extra" | tr '\n' ' ')"
 echo "Smoke test passed: $IMG"

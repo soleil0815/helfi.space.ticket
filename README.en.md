@@ -536,6 +536,7 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 - Attachments are served as downloads (only images are shown directly), so uploaded files never run in the context of Helfi.Space.
 - Stored passwords stay bound to their connection: anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, weakens the certificate check (including “Fetched certificate” → “System certificate authorities”) or stores a different AD certificate, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server. Connection tests with a changed server or a weakened check do not send the stored password either.
 - Disabled accounts get the same message at sign-in as for a wrong password.
+- The image contains only what runs: no Node package tools (npm, yarn, corepack), and only the database driver binary for its own platform. Every release is checked with Trivy before publishing; in addition, the CI checks the published image every Monday and opens an issue as soon as fixable vulnerabilities (high/critical) appear – then a new release helps.
 - **Found a vulnerability?** Please do not open a public issue, report it confidentially – see [SECURITY.md](SECURITY.md).
 
 ## Development
