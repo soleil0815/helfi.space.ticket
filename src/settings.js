@@ -39,6 +39,16 @@ export const DEFAULTS = {
   'login.userLabelDe': '',
   'login.userLabelEn': '',
 
+  // AI assistance for agents (OpenAI-compatible endpoint, e.g. Ollama): summary, reply suggestion, rewrite
+  'ai.enabled': false,
+  'ai.baseUrl': '', // e.g. http://ollama:11434/v1
+  'ai.model': '',
+  'ai.apiKey': '', // secret (optional; bound to ai.baseUrl)
+  'ai.reasoning': 'low', // off | low | medium | high (reasoning models such as gpt-oss)
+  'ai.includeInternal': false, // also send internal notes to the model
+  'ai.maxChars': 12000, // ticket text sent at most (newest comments first)
+  'ai.timeout': 90, // seconds
+
   // Self-registration (local accounts with role "user", confirmed by mail) and "forgot password"
   'register.enabled': false,
   'register.domains': '', // allowed mail domains (one per line, subdomains included); empty = all
@@ -136,7 +146,7 @@ export const DEFAULTS = {
   'notify.participantAdded': true, // mail to people added as participants on the web
 };
 
-export const SECRET_KEYS = new Set(['ldap.bindPassword', 'oidc.clientSecret', 'imap.password', 'smtp.password']);
+export const SECRET_KEYS = new Set(['ldap.bindPassword', 'oidc.clientSecret', 'imap.password', 'smtp.password', 'ai.apiKey']);
 
 const SECRET_PLACEHOLDER = '••••••••';
 
@@ -146,6 +156,7 @@ const SECRET_BOUND = {
   imap: ['host', 'port', 'security', 'user'],
   smtp: ['host', 'port', 'security', 'user'],
   oidc: ['issuer', 'clientId'],
+  ai: ['baseUrl'],
 };
 
 // Weaker certificate validation also binds the secret (otherwise it could be captured via

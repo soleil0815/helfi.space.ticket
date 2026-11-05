@@ -21,6 +21,7 @@ import { DEFAULTS } from '../settings.js';
 import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep } from '../db.js';
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
+import { REASONING } from '../ai.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -56,6 +57,7 @@ export function createApi(ctx) {
       sla: { enabled: ctx.sla.enabled() },
       pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
       adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // people search in AD available
+      ai: !!(req.user && isAgent(req.user) && ctx.ai.ready()), // AI assistance (summary, reply suggestion)
       // News of the current version that this account has not seen yet
       news: req.user ? ctx.news.unseen(req.user) : null,
       maxUploadMb: config.maxUploadMb, // upload limit per file (the mobile UI checks it before uploading)
@@ -502,6 +504,12 @@ export function createApi(ctx) {
 
   r.get('/tickets/:key', (req, res) => res.json({ ticket: tickets.detail(req.user, req.params.key) }));
 
+  // AI assistance (agents only, src/ai.js): suggestions only – nothing is sent or changed automatically
+  r.get('/tickets/:key/ai/summary', requireRole('agent'), (req, res) => res.json({ summary: ctx.ai.storedSummary(req.user, req.params.key) }));
+  r.post('/tickets/:key/ai/summary', requireRole('agent'), wrap(async (req, res) => res.json({ summary: await ctx.ai.summarize(req.user, req.params.key) })));
+  r.post('/tickets/:key/ai/reply', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.suggestReply(req.user, req.params.key, req.body.draft))));
+  r.post('/ai/rewrite', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.rewrite(req.user, req.body.text, str(req.body.mode, 20)))));
+
   // Formatted version of an HTML mail – only in the isolated frame: no script, no foreign content
   r.get('/tickets/:key/mail-html', (req, res) => {
     const m = tickets.mailHtml(req.user, req.params.key, req.query.comment ? int(req.query.comment) || -1 : null);
@@ -659,6 +667,13 @@ export function createApi(ctx) {
     if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     if (incoming['backup.keep'] !== undefined) incoming['backup.keep'] = clampBackupKeep(incoming['backup.keep']);
     if (incoming['register.passwordReset'] !== undefined && !RESET_MODES.includes(incoming['register.passwordReset'])) throw new HttpError(400, 'err.badRequest', 'register.passwordReset');
+    if (incoming['ai.reasoning'] !== undefined && !REASONING.includes(incoming['ai.reasoning'])) throw new HttpError(400, 'err.badRequest', 'ai.reasoning');
+    if (incoming['ai.baseUrl'] !== undefined && String(incoming['ai.baseUrl']).trim()) {
+      let u = null;
+      try { u = new URL(String(incoming['ai.baseUrl']).trim()); } catch { /* checked below */ }
+      if (!u || !/^https?:$/.test(u.protocol) || u.username || u.password) throw new HttpError(400, 'err.badRequest', 'ai.baseUrl');
+      incoming['ai.baseUrl'] = String(incoming['ai.baseUrl']).trim().replace(/\/+$/, '');
+    }
     if (incoming['register.domains'] !== undefined) incoming['register.domains'] = parseDomains(incoming['register.domains']).join('\n');
     settings.setMany(incoming);
     if (incoming['backup.keep'] !== undefined) pruneBackups(incoming['backup.keep']);
@@ -704,6 +719,20 @@ export function createApi(ctx) {
   }));
 
   admin.post('/imap/test', wrap(async (req, res) => res.json(await testImap(mergedGroup('imap', req.body.settings)))));
+
+  admin.post('/ai/test', wrap(async (req, res) => {
+    const cfg = mergedGroup('ai', req.body.settings);
+    try {
+      const u = new URL(cfg.baseUrl);
+      if (!/^https?:$/.test(u.protocol)) throw new HttpError(400, 'err.badRequest', 'baseUrl');
+      res.json(await ctx.ai.test({
+        baseUrl: String(cfg.baseUrl).trim().replace(/\/+$/, ''), model: String(cfg.model || '').trim(), apiKey: cfg.apiKey || '',
+        reasoning: REASONING.includes(cfg.reasoning) ? cfg.reasoning : 'low', timeoutMs: 60000,
+      }));
+    } catch (e) {
+      res.json({ ok: false, error: e instanceof HttpError ? t(normalizeLang(req.user.language), e.code, { detail: e.detail ?? '' }) : e.message });
+    }
+  }));
 
   admin.post('/imap/poll', wrap(async (req, res) => {
     const result = await poller.pollOnce();

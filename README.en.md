@@ -83,6 +83,18 @@ helfi.firma.local {
 
 *Administration → General → Sign-in page*: your own heading (e.g. "Help center"), welcome text in German and optionally English, e.g. how to get help, and your own label for the user name field ("Windows user name"). Text only: `**bold**`, links and email addresses become clickable, HTML is never executed. A preview shows the result right away.
 
+## AI assistance (optional)
+
+*Administration → AI* (off by default)
+
+Agents can have tickets summarized and replies suggested, polished, shortened or translated. Everything is only a **suggestion**: nothing is sent or saved automatically, and requesters see none of it.
+
+- **Any OpenAI-compatible API:** Ollama, LM Studio, vLLM, but also cloud providers. Enter the address (Ollama: `http://<host>:11434/v1`), the model and optionally an API key (stored encrypted, only sent to this address). *Test* checks the connection.
+- **Recommended for production: self-host.** With a model in your own network, ticket content does not leave the house. Models from about 8–14 billion parameters (e.g. Qwen3, Mistral, gpt-oss:20b) give usable results; with a GPU, answers come in seconds. Cloud models (including Ollama's `…-cloud` models) send names, descriptions and replies to the provider – the settings page points this out; whether that is permitted is a data protection question.
+- **What the AI gets:** title, description and public comments (newest first, shortened to a configurable length). Internal notes only if switched on; attachments never. The log only contains ticket key, task, model and duration – no content.
+- **Reasoning models** (e.g. gpt-oss): reasoning is set to *low* (faster) and removed from the answer.
+- Only the server talks to the model; the browser still loads nothing from outside. Calls are limited per agent.
+
 ## Self-registration and forgotten passwords
 
 *Administration → Security → Registration and forgotten passwords* (registration is off by default)

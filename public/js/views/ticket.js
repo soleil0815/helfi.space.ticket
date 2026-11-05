@@ -23,6 +23,7 @@ import { kbSuggestions, kbFromTicketButton } from './kb.js';
 import { catalogApprovalBox } from './catalog.js';
 import { ciSection } from './cmdb.js';
 import { ratingBox } from './survey.js';
+import { aiSummarySection, aiComposerTools } from '../aiassist.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -205,14 +206,17 @@ export async function renderTicket(content, key) {
       type: 'button', title: t('canned.insertHint'), 'data-shortcut': 'template',
       onclick: (e) => openTemplatePicker(e.currentTarget, insertTemplate),
     }, icon('comment'), t('canned.insert'), icon('chevron-down')) : null;
+    // AI suggestions (agents, only if set up in the administration)
+    const ai = agent && state.boot.ai ? aiComposerTools(ta, tk, { isInternal: () => internal }) : null;
     const saveAsBtn = agent ? h('button.link.small', {
       type: 'button',
       onclick: () => { if (!ta.value.trim()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: ta.value }); },
     }, t('canned.saveAs')) : null;
-    const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, withEmoji(ta), hint,
+    const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, withEmoji(ta), hint, ai?.note,
       h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: submit }, t('app.save')),
         templateBtn,
+        ai?.button,
         h('span.muted.small', `Ctrl+Enter · ${t('paste.hint')}`),
         saveAsBtn ? h('span.spacer') : null,
         saveAsBtn)));
@@ -383,6 +387,7 @@ export async function renderTicket(content, key) {
         catalogApprovalBox(tk, refresh),
         ratingBox(tk, refresh, agent),
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
+        agent && state.boot.ai ? aiSummarySection(tk) : null,
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,
         attachmentsEl(),

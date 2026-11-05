@@ -83,6 +83,18 @@ helfi.firma.local {
 
 *Administration → Allgemein → Anmeldeseite*: eigene Überschrift (z. B. „Hilfecenter“), Begrüßungstext auf Deutsch und optional Englisch, z. B. wie man Hilfe bekommt, und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: `**fett**`, Links und Mailadressen werden automatisch anklickbar, HTML wird nie ausgeführt. Eine Vorschau zeigt das Ergebnis sofort.
 
+## KI-Unterstützung (optional)
+
+*Administration → KI* (standardmäßig aus)
+
+Bearbeiter lassen sich Tickets zusammenfassen und Antworten vorschlagen, glätten, kürzen oder übersetzen. Alles ist nur ein **Vorschlag**: Nichts wird automatisch gesendet oder gespeichert, Anfragende sehen davon nichts.
+
+- **Jede OpenAI-kompatible Schnittstelle:** Ollama, LM Studio, vLLM, aber auch Cloud-Anbieter. Eingetragen werden Adresse (Ollama: `http://<host>:11434/v1`), Modell und optional ein API-Schlüssel (verschlüsselt gespeichert, nur an diese Adresse geschickt). *Testen* prüft die Verbindung.
+- **Empfehlung für den Echtbetrieb: selbst hosten.** Mit einem Modell im eigenen Netz verlassen Ticketinhalte das Haus nicht. Für brauchbares Deutsch eignen sich Modelle ab etwa 8–14 Mrd. Parametern (z. B. Qwen3, Mistral, gpt-oss:20b); mit Grafikkarte kommen Antworten in Sekunden. Cloud-Modelle (auch Ollamas `…-cloud`-Modelle) schicken Namen, Beschreibungen und Antworten zum Anbieter – die Einstellungsseite weist darauf hin; ob das zulässig ist, ist eine Datenschutzfrage.
+- **Was die KI bekommt:** Titel, Beschreibung und öffentliche Kommentare (neueste zuerst, gekürzt auf eine einstellbare Länge). Interne Notizen nur, wenn eingeschaltet; Anhänge nie. Das Protokoll enthält nur Ticketnummer, Aufgabe, Modell und Dauer – keine Inhalte.
+- **Reasoning-Modelle** (z. B. gpt-oss): Das „Nachdenken“ ist auf *niedrig* gestellt (schneller) und wird aus der Antwort entfernt.
+- Nur der Server spricht das Modell an; der Browser lädt weiterhin nichts von außen. Pro Bearbeiter sind die Aufrufe begrenzt.
+
 ## Selbstregistrierung und Kennwort vergessen
 
 *Administration → Sicherheit → Registrierung und Kennwort vergessen* (Registrierung standardmäßig aus)

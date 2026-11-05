@@ -6,6 +6,7 @@ import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { downscale, uploadDraft, isPicture, openAttachSheet as attachSheet, MAX_FILES } from './files.js';
 import { openCannedSheet } from './actions.js';
+import { openSheet } from './sheet.js';
 
 // Drafts belong to the account and the ticket; a draft of another account is never restored
 // (an agent's internal note must not end up in the next user's reply bar). See /js/userdata.js.
@@ -65,12 +66,54 @@ export function replyBar({ getTicket, onSent }) {
       });
     },
   }, icon('comment'), t('m.reply.template')) : null;
+  // AI suggestions (agents, only if set up): reply from the ticket/notes, polish, shorten, translate
+  const aiNote = h('div.m-reply-ai', { hidden: true });
+  let aiBefore = null;
+  const aiBtn = agent && state.boot.ai ? h('button.m-reply-tpl.m-reply-ai-btn', { type: 'button', 'aria-label': t('ai.menuHint'), title: t('ai.menuHint'), onclick: () => openAiSheet() }, icon('sparkle')) : null;
+  function openAiSheet() {
+    const has = !!ta.value.trim();
+    const opt = (label, ic, call) => h('button.m-canned-item', { type: 'button', onclick: () => { sheet.close(); runAi(call); } },
+      h('span.m-canned-title', icon(ic), ' ', label));
+    const sheet = openSheet({
+      title: t('ai.title'),
+      content: h('div.m-canned',
+        internal ? null : opt(has ? t('ai.replyFromNotes') : t('ai.reply'), 'sparkle', () => api.aiReply(key(), ta.value)),
+        has ? [
+          opt(t('ai.polish'), 'pencil', () => api.aiRewrite(ta.value, 'polish')),
+          opt(t('ai.shorter'), 'list', () => api.aiRewrite(ta.value, 'shorter')),
+          opt(t('ai.toGerman'), 'globe', () => api.aiRewrite(ta.value, 'de')),
+          opt(t('ai.toEnglish'), 'globe', () => api.aiRewrite(ta.value, 'en')),
+        ] : null,
+        internal && !has ? h('p.m-sheet-empty', t('ai.noText')) : null),
+    });
+  }
+  async function runAi(call) {
+    busy = true;
+    update();
+    aiBtn.disabled = true;
+    aiNote.hidden = false;
+    aiNote.replaceChildren(h('span.m-spinner-inline'), h('span', t('ai.working')));
+    try {
+      const r = await call();
+      aiBefore = ta.value;
+      ta.value = r.text;
+      aiNote.replaceChildren(icon('sparkle'), h('span', { title: r.model }, t('ai.insertedShort')),
+        h('button.m-link.m-link-small', { type: 'button', onclick: () => { ta.value = aiBefore ?? ''; aiBefore = null; aiNote.hidden = true; changed(); } }, t('ai.undo')));
+    } catch (e) {
+      aiNote.hidden = true;
+      toast(e.message, 'error');
+    } finally {
+      busy = false;
+      aiBtn.disabled = false;
+      changed();
+    }
+  }
   const tools = agent ? h('div.m-reply-tools',
     h('div.m-reply-modes', { role: 'group', 'aria-label': t('m.reply.mode') }, modeReply, modeNote),
-    h('span.spacer'), tplBtn) : null;
+    h('span.spacer'), aiBtn, tplBtn) : null;
 
   const el = h('div.m-reply', { role: 'region', 'aria-label': t('m.reply.placeholder') },
-    tools, filesEl,
+    tools, aiNote, filesEl,
     h('div.m-reply-row', attachBtn, h('div.m-reply-field', ta), sendBtn),
     hint);
 

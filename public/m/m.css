@@ -835,3 +835,13 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 /* Support link for admins (coffee button styles come from app.css) */
 .m-coffee { display: flex; justify-content: center; margin: 12px 0 0; }
 .m-coffee .coffee-btn { font-size: 14px; padding: 8px 16px 8px 12px; min-height: 44px; }
+
+/* AI suggestion in the reply bar */
+.m-reply-ai { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 12px; font-size: 13px; color: var(--text-subtle); }
+.m-reply-ai .icon { width: 16px; height: 16px; color: #6E5DC6; }
+.m-spinner-inline { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: m-spin .8s linear infinite; }
+@keyframes m-spin { to { transform: rotate(360deg); } }
+.m-canned-title .icon { width: 18px; height: 18px; vertical-align: -3px; }
+.m-reply-ai .m-link-small { min-height: 32px; padding: 4px 6px; font-size: 14px; }
+.m-reply-ai-btn { padding-left: 10px; padding-right: 10px; }
+.m-reply-ai-btn .icon { color: #6E5DC6; }

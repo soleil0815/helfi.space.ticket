@@ -5,7 +5,21 @@
       "version": "",
       "date": "",
       "items": [
-        { "audience": "admin", "de": "Schlankeres Image (rund 35 MB weniger): yarn aus dem Node-Basis-Image entfernt, vom Datenbanktreiber nur noch die Datei für die eigene Plattform. Weniger Ballast heißt auch weniger Meldungen von Sicherheitsscannern.", "en": "Slimmer image (about 35 MB less): yarn from the Node base image removed, only the database driver binary for its own platform. Less ballast also means fewer reports from security scanners." },
+        { "audience": "agent", "de": "KI-Unterstützung (wenn eingerichtet): Ticket zusammenfassen lassen und im Antwortfeld unter „KI“ eine Antwort vorschlagen, Text glätten, kürzen oder übersetzen. Alles ist nur ein Vorschlag – bitte vor dem Senden prüfen.", "en": "AI assistance (if set up): have a ticket summarized and, under “AI” in the reply field, suggest a reply, polish, shorten or translate text. Everything is only a suggestion – please check before sending." },
+        { "audience": "admin", "de": "Neu unter Administration → KI: Anbindung an jede OpenAI-kompatible Schnittstelle (z. B. Ollama). Standardmäßig aus; für den Echtbetrieb wird ein selbst gehostetes Modell empfohlen.", "en": "New under Administration → AI: connection to any OpenAI-compatible API (e.g. Ollama). Off by default; a self-hosted model is recommended for production." }
+      ]
+    },
+    {
+      "version": "1.18.0",
+      "date": "2026-11-05",
+      "items": [
+        { "audience": "admin", "de": "Schlankeres Image (rund 35 MB weniger): yarn aus dem Node-Basis-Image entfernt, vom Datenbanktreiber nur noch die Datei für die eigene Plattform. Weniger Ballast heißt auch weniger Meldungen von Sicherheitsscannern.", "en": "Slimmer image (about 35 MB less): yarn from the Node base image removed, only the database driver binary for its own platform. Less ballast also means fewer reports from security scanners." }
+      ]
+    },
+    {
+      "version": "1.17.0",
+      "date": "2026-11-05",
+      "items": [
         { "audience": "admin", "de": "Releases tragen wieder einen signierten Herkunftsnachweis (Build-Provenance) für Image und Image-Dateien; prüfen mit „gh attestation verify“ (siehe README → Updates).", "en": "Releases carry signed build provenance again for the image and the image files; check with “gh attestation verify” (see README → Updates)." }
       ]
     },
