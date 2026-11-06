@@ -2,8 +2,8 @@
   "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
-      "version": "",
-      "date": "",
+      "version": "1.24.0",
+      "date": "2026-11-06",
       "items": [
         { "audience": "agent", "de": "@-Erwähnungen: Im Antwortfeld „@“ und ein paar Buchstaben tippen und eine Person auswählen. Erwähnte bekommen eine Mail; in internen Notizen lassen sich nur Bearbeiter erwähnen. „Erwähnt mich“ in der Seitenleiste (Handy: Chip „Erwähnt“) zeigt die Tickets, neue Erwähnungen sind mit @ markiert.", "en": "@-mentions: type “@” and a few letters in the reply field and pick a person. People mentioned get an email; internal notes can only mention agents. “Mentions me” in the sidebar (phone: “Mentions” chip) lists the tickets, new mentions are marked with @." },
         { "audience": "admin", "de": "Umzug aus anderen Ticketsystemen: Administration → Import übernimmt jetzt auch Tickets aus Zammad, Znuny/OTRS, GLPI, Zendesk, Freshdesk und CSV-Dateien – mit Kommentaren, internen Notizen und Anhängen; Nummern bleiben möglichst erhalten, ein zweiter Lauf ergänzt nur Neues.", "en": "Migrating from other ticket systems: Administration → Import now also takes over tickets from Zammad, Znuny/OTRS, GLPI, Zendesk, Freshdesk and CSV files – with comments, internal notes and attachments; numbers are kept where possible, a second run only adds what is new." },
