@@ -1,5 +1,6 @@
 // Small DOM helpers. Text always via textContent – never user data as HTML.
 import { t, getLang } from './i18n.js';
+import { state } from './state.js';
 
 /** h('div.card#x', {onclick, title}, child1, 'text', ...) */
 export function h(tag, attrs, ...children) {
@@ -116,18 +117,29 @@ export function richText(text) {
     }
     linksOnly(p, part.slice(last));
   };
+  // @-mentions "@[Name](user:ID)": a name tag, own mentions highlighted
+  const mentions = (p, part) => {
+    let last = 0;
+    for (const m of part.matchAll(/@\[([^\]\n]{1,120})\]\(user:(\d{1,10})\)/g)) {
+      links(p, part.slice(last, m.index));
+      const me = state.user && Number(m[2]) === state.user.id;
+      p.append(h(`span.mention${me ? '.mention-me' : ''}`, `@${m[1]}`));
+      last = m.index + m[0].length;
+    }
+    links(p, part.slice(last));
+  };
   for (const para of String(text || '').split(/\n{2,}/)) {
     const p = h('p');
     String(para).split('\n').forEach((line, i) => {
       if (i) p.append(h('br'));
       let last = 0;
       for (const m of line.matchAll(img)) {
-        links(p, line.slice(last, m.index));
+        mentions(p, line.slice(last, m.index));
         const src = `/api/attachments/${m[2]}`;
         p.append(h('a.inline-image', { href: src, target: '_blank', rel: 'noopener' }, h('img', { src, alt: m[1] || '', loading: 'lazy' })));
         last = m.index + m[0].length;
       }
-      links(p, line.slice(last));
+      mentions(p, line.slice(last));
     });
     wrap.append(p);
   }

@@ -11,6 +11,7 @@ export function ticketCard(tk, { terms = [], showAssignee = true } = {}) {
       typeIcon(tk.type),
       h('span.m-ticket-key', tk.key),
       tk.source === 'email' ? h('span.m-ticket-src', { title: t('source.email') }, icon('mail')) : null,
+      tk.mentionUnseen ? h('span.mention-dot', { title: t('mention.unseen'), 'aria-label': t('mention.unseen') }, '@') : null,
       h('span.spacer'),
       sla,
       h('span.m-ticket-time', { title: fmtDate(tk.updatedAt) }, relTime(tk.updatedAt))),

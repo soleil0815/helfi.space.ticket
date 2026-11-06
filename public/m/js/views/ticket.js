@@ -299,7 +299,7 @@ export async function renderTicket(page, ctx) {
     // Pictures shown in the text are not repeated below it
     const inline = new Set([...String(c.body).matchAll(/\]\(\/api\/attachments\/(\d+)\)/g)].map((m) => Number(m[1])));
     const files = tk.attachments.filter((a) => a.commentId === c.id && !inline.has(a.id));
-    return h('article.m-msg', { class: [mine ? 'mine' : '', c.internal ? 'internal' : ''].filter(Boolean).join(' '), 'data-id': String(c.id) },
+    return h('article.m-msg', { class: [mine ? 'mine' : '', c.internal ? 'internal' : '', c.mentionsMe ? 'mentions-me' : ''].filter(Boolean).join(' '), 'data-id': String(c.id) },
       mine ? null : avatar(c.author, 'sm'),
       h('div.m-msg-bubble',
         h('div.m-msg-head',

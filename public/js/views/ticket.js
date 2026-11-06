@@ -1,4 +1,5 @@
 // Ticket view (two columns) and "Create ticket" dialog
+import { attachMentions } from '../mention.js';
 import { api } from '../api.js';
 import {
   h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize,
@@ -7,7 +8,7 @@ import {
 import { peoplePicker } from '../peoplepicker.js';
 import { diffView, diffLegend } from '../diffview.js';
 import { t } from '../i18n.js';
-import { state, navigate, route } from '../app.js';
+import { state, navigate, route, refreshQueueCounts } from '../app.js';
 import { openTemplatePicker, templateDialog, fillPlaceholders } from './canned.js';
 import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
@@ -31,6 +32,8 @@ const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderTicket(content, key) {
   let tk = (await api.ticket(key)).ticket;
+  // Opening the ticket marks my mentions as seen: update the "Mentions me" count
+  if (tk.comments?.some((c) => c.mentionsMe)) setTimeout(() => refreshQueueCounts(), 300);
   let linksEl = null; // links section (agents) – its form also opens from the button in the side panel
   // Navigated away meanwhile (route() has rebuilt): no longer set shortcuts, title or URL
   if (!content.isConnected) return;
@@ -144,7 +147,7 @@ export async function renderTicket(content, key) {
   }
 
   function commentEl(c) {
-    return h('div.comment', { class: c.internal ? 'internal' : '' },
+    return h('div.comment', { class: [c.internal ? 'internal' : '', c.mentionsMe ? 'mentions-me' : ''].filter(Boolean).join(' '), 'data-comment': String(c.id) },
       avatar(c.author, 'md'),
       h('div.comment-main',
         h('div.comment-head',
@@ -192,6 +195,8 @@ export async function renderTicket(content, key) {
     let internal = false;
     const ta = h('textarea', { rows: 3, placeholder: t('ticket.addComment') });
     enableImagePaste(ta, { upload: (files) => api.upload(tk.key, files, { draft: true }) });
+    // @-mentions (agents): "@" + letters shows people who may be mentioned here
+    const mentions = agent ? attachMentions(ta, { getKey: () => tk.key, isInternal: () => internal }) : null;
     const hint = h('div.hint');
     const modeBtns = agent ? h('div.composer-modes',
       h('button.mode.active', { type: 'button', onclick: (e) => setMode(false, e.currentTarget) }, t('ticket.reply')),
@@ -218,7 +223,7 @@ export async function renderTicket(content, key) {
         h('button.btn.btn-primary', { type: 'button', onclick: submit }, t('app.save')),
         templateBtn,
         ai?.button,
-        h('span.muted.small', `Ctrl+Enter · ${t('paste.hint')}`),
+        h('span.muted.small', `Ctrl+Enter · ${t('paste.hint')}${agent ? ` · ${t('mention.hint')}` : ''}`),
         saveAsBtn ? h('span.spacer') : null,
         saveAsBtn)));
     function setMode(isInternal, btn) {
@@ -229,7 +234,7 @@ export async function renderTicket(content, key) {
     }
     async function submit() {
       if (!ta.value.trim()) return;
-      try { await api.comment(tk.key, ta.value, internal); await refresh(); }
+      try { await api.comment(tk.key, mentions ? mentions.encode(ta.value) : ta.value, internal); mentions?.close(); await refresh(); }
       catch (e) { toast(e.message, 'error'); }
     }
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); });

@@ -15,6 +15,11 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Import from another ticket system** (via its REST API, cloud and Server/Data Center): projects, tickets, comments and attachments. Ticket numbers are kept.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
+- **Teamwork:** **@-mentions** in replies and internal notes (with email and a "Mentions me" view), request participants, reply templates, **multi-select** (status, assignment, comment or link for many tickets at once), **linking with search and suggestions** (possible causes, similar tickets)
+- **AI assistance (optional):** summary, reply suggestion and rewriting with your own model (Ollama, LM Studio, vLLM …) or any OpenAI-compatible service – suggestions only, nothing is sent automatically
+- **Phone app:** its own app-like interface under `/m`, installable as an app, with photos, templates, mentions and 2FA setup
+- **Self-registration and "forgot password"** for local accounts (off by default), optionally only for certain domains and with approval
+- **Automatic sign-out when idle,** stricter for admins and access from outside if desired, with a "Still there?" prompt
 - **Roles:** administrator, agent, user. Users only see their own requests.
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
@@ -234,6 +239,15 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
+
+## @-mentions
+
+Agents bring colleagues into a ticket directly: in the reply field (desktop and phone) type **@** and a few letters, then pick a person (click/tap or ↑/↓ and Enter or Tab; Esc closes the list). The name is highlighted in the comment, your own mentions in colour.
+
+- **Who can be mentioned:** in an **internal note** only agents; in a **reply** also the ticket's reporter, participants and approvers. People who cannot see the ticket are not offered – and a reference typed by hand becomes plain text when saving. Reporters do not mention anyone; neither do comments from emails (senders can be forged).
+- **Notification:** people mentioned get an email from the ticket system ("Anna mentioned you on IT-12") with the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
+- **Finding them again:** *Mentions me* in the sidebar (phone: *Mentions* chip under *Tickets*) lists all tickets with a mention; the number next to it counts those not opened yet. New mentions are marked with **@** in lists, and so is the comment in the ticket. Opening the ticket marks the mention as seen.
+- Mentions do not add people as participants or watchers – that is what *Request participants* is for.
 
 ## Editing several tickets at once
 

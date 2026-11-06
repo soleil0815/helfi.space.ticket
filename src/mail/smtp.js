@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { t, normalizeLang } from '../i18n.js';
 import { log } from '../lib/log.js';
 import { parseRules, matchRule } from './rules.js';
+import { mentionsAsText } from '../mentions.js';
 
 export function transportOptions(cfg) {
   return {
@@ -91,7 +92,7 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
 
 /** Embedded images in mails as a note instead of markup (the images are in the ticket). */
 export function inlineImagesAsText(text, lang) {
-  return String(text || '').replace(/!\[([^\]]*)\]\(\/api\/attachments\/\d+\)/g, (m, name) => `[${lang === 'en' ? 'Image' : 'Bild'}: ${name || '…'}]`);
+  return mentionsAsText(text || '').replace(/!\[([^\]]*)\]\(\/api\/attachments\/\d+\)/g, (m, name) => `[${lang === 'en' ? 'Image' : 'Bild'}: ${name || '…'}]`);
 }
 
 /** Attaches the notifications to the ticket events. */
@@ -148,6 +149,27 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       };
       return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars) };
     });
+  }));
+
+  // @-mentions: one mail per mentioned person. Customers who get the reply mail anyway get nothing extra.
+  tickets.events.on('mentioned', safe(async ({ ticket, comment, user, internal, userIds }) => {
+    if (!settings.get('notify.mention') || !user) return;
+    const customers = !internal && settings.get('notify.reporterOnComment') ? new Set(tickets.customerRecipients(ticket.id).map((r) => r.id)) : new Set();
+    for (const id of userIds) {
+      if (id === user.id || customers.has(id)) continue;
+      const u = users.byId(id);
+      if (!u || !u.active || !u.email) continue;
+      const agentRecipient = u.role === 'agent' || u.role === 'admin';
+      // Internal notes only ever go to agents (the comment layer already ensures this)
+      if (internal && !agentRecipient) continue;
+      const lang = recipientLang(u.id);
+      const vars = {
+        key: ticket.key, title: ticket.title, name: u.display_name || t(lang, 'mail.greetingFallback'),
+        author: user.display_name || user.username, body: inlineImagesAsText(comment.body, lang), link: link(ticket), app: appName(),
+        kind: t(lang, internal ? 'mail.mention.inNote' : 'mail.mention.inReply'),
+      };
+      await mailer.send({ to: u.email, subject: t(lang, 'mail.mention.subject', vars), text: t(lang, 'mail.mention.body', vars), ticketId: ticket.id, customer: !agentRecipient });
+    }
   }));
 
   tickets.events.on('resolved', safe(async ({ ticket, user }) => {

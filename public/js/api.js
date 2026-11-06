@@ -146,6 +146,7 @@ export const api = {
   },
   news: () => request('GET', '/api/news'),
   newsSeen: () => request('POST', '/api/news/seen'),
+  mentionCandidates: (key, q, internal) => request('GET', `/api/tickets/${encodeURIComponent(key)}/mention-candidates?q=${encodeURIComponent(q || '')}${internal ? '&internal=1' : ''}`),
   linkSuggestions: (keys) => request('GET', `/api/link-suggestions?keys=${encodeURIComponent(keys.join(','))}`),
   aiSummary: (key) => request('GET', `/api/tickets/${encodeURIComponent(key)}/ai/summary`),
   aiSummarize: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/ai/summary`),

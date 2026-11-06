@@ -1,5 +1,6 @@
 // Reply bar at the bottom of the ticket view: text, reply/internal note (agents), templates,
 // photos and files (uploaded as drafts, linked to the comment), draft text per ticket.
+import { attachMentions } from '/js/mention.js';
 import { api } from '/js/api.js';
 import { h, icon, toast, fmtSize } from '/js/dom.js';
 import { t } from '/js/i18n.js';
@@ -46,6 +47,8 @@ export function replyBar({ getTicket, onSent }) {
   const ta = h('textarea.m-reply-input', {
     rows: 1, enterkeyhint: 'enter', autocomplete: 'off', 'aria-label': t('m.reply.placeholder'), placeholder: t('m.reply.placeholder'),
   });
+  // @-mentions (agents): "@" + letters shows people who may be mentioned here
+  const mentions = agent ? attachMentions(ta, { getKey: key, isInternal: () => internal }) : null;
   const sendBtn = h('button.m-reply-send', { type: 'button', 'aria-label': t('m.reply.send'), title: t('m.reply.send'), onclick: () => send() }, icon('send'));
   const attachBtn = h('button.m-reply-attach', { type: 'button', 'aria-label': t('m.reply.attach'), title: t('m.reply.attach'), onclick: () => openAttachSheet() }, icon('plus'));
   const filesEl = h('div.m-reply-files', { role: 'list', 'aria-label': t('m.reply.attachments'), hidden: true });
@@ -132,7 +135,7 @@ export function replyBar({ getTicket, onSent }) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraft, 250);
   }
-  const saveDraft = () => writeDraft(key(), { text: ta.value, internal });
+  const saveDraft = () => writeDraft(key(), { text: mentions ? mentions.encode(ta.value) : ta.value, internal });
   ta.addEventListener('input', changed);
   ta.addEventListener('blur', saveDraft);
   ta.addEventListener('keydown', (e) => {
@@ -254,7 +257,7 @@ export function replyBar({ getTicket, onSent }) {
       // Pictures appear in the text (as in the desktop UI), other files are linked to the comment
       const pics = list.filter((f) => isPicture(f.file.type));
       const others = list.filter((f) => !isPicture(f.file.type));
-      let text = ta.value.trim();
+      let text = (mentions ? mentions.encode(ta.value) : ta.value).trim();
       if (!text && !pics.length) text = others.map((f) => `📎 ${f.file.name}`).join('\n');
       const body = [text, ...pics.map((f) => `![${altText(f.file.name)}](/api/attachments/${f.attId})`)].filter(Boolean).join('\n');
       const r = await api.comment(k, body, agent && internal, others.map((f) => f.attId));
@@ -262,6 +265,7 @@ export function replyBar({ getTicket, onSent }) {
       for (const f of files) if (f.url) URL.revokeObjectURL(f.url);
       files = [];
       ta.value = '';
+      mentions?.close();
       writeDraft(k, null);
       busy = false;
       drawFiles(); grow(); update();
@@ -282,7 +286,7 @@ export function replyBar({ getTicket, onSent }) {
 
   // ---------- Start: restore the draft of this ticket ----------
   const d = readDraft(key());
-  if (d?.text) ta.value = d.text;
+  if (d?.text) ta.value = mentions ? mentions.decode(d.text) : d.text;
   if (agent && d?.internal) setMode(true);
   else if (agent) setMode(false);
   requestAnimationFrame(grow);
@@ -293,6 +297,6 @@ export function replyBar({ getTicket, onSent }) {
     focus: () => ta.focus(),
     setMode,
     /** After a project move the key changes: keep the draft under the new key */
-    rekey(oldKey, newKey) { if (oldKey !== newKey && ta.value) { writeDraft(oldKey, null); writeDraft(newKey, { text: ta.value, internal }); } },
+    rekey(oldKey, newKey) { if (oldKey !== newKey && ta.value) { writeDraft(oldKey, null); writeDraft(newKey, { text: mentions ? mentions.encode(ta.value) : ta.value, internal }); } },
   };
 }
