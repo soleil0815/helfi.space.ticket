@@ -37,7 +37,9 @@ const lookup = (words, v, def) => {
 
 /** Read CSV rows: separator ; , or tab, quotes as in Excel */
 export function parseCsv(text) {
-  const src = String(text || '').replace(/^﻿/, '');
+  // Strings only: the loop below runs over its length (never over a user-supplied object)
+  if (typeof text !== 'string') return [];
+  const src = text.replace(/^﻿/, '');
   const first = src.split(/\r?\n/, 1)[0] || '';
   const sep = [';', '\t', ','].map((c) => [c, first.split(c).length]).sort((a, b) => b[1] - a[1])[0][0];
   const rows = []; let row = []; let cell = ''; let q = false;

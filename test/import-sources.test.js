@@ -11,6 +11,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-imp-'));
 process.env.HELFI_DATA_DIR = dataDir;
 process.env.HELFI_SETUP_TOKEN = 'code';
 process.env.HELFI_LOG_LEVEL = 'error';
+process.env.HELFI_IMPORT_ALLOW_LOCAL = '1'; // mock systems run on 127.0.0.1
 
 const { openDatabase } = await import('../src/db.js');
 const { initMasterKey } = await import('../src/lib/crypto.js');
@@ -20,6 +21,7 @@ const { suggestColumns, csvDate, csvCategory } = await import('../src/import/csv
 const { parseFrom, zammadCategory } = await import('../src/import/zammad.js');
 const { znunyInternal, znunyDate } = await import('../src/import/znuny.js');
 const { wantedNumber, sanitizeProjectKey, mapPriority } = await import('../src/import/core.js');
+const { blockedAddress } = await import('../src/import/http.js');
 
 let server; let base; let db; let ctx; let cookie = '';
 const events = [];
@@ -263,4 +265,22 @@ test('Admins only; unknown sources do not exist', async () => {
   assert.equal((await fetch(`${base}/api/admin/import/zammad/connect`, { method: 'POST', headers: { 'X-Helfi-Request': '1' } })).status, 401);
   assert.equal((await call('POST', '/api/admin/import/otrs5/connect', { connection: {} })).status, 404);
   assert.equal((await call('POST', '/api/admin/import/zammad/connect', { connection: { baseUrl: 'ftp://x' } })).status, 400);
+});
+
+test('SSRF protection: loopback, link-local (cloud metadata) and multicast are refused, own network stays reachable', async () => {
+  for (const ip of ['127.0.0.1', '127.1.2.3', '0.0.0.0', '169.254.169.254', '224.0.0.1', '::1', '[::1]', '::', 'fe80::1', 'ff02::1', '::ffff:127.0.0.1', '::ffff:169.254.169.254']) assert.equal(blockedAddress(ip), true, ip);
+  for (const ip of ['10.0.10.5', '192.168.1.10', '172.16.0.1', '203.0.113.7', 'fd12::1', '2001:db8::1']) assert.equal(blockedAddress(ip), false, ip);
+  const z = await startMockZammad();
+  delete process.env.HELFI_IMPORT_ALLOW_LOCAL;
+  try {
+    for (const url of [z.url, z.url.replace('127.0.0.1', 'localhost'), 'http://169.254.169.254', 'http://[::1]:8080']) {
+      const r = await call('POST', '/api/admin/import/zammad/connect', { connection: { baseUrl: url, token: 'zammad-token' } });
+      assert.equal(r.body.ok, false, url);
+      assert.match(r.body.error, /gesperrt/, url);
+    }
+    assert.equal(z.calls.length, 0, 'nothing reached the local system');
+  } finally {
+    process.env.HELFI_IMPORT_ALLOW_LOCAL = '1';
+    z.close();
+  }
 });

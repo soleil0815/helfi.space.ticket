@@ -470,6 +470,7 @@ So werden Nummern und Personen behandelt:
 Außerdem gilt:
 
 - Es werden **keine E-Mails** verschickt.
+- **Schutz vor Missbrauch (SSRF):** Der Import verbindet sich nie mit lokalen Adressen (`127.x`, `::1`), Link-Local-Adressen (`169.254.x.x`, z. B. Metadaten-Dienste von Cloud-Servern) oder Multicast – auch nicht über einen Namen oder eine Weiterleitung, die dorthin zeigt. Systeme im eigenen Netz (`10.x`, `172.16–31.x`, `192.168.x`) sind erreichbar. Läuft das Quellsystem wirklich auf demselben Rechner und ist nur über `127.0.0.1` erreichbar, hebt `HELFI_IMPORT_ALLOW_LOCAL=1` in der `.env` die Sperre auf.
 - Vor jedem Start eines Imports legt Helfi.Space eine Sicherung an (`helfi-vor-import-….sqlite`).
 - **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich im Quellsystem seitdem geändert haben (dann gilt der Stand von dort; die geänderten Felder stehen im Verlauf). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren. Bei CSV-Dateien dafür denselben *Namen der Quelle* verwenden; ohne Nummern-Spalte wird eine Zeile an Titel, Erstelldatum und Melder wiedererkannt.
 

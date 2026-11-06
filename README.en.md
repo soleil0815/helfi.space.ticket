@@ -470,6 +470,7 @@ How numbers and people are handled:
 Also:
 
 - **No emails** are sent.
+- **Protection against misuse (SSRF):** the import never connects to local addresses (`127.x`, `::1`), link-local addresses (`169.254.x.x`, e.g. metadata services of cloud servers) or multicast – not even via a name or a redirect pointing there. Systems in your own network (`10.x`, `172.16–31.x`, `192.168.x`) are reachable. If the source system really runs on the same machine and is only reachable via `127.0.0.1`, `HELFI_IMPORT_ALLOW_LOCAL=1` in the `.env` lifts the block.
 - Before every import starts, Helfi.Space creates a backup (`helfi-vor-import-….sqlite`).
 - **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins; the changed fields appear in the history). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day. For CSV files use the same *name of the source*; without a number column a row is recognised by title, creation date and reporter.
 

@@ -6,6 +6,8 @@ import path from 'node:path';
 import { startServer } from './helpers/server.js';
 import { startMockJira } from './fixtures/mock-jira.js';
 
+process.env.HELFI_IMPORT_ALLOW_LOCAL = '1'; // mock systems run on 127.0.0.1
+
 let S; let anna; let karl; let paths; let backupKind;
 const k = {};
 before(async () => {

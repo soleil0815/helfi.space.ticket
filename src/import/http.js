@@ -1,8 +1,10 @@
 // Small HTTP client for importing from other ticket systems.
 // Own implementation so that internal certificates (on-prem) and "do not verify" are possible and
 // credentials are not sent along on redirects to other hosts (e.g. attachments on a media host).
+import dns from 'node:dns';
 import http from 'node:http';
 import https from 'node:https';
+import net from 'node:net';
 import { log } from '../lib/log.js';
 import { normalizeBaseUrl } from '../lib/http.js';
 
@@ -13,6 +15,25 @@ export const MAX_JSON = 64 * 1024 * 1024; // API responses
 export class SourceError extends Error {
   constructor(message, status) { super(message); this.status = status; }
 }
+
+/**
+ * Addresses an import must never reach (SSRF protection): loopback, "this host", link-local
+ * (cloud metadata services such as 169.254.169.254) and multicast. Ticket systems in the own network
+ * (10.x, 172.16–31.x, 192.168.x, fd…) stay reachable. HELFI_IMPORT_ALLOW_LOCAL=1 lifts the block
+ * (tests, or a source system on the same host via its loopback address).
+ */
+export function blockedAddress(ip) {
+  let a = String(ip || '').toLowerCase().replace(/^\[|\]$/g, '');
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
+  if (mapped) a = mapped[1];
+  if (net.isIPv4(a)) {
+    const [x, y] = a.split('.').map(Number);
+    return x === 127 || x === 0 || (x === 169 && y === 254) || x >= 224;
+  }
+  if (net.isIPv6(a)) return a === '::' || a === '::1' || /^fe[89ab]/.test(a) || /^ff/.test(a);
+  return false;
+}
+const allowLocal = () => process.env.HELFI_IMPORT_ALLOW_LOCAL === '1';
 
 /** Error text from typical JSON error bodies (several ticket systems) */
 function errorText(text) {
@@ -37,10 +58,22 @@ export function createSourceHttp({ baseUrl, headers: authHeaders = () => ({}), v
   if (!/^https?:$/.test(base.protocol)) throw new ErrorClass('Nur http:// oder https:// Adressen sind erlaubt.', 400);
   const basePath = base.pathname.replace(/\/$/, ''); // context path, e.g. /jira or /otrs
   const tlsOpts = { rejectUnauthorized: verifyTls !== false, ...(caPem ? { ca: caPem } : {}) };
+  const refused = (host, ip) => new ErrorClass(`Die Adresse ${host}${ip && ip !== host ? ` (${ip})` : ''} ist für den Import gesperrt (lokale oder Link-Local-Adresse).`, 400);
+  // Checked at connect time on the resolved address – also after redirects and against DNS rebinding
+  const guardedLookup = (hostname, options, callback) => dns.lookup(hostname, options, (err, address, family) => {
+    if (err) return callback(err);
+    const list = Array.isArray(address) ? address : [{ address, family }];
+    const bad = allowLocal() ? null : list.find((x) => blockedAddress(x.address));
+    if (bad) return callback(refused(hostname, bad.address));
+    return callback(null, address, family);
+  });
 
   function raw(urlStr, { method = 'GET', body, headers = {}, withAuth = true, redirects = 5, timeoutMs = 60000, maxBytes = MAX_BODY } = {}) {
     return new Promise((resolve, reject) => {
       const url = new URL(urlStr);
+      if (!/^https?:$/.test(url.protocol)) { reject(new ErrorClass('Nur http:// oder https:// Adressen sind erlaubt.', 400)); return; }
+      // Literal IP addresses are not resolved (no lookup call) – check them here
+      if (net.isIP(url.hostname.replace(/^\[|\]$/g, '')) && blockedAddress(url.hostname) && !allowLocal()) { reject(refused(url.hostname)); return; }
       const mod = url.protocol === 'https:' ? https : http;
       const payload = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
       const req = mod.request(url, {
@@ -53,6 +86,7 @@ export function createSourceHttp({ baseUrl, headers: authHeaders = () => ({}), v
           ...headers,
         },
         timeout: timeoutMs,
+        lookup: guardedLookup,
         ...(url.protocol === 'https:' ? tlsOpts : {}),
       }, (res) => {
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
@@ -87,6 +121,7 @@ export function createSourceHttp({ baseUrl, headers: authHeaders = () => ({}), v
       try {
         r = await raw(url, { maxBytes: MAX_JSON, ...opts });
       } catch (e) {
+        if (e instanceof ErrorClass && e.status === 400) throw e; // blocked address: no retry
         if (e.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || e.code === 'SELF_SIGNED_CERT_IN_CHAIN' || e.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
           throw new ErrorClass(`Zertifikat von ${base.host} wird nicht vertraut (${e.code}). Eigene CA eintragen oder Prüfung abschalten.`, 495);
         }
