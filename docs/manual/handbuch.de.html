@@ -33,7 +33,7 @@
     <li><a href="#itil">IT-Service-Management (ITIL)</a>
       <ol><li><a href="#verknuepfungen">Verknüpfungen und Unteraufgaben</a></li><li><a href="#major">Auswirkung, Dringlichkeit und Major Incident</a></li><li><a href="#sla">Service Level (SLA)</a></li><li><a href="#probleme">Probleme und bekannte Fehler</a></li><li><a href="#changes">Change-Management</a></li><li><a href="#wissen">Wissensdatenbank</a></li><li><a href="#servicekatalog">Servicekatalog einrichten</a></li><li><a href="#geraete">Geräte &amp; Dienste</a></li><li><a href="#zufriedenheit">Zufriedenheitsumfrage</a></li><li><a href="#kennzahlen">ITIL-Kennzahlen</a></li></ol></li>
     <li><a href="#admin">Für Administratoren: Einrichtung</a>
-      <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS und Reverse-Proxy</a></li><li><a href="#ersteinrichtung">Ersteinrichtung</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single Sign-on</a></li><li><a href="#2fa">Zwei-Faktor-Anmeldung und Netze</a></li><li><a href="#email">E-Mail</a></li><li><a href="#projekte">Projekte</a></li><li><a href="#benutzerverwaltung">Benutzer</a></li><li><a href="#design">Erscheinungsbild</a></li><li><a href="#anmeldeseite">Anmeldeseite</a></li><li><a href="#import">Import aus einem anderen Ticketsystem</a></li></ol></li>
+      <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS und Reverse-Proxy</a></li><li><a href="#ersteinrichtung">Ersteinrichtung</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single Sign-on</a></li><li><a href="#2fa">Zwei-Faktor-Anmeldung und Netze</a></li><li><a href="#email">E-Mail</a></li><li><a href="#projekte">Projekte</a></li><li><a href="#komponenten">Komponenten</a></li><li><a href="#benutzerverwaltung">Benutzer</a></li><li><a href="#design">Erscheinungsbild</a></li><li><a href="#anmeldeseite">Anmeldeseite</a></li><li><a href="#import">Import aus einem anderen Ticketsystem</a></li></ol></li>
     <li><a href="#betrieb">Für Administratoren: Betrieb</a>
       <ol><li><a href="#updates">Updates</a></li><li><a href="#zurueck">Version festhalten und zurückgehen</a></li><li><a href="#sicherung">Sicherung und Wiederherstellung</a></li><li><a href="#sicherheit">Sicherheit</a></li><li><a href="#hilfe">Fragen und Lösungen</a></li></ol></li>
   </ol>
@@ -191,7 +191,7 @@
 <p>Das Board zeigt die Tickets in vier Spalten nach Status. Ziehe eine Karte mit der Maus in eine andere Spalte, um den Status zu ändern, oder innerhalb einer Spalte, um die Reihenfolge festzulegen. Oben filterst du nach Text, Bearbeiter (Avatare), Typ oder „Nur meine“.</p>
 
 <h2 id="liste">Ticketliste und Filter</h2>
-<p><em>Alle Tickets</em> zeigt eine sortierbare Liste. Filter für Projekt, Status, Typ, Priorität und Bearbeiter lassen sich kombinieren; ein Klick auf eine Spaltenüberschrift sortiert. Die Adresse der Seite enthält die Filter – du kannst sie als Lesezeichen speichern oder weitergeben.</p>
+<p><em>Alle Tickets</em> zeigt eine sortierbare Liste. Filter für Projekt, Status, Typ, Priorität, Bearbeiter und – bei gewähltem Projekt – <a href="#komponenten">Komponente</a> lassen sich kombinieren; ein Klick auf eine Spaltenüberschrift sortiert. Die Adresse der Seite enthält die Filter – du kannst sie als Lesezeichen speichern oder weitergeben.</p>
 <figure><img src="img/de/list.jpg" alt=""><figcaption>Ticketliste mit Filtern</figcaption></figure>
 <h3>Suche</h3>
 <p>Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und beteiligte Personen (auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge, Stichwörter und die im Ticket sichtbaren Namen – nicht über Mailadressen oder Anmeldenamen.</p>
@@ -208,7 +208,7 @@
 <figure><img src="img/de/ticket.jpg" alt=""><figcaption>Ticketansicht: links Beschreibung und Aktivität, rechts Status und Details</figcaption></figure>
 <ul>
   <li><strong>Status</strong> über den Knopf oben rechts (z. B. „Offen“ → „In Arbeit“).</li>
-  <li><strong>Bearbeiter</strong>, <strong>Priorität</strong>, <strong>Typ</strong>, <strong>Stichwörter</strong>, <strong>Fällig</strong> und <strong>Projekt</strong> direkt in den Details ändern. „Mir zuweisen“ geht mit einem Klick oder der Taste <kbd>i</kbd>.</li>
+  <li><strong>Bearbeiter</strong>, <strong>Priorität</strong>, <strong>Typ</strong>, <strong>Komponente</strong>, <strong>Stichwörter</strong>, <strong>Fällig</strong> und <strong>Projekt</strong> direkt in den Details ändern. „Mir zuweisen“ geht mit einem Klick oder der Taste <kbd>i</kbd>.</li>
   <li><strong>Titel</strong> und <strong>Beschreibung</strong> durch Anklicken bearbeiten.</li>
   <li><strong>Projekt wechseln:</strong> Das Ticket bekommt im neuen Projekt eine neue Nummer, die alte steht im Verlauf. Antworten auf alte Mails werden trotzdem richtig zugeordnet.</li>
   <li><strong>Aktivität:</strong> Reiter <em>Kommentare</em>, <em>Verlauf</em> (jede Änderung mit Person und Zeit) und <em>Alle</em>. Bei einer geänderten Beschreibung zeigt <strong>Änderung anzeigen</strong> die Unterschiede und die frühere Fassung.</li>
@@ -273,8 +273,9 @@
 <figure class="small"><img src="img/de/bulk-link.jpg" alt=""><figcaption>Alle ausgewählten Störungen auf einmal mit dem Problem verknüpfen – mit Vorschlägen für die mögliche Ursache</figcaption></figure>
 
 <h2 id="berichte">Berichte</h2>
-<p><em>Berichte</em> zeigt für einen Zeitraum (7, 30, 90 Tage, dieses Jahr oder frei) und optional ein Projekt: erstellte, erledigte und offene Tickets, „Erledigt pro Bearbeiter“, den Verlauf „Erstellt und erledigt“ und eine Tabelle je Bearbeiter (erledigt, offen zugewiesen, bearbeitet, Antworten, interne Notizen, durchschnittliche Lösungsdauer). Die Tabelle lässt sich sortieren und als CSV herunterladen.</p>
+<p><em>Berichte</em> zeigt für einen Zeitraum (7, 30, 90 Tage, dieses Jahr oder frei) und optional ein Projekt: erstellte, erledigte und offene Tickets, „Erledigt pro Bearbeiter“, den Verlauf „Erstellt und erledigt“ und eine Tabelle je Bearbeiter (erledigt, offen zugewiesen, bearbeitet, Antworten, interne Notizen, durchschnittliche Lösungsdauer). Die Tabelle lässt sich sortieren und als CSV herunterladen. Sobald Komponenten genutzt werden, zeigt <em>Nach Komponente</em> je Komponente die Tickets im Zeitraum, davon offene, und die durchschnittliche Lösungszeit.</p>
 <figure><img src="img/de/reports.jpg" alt=""><figcaption>Berichte</figcaption></figure>
+<figure class="medium"><img src="img/de/report-components.jpg" alt=""><figcaption>Berichte → Nach Komponente</figcaption></figure>
 
 <h2 id="kuerzel">Tastenkürzel</h2>
 <p><kbd>?</kbd> zeigt alle Kürzel. Sie greifen nie, während du in ein Feld schreibst.</p>
@@ -515,6 +516,34 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <h2 id="projekte">Projekte</h2>
 <p><em>Administration → Projekte</em>: Projekte anlegen (Schlüssel wie <code>IT</code> oder <code>NET</code> und Name), Leitung festlegen, <strong>archivieren</strong> (bleibt mit allen Tickets erhalten, verschwindet aus der Auswahl) oder löschen. Ein Projekt mit Tickets lässt sich nur löschen, wenn seine Tickets dabei in ein anderes Projekt verschoben werden; vorher wird automatisch gesichert.</p>
 <figure><img src="img/de/admin-projects.jpg" alt=""><figcaption>Projekte</figcaption></figure>
+
+<h2 id="komponenten">Komponenten</h2>
+<p><em>Administration → Komponenten</em> (oder in <em>Projekte</em> der Knopf <em>Komponenten</em>) teilt ein Projekt in Zuständigkeiten auf, z. B. „VPN &amp; Fernzugriff“ oder „Drucker &amp; Scanner“. Jede Komponente hat einen Namen, eine kurze Beschreibung, eine <strong>verantwortliche Person</strong>, optional eine <strong>Vertretung</strong>, <strong>Schlagwörter</strong> und optional <strong>Absender</strong>. Komponenten sehen nur Bearbeiter.</p>
+<figure><img src="img/de/admin-components.jpg" alt=""><figcaption>Komponenten mit Verantwortlichen und Regeln</figcaption></figure>
+<ul>
+  <li><strong>Wie ein Ticket seine Komponente bekommt:</strong> Zuerst zählt ein passender <strong>Absender</strong> (Adresse oder Muster wie <code>*@zabbix.firma.local</code>). Sonst entscheiden die <strong>Schlagwörter</strong>: ein Treffer im Titel zählt 3, in der Beschreibung 1, jedes Schlagwort einmal. Die Komponente mit den meisten Punkten gewinnt, bei Gleichstand die weiter oben stehende – die Reihenfolge änderst du mit ↑/↓. Ab 4 Buchstaben zählt ein Schlagwort auch als Teil eines Worts („drucker“ findet „Netzwerkdrucker“), kürzere nur als ganzes Wort („pc“ findet nicht „PCIe“). Passt nichts, bleibt das Feld leer.</li>
+  <li><strong>Zuweisung:</strong> Ist noch niemand zugewiesen, bekommt die verantwortliche Person das Ticket – ist sie deaktiviert, die Vertretung. Wählt ein Bearbeiter beim Anlegen selbst jemanden aus, bleibt es dabei.</li>
+  <li><strong>Im Verlauf</strong> steht, warum: „Komponente VPN &amp; Fernzugriff (Schlagwörter: vpn, forticlient)“ und „zugewiesen an Anna Agentin (verantwortlich für VPN &amp; Fernzugriff)“.</li>
+  <li><strong>Ändern:</strong> Bearbeiter wählen die Komponente beim Anlegen („Automatisch“ lässt die Regeln entscheiden) und ändern sie in den Details; auf dem Handy unter <em>Alle Details</em>. Beim Verschieben in ein anderes Projekt fällt sie weg, weil Komponenten zu einem Projekt gehören.</li>
+  <li><strong>Archivieren oder löschen:</strong> Archivierte Komponenten bleiben an alten Tickets sichtbar, werden aber nicht mehr zugeordnet. Löschen leert das Feld an den Tickets; die Tickets selbst bleiben.</li>
+  <li><strong>Jira-Import:</strong> Die erste Komponente eines Jira-Vorgangs kommt mit und wird im Zielprojekt angelegt, falls es sie noch nicht gibt. Die verantwortliche Person trägst du danach ein.</li>
+</ul>
+<figure><img src="img/de/ticket-component.jpg" alt=""><figcaption>Ticket mit Komponente; der Verlauf zeigt Grund und Zuweisung</figcaption></figure>
+<h3>Beispiele übernehmen</h3>
+<p><em>Beispiele übernehmen</em> bietet fertige Komponenten mit Beschreibung und deutschen wie englischen Schlagwörtern an: <strong>IT-Support</strong> (Arbeitsplatz &amp; PC, Drucker &amp; Scanner, E-Mail &amp; Kalender, Netzwerk &amp; WLAN, VPN &amp; Fernzugriff, Benutzerkonto &amp; Kennwort, Telefonie &amp; Mobilgeräte, Software &amp; Lizenzen, Server &amp; Speicher, Webseite &amp; Intranet), <strong>Haustechnik</strong> (Heizung &amp; Klima, Elektrik &amp; Licht, Schließanlage &amp; Schlüssel, Räume &amp; Möbel) und <strong>Verwaltung / Service</strong> (Zugänge &amp; Berechtigungen, Beschaffung, Personal / On-/Offboarding). Was es schon gibt, ist ausgegraut.</p>
+<figure class="medium"><img src="img/de/admin-components-examples.jpg" alt=""><figcaption>Beispiele zum Ankreuzen</figcaption></figure>
+<h3>Regeln testen</h3>
+<p>Unter der Liste gibst du Titel, Beschreibung und optional einen Absender ein. <em>Prüfen</em> zeigt, welche Komponente ein neues Ticket bekäme, warum, und an wen es ginge.</p>
+<figure class="medium"><img src="img/de/admin-components-test.jpg" alt=""><figcaption>Regeln testen</figcaption></figure>
+<h3>Komponenten sinnvoll schneiden</h3>
+<ul>
+  <li><strong>Nach Zuständigkeit, nicht nach Technik:</strong> Eine Komponente ist das, wofür eine Person (oder ein kleines Team) den Hut aufhat. Wer „Drucker“ und „Scanner“ betreut, braucht keine zwei Komponenten.</li>
+  <li><strong>Lieber 6–12 als 40:</strong> Zu feine Komponenten werden falsch gewählt und machen Berichte unübersichtlich. Feinere Unterscheidung leisten Stichwörter.</li>
+  <li><strong>Jede Komponente braucht eine verantwortliche Person,</strong> am besten mit Vertretung – sonst landen die Tickets wieder bei „Nicht zugewiesen“.</li>
+  <li><strong>Schlagwörter aus echten Tickets:</strong> Nimm die Wörter, die eure Melder tatsächlich schreiben („Outlook“, „FortiClient“, „Kennwort abgelaufen“), nicht die Fachbegriffe der IT. Vermeide Wörter, die in fast jeder Mail stehen (z. B. „E-Mail“ oder „Telefon“ aus Signaturen).</li>
+  <li><strong>Mit dem Testfeld prüfen</strong> und nach ein paar Wochen in <em>Berichte → Nach Komponente</em> schauen: Viele Tickets „Ohne Komponente“ heißen, dass Schlagwörter fehlen.</li>
+  <li><strong>Absender für Systeme:</strong> Monitoring, Backup oder Drucker, die selbst Mails schicken, ordnest du mit einem Absender-Muster zuverlässig zu.</li>
+</ul>
 
 <h2 id="benutzerverwaltung">Benutzer</h2>
 <p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten und setzt die 2FA zurück. Selbst registrierte Konten sind gekennzeichnet; ist unter <em>Sicherheit → Registrierung und Kennwort vergessen</em> die Freigabe eingeschaltet, steht bei neuen Konten „Wartet auf Freigabe“ mit dem Knopf <strong>Freigeben</strong>.</p>

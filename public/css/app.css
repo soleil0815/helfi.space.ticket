@@ -342,6 +342,26 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .chip-mail .icon { width: 12px; height: 12px; }
 .chip-x { border: 0; background: none; cursor: pointer; color: var(--text-subtle); font-size: 14px; line-height: 1; padding: 0 2px; border-radius: 50%; }
 .chip-x:hover { background: rgba(9, 30, 66, 0.13); color: var(--text); }
+/* Components (admin) */
+.comp-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.comp-chips .chip { padding: 1px 8px; }
+.comp-sender .icon { width: 12px; height: 12px; color: var(--text-subtle); }
+.comp-table td:nth-child(2) { min-width: 160px; max-width: 220px; }
+.comp-rules { min-width: 180px; }
+.comp-table .actions-cell { white-space: nowrap; }
+.comp-table td { vertical-align: top; }
+.comp-order { white-space: nowrap; width: 1%; }
+.comp-order .btn-icon[disabled] { opacity: 0.3; cursor: default; }
+.comp-examples { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px 12px; margin: 12px 0 0; }
+.comp-examples legend { font-weight: 600; padding: 0 4px; }
+.comp-example { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+.comp-example input { margin-top: 3px; }
+.comp-example input:disabled + span { opacity: 0.6; }
+.comp-test { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; max-width: 760px; }
+.comp-test > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+.comp-test-result { margin-top: 12px; min-height: 22px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.comp-test-result .icon { color: var(--green, #1f845a); }
+@media (max-width: 800px) { .comp-test { grid-template-columns: 1fr; } .comp-test > :nth-child(2) { grid-row: auto; } }
 .participants .link { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; }
 .participants .input-inline { width: 100%; }
 .editable-inline { padding: 4px 6px; margin-left: -6px; border-radius: var(--radius); cursor: text; }
@@ -713,6 +733,7 @@ input.num { width: 100px; }
 .col-check input { width: 16px; height: 16px; cursor: pointer; }
 table.issues tbody tr.selected { background: #F1F7FF; }
 table.issues td.col-prio { white-space: nowrap; }
+table.issues td.col-component { white-space: nowrap; color: var(--text-subtle); font-size: 13px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .danger-text { color: #C9372C; }
 
 /* ---------- Sidebar: queues ---------- */
@@ -1075,7 +1096,7 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
   table.issues td.col-status { grid-area: status; justify-self: end; }
   table.issues td.col-sla { grid-area: date; justify-self: end; }
   table.issues td.col-assignee { grid-area: assignee; font-size: 13px; }
-  table.issues td.col-reporter { display: none; }
+  table.issues td.col-reporter, table.issues td.col-component { display: none; }
   table.issues td.col-prio { grid-area: prio; justify-self: end; }
   table.issues td.col-prio .prio-label { display: none; }
   table.issues td.col-date { grid-area: date; justify-self: end; font-size: 12px; color: var(--text-subtlest); }

@@ -652,6 +652,29 @@ export const MIGRATIONS = [
     CREATE INDEX idx_kb_feedback_article ON kb_feedback(article_id, archived);
     `,
   },
+  {
+    id: 30,
+    name: 'Komponenten pro Projekt (Zuständigkeit, Schlagwörter, Absender)',
+    sql: `
+    -- sub-areas of a project with a responsible person; tickets are matched by keywords or sender
+    CREATE TABLE components (
+      id INTEGER PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL COLLATE NOCASE,
+      description TEXT NOT NULL DEFAULT '',
+      lead_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      deputy_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      keywords TEXT NOT NULL DEFAULT '',
+      senders TEXT NOT NULL DEFAULT '',
+      position INTEGER NOT NULL DEFAULT 0,
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      UNIQUE (project_id, name)
+    );
+    ALTER TABLE tickets ADD COLUMN component_id INTEGER REFERENCES components(id) ON DELETE SET NULL;
+    CREATE INDEX idx_tickets_component ON tickets(component_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

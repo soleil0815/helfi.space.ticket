@@ -90,7 +90,8 @@ export async function renderReports(content, params) {
     h('div.chart-grid',
       h('section.panel.chart-panel', h('h2', t('reports.resolvedByAgent')), barChart(data.agents, tip)),
       h('section.panel.chart-panel', h('h2', t('reports.createdVsResolved')), lineChart(data.series, tip))),
-    agentTable(data));
+    agentTable(data),
+    componentTable(data, !f.project && state.projects.length > 1));
   const q = { from: range.from, to: range.to, project: f.project || '' };
   const [itil, sat] = await Promise.all([itilPanel(q), satisfactionPanel(q)]);
   if (itil) host.append(itil);
@@ -201,6 +202,25 @@ function niceStep(max) {
 }
 
 /** Table per agent, sortable by every column, downloadable as CSV. */
+/** Tickets per component (only once components are used); link to the filtered list */
+function componentTable(data, showProject) {
+  const rows = data.components || [];
+  if (!rows.some((r) => r.componentId)) return null;
+  const n = nf();
+  return h('section.panel',
+    h('h2', t('rep.components')),
+    h('p.muted.small', t('rep.componentsHint', { days: data.range.days })),
+    h('div.table-wrap', h('table.data.report-table',
+      h('thead', h('tr', h('th', t('ticket.component')), h('th.num', t('rep.total')), h('th.num', t('rep.open')), h('th.num', t('rep.avgResolve')))),
+      h('tbody', rows.map((r) => h('tr',
+        h('td', r.componentId
+          ? h('a', { href: `/issues?project=${r.projectKey}&component=${r.componentId}`, 'data-link': '' }, r.name)
+          : h('span.muted', t('rep.noComponent')), showProject ? h('span.muted.small', ` · ${r.projectKey}`) : null),
+        h('td.num', n.format(r.total)),
+        h('td.num', n.format(r.open)),
+        h('td.num', duration(r.avgResolutionHours))))))));
+}
+
 function agentTable(data) {
   const cols = [
     ['displayName', t('reports.colAgent'), 'text'],

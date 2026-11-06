@@ -9,6 +9,7 @@ import { userRef } from './users.js';
 import { createSearch } from './search.js';
 import { log } from './lib/log.js';
 import { normalizeMentions } from './mentions.js';
+import { createComponents, matchComponent, reasonDetail } from './components.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 export const TYPES = ['incident', 'request', 'task', 'question', 'problem', 'change'];
@@ -39,6 +40,7 @@ export function createTickets(db, users) {
     if (n > 100) log.info(`Search index built: ${n} tickets in ${Date.now() - t0} ms`);
   } catch (e) { log.warn('Search index could not be built', { error: e.message }); }
   const events = new EventEmitter();
+  const components = createComponents(db, users);
   // Fire events only after the current transaction has completed
   const emitLater = (name, payload) => setImmediate(() => events.emit(name, payload));
 
@@ -112,13 +114,14 @@ export function createTickets(db, users) {
 
   // ---------- Tickets ----------
   const SELECT = `SELECT t.*, p.key project_key, p.name project_name,
-      a.display_name a_name, a.username a_username, a.email a_email,
+      a.display_name a_name, a.username a_username, a.email a_email, cmp.name c_name,
       r.display_name r_name, r.username r_username, r.email r_email,
       (SELECT COUNT(*) FROM comments c WHERE c.ticket_id=t.id) comment_count,
       (SELECT COUNT(*) FROM comments c WHERE c.ticket_id=t.id AND c.internal=0) public_comment_count
     FROM tickets t JOIN projects p ON p.id=t.project_id
     LEFT JOIN users a ON a.id=t.assignee_id
-    LEFT JOIN users r ON r.id=t.reporter_id`;
+    LEFT JOIN users r ON r.id=t.reporter_id
+    LEFT JOIN components cmp ON cmp.id=t.component_id`;
 
   /** agent=false: view of reporter/participant/approver; viewerId = who is viewing (own details visible) */
   function ticketOut(t, agent = true, viewerId = null) {
@@ -140,6 +143,8 @@ export function createTickets(db, users) {
       impact: t.impact || null,
       urgency: t.urgency || null,
       major: !!t.major,
+      // Component: internal assignment aid, agents only
+      component: agent && t.component_id ? { id: t.component_id, name: t.c_name } : null,
       dueDate: t.due_date,
       source: t.source,
       rank: t.rank,
@@ -212,6 +217,8 @@ export function createTickets(db, users) {
     if (f.reporter === 'me') { where.push('t.reporter_id=?'); args.push(user.id); }
     if (f.mentioned === 'me') { where.push('t.id IN (SELECT ticket_id FROM comment_mentions WHERE user_id=?)'); args.push(user.id); }
     if (f.participant === 'me') { where.push('t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?)'); args.push(user.id); }
+    if (f.component === 'none') where.push('t.component_id IS NULL');
+    else if (f.component) { where.push('t.component_id=?'); args.push(int(f.component) || 0); }
     if (f.label) { where.push("(','||t.labels||',') LIKE ?"); args.push(`%,${String(f.label).toLowerCase()},%`); }
     if (f.overdue === '1' || f.overdue === 1 || f.overdue === true) where.push("t.status<>'done' AND t.due_date IS NOT NULL AND t.due_date < date('now')");
     const rd = int(f.resolvedDays);
@@ -262,21 +269,42 @@ export function createTickets(db, users) {
     if (!project) throw new HttpError(400, 'err.noProject');
     const agent = isAgent(user);
     const id = db.transaction(() => {
+      // Component: chosen by an agent, otherwise by the rules (sender pattern, keywords)
+      let component = null;
+      let match = null;
+      if (agent && data.componentId) component = components.forProject(project.id, data.componentId);
+      else {
+        const sender = reporterEmail || (reporterId !== undefined ? (reporterId ? users.byId(reporterId)?.email : null) : user?.email) || '';
+        match = matchComponent(components.active(project.id), { title, description: str(data.description, 100000), sender });
+        if (match) component = match.component;
+      }
+      let assigneeId = agent && int(data.assigneeId) && isAssignable(int(data.assigneeId)) ? int(data.assigneeId) : null;
+      let autoAssigned = null;
+      if (!assigneeId && component) {
+        const leadId = component.lead_id ?? component.leadId;
+        const deputyId = component.deputy_id ?? component.deputyId;
+        if (leadId && isAssignable(leadId)) autoAssigned = { id: leadId, role: 'lead' };
+        else if (deputyId && isAssignable(deputyId)) autoAssigned = { id: deputyId, role: 'deputy' };
+        if (autoAssigned) assigneeId = autoAssigned.id;
+      }
       const number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(project.id).n;
       const minRank = db.prepare("SELECT COALESCE(MIN(rank),0) r FROM tickets WHERE project_id=? AND status='open'").get(project.id).r;
-      const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,assignee_id,labels,due_date,source,rank)
-        VALUES(?,?,?,?,?,'open',?,?,?,?,?,?,?,?,?)`).run(
+      const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,assignee_id,labels,due_date,source,rank,component_id)
+        VALUES(?,?,?,?,?,'open',?,?,?,?,?,?,?,?,?,?)`).run(
         project.id, number, title, str(data.description, 100000),
         TYPES.includes(data.type) && (isAgent(user) || !AGENT_TYPES.includes(data.type)) ? data.type : 'request',
         PRIORITIES.includes(data.priority) ? data.priority : 'medium',
         reporterId !== undefined ? reporterId : (user ? user.id : null),
         reporterEmail, reporterName,
-        agent && int(data.assigneeId) && isAssignable(int(data.assigneeId)) ? int(data.assigneeId) : null,
+        assigneeId,
         normalizeLabels(data.labels),
         agent ? isoDate(data.dueDate) : null,
-        source, minRank - 1,
+        source, minRank - 1, component ? component.id : null,
       );
       logActivity(info.lastInsertRowid, user ? user.id : null, 'created');
+      // History: which rule decided (kind = keywords/sender, detail = words or pattern)
+      if (match) logActivity(info.lastInsertRowid, null, 'classified', match.kind, reasonDetail(match), component.name);
+      if (autoAssigned) logActivity(info.lastInsertRowid, null, 'autoAssigned', autoAssigned.role, component.name, users.byId(autoAssigned.id)?.display_name || '');
       return info.lastInsertRowid;
     })();
     const t = ticketOut(rawById(id));
@@ -337,6 +365,13 @@ export function createTickets(db, users) {
       if (!target || target.archived) throw notFound();
       if (target.id !== row.project_id) changes.project_id = { field: 'project', old: row.project_key, new: target.key, target };
     }
+    if (data.componentId !== undefined && agent) {
+      // Component of the (new) project; empty = none. After a project change the old one is cleared anyway.
+      const pid = changes.project_id ? changes.project_id.target.id : row.project_id;
+      const cid = data.componentId ? components.forProject(pid, data.componentId).id : null;
+      if (changes.project_id) { if (cid) changes.component_id = { field: 'component', old: null, new: cid }; }
+      else set('component', 'component_id', cid);
+    }
 
     const rankChanged = agent && typeof data.rank === 'number' && Number.isFinite(data.rank) && Math.abs(data.rank) < 1e12 && data.rank !== row.rank;
     if (!Object.keys(changes).length && !rankChanged) return ticketOut(row, agent, user.id);
@@ -345,7 +380,8 @@ export function createTickets(db, users) {
       for (const [col, c] of Object.entries(changes)) {
         if (col === 'project_id') { moveToProject(row, c.target, user.id); continue; }
         db.prepare(`UPDATE tickets SET ${col}=? WHERE id=?`).run(c.new, row.id);
-        const show = (v) => (col === 'assignee_id' ? (v ? users.byId(v)?.display_name : null) : v);
+        const show = (v) => (col === 'assignee_id' ? (v ? users.byId(v)?.display_name : null)
+          : col === 'component_id' ? (v ? db.prepare('SELECT name FROM components WHERE id=?').get(v)?.name : null) : v);
         // Description: keep old and new version in the history (record of changes);
         // the texts are only delivered on request (descriptionVersion), not with every ticket
         if (col === 'description') logActivity(row.id, user.id, 'changed', 'description', c.old ?? '', c.new ?? '');
@@ -375,8 +411,10 @@ export function createTickets(db, users) {
   function moveToProject(row, target, userId) {
     if (row.project_id === target.id) return;
     const number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(target.id).n;
-    db.prepare("UPDATE tickets SET project_id=?, number=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(target.id, number, row.id);
+    db.prepare("UPDATE tickets SET project_id=?, number=?, component_id=NULL, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(target.id, number, row.id);
     logActivity(row.id, userId, 'changed', 'project', `${row.project_key}-${row.number}`, `${target.key}-${number}`);
+    // Components belong to a project: the old one does not apply in the target project
+    if (row.component_id) logActivity(row.id, userId, 'changed', 'component', row.c_name, null);
   }
 
   // ---------- Comments ----------
@@ -767,7 +805,7 @@ export function createTickets(db, users) {
 
   return {
     search,
-    events, projects, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
+    events, projects, components, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
     descriptionVersion, participants, addParticipant, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };

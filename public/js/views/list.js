@@ -8,6 +8,7 @@ import { openCreateDialog } from './ticket.js';
 import { matchQueue } from '../queues.js';
 import { slaBadge } from './sla.js';
 import { CHOICES, ticketPicker } from './links.js';
+import { projectComponents } from '../components.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES } from '../types.js';
@@ -23,7 +24,11 @@ export async function renderList(content, params, { requests = false } = {}) {
   };
 
   // Smartphone: filters behind a button (with the number of active filters)
-  const active = ['project', 'status', 'type', 'priority', 'assignee', 'participant'].filter((k) => f[k]).length + (requests && f.reporter === 'me' ? 0 : 0);
+  // Component filter: components belong to a project – offered once a project is chosen (or there is only one)
+  const filterProject = !requests && state.isAgent ? (f.project ? state.projects.find((p) => p.key === String(f.project).toUpperCase() || String(p.id) === String(f.project)) : (state.projects.length === 1 ? state.projects[0] : null)) : null;
+  const comps = filterProject ? await projectComponents(filterProject.id) : [];
+  if (!content.isConnected) return;
+  const active = ['project', 'status', 'type', 'priority', 'assignee', 'participant', 'component'].filter((k) => f[k]).length + (requests && f.reporter === 'me' ? 0 : 0);
   const filterBtn = h('button.btn.btn-subtle.filter-btn', { type: 'button', 'aria-expanded': 'false', onclick: (e) => { const open = filters.classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', String(open)); } },
     icon('list'), t('list.filter'), active ? h('span.count', String(active)) : null);
   const filters = h('div.toolbar.list-toolbar',
@@ -48,6 +53,7 @@ export async function renderList(content, params, { requests = false } = {}) {
     select([['', t('filter.allStatus')], ['unresolved', t('status.unresolved')], ...STATUSES.map((s) => [s, t(`status.${s}`)])], f.status || '', { class: 'select-sm', onchange: (e) => set('status', e.target.value) }),
     !requests ? select([['', t('filter.allTypes')], ...TYPES.map((s) => [s, t(`type.${s}`)])], f.type || '', { class: 'select-sm', onchange: (e) => set('type', e.target.value) }) : null,
     !requests ? select([['', t('filter.allPriorities')], ...PRIOS.map((s) => [s, t(`priority.${s}`)])], f.priority || '', { class: 'select-sm', onchange: (e) => set('priority', e.target.value) }) : null,
+    comps.length || f.component ? select([['', t('filter.allComponents')], ['none', t('filter.noComponent')], ...comps.map((c) => [c.id, c.name])], f.component || '', { class: 'select-sm', 'aria-label': t('ticket.component'), onchange: (e) => set('component', e.target.value) }) : null,
     !requests ? select([['', t('filter.allAssignees')], ['me', t('app.me')], ['none', t('app.unassigned')], ...state.agents.map((a) => [a.id, a.displayName])], f.assignee || '', { class: 'select-sm', onchange: (e) => set('assignee', e.target.value) }) : null,
     Object.keys(f).some((k) => f[k] && k !== 'reporter') ? h('button.btn.btn-subtle', { type: 'button', onclick: () => navigate(location.pathname, { replace: true }) }, t('filter.reset')) : null,
   ));
@@ -231,6 +237,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
 
   // SLA column only for agents when SLAs are enabled
   const showSla = !requests && tickets.some((tk) => tk.sla !== undefined);
+  const showComponent = !requests && !compact && tickets.some((tk) => tk.component);
   return h('div.table-wrap',
     compact ? null : h('div.table-count', t('list.count', { n: tickets.length })),
     bar,
@@ -241,6 +248,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         th(t('list.key'), 'key'),
         th(t('list.summary')),
         th(t('list.status'), 'status'),
+        showComponent ? th(t('ticket.component')) : null,
         showSla ? th(t('sla.short')) : null,
         requests ? null : th(t('list.assignee')),
         requests || compact ? null : th(t('list.reporter')),
@@ -269,6 +277,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
             h('span.match-src', tk.match.source === 'comment' || tk.match.source === 'internal' ? t(`search.src.${tk.match.source}`, { who: tk.match.author || '—' }) : t(`search.src.${tk.match.source}`)),
             ' ', highlight(tk.match.text, terms)) : null),
         h('td.col-status', lozenge(tk.status)),
+        showComponent ? h('td.col-component', tk.component?.name || '') : null,
         showSla ? h('td.col-sla', slaBadge(tk.sla)) : null,
         requests ? null : h('td.col-person.col-assignee', h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),
         requests || compact ? null : h('td.col-person.col-reporter', h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—'))),

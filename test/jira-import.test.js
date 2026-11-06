@@ -132,6 +132,7 @@ test('Jira Cloud: import with numbers, comments, attachments – without emails'
     assert.equal(t1.priority, 'highest');
     assert.equal(t1.dueDate, '2024-12-24');
     assert.deepEqual(t1.labels, ['drucker', 'import-test']);
+    assert.equal(t1.component.name, 'Drucker & Scanner', 'first Jira component, created in the target project');
     assert.equal(t1.source, 'jira');
     assert.equal(t1.assignee.displayName, 'Anna Agentin', 'agent matched by email');
     assert.equal(t1.reporter.email, 'kurt@kunde.example');
@@ -169,6 +170,7 @@ test('Jira Cloud: import with numbers, comments, attachments – without emails'
     const again = await waitJob();
     assert.deepEqual([again.counts.created, again.counts.updated, again.counts.unchanged, again.counts.comments, again.counts.attachments], [0, 1, 2, 0, 0]);
     assert.equal((await call('GET', '/api/tickets/SUP-10')).body.ticket.title, 'Vorgang 1 (geändert)');
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM components c JOIN projects p ON p.id=c.project_id WHERE p.key='SUP'").get().n, 1, 'component not created twice');
     const local = (await call('GET', '/api/tickets/SUP-20')).body.ticket;
     assert.deepEqual([local.title, local.status], ['Lokal bearbeitet', 'open']);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key='SUP'").get().n, 4);

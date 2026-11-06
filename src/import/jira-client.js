@@ -32,7 +32,7 @@ export function createJiraClient(c) {
   });
 
   const FIELDS = ['summary', 'description', 'issuetype', 'status', 'priority', 'labels', 'created', 'updated',
-    'resolutiondate', 'duedate', 'reporter', 'creator', 'assignee', 'attachment'];
+    'resolutiondate', 'duedate', 'reporter', 'creator', 'assignee', 'attachment', 'components'];
 
   return {
     type: cloud ? 'cloud' : 'server',

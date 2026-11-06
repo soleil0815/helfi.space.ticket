@@ -55,6 +55,8 @@ export function jiraAdapter(conn) {
           statusCategory: f.status?.statusCategory?.key,
           priorityName: f.priority?.name,
           labels: f.labels || [],
+          // Jira allows several components – Helfi.Space has one per ticket: the first one
+          component: Array.isArray(f.components) && f.components[0]?.name ? f.components[0].name : null,
           due: f.duedate,
           created: f.created,
           updated: f.updated,
