@@ -6,6 +6,7 @@
 // written to the log (only ticket key, task, model and duration).
 import crypto from 'node:crypto';
 import { HttpError, str, normalizeBaseUrl } from './lib/http.js';
+import { mentionsAsText } from './mentions.js';
 
 export { normalizeBaseUrl };
 import { normalizeLang } from './i18n.js';
@@ -51,7 +52,7 @@ export function ticketContext(tk, { includeInternal, maxChars }) {
   ].join('\n');
   const comments = (tk.comments || [])
     .filter((c) => includeInternal || !c.internal)
-    .map((c) => `--- ${c.createdAt.slice(0, 16).replace('T', ' ')} · ${c.author?.displayName || '—'}${c.internal ? ' (internal note)' : ''}${c.author?.id === tk.reporter?.id ? ' (reporter)' : ''}\n${String(c.body || '').trim()}`);
+    .map((c) => `--- ${c.createdAt.slice(0, 16).replace('T', ' ')} · ${c.author?.displayName || '—'}${c.internal ? ' (internal note)' : ''}${c.author?.id === tk.reporter?.id ? ' (reporter)' : ''}\n${mentionsAsText(c.body).trim()}`);
   const budget = Math.max(2000, maxChars);
   let headPart = head.length > budget * 0.5 ? `${head.slice(0, Math.floor(budget * 0.5))}\n[…]` : head;
   let left = budget - headPart.length;

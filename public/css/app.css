@@ -1281,3 +1281,16 @@ a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px
 .tp-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-major .icon { width: 14px; height: 14px; color: var(--red, #C9372C); }
 .tp-empty { padding: 10px 12px; color: var(--text-subtle); font-size: 14px; }
+
+/* @-mentions */
+.mention { display: inline; padding: 0 3px; border-radius: 3px; background: var(--blue-subtle, #E9F2FF); color: var(--blue); font-weight: 600; white-space: nowrap; }
+.mention.mention-me { background: var(--blue, #0C66E4); color: #fff; }
+.comment.mentions-me > .comment-main > .comment-head::after { content: '@'; margin-left: 2px; padding: 0 5px; border-radius: 8px; background: var(--blue, #0C66E4); color: #fff; font-size: 11px; font-weight: 700; line-height: 16px; }
+.mention-pop { position: fixed; z-index: 1200; max-height: 260px; overflow-y: auto; background: var(--bg, #fff); border: 1px solid var(--border, #DCDFE4);
+  border-radius: 6px; box-shadow: var(--shadow-overlay, 0 8px 12px rgba(9,30,66,.15)); padding: 4px 0; }
+.mention-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: 14px; min-height: 36px; }
+.mention-item:hover, .mention-item.active { background: var(--bg-hover, #F1F2F4); }
+.mention-item.active { box-shadow: inset 2px 0 0 var(--blue, #0C66E4); }
+.mention-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-kind { color: var(--text-subtle, #626F86); font-size: 12px; white-space: nowrap; }
+.mention-dot { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 8px; background: var(--blue, #0C66E4); color: #fff; font-size: 11px; font-weight: 700; line-height: 16px; vertical-align: middle; }

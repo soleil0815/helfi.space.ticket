@@ -264,6 +264,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         h('td.col-type', typeIcon(tk.type)),
         h('td.col-key', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key)),
         h('td.col-summary', h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, highlight(tk.title, terms)), tk.source === 'email' ? h('span.src-mail', { title: t('source.email') }, icon('mail')) : null,
+          tk.mentionUnseen ? h('span.mention-dot', { title: t('mention.unseen'), 'aria-label': t('mention.unseen') }, '@') : null,
           tk.match ? h(`div.match-snippet${tk.match.source === 'internal' ? '.internal' : ''}`,
             h('span.match-src', tk.match.source === 'comment' || tk.match.source === 'internal' ? t(`search.src.${tk.match.source}`, { who: tk.match.author || '—' }) : t(`search.src.${tk.match.source}`)),
             ' ', highlight(tk.match.text, terms)) : null),

@@ -2,6 +2,14 @@
   "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
+      "version": "",
+      "date": "",
+      "items": [
+        { "audience": "agent", "de": "@-Erwähnungen: Im Antwortfeld „@“ und ein paar Buchstaben tippen und eine Person auswählen. Erwähnte bekommen eine Mail; in internen Notizen lassen sich nur Bearbeiter erwähnen. „Erwähnt mich“ in der Seitenleiste (Handy: Chip „Erwähnt“) zeigt die Tickets, neue Erwähnungen sind mit @ markiert.", "en": "@-mentions: type “@” and a few letters in the reply field and pick a person. People mentioned get an email; internal notes can only mention agents. “Mentions me” in the sidebar (phone: “Mentions” chip) lists the tickets, new mentions are marked with @." },
+        { "audience": "admin", "de": "Die Mail bei Erwähnungen lässt sich unter „Kanäle: E-Mail“ → Benachrichtigungen abschalten.", "en": "The mention email can be switched off under “Channels: email” → Notifications." }
+      ]
+    },
+    {
       "version": "1.23.0",
       "date": "2026-11-06",
       "items": [

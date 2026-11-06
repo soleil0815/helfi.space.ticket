@@ -3,6 +3,7 @@
 //          internal_text (internal notes – agents only) · people (reporter, assignee, repliers with
 //          addresses and login names – agents only) · people_public (only the names users can see too)
 // Changes are marked by triggers in search_dirty; the index is caught up before every search.
+import { mentionsAsText } from './mentions.js';
 
 const MAX_HITS = 5000;
 const SNIPPET = 160;
@@ -23,6 +24,7 @@ export function parseQuery(q) {
 
 const ftsQuote = (s) => `"${s.replace(/"/g, '""')}"`;
 const likeEsc = (s) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
 
 export function createSearch(db) {
   const getTicket = db.prepare(`SELECT t.id, t.title, t.description, t.labels, t.reporter_email, t.reporter_name,
@@ -45,8 +47,8 @@ export function createSearch(db) {
     const comments = getComments.all(id);
     const files = getFiles.all(id);
     ins.run(id, t.title,
-      join([t.description, ...comments.filter((c) => !c.internal).map((c) => c.body), ...files.filter((f) => !f.internal).map((f) => f.filename), t.labels.replace(/,/g, ' ')]),
-      join([...comments.filter((c) => c.internal).map((c) => c.body), ...files.filter((f) => f.internal).map((f) => f.filename)]),
+      join([t.description, ...comments.filter((c) => !c.internal).map((c) => mentionsAsText(c.body)), ...files.filter((f) => !f.internal).map((f) => f.filename), t.labels.replace(/,/g, ' ')]),
+      join([...comments.filter((c) => c.internal).map((c) => mentionsAsText(c.body)), ...files.filter((f) => f.internal).map((f) => f.filename)]),
       join([t.r_name, t.r_email, t.r_user, t.reporter_name, t.reporter_email, t.a_name, t.a_email, t.a_user,
         ...new Set(comments.filter((c) => !c.internal).flatMap((c) => [c.u_name, c.author_name, c.author_email]))]),
       // What users see in the ticket: display names of reporter, assignee and repliers – no addresses
@@ -121,7 +123,7 @@ export function createSearch(db) {
     if (hit(t.description)) return { source: 'description', text: cut(t.description) };
     for (const c of getComments.all(ticketId)) {
       if (c.internal && !internal) continue;
-      if (hit(c.body)) return { source: c.internal ? 'internal' : 'comment', author: c.u_name || c.author_name || c.author_email || null, text: cut(c.body) };
+      if (hit(mentionsAsText(c.body))) return { source: c.internal ? 'internal' : 'comment', author: c.u_name || c.author_name || c.author_email || null, text: cut(mentionsAsText(c.body)) };
     }
     for (const f of getFiles.all(ticketId)) {
       if (f.internal && !internal) continue;

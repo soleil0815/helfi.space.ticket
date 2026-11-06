@@ -29,7 +29,7 @@
     <li><a href="#users">For everyone: signing in and making requests</a>
       <ol><li><a href="#signin">Signing in</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li><li><a href="#catalog">Requesting a service</a></li><li><a href="#approving">Approving</a></li><li><a href="#help-knowledge">Help &amp; knowledge</a></li><li><a href="#rating">Rating</a></li><li><a href="#smartphone">On a smartphone</a></li></ol></li>
     <li><a href="#agents">For agents</a>
-      <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#ai">AI assistance</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
+      <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#mentions">Mentioning colleagues (@)</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#ai">AI assistance</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
     <li><a href="#itil">IT service management (ITIL)</a>
       <ol><li><a href="#links">Links and subtasks</a></li><li><a href="#major">Impact, urgency and major incident</a></li><li><a href="#sla">Service levels (SLA)</a></li><li><a href="#problems">Problems and known errors</a></li><li><a href="#changes">Change management</a></li><li><a href="#knowledge">Knowledge base</a></li><li><a href="#servicecatalog">Setting up the service catalog</a></li><li><a href="#devices">Devices &amp; services</a></li><li><a href="#satisfaction">Satisfaction survey</a></li><li><a href="#kpis">ITIL key figures</a></li></ol></li>
     <li><a href="#admin">For administrators: setup</a>
@@ -167,7 +167,7 @@
 <ul>
   <li><strong>Report a problem:</strong> ＋ → <em>Report a problem</em>. Enter a title and description, use <strong>Take photo</strong> to open the camera or <strong>File</strong> to attach pictures and documents. While you type the title, Helfi.Space shows matching help articles – maybe the solution is already there. <em>Submit</em> creates the request and opens it. What you have not sent yet is kept as long as the tab is open.</li>
   <li><strong>Request a service:</strong> under ＋ the offerings of the service catalog appear as tiles. Required fields are marked with *; if an offering needs approval, the form says so.</li>
-  <li><strong>Ticket:</strong> the comments look like a chat. Write your reply at the bottom, attach photos or files with <strong>＋</strong>. Agents add status changes and assignments with <em>All</em> next to “Activity”; the phone remembers the choice. Change title and description of your own request with <em>Edit</em> next to "Description".</li>
+  <li><strong>Ticket:</strong> the comments look like a chat. Write your reply at the bottom, attach photos or files with <strong>＋</strong>. Agents add status changes and assignments with <em>All</em> next to “Activity”; the phone remembers the choice. With <strong>@</strong> in the reply bar agents mention colleagues; under <em>Tickets</em> the <em>Mentions</em> chip shows the tickets they were mentioned in. Change title and description of your own request with <em>Edit</em> next to "Description".</li>
   <li><strong>Knowledge:</strong> search, categories, <em>Recently viewed</em>, <em>Most read</em> and the page tree. Long articles have a <em>Contents</em> list at the top, wide tables scroll sideways. Below each article you can write a comment.</li>
   <li><strong>Me:</strong> name, email address and password (local accounts), language, two-factor authentication, <em>Install app</em>, what's new and <em>Desktop view</em>. The user menu of the desktop view (<em>Phone view</em>) brings you back.</li>
 </ul>
@@ -180,7 +180,7 @@
 <h1 class="chapter" id="agents">For agents <span class="role role-agent">agents</span></h1>
 
 <h2 id="queues">Queues and summary</h2>
-<p>For the selected project, the sidebar shows fixed <strong>queues</strong> with live counts: <em>All open tickets</em>, <em>Assigned to me</em>, <em>Unassigned</em>, <em>Waiting for reporter</em>, <em>Recently resolved</em> (7 days) and <em>All tickets</em>. Below them <em>Service requests</em> and <em>Incidents</em> (open requests and incidents). Switch the project at the top of the sidebar.</p>
+<p>For the selected project, the sidebar shows fixed <strong>queues</strong> with live counts: <em>All open tickets</em>, <em>Assigned to me</em>, <em>Unassigned</em>, <em>Waiting for reporter</em>, <em>Recently resolved</em> (7 days) and <em>All tickets</em>. Below them <em>Service requests</em> and <em>Incidents</em> (open requests and incidents) and <em>Mentions me</em> (see <a href="#mentions">Mentioning colleagues</a>). Switch the project at the top of the sidebar.</p>
 <p>The <strong>summary</strong> shows key figures, distributions by status, type and priority and the most urgent open tickets.</p>
 <figure><img src="img/en/summary.jpg" alt=""><figcaption>Project summary</figcaption></figure>
 <p><em>My work</em> in the header collects everything assigned to you, everything unassigned and everything you reported yourself.</p>
@@ -218,6 +218,18 @@
   <li><strong>Internal notes</strong> (yellow background) are only visible to agents. They are never sent by email, and pasted images stay internal as well.</li>
 </ul>
 <div class="warn"><p>Emails coming from an agent’s address never count as agent replies (sender addresses can be forged). Agents therefore always reply via the web interface. Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.</p></div>
+
+<h2 id="mentions">Mentioning colleagues (@)</h2>
+<p>When you need someone in a ticket, mention them: type <strong>@</strong> and a few letters in the reply field, then pick the person with a click, ↑/↓ and Enter or Tab; Esc closes the list. The name is highlighted in the comment, your own mentions in colour.</p>
+<figure class="medium"><img src="img/en/mention-compose.jpg" alt=""><figcaption>“@be” in an internal note – the list shows matching agents</figcaption></figure>
+<ul>
+  <li><strong>Who you can mention:</strong> in an <em>internal note</em> only agents. In a <em>reply</em> also the ticket's reporter, participants and approvers. People who cannot see the ticket are not in the list.</li>
+  <li><strong>What happens:</strong> the person mentioned gets an email from the ticket system with your name, the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one.</li>
+  <li><strong>Mentions me:</strong> the sidebar lists all tickets in which you were mentioned; the number counts those you have not opened yet. In lists an <strong>@</strong> marks new mentions, in the ticket the comment in question. Opening the ticket marks the mention as seen.</li>
+  <li>A mention does not make anyone a participant. To keep someone informed, add them under <em>Request participants</em>.</li>
+</ul>
+<figure><img src="img/en/mention-list.jpg" alt=""><figcaption>“Mentions me” with its count; the @ marks a new mention</figcaption></figure>
+<figure class="medium"><img src="img/en/mention-comment.jpg" alt=""><figcaption>The comment with your mention in the ticket</figcaption></figure>
 
 <h2 id="html-mails">HTML emails</h2>
 <p>When a ticket or a reply arrives as an HTML email, Helfi.Space shows it <strong>formatted</strong> – with tables, bold text, colours, signature and embedded images. The <strong>Formatted | Text</strong> switch changes to the text version; the browser remembers the choice.</p>
@@ -480,6 +492,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Sending (SMTP):</strong> ideally use the mailbox address as sender, so replies come back into the ticket.</li>
   <li><strong>The sender is always the ticket system</strong> – never an agent’s address, no personal signatures. So the reporter knows who looks after them, reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added. In the browser, users see the field as “Your contact”.</li>
   <li><strong>Look up senders in Active Directory:</strong> unknown senders are searched in AD and created as AD users right away. Otherwise they become <em>email contacts</em>; when they sign in later, their tickets are theirs.</li>
+  <li><strong>Notifications:</strong> each can be switched off – receipt confirmation, replies and resolved to reporters and participants, assignment to agents, mail to newly added participants and to people <strong>@</strong>-mentioned.</li>
   <li><strong>Recipients in To/CC become participants</strong> (can be turned off) – for new tickets and replies to mails from Helfi.Space, not when a reply is matched only by the key in the subject.</li>
   <li><strong>Retention:</strong> “Delete processed emails after … days” (default: never). Only the folder for processed emails is cleaned, never the inbox.</li>
 </ul>

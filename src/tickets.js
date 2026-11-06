@@ -8,6 +8,7 @@ import { isAgent } from './auth/session.js';
 import { userRef } from './users.js';
 import { createSearch } from './search.js';
 import { log } from './lib/log.js';
+import { normalizeMentions } from './mentions.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 export const TYPES = ['incident', 'request', 'task', 'question', 'problem', 'change'];
@@ -209,6 +210,7 @@ export function createTickets(db, users) {
     else if (f.assignee === 'none') where.push('t.assignee_id IS NULL');
     else if (f.assignee) { where.push('t.assignee_id=?'); args.push(Number(f.assignee) || 0); }
     if (f.reporter === 'me') { where.push('t.reporter_id=?'); args.push(user.id); }
+    if (f.mentioned === 'me') { where.push('t.id IN (SELECT ticket_id FROM comment_mentions WHERE user_id=?)'); args.push(user.id); }
     if (f.participant === 'me') { where.push('t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?)'); args.push(user.id); }
     if (f.label) { where.push("(','||t.labels||',') LIKE ?"); args.push(`%,${String(f.label).toLowerCase()},%`); }
     if (f.overdue === '1' || f.overdue === 1 || f.overdue === true) where.push("t.status<>'done' AND t.due_date IS NOT NULL AND t.due_date < date('now')");
@@ -398,11 +400,21 @@ export function createTickets(db, users) {
     if (!text) throw new HttpError(400, 'err.badRequest');
     const agent = user && isAgent(user);
     const isInternal = system || (agent && internal) ? 1 : 0;
+    // @-mentions only from agents on the web; internal notes only reach agents, replies also
+    // the people who can see the ticket anyway. Everything else stays plain text "@Name".
+    const canMention = !!agent && !system && source !== 'email';
+    const mention = normalizeMentions(text, {
+      getUser: (id) => users.byId(id),
+      allowed: (u) => canMention && u.active === 1 && (isAgent(u) || (!isInternal && canSee(u, row))),
+    });
     const info = db.transaction(() => {
       const r = db.prepare('INSERT INTO comments(ticket_id,author_id,author_email,author_name,body,internal,source) VALUES(?,?,?,?,?,?,?)')
-        .run(row.id, user ? user.id : null, authorEmail, authorName, text, isInternal, source);
+        .run(row.id, user ? user.id : null, authorEmail, authorName, mention.text, isInternal, source);
+      const addMention = db.prepare('INSERT OR IGNORE INTO comment_mentions(comment_id,ticket_id,user_id,seen_at) VALUES(?,?,?,?)');
+      // Mentioning oneself counts as already seen
+      for (const id of mention.ids) addMention.run(r.lastInsertRowid, row.id, id, id === user?.id ? new Date().toISOString() : null);
       if (user && source !== 'email') {
-        claimInlineImages(row.id, text, user.id, r.lastInsertRowid);
+        claimInlineImages(row.id, mention.text, user.id, r.lastInsertRowid);
         claimDrafts(row.id, attachmentIds, user.id, r.lastInsertRowid);
       }
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
@@ -417,6 +429,8 @@ export function createTickets(db, users) {
     const ticket = ticketOut(rawById(row.id));
     const comment = comments({ role: 'admin' }, row.id).find((c) => c.id === info.lastInsertRowid);
     emitLater('commented', { ticket, comment, user, internal: !!isInternal });
+    const others = mention.ids.filter((id) => id !== user?.id);
+    if (others.length) emitLater('mentioned', { ticket, comment, user, internal: !!isInternal, userIds: others });
     return comment;
   }
 
@@ -643,17 +657,58 @@ export function createTickets(db, users) {
   function detail(user, idOrKey) {
     const row = load(user, idOrKey);
     const extra = Object.assign({}, ...detailExtras.map((fn) => fn(user, row) || {}));
+    const mentionsMe = new Set(db.prepare('SELECT comment_id FROM comment_mentions WHERE ticket_id=? AND user_id=?').all(row.id, user.id).map((r) => r.comment_id));
+    if (mentionsMe.size) markMentionsSeen(user, row.id);
     const htmlFor = new Set(db.prepare('SELECT comment_id FROM mail_html WHERE ticket_id=?').all(row.id).map((r) => r.comment_id ?? 0));
     return {
       ...ticketOut(row, isAgent(user), user.id),
       descriptionHtml: htmlFor.has(0),
       participants: participants(row.id, user),
       canManageParticipants: isAgent(user) || row.reporter_id === user.id || isParticipant(row.id, user.id),
-      comments: comments(user, row.id).map((c) => ({ ...c, hasHtml: htmlFor.has(c.id) })),
+      comments: comments(user, row.id).map((c) => ({ ...c, hasHtml: htmlFor.has(c.id), mentionsMe: mentionsMe.has(c.id) || undefined })),
       attachments: attachments(row.id).filter((a) => isAgent(user) || !a.commentId || !db.prepare('SELECT internal FROM comments WHERE id=?').get(a.commentId)?.internal),
       activity: isAgent(user) ? activity(row.id) : [],
       ...extra,
     };
+  }
+
+  // ---------- @-mentions ----------
+  function markMentionsSeen(user, ticketId) {
+    db.prepare("UPDATE comment_mentions SET seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE ticket_id=? AND user_id=? AND seen_at IS NULL").run(ticketId, user.id);
+  }
+
+  /** Tickets (IDs) with mentions of this person that they have not opened since. */
+  function unseenMentionTickets(user, ticketIds = null) {
+    const rows = db.prepare('SELECT DISTINCT ticket_id FROM comment_mentions WHERE user_id=? AND seen_at IS NULL').all(user.id);
+    const set = new Set(rows.map((r) => r.ticket_id));
+    return ticketIds ? new Set(ticketIds.filter((id) => set.has(id))) : set;
+  }
+
+  /**
+   * Who can be mentioned in this ticket: active agents; for replies (not internal) also
+   * reporter, participants and approvers – nobody who could not see the ticket anyway.
+   */
+  function mentionCandidates(user, idOrKey, { q = '', internal = false } = {}) {
+    const row = load(user, idOrKey);
+    if (!isAgent(user)) throw forbidden();
+    const needle = str(q, 60).trim().toLowerCase();
+    const like = `%${needle.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const match = needle ? "AND (lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.username) LIKE ? ESCAPE '\\')" : '';
+    const margs = needle ? [like, like] : [];
+    const agents = db.prepare(`SELECT u.id, u.display_name, u.username, u.role FROM users u
+      WHERE u.active=1 AND u.role IN ('agent','admin') ${match} ORDER BY lower(u.display_name) LIMIT 30`).all(...margs);
+    let customers = [];
+    if (!internal) {
+      customers = db.prepare(`SELECT u.id, u.display_name, u.username, u.role FROM users u
+        WHERE u.active=1 AND u.role NOT IN ('agent','admin') ${match} AND (u.id=? OR u.id IN (SELECT user_id FROM ticket_participants WHERE ticket_id=?)
+          OR u.id IN (SELECT approver_id FROM approvals WHERE ticket_id=?)) ORDER BY lower(u.display_name) LIMIT 20`).all(...margs, row.reporter_id || 0, row.id, row.id);
+    }
+    const out = (u, kind) => ({ id: u.id, displayName: u.display_name || u.username, kind });
+    // Ticket people first (reporter, assignee), then everyone else
+    const first = (x) => (x.id === row.reporter_id || x.id === row.assignee_id ? 0 : 1);
+    return [...customers.map((u) => out(u, 'customer')), ...agents.map((u) => out(u, 'agent'))]
+      .sort((a, b) => first(a) - first(b))
+      .slice(0, 12);
   }
 
   /** Counts for the sidebar queues (one query, active projects only; unknown project → 0). */
@@ -714,6 +769,6 @@ export function createTickets(db, users) {
     search,
     events, projects, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
-    descriptionVersion, participants, addParticipant, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
+    descriptionVersion, participants, addParticipant, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
 }

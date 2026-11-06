@@ -1,0 +1,159 @@
+// @-mentions in the comment field (desktop and mobile).
+// Typing "@" and a few letters shows matching people; ↑/↓ + Enter/Tab or a tap inserts "@Name".
+// The field shows plain names; encode() turns the picked names into "@[Name](user:ID)" for saving,
+// decode() turns saved text (drafts) back into names.
+import { api } from './api.js';
+import { h, mount, avatar } from './dom.js';
+import { t } from './i18n.js';
+
+const TOKEN = /@\[([^\]\n]{1,120})\]\(user:(\d{1,10})\)/g;
+// Text right before the cursor: "@" at the start or after a space/bracket, up to two words
+const QUERY = /(?:^|[\s(])@([^\s@[\]()]{0,30}(?: [^\s@[\]()]{1,30})?)$/;
+const WORD = /[\p{L}\p{N}_]/u;
+let uid = 0;
+
+/**
+ * ta: textarea. getKey(): ticket key, isInternal(): internal note? (then only agents are offered)
+ * Returns { encode(text), decode(text), close() }.
+ */
+export function attachMentions(ta, { getKey, isInternal = () => false }) {
+  const listId = `mention-${++uid}`;
+  const pop = h('div.mention-pop', { id: listId, role: 'listbox', 'aria-label': t('mention.list') });
+  const picked = new Map(); // name → user ID
+  let items = [];
+  let active = 0;
+  let query = null; // { text, start } while the list is wanted
+  let timer = null;
+  let seq = 0;
+
+  ta.setAttribute('aria-autocomplete', 'list');
+  ta.setAttribute('aria-controls', listId);
+  ta.setAttribute('aria-expanded', 'false');
+
+  const isOpen = () => pop.isConnected;
+  function place() {
+    if (!isOpen()) return;
+    const r = ta.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    const width = Math.min(320, vw - 16);
+    pop.style.width = `${width}px`;
+    pop.style.left = `${Math.max(8, Math.min(r.left, vw - width - 8))}px`;
+    const vh = window.visualViewport?.height || window.innerHeight;
+    const below = vh - r.bottom;
+    if (below < 240 && r.top > below) { pop.style.top = ''; pop.style.bottom = `${window.innerHeight - r.top + 4}px`; }
+    else { pop.style.bottom = ''; pop.style.top = `${r.bottom + 4}px`; }
+  }
+  function open() {
+    if (!isOpen()) {
+      document.body.append(pop);
+      window.addEventListener('resize', place);
+      window.addEventListener('scroll', place, true);
+    }
+    ta.setAttribute('aria-expanded', 'true');
+    place();
+  }
+  function close() {
+    seq++;
+    clearTimeout(timer);
+    query = null;
+    items = [];
+    if (isOpen()) {
+      pop.remove();
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    }
+    ta.setAttribute('aria-expanded', 'false');
+    ta.removeAttribute('aria-activedescendant');
+  }
+  function highlight(i) {
+    active = i;
+    pop.querySelectorAll('.mention-item').forEach((el, n) => {
+      el.classList.toggle('active', n === i);
+      el.setAttribute('aria-selected', String(n === i));
+      if (n === i) { el.scrollIntoView({ block: 'nearest' }); ta.setAttribute('aria-activedescendant', el.id); }
+    });
+  }
+  function render(people) {
+    items = people;
+    if (!people.length) { close(); return; }
+    mount(pop, people.map((p, i) => h('div.mention-item', {
+      id: `${listId}-${i}`, role: 'option', 'aria-selected': 'false',
+      // pointerdown: before the field loses focus (keyboard on phones stays open)
+      onpointerdown: (e) => { e.preventDefault(); choose(p); },
+    }, avatar(p, 'sm'), h('span.mention-name', p.displayName), p.kind === 'customer' ? h('span.mention-kind', t('mention.customer')) : null)));
+    open();
+    highlight(0);
+  }
+
+  async function lookup(text) {
+    const my = ++seq;
+    try {
+      const { people } = await api.mentionCandidates(getKey(), text, isInternal());
+      if (my !== seq || !query) return;
+      render(people || []);
+    } catch { if (my === seq) close(); }
+  }
+
+  function check() {
+    if (ta.selectionStart !== ta.selectionEnd) { close(); return; }
+    const caret = ta.selectionStart;
+    const before = ta.value.slice(Math.max(0, caret - 70), caret);
+    const m = QUERY.exec(before);
+    if (!m) { close(); return; }
+    const text = m[1];
+    if (query && query.text === text && query.start === caret - text.length - 1) return;
+    query = { text, start: caret - text.length - 1 };
+    clearTimeout(timer);
+    timer = setTimeout(() => lookup(text), text ? 120 : 0);
+  }
+
+  function choose(p) {
+    if (!query) return;
+    const name = String(p.displayName).replace(/[\]\n]/g, ' ').trim();
+    const end = query.start + 1 + query.text.length;
+    ta.setRangeText(`@${name} `, query.start, end, 'end');
+    picked.set(name, p.id);
+    close();
+    ta.focus();
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  ta.addEventListener('input', check);
+  ta.addEventListener('click', check);
+  ta.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') check(); });
+  ta.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== ta) close(); }, 150));
+  // Capture: before the field's own keys (Ctrl+Enter sends, Enter on phones)
+  ta.addEventListener('keydown', (e) => {
+    if (!isOpen() || !items.length) return;
+    const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+    if (e.key === 'ArrowDown') { stop(); highlight((active + 1) % items.length); }
+    else if (e.key === 'ArrowUp') { stop(); highlight((active - 1 + items.length) % items.length); }
+    else if ((e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey) || e.key === 'Tab') { stop(); choose(items[active]); }
+    else if (e.key === 'Escape') { stop(); close(); }
+  }, true);
+
+  /** "@Name" of picked people → "@[Name](user:ID)"; longer names first ("@Max Muster" before "@Max"). */
+  function encode(text) {
+    let out = String(text ?? '');
+    for (const [name, id] of [...picked].sort((a, b) => b[0].length - a[0].length)) {
+      const needle = `@${name}`;
+      let result = '';
+      let from = 0;
+      for (let i = out.indexOf(needle); i !== -1; i = out.indexOf(needle, i + needle.length)) {
+        const after = out[i + needle.length];
+        if (after && WORD.test(after)) continue; // "@Maxi" is not "@Max"
+        result += `${out.slice(from, i)}@[${name}](user:${id})`;
+        from = i + needle.length;
+      }
+      out = result + out.slice(from);
+    }
+    return out;
+  }
+
+  /** Saved text (e.g. a draft) back to plain names – the people stay picked. */
+  function decode(text) {
+    return String(text ?? '').replace(TOKEN, (m, name, id) => { picked.set(name, Number(id)); return `@${name}`; });
+  }
+
+  return { encode, decode, close };
+}

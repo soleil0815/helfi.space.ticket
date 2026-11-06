@@ -15,6 +15,11 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Import aus einem anderen Ticketsystem** (über dessen REST-API, Cloud und Server/Data Center): Projekte, Tickets, Kommentare und Anhänge. Die Ticketnummern bleiben erhalten.
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **IT-Service-Management nach ITIL** (alles optional): Verknüpfungen und Unteraufgaben, Auswirkung/Dringlichkeit und Major Incidents, Service Level, Probleme und bekannte Fehler, Change-Management mit Genehmigung und Kalender, Wissensdatenbank, Servicekatalog mit Formularen und Genehmigung, Geräte & Dienste, Zufriedenheitsumfrage und Kennzahlen
+- **Zusammenarbeit im Team:** **@-Erwähnungen** in Antworten und internen Notizen (mit Mail und Ansicht „Erwähnt mich“), Anfrage-Teilnehmer, Antwortvorlagen, **Mehrfachauswahl** (Status, Zuweisung, Kommentar oder Verknüpfung für viele Tickets auf einmal), **Verknüpfen mit Suche und Vorschlägen** (mögliche Ursachen, ähnliche Tickets)
+- **KI-Unterstützung (optional):** Zusammenfassung, Antwortvorschlag und Umformulieren mit einem eigenen Modell (Ollama, LM Studio, vLLM …) oder einem beliebigen OpenAI-kompatiblen Dienst – nur Vorschläge, nichts wird automatisch verschickt
+- **Handy-App:** eigene, app-artige Oberfläche unter `/m`, als App installierbar, mit Fotos, Vorlagen, Erwähnungen und 2FA-Einrichtung
+- **Selbstregistrierung und „Kennwort vergessen“** für lokale Konten (standardmäßig aus), optional nur für bestimmte Domänen und mit Freigabe
+- **Automatische Abmeldung bei Inaktivität,** für Admins und Zugriffe von außen strenger einstellbar, mit „Noch da?“-Hinweis
 - **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen.
 - **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht – einstellbar je Rolle.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
@@ -234,6 +239,15 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 - **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
+
+## @-Erwähnungen
+
+Bearbeiter holen Kollegen gezielt in ein Ticket: Im Antwortfeld (Desktop und Handy) **@** und ein paar Buchstaben tippen, Person auswählen (Klick/Tippen oder ↑/↓ und Enter bzw. Tab; Esc schließt die Liste). Im Kommentar erscheint der Name hervorgehoben, die eigene Erwähnung farbig.
+
+- **Wer erwähnt werden kann:** in einer **internen Notiz** nur Bearbeiter; in einer **Antwort** außerdem Melder, Teilnehmer und Genehmigende des Tickets. Wer das Ticket nicht sehen darf, wird nicht angeboten – und auch ein von Hand getippter Verweis wird beim Speichern zu reinem Text. Melder erwähnen niemanden; Kommentare aus E-Mails auch nicht (Absender lassen sich fälschen).
+- **Benachrichtigung:** Wer erwähnt wird, bekommt eine Mail vom Ticketsystem („Anna hat Sie in IT-12 erwähnt“) mit dem Kommentar und dem Link. Melder und Teilnehmer, die die Antwort ohnehin per Mail bekommen, erhalten keine zweite. Wer sich selbst erwähnt, bekommt nichts. Antworten auf die Mail eines Bearbeiters werden wie gewohnt zu internen Notizen. Abschaltbar unter *Kanäle: E-Mail → Benachrichtigungen*.
+- **Wiederfinden:** *Erwähnt mich* in der Seitenleiste (Handy: Chip *Erwähnt* unter *Tickets*) listet alle Tickets mit einer Erwähnung; die Zahl daneben zählt die noch nicht geöffneten. Neue Erwähnungen sind in den Listen mit **@** markiert, der betreffende Kommentar im Ticket ebenfalls. Mit dem Öffnen des Tickets gilt die Erwähnung als gesehen.
+- Erwähnungen werden nicht automatisch zu Teilnehmern oder Beobachtern – dafür gibt es *Anfrage-Teilnehmer*.
 
 ## Mehrere Tickets auf einmal bearbeiten
 

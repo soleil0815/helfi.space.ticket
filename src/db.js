@@ -611,6 +611,22 @@ export const MIGRATIONS = [
     UPDATE sessions SET last_seen = CAST(strftime('%s','now') AS INTEGER) * 1000;
     `,
   },
+  {
+    id: 28,
+    name: '@-Erwähnungen in Kommentaren',
+    sql: `
+    -- Who was mentioned in which comment; seen_at = the person has opened the ticket since
+    CREATE TABLE comment_mentions (
+      comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      seen_at TEXT,
+      PRIMARY KEY (comment_id, user_id)
+    );
+    CREATE INDEX idx_comment_mentions_user ON comment_mentions(user_id, ticket_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

@@ -67,7 +67,7 @@ test('Setup: two projects, mixed tickets', async () => {
 test('Counts per queue, per project and total; agents only', async () => {
   assert.equal((await karl('GET', '/api/queues')).status, 403);
   const it = (await admin('GET', '/api/queues?project=IT')).body.counts;
-  assert.deepEqual(it, { open: 4, mine: 1, unassigned: 3, waiting: 1, recent: 1, total: 6, requests: 1, incidents: 2, problems: 0, changes: 0, approvals: 0 });
+  assert.deepEqual(it, { open: 4, mine: 1, unassigned: 3, waiting: 1, recent: 1, total: 6, requests: 1, incidents: 2, problems: 0, changes: 0, approvals: 0, mentions: 0 });
   const all = (await admin('GET', '/api/queues')).body.counts;
   assert.equal(all.total, 7);
   assert.equal(all.requests, 2);

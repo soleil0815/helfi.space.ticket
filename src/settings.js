@@ -151,6 +151,7 @@ export const DEFAULTS = {
   'notify.reporterOnDone': true,
   'notify.assignee': true,
   'notify.participantAdded': true, // mail to people added as participants on the web
+  'notify.mention': true, // mail to people @-mentioned in a comment
 };
 
 export const SECRET_KEYS = new Set(['ldap.bindPassword', 'oidc.clientSecret', 'imap.password', 'smtp.password', 'ai.apiKey']);

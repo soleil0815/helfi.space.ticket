@@ -444,6 +444,7 @@ export function createApi(ctx) {
     if (ctx.sla.enabled()) counts.slaRisk = ctx.sla.atRisk(project).length;
     counts.changes = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='change' AND t.status<>'done' AND p.archived=0 ${project ? 'AND p.key=?' : ''}`).get(...(project ? [project.toUpperCase()] : [])).n;
     counts.approvals = ctx.approvals.pendingFor(req.user.id).length;
+    counts.mentions = tickets.unseenMentionTickets(req.user).size;
     counts.problems = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='problem' AND t.status<>'done' AND p.archived=0 ${project ? 'AND p.key=?' : ''}`).get(...(project ? [project.toUpperCase()] : [])).n;
     res.json({ counts });
   });
@@ -461,6 +462,11 @@ export function createApi(ctx) {
     if (req.query.approval === 'mine') {
       const ids = new Set(ctx.approvals.pendingFor(req.user.id));
       list = list.filter((tk) => ids.has(tk.id));
+    }
+    // Tickets with mentions of me that I have not opened since
+    if (isAgent(req.user) && list.length) {
+      const unseen = tickets.unseenMentionTickets(req.user, list.map((tk) => tk.id));
+      if (unseen.size) list = list.map((tk) => (unseen.has(tk.id) ? { ...tk, mentionUnseen: true } : tk));
     }
     res.json({ tickets: list, ...(searchTerms ? { searchTerms } : {}) });
   });
@@ -532,6 +538,10 @@ export function createApi(ctx) {
   }));
 
   r.get('/tickets/:key', (req, res) => res.json({ ticket: tickets.detail(req.user, req.params.key) }));
+  // People for @-mentions (agents; internal note → agents only)
+  r.get('/tickets/:key/mention-candidates', requireRole('agent'), (req, res) => res.json({
+    people: tickets.mentionCandidates(req.user, req.params.key, { q: str(req.query.q, 60), internal: req.query.internal === '1' }),
+  }));
 
   // AI assistance (agents only, src/ai.js): suggestions only – nothing is sent or changed automatically
   r.get('/tickets/:key/ai/summary', requireRole('agent'), (req, res) => res.json({ summary: ctx.ai.storedSummary(req.user, req.params.key) }));

@@ -3,7 +3,7 @@ import { api } from '/js/api.js';
 import { h, icon, avatar, priorityIcon, typeIcon } from '/js/dom.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
-import { QUEUES, matchQueue } from '/js/queues.js';
+import { QUEUES, VIEWS, matchQueue } from '/js/queues.js';
 import { typesFor } from '/js/types.js';
 import { replaceUrl } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
@@ -14,14 +14,16 @@ const PAGE = 50;
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const PRIOS = ['highest', 'high', 'medium', 'low'];
 // Filter keys: a queue chip replaces all of them (search and project stay)
-const QUEUE_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla', 'approval', 'participant'];
+const QUEUE_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla', 'approval', 'participant', 'mentioned'];
 const ALLOWED = [...QUEUE_KEYS, 'q', 'project', 'sort'];
 const USER_CHIPS = [
   { id: 'all', label: 'm.q.all', params: {} },
   { id: 'open', label: 'm.req.open', params: { status: 'unresolved' } },
   { id: 'done', label: 'm.req.done', params: { status: 'done' } },
 ];
-const QUEUE_SHORT = { open: 'm.q.open', mine: 'm.q.mine', unassigned: 'm.q.unassigned', waiting: 'm.q.waiting', recent: 'm.q.recent', all: 'm.q.all' };
+const QUEUE_SHORT = { open: 'm.q.open', mine: 'm.q.mine', unassigned: 'm.q.unassigned', waiting: 'm.q.waiting', recent: 'm.q.recent', all: 'm.q.all', mentions: 'm.q.mentions' };
+// Queues plus "Mentions me" (as a chip after "Mine")
+const AGENT_CHIPS = [...QUEUES.slice(0, 2), VIEWS.find((v) => v.id === 'mentions'), ...QUEUES.slice(2)];
 
 export async function renderTickets(page, ctx) {
   page.title(t('m.tab.tickets'));
@@ -59,7 +61,7 @@ export async function renderTickets(page, ctx) {
   function drawChips() {
     if (state.isAgent) {
       const cur = matchQueue(new URLSearchParams(f));
-      chipsHost.replaceChildren(chipRow(QUEUES.map((q) => chip(t(QUEUE_SHORT[q.id] || q.label), {
+      chipsHost.replaceChildren(chipRow(AGENT_CHIPS.map((q) => chip(t(QUEUE_SHORT[q.id] || q.label), {
         active: cur?.id === q.id,
         count: counts ? counts[q.count] ?? null : null,
         onClick: () => {

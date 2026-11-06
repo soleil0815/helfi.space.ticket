@@ -796,7 +796,7 @@ async function mailPage(body, s) {
       h('div.grid-2', field(t('mail.from'), bindInput(s, 'smtp.from', { type: 'email', placeholder: 'helpdesk@firma.local' }), t('mail.fromHint')), field(t('mail.fromName'), bindInput(s, 'smtp.fromName'))),
       field(t('mail.verifyTls'), bindCheck(s, 'smtp.verifyTls')),
       h('h3', t('mail.notifications')),
-      ['reporterOnCreate', 'reporterOnComment', 'reporterOnDone', 'assignee', 'participantAdded'].map((k) => field(t(`mail.notify.${k}`), bindCheck(s, `notify.${k}`))),
+      ['reporterOnCreate', 'reporterOnComment', 'reporterOnDone', 'assignee', 'participantAdded', 'mention'].map((k) => field(t(`mail.notify.${k}`), bindCheck(s, `notify.${k}`))),
       h('h3', t('survey.adminTitle')),
       h('p.muted.small', t('survey.adminHint')),
       field(t('survey.enabled'), bindCheck(s, 'survey.enabled')),
