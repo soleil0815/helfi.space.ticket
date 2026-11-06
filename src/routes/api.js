@@ -30,6 +30,7 @@ import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
 import { REASONING, normalizeBaseUrl, listModels } from '../ai.js';
 import { LINK_KINDS } from '../itil/links.js';
 import { createSavedFilters } from '../filters.js';
+import { CLASSIFY_MODES } from '../ai-classify.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -66,6 +67,8 @@ export function createApi(ctx) {
       pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
       adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // people search in AD available
       ai: !!(req.user && isAgent(req.user) && ctx.ai.ready()), // AI assistance (summary, reply suggestion)
+      // which AI functions are switched on (agents only)
+      aiFeatures: req.user && isAgent(req.user) ? ctx.ai.features() : null,
       session: ctx.sessions.info(req), // automatic sign-out: idle period, time left (signed in only)
       // News of the current version that this account has not seen yet
       news: req.user ? ctx.news.unseen(req.user) : null,
@@ -589,6 +592,9 @@ export function createApi(ctx) {
   r.get('/tickets/:key/ai/summary', requireRole('agent'), (req, res) => res.json({ summary: ctx.ai.storedSummary(req.user, req.params.key) }));
   r.post('/tickets/:key/ai/summary', requireRole('agent'), wrap(async (req, res) => res.json({ summary: await ctx.ai.summarize(req.user, req.params.key) })));
   r.post('/tickets/:key/ai/reply', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.suggestReply(req.user, req.params.key, req.body.draft))));
+  // AI component suggestion: accept or dismiss
+  r.post('/tickets/:key/component-suggestion/accept', requireRole('agent'), (req, res) => res.json({ ticket: ctx.aiClassifier.accept(req.user, req.params.key) }));
+  r.post('/tickets/:key/component-suggestion/dismiss', requireRole('agent'), (req, res) => res.json(ctx.aiClassifier.dismiss(req.user, req.params.key)));
   r.post('/ai/rewrite', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.rewrite(req.user, req.body.text, str(req.body.mode, 20)))));
 
   // Formatted version of an HTML mail – only in the isolated frame: no script, no foreign content
@@ -752,6 +758,8 @@ export function createApi(ctx) {
       if (incoming[k] !== undefined) incoming[k] = idleMinutes(incoming[k]);
     }
     if (incoming['ai.reasoning'] !== undefined && !REASONING.includes(incoming['ai.reasoning'])) throw new HttpError(400, 'err.badRequest', 'ai.reasoning');
+    if (incoming['ai.classifyMode'] !== undefined && !CLASSIFY_MODES.includes(incoming['ai.classifyMode'])) throw new HttpError(400, 'err.badRequest', 'ai.classifyMode');
+    for (const k of ['ai.summary', 'ai.reply', 'ai.rewrite', 'ai.classify']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
     if (incoming['ai.baseUrl'] !== undefined && String(incoming['ai.baseUrl']).trim()) {
       let u = null;
       try { u = new URL(String(incoming['ai.baseUrl']).trim()); } catch { /* checked below */ }
@@ -804,6 +812,7 @@ export function createApi(ctx) {
 
   admin.post('/imap/test', wrap(async (req, res) => res.json(await testImap(mergedGroup('imap', req.body.settings)))));
 
+  admin.get('/ai/stats', (req, res) => res.json({ classify: ctx.aiClassifier.stats() }));
   admin.post('/ai/test', wrap(async (req, res) => {
     const cfg = mergedGroup('ai', req.body.settings);
     try {

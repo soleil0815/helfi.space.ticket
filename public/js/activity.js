@@ -7,6 +7,13 @@ export function activityFieldLabel(a) {
   return a.field && !a.field.includes(':') && a.action === 'changed' ? t(`field.${a.field}`) : '';
 }
 
+/** Why a ticket got its component: "keywords: vpn" / "sender: *@…" / "by AI · model" / "AI suggestion · model" */
+export function componentReason(a) {
+  const label = t(`comp.reason.${a.field}`);
+  if (a.field === 'ai' || a.field === 'aiAccepted') return a.oldValue ? `${label} · ${a.oldValue}` : label;
+  return `${label}: ${a.oldValue}`;
+}
+
 /** Old/new value of a change in readable form */
 export function activityValue(a, v) {
   if (v === null || v === undefined || v === '') return t('app.none');

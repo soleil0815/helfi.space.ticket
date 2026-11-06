@@ -73,6 +73,8 @@ export const api = {
   addExampleComponents: (projectId, keys, lang) => request('POST', `/api/projects/${projectId}/components/examples`, { keys, lang }),
 
   stats: () => request('GET', '/api/stats'),
+  acceptSuggestion: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/component-suggestion/accept`),
+  dismissSuggestion: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/component-suggestion/dismiss`),
   filters: () => request('GET', '/api/filters'),
   createFilter: (d) => request('POST', '/api/filters', d),
   updateFilter: (id, d) => request('PATCH', `/api/filters/${id}`, d),
@@ -187,6 +189,7 @@ export const api = {
     testSmtp: (settings, to) => request('POST', '/api/admin/smtp/test', { settings, to }),
     testAi: (settings) => request('POST', '/api/admin/ai/test', { settings }),
     aiModels: (settings) => request('POST', '/api/admin/ai/models', { settings }),
+    aiStats: () => request('GET', '/api/admin/ai/stats'),
     system: () => request('GET', '/api/admin/system'),
     backup: () => request('POST', '/api/admin/backup'),
     deleteBackup: (name) => request('DELETE', `/api/admin/backups/${encodeURIComponent(name)}`),

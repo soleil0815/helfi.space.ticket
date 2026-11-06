@@ -770,13 +770,30 @@ function aiModelPicker(s, onChange) {
 function aiPage(body, s) {
   const res = result();
   const remoteHint = h('div.hint-box.hint-warn', icon('warning'), h('div', t('ai.remoteHint')));
-  const updateHint = () => { remoteHint.hidden = !aiLooksRemote(s['ai.baseUrl'], s['ai.model']); };
+  // Component detection with a cloud model: every new ticket without a rule match leaves the house
+  const classifyHint = h('div.hint-box.hint-warn', icon('warning'), h('div', t('ai.classifyRemoteHint')));
+  const updateHint = () => {
+    const remote = aiLooksRemote(s['ai.baseUrl'], s['ai.model']);
+    remoteHint.hidden = !remote;
+    classifyHint.hidden = !(remote && s['ai.classify']);
+  };
+  const modeSel = bindSelect(s, 'ai.classifyMode', [['suggest', t('ai.classifyMode.suggest')], ['auto', t('ai.classifyMode.auto')]]);
+  const modeField = field(t('ai.classifyMode'), modeSel, t('ai.classifyModeHint'));
+  const syncMode = () => { modeSel.disabled = !s['ai.classify']; };
+  const stats = h('div.ai-stats', { 'aria-live': 'polite' });
+  api.admin.aiStats().then(({ classify: c }) => {
+    if (!c.decided && !c.pending && !c.none) return mount(stats, h('span.muted', t('ai.statsNone')));
+    mount(stats,
+      c.rate === null ? h('span.muted', t('ai.statsNoDecision')) : h('span', h('strong.ai-rate', `${c.rate} %`), ' ', t('ai.statsRate', { hits: c.hits, decided: c.decided })),
+      h('span.muted.block.small', t('ai.statsDetail', { accepted: c.accepted, auto: c.auto, corrected: c.corrected, rejected: c.rejected, pending: c.pending, none: c.none })));
+  }).catch(() => {});
   const baseUrl = bindInput(s, 'ai.baseUrl', { placeholder: 'http://ollama:11434/v1', spellcheck: false, autocomplete: 'off' });
   const apiKey = bindInput(s, 'ai.apiKey', { type: 'password', autocomplete: 'new-password' });
   const picker = aiModelPicker(s, updateHint);
   baseUrl.addEventListener('input', () => { updateHint(); picker.later(); });
   apiKey.addEventListener('input', picker.later);
   updateHint();
+  syncMode();
   mount(body,
     h('section.panel',
       h('h2', t('ai.title')),
@@ -794,6 +811,16 @@ function aiPage(body, s) {
         field(t('ai.maxChars'), bindInput(s, 'ai.maxChars', { type: 'number', min: 2000, max: 200000, step: 1000 }), t('ai.maxCharsHint')),
         field(t('ai.timeout'), bindInput(s, 'ai.timeout', { type: 'number', min: 10, max: 600 }))),
       field(t('ai.includeInternal'), bindCheck(s, 'ai.includeInternal'), t('ai.includeInternalHint')),
+      h('h3', t('ai.functions')),
+      h('p.muted', t('ai.functionsIntro')),
+      h('div.ai-functions',
+        field(t('ai.fn.summary'), bindCheck(s, 'ai.summary'), t('ai.fn.summaryHint')),
+        field(t('ai.fn.reply'), bindCheck(s, 'ai.reply'), t('ai.fn.replyHint')),
+        field(t('ai.fn.rewrite'), bindCheck(s, 'ai.rewrite'), t('ai.fn.rewriteHint')),
+        field(t('ai.fn.classify'), bindCheck(s, 'ai.classify', () => { syncMode(); updateHint(); }), t('ai.fn.classifyHint'))),
+      modeField,
+      classifyHint,
+      h('div.field', h('label', t('ai.stats')), stats),
       res,
       saveBar(() => saveKeys(s, ['ai.']),
         h('button.btn', {

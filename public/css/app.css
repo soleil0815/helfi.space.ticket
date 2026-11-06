@@ -353,6 +353,13 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .manage-list .manage-name { flex: 1; min-width: 0; }
 .manage-list .btn-icon[disabled] { opacity: 0.3; cursor: default; }
 .page-head .save-filter-btn { margin-left: auto; }
+/* AI component suggestion (ticket) and AI functions (admin) */
+.ai-suggest { margin-top: 6px; padding: 8px 10px; border-radius: var(--radius); background: var(--purple-subtle); font-size: 13px; }
+.ai-suggest .icon { width: 14px; height: 14px; vertical-align: -2px; color: #6E5DC6; }
+.ai-suggest-actions { display: flex; gap: 6px; margin-top: 6px; }
+.ai-functions { display: grid; grid-template-columns: 1fr; gap: 0; max-width: 760px; }
+.ai-stats .ai-rate { font-size: 18px; }
+@media (max-width: 800px) { .ai-functions { grid-template-columns: 1fr; } }
 /* Components (admin) */
 .comp-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .comp-chips .chip { padding: 1px 8px; }

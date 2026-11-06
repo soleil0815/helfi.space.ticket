@@ -19,7 +19,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Gespeicherte Filter und eigene Warteschlangen:** Filter der Ticketliste unter einem Namen speichern – persönlich oder vom Admin für alle Bearbeiter freigegeben, in der Seitenleiste mit Anzahl, auf dem Handy als Chip
 - **Komponenten mit Zuständigkeit:** Projekte in Bereiche wie „VPN & Fernzugriff“ oder „Drucker & Scanner“ aufteilen, je mit verantwortlicher Person und Vertretung. Neue Tickets werden über Schlagwörter oder den Absender zugeordnet und gehen automatisch an die richtige Person – mit fertigen Beispielen für IT, Haustechnik und Verwaltung
 - **Zusammenarbeit im Team:** **@-Erwähnungen** in Antworten und internen Notizen (mit Mail und Ansicht „Erwähnt mich“), Anfrage-Teilnehmer, Antwortvorlagen, **Mehrfachauswahl** (Status, Zuweisung, Kommentar oder Verknüpfung für viele Tickets auf einmal), **Verknüpfen mit Suche und Vorschlägen** (mögliche Ursachen, ähnliche Tickets)
-- **KI-Unterstützung (optional):** Zusammenfassung, Antwortvorschlag und Umformulieren mit einem eigenen Modell (Ollama, LM Studio, vLLM …) oder einem beliebigen OpenAI-kompatiblen Dienst – nur Vorschläge, nichts wird automatisch verschickt
+- **KI-Unterstützung (optional, jede Funktion einzeln schaltbar):** Zusammenfassung, Antwortvorschlag, Umformulieren und Erkennen der Komponente (mit Trefferquote) mit einem eigenen Modell (Ollama, LM Studio, vLLM …) oder einem beliebigen OpenAI-kompatiblen Dienst – nur Vorschläge, nichts wird automatisch verschickt
 - **Handy-App:** eigene, app-artige Oberfläche unter `/m`, als App installierbar, mit Fotos, Vorlagen, Erwähnungen und 2FA-Einrichtung
 - **Selbstregistrierung und „Kennwort vergessen“** für lokale Konten (standardmäßig aus), optional nur für bestimmte Domänen und mit Freigabe
 - **Automatische Abmeldung bei Inaktivität,** für Admins und Zugriffe von außen strenger einstellbar, mit „Noch da?“-Hinweis
@@ -96,13 +96,19 @@ helfi.firma.local {
 
 *Administration → KI* (standardmäßig aus)
 
-Bearbeiter lassen sich Tickets zusammenfassen und Antworten vorschlagen, glätten, kürzen oder übersetzen. Alles ist nur ein **Vorschlag**: Nichts wird automatisch gesendet oder gespeichert, Anfragende sehen davon nichts.
+Bearbeiter lassen sich Tickets zusammenfassen und Antworten vorschlagen, glätten, kürzen oder übersetzen. Alles ist nur ein **Vorschlag**: Nichts wird automatisch gesendet oder gespeichert, Anfragende sehen davon nichts. Einzige Ausnahme, wenn ausdrücklich so eingestellt: *Komponente erkennen* im Modus *Automatisch zuordnen*.
 
 - **Jede OpenAI-kompatible Schnittstelle:** Ollama, LM Studio, vLLM, aber auch Cloud-Anbieter. Eingetragen werden Adresse (Ollama: `http://<host>:11434/v1`) und optional ein API-Schlüssel (verschlüsselt gespeichert, nur an diese Adresse geschickt). **Die installierten Modelle werden automatisch abgerufen** und stehen in einer Auswahlliste – bei Ollama mit Parameterzahl, Quantisierung und Größe, Cloud-Modelle in einer eigenen Gruppe; Embedding-Modelle (können nicht antworten) sind ausgeblendet. Liefert ein Server keine Liste, lässt sich der Name über *Anderes Modell eingeben …* frei eintragen. *Testen* prüft die Verbindung.
 - **Empfehlung für den Echtbetrieb: selbst hosten.** Mit einem Modell im eigenen Netz verlassen Ticketinhalte das Haus nicht. Für brauchbares Deutsch eignen sich Modelle ab etwa 8–14 Mrd. Parametern (z. B. Qwen3, Mistral, gpt-oss:20b); mit Grafikkarte kommen Antworten in Sekunden. Cloud-Modelle (auch Ollamas `…-cloud`-Modelle) schicken Namen, Beschreibungen und Antworten zum Anbieter – die Einstellungsseite weist darauf hin; ob das zulässig ist, ist eine Datenschutzfrage.
 - **Was die KI bekommt:** Titel, Beschreibung und öffentliche Kommentare (neueste zuerst, gekürzt auf eine einstellbare Länge). Interne Notizen nur, wenn eingeschaltet; Anhänge nie. Das Protokoll enthält nur Ticketnummer, Aufgabe, Modell und Dauer – keine Inhalte.
 - **Reasoning-Modelle** (z. B. gpt-oss): Das „Nachdenken“ ist auf *niedrig* gestellt (schneller) und wird aus der Antwort entfernt.
 - Nur der Server spricht das Modell an; der Browser lädt weiterhin nichts von außen. Pro Bearbeiter sind die Aufrufe begrenzt.
+- **Funktionen einzeln schalten:** *Zusammenfassung*, *Antwortvorschlag* und *Umformulieren* (standardmäßig an) sowie *Komponente erkennen* (standardmäßig aus). Ausgeschaltete Funktionen erscheinen nirgends.
+- **Komponente erkennen:** Für neue Tickets, bei denen keine [Komponenten](#komponenten)-Regel passt, wählt die KI im Hintergrund aus der Liste der Komponenten (mit Beschreibung und Schlagwörtern) – oder meldet „passt nicht“. Zwei Arten:
+  - *Vorschlagen* (Standard): Im Ticket steht „KI schlägt vor: VPN & Fernzugriff – Übernehmen / Verwerfen“ (Handy: unter *Alle Details*). Übernehmen setzt die Komponente und gibt das Ticket wie die Regeln an die verantwortliche Person.
+  - *Automatisch zuordnen*: Die Komponente wird direkt gesetzt; im Verlauf steht „von KI“ mit dem Modell.
+  - Die **Trefferquote** steht auf der KI-Seite, z. B. „87 % (52 von 60 übernommen)“: übernommene und automatisch gesetzte, die niemand geändert hat, gegen korrigierte und verworfene.
+  - Mit einem Cloud-Modell gehen dafür Titel und Beschreibung jedes neuen Tickets ohne Regel-Treffer an den Anbieter – die Seite weist darauf hin.
 
 ## Selbstregistrierung und Kennwort vergessen
 

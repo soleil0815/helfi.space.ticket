@@ -853,3 +853,9 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-segmented-small button { min-height: 32px; padding: 0 12px; font-size: 13px; border-radius: 8px; }
 .m-choice-group { padding: 12px 4px 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-subtlest); }
 .m-msg.mentions-me .m-msg-bubble { box-shadow: inset 3px 0 0 var(--blue, #0C66E4); }
+
+/* AI component suggestion in the details sheet */
+.m-ai-suggest { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: #F3F0FF; }
+.m-ai-suggest .icon { width: 16px; height: 16px; vertical-align: -3px; color: #6E5DC6; }
+.m-ai-suggest-actions { display: flex; gap: 8px; }
+.m-ai-suggest-actions .m-btn { flex: 1; }

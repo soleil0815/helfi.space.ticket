@@ -72,7 +72,7 @@ export function replyBar({ getTicket, onSent }) {
   // AI suggestions (agents, only if set up): reply from the ticket/notes, polish, shorten, translate
   const aiNote = h('div.m-reply-ai', { hidden: true });
   let aiBefore = null;
-  const aiBtn = agent && state.boot.ai ? h('button.m-reply-tpl.m-reply-ai-btn', { type: 'button', 'aria-label': t('ai.menuHint'), title: t('ai.menuHint'), onclick: () => openAiSheet() }, icon('sparkle')) : null;
+  const aiBtn = agent && (state.boot.aiFeatures?.reply || state.boot.aiFeatures?.rewrite) ? h('button.m-reply-tpl.m-reply-ai-btn', { type: 'button', 'aria-label': t('ai.menuHint'), title: t('ai.menuHint'), onclick: () => openAiSheet() }, icon('sparkle')) : null;
   function openAiSheet() {
     const has = !!ta.value.trim();
     const opt = (label, ic, call) => h('button.m-canned-item', { type: 'button', onclick: () => { sheet.close(); runAi(call); } },
@@ -80,14 +80,14 @@ export function replyBar({ getTicket, onSent }) {
     const sheet = openSheet({
       title: t('ai.title'),
       content: h('div.m-canned',
-        internal ? null : opt(has ? t('ai.replyFromNotes') : t('ai.reply'), 'sparkle', () => api.aiReply(key(), ta.value)),
-        has ? [
+        internal || !state.boot.aiFeatures?.reply ? null : opt(has ? t('ai.replyFromNotes') : t('ai.reply'), 'sparkle', () => api.aiReply(key(), ta.value)),
+        has && state.boot.aiFeatures?.rewrite ? [
           opt(t('ai.polish'), 'pencil', () => api.aiRewrite(ta.value, 'polish')),
           opt(t('ai.shorter'), 'list', () => api.aiRewrite(ta.value, 'shorter')),
           opt(t('ai.toGerman'), 'globe', () => api.aiRewrite(ta.value, 'de')),
           opt(t('ai.toEnglish'), 'globe', () => api.aiRewrite(ta.value, 'en')),
         ] : null,
-        internal && !has ? h('p.m-sheet-empty', t('ai.noText')) : null),
+        (internal || !state.boot.aiFeatures?.reply) && !has ? h('p.m-sheet-empty', t('ai.noText')) : null),
     });
   }
   async function runAi(call) {

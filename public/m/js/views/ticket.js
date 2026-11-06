@@ -10,7 +10,7 @@ import { state } from '/js/state.js';
 import { typesFor } from '/js/types.js';
 import { slaChip } from '/js/views/sla.js';
 import { linkLabel } from '/js/views/links.js';
-import { activityFieldLabel, activityValue } from '/js/activity.js';
+import { activityFieldLabel, activityValue, componentReason } from '/js/activity.js';
 import { replaceUrl, go, dataChanged } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
 import { openSheet } from '../sheet.js';
@@ -322,7 +322,7 @@ export async function renderTicket(page, ctx) {
     else if (a.action === 'sla') detail = `${t(`sla.kind.${a.field}`)} ${t(`sla.state.${a.newValue}`)}`;
     else if (a.action === 'approval') detail = t(`change.decision.${a.field}`);
     else if ((a.action === 'linked' || a.action === 'unlinked') && a.field) detail = `${linkLabel(...a.field.split(':'))} ${a.newValue || a.oldValue || ''}`;
-    else if (a.action === 'classified') detail = `${a.newValue} (${t(`comp.reason.${a.field}`)}: ${a.oldValue})`;
+    else if (a.action === 'classified') detail = `${a.newValue} (${componentReason(a)})`;
     else if (a.action === 'autoAssigned') detail = `${a.newValue} (${t(`comp.role.${a.field}`, { name: a.oldValue })})`;
     else if (a.action === 'rated') detail = '★'.repeat(Number(a.newValue) || 0);
     else if (['attached', 'detached', 'participantAdded', 'participantRemoved', 'ciLinked', 'ciUnlinked', 'approvalRequested', 'kbCreated'].includes(a.action)) detail = a.newValue || a.oldValue;
@@ -359,6 +359,12 @@ export async function renderTicket(page, ctx) {
     const links = tk.links || [];
     const cis = tk.cis || [];
     const edit = (value, onClick, label) => (agent ? h('button.m-drow-edit', { type: 'button', onclick: () => { after = onClick; sheet.close(); }, 'aria-label': `${label} – ${t('app.edit')}` }, value, icon('chevron-right')) : value);
+    const decideSuggestion = async (yes) => {
+      try {
+        if (yes) await api.acceptSuggestion(tk.key); else await api.dismissSuggestion(tk.key);
+        await reloadAfterChange();
+      } catch (e) { toast(e.message, 'error'); }
+    };
     // Component (agents): choice from the project's components
     const componentSheet = async () => {
       const list = await projectComponents(tk.projectId);
@@ -381,7 +387,14 @@ export async function renderTicket(page, ctx) {
       tk.sla ? row(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
       agent ? row(t('itil.impact'), level(tk.impact)) : null,
       agent ? row(t('itil.urgency'), level(tk.urgency)) : null,
-      agent ? row(t('ticket.component'), edit(tk.component ? h('span', tk.component.name) : none(), componentSheet, t('ticket.component'))) : null,
+      agent ? row(t('ticket.component'), h('div.m-stack',
+        edit(tk.component ? h('span', tk.component.name) : none(), componentSheet, t('ticket.component')),
+        tk.componentSuggestion ? h('div.m-ai-suggest',
+          h('span', icon('sparkle'), ' ', t('ai.suggests'), ' ', h('strong', tk.componentSuggestion.name)),
+          tk.componentSuggestion.reason ? h('span.m-muted', tk.componentSuggestion.reason) : null,
+          h('div.m-ai-suggest-actions',
+            h('button.m-btn.m-btn-primary', { type: 'button', onclick: () => { after = () => decideSuggestion(true); sheet.close(); } }, t('ai.accept')),
+            h('button.m-btn', { type: 'button', onclick: () => { after = () => decideSuggestion(false); sheet.close(); } }, t('ai.dismiss')))) : null)) : null,
       row(t('ticket.labels'), tk.labels.length ? h('div.m-chips-wrap', tk.labels.map((l) => (agent
         ? h('a.m-label', { href: `/m/tickets?label=${encodeURIComponent(l)}`, 'data-link': '' }, l)
         : h('span.m-label', l)))) : none()),
