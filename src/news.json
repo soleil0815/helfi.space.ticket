@@ -2,6 +2,14 @@
   "_note": "News per version, newest first. New items go into an entry with version \"\" (create it at the top if missing) – never fill in a number by hand: the release workflow (scripts/news-versions.mjs) gives each item the version it was first shipped with. audience: all | agent | admin.",
   "entries": [
     {
+      "version": "",
+      "date": "",
+      "items": [
+        { "audience": "all", "de": "Wissensartikel bewerten: Unter jedem Artikel fragt Helfi „War dieser Artikel hilfreich?“ – mit 👍 oder 👎 antworten, nach 👎 auf Wunsch kurz schreiben, was gefehlt hat.", "en": "Rate knowledge articles: below every article Helfi asks “Was this article helpful?” – answer with 👍 or 👎; after 👎 you can briefly say what was missing." },
+        { "audience": "agent", "de": "Bearbeiter sehen die Bewertung in der Artikelliste, der Filter „Braucht Überarbeitung“ zeigt Artikel mit 👎-Stimmen. Am Artikel stehen die Rückmeldungen; nach einer Überarbeitung lässt sich die Bewertung zurücksetzen.", "en": "Agents see the rating in the article list; the “Needs rework” filter shows articles with 👎 votes. The feedback is on the article; after reworking, the rating can be reset." }
+      ]
+    },
+    {
       "version": "1.27.0",
       "date": "2026-11-06",
       "items": [

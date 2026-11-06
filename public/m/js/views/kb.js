@@ -1,6 +1,7 @@
 // Knowledge base (read-only on the phone): search, categories, recently viewed, most read,
 // page tree as drill-down (each page lists its subpages), article view with table of contents
 // sheet and comments. Users only get public articles – the API decides.
+import { ratingBox } from '/js/kbrating.js';
 import { api } from '/js/api.js';
 import { h, icon, toast, avatar, fmtDate, relTime, richText } from '/js/dom.js';
 import { t } from '/js/i18n.js';
@@ -154,6 +155,7 @@ export async function renderKbArticle(page, ctx) {
     a.body.trim() ? h('div.m-card.m-kb-doc', doc) : null,
     children,
     agent ? h('a.m-btn.m-btn-block.m-kb-edit', { href: `/kb/${a.id}/edit?ui=desktop` }, icon('monitor'), t('m.kb.editDesktop')) : null,
+    a.body.trim() ? ratingBox(a, { compact: true }) : null,
     help,
     commentsSection(a)));
 }

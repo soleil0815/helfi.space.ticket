@@ -18,6 +18,7 @@ import { createCmdb } from './itil/cmdb.js';
 import { createSurvey } from './itil/survey.js';
 import { createItilReports } from './itil/itilReports.js';
 import { createKbComments } from './itil/kbcomments.js';
+import { createKbVotes } from './itil/kbvotes.js';
 import { config, paths } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
@@ -88,6 +89,7 @@ export function createApp(db) {
   const kb = createKb(db, tickets);
   const cmdb = createCmdb(db, tickets, users);
   const kbComments = createKbComments(db, kb, { mailer, users, settings, t, baseUrl: config.baseUrl });
+  const kbVotes = createKbVotes(db, kb);
   const catalog = createCatalog(db, tickets, approvals, fields, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const changes = createChanges(db, tickets, fields, approvals, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
@@ -108,7 +110,7 @@ export function createApp(db) {
   const reports = createReports(db);
   const selfService = createSelfService({ db, settings, users, sessions, mailer, baseUrl: config.baseUrl });
   const ai = createAi({ db, settings, tickets });
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, ldapCertWarning: null,
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 

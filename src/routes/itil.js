@@ -12,7 +12,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets, kb, kbComments, catalog, cmdb, survey, itilReports } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports } = ctx;
 
   // ---------- Links ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
@@ -72,7 +72,16 @@ export function createItilRoutes(ctx) {
   // ---------- Knowledge base (read: all signed-in users, public articles; write: agents) ----------
   r.get('/kb', (req, res) => {
     let articles = kb.search(req.user, str(req.query.q, 200), { category: str(req.query.category, 60) });
-    if (req.user.role !== 'user') { const open = kbComments.openCounts(); articles = articles.map((a) => ({ ...a, openComments: open.get(a.id) || 0 })); }
+    if (req.user.role !== 'user') {
+      const open = kbComments.openCounts();
+      const votes = kbVotes.all();
+      articles = articles.map((a) => ({ ...a, openComments: open.get(a.id) || 0, rating: votes.get(a.id) || { up: 0, down: 0 } }));
+      // "Needs rework": most "not helpful" first (more than helpful), then the others as before
+      if (req.query.sort === 'needsWork') {
+        const need = (a) => a.rating.down - a.rating.up;
+        articles = articles.filter((a) => a.rating.down > 0).sort((x, y) => need(y) - need(x) || y.rating.down - x.rating.down);
+      }
+    }
     res.json({ articles, categories: kb.categories(req.user) });
   });
   // Comments
@@ -118,7 +127,15 @@ export function createItilRoutes(ctx) {
   r.get('/kb/:id/versions', requireRole('agent'), (req, res) => res.json({ versions: kb.versions(req.user, req.params.id) }));
   r.get('/kb/:id/versions/:v', requireRole('agent'), (req, res) => res.json({ version: kb.version(req.user, req.params.id, req.params.v) }));
   r.post('/kb/:id/versions/:v/restore', requireRole('agent'), (req, res) => res.json({ article: kb.restore(req.user, req.params.id, req.params.v) }));
-  r.get('/kb/:id', (req, res) => res.json({ article: kb.get(req.user, req.params.id, { count: req.query.view === '1' }) }));
+  r.get('/kb/:id', (req, res) => {
+    const article = kb.get(req.user, req.params.id, { count: req.query.view === '1' });
+    res.json({ article: { ...article, rating: kbVotes.summary(req.user, article.id) } });
+  });
+  // Rating: "Was this article helpful?"
+  r.post('/kb/:id/vote', (req, res) => res.json({ rating: kbVotes.vote(req.user, req.params.id, req.body?.vote) }));
+  r.post('/kb/:id/feedback', (req, res) => res.status(201).json({ rating: kbVotes.addFeedback(req.user, req.params.id, req.body?.body) }));
+  r.get('/kb/:id/feedback', requireRole('agent'), (req, res) => res.json(kbVotes.feedback(req.user, req.params.id)));
+  r.post('/kb/:id/rating/reset', requireRole('agent'), (req, res) => res.json({ rating: kbVotes.reset(req.user, req.params.id) }));
   r.post('/kb', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ article: kb.create(req.user, req.body || {}) })));
   r.put('/kb/:id', requireRole('agent'), wrap(async (req, res) => res.json({ article: kb.update(req.user, req.params.id, req.body || {}) })));
   r.delete('/kb/:id', requireRole('agent'), (req, res) => { kb.remove(req.user, req.params.id); res.json({ ok: true }); });
