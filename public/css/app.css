@@ -1323,3 +1323,9 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .qs-direct, .qs-all { color: var(--blue); font-weight: 600; }
 .qs-all { border-top: 1px solid var(--border); margin-top: 4px; }
 .qs-empty { padding: 10px 12px; color: var(--text-subtle); font-size: 14px; }
+
+/* AI: model choice */
+.ai-model-row { display: flex; gap: 6px; align-items: center; }
+.ai-model-row select { flex: 1; min-width: 0; }
+.ai-model-picker > input { margin-top: 6px; width: 100%; }
+.ai-models-status { margin-top: 4px; min-height: 1.2em; }

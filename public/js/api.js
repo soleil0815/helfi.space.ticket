@@ -169,6 +169,7 @@ export const api = {
     pollImap: () => request('POST', '/api/admin/imap/poll'),
     testSmtp: (settings, to) => request('POST', '/api/admin/smtp/test', { settings, to }),
     testAi: (settings) => request('POST', '/api/admin/ai/test', { settings }),
+    aiModels: (settings) => request('POST', '/api/admin/ai/models', { settings }),
     system: () => request('GET', '/api/admin/system'),
     backup: () => request('POST', '/api/admin/backup'),
     deleteBackup: (name) => request('DELETE', `/api/admin/backups/${encodeURIComponent(name)}`),

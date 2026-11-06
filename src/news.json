@@ -2,6 +2,13 @@
   "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
+      "version": "",
+      "date": "",
+      "items": [
+        { "audience": "admin", "de": "KI-Einstellungen: Nach der Adresse werden die installierten Modelle automatisch abgerufen und stehen zur Auswahl – bei Ollama mit Größe und Parametern, Cloud-Modelle getrennt; ein eigener Name bleibt möglich.", "en": "AI settings: after the address the installed models are fetched automatically and offered to choose from – for Ollama with size and parameters, cloud models separate; a custom name is still possible." }
+      ]
+    },
+    {
       "version": "1.26.0",
       "date": "2026-11-06",
       "items": [

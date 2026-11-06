@@ -27,7 +27,7 @@ import { DEFAULTS } from '../settings.js';
 import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep } from '../db.js';
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
-import { REASONING, normalizeBaseUrl } from '../ai.js';
+import { REASONING, normalizeBaseUrl, listModels } from '../ai.js';
 import { LINK_KINDS } from '../itil/links.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
@@ -777,6 +777,16 @@ export function createApi(ctx) {
         baseUrl: normalizeBaseUrl(cfg.baseUrl), model: String(cfg.model || '').trim(), apiKey: cfg.apiKey || '',
         reasoning: REASONING.includes(cfg.reasoning) ? cfg.reasoning : 'low', timeoutMs: 60000,
       }));
+    } catch (e) {
+      res.json({ ok: false, error: e instanceof HttpError ? t(normalizeLang(req.user.language), e.code, { detail: e.detail ?? '' }) : e.message });
+    }
+  }));
+
+  // Installed models of the AI server (form values; the stored key only for its own address)
+  admin.post('/ai/models', wrap(async (req, res) => {
+    const cfg = mergedGroup('ai', req.body.settings);
+    try {
+      res.json({ ok: true, ...(await listModels({ baseUrl: String(cfg.baseUrl || ''), apiKey: cfg.apiKey || '' })) });
     } catch (e) {
       res.json({ ok: false, error: e instanceof HttpError ? t(normalizeLang(req.user.language), e.code, { detail: e.detail ?? '' }) : e.message });
     }
