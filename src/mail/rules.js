@@ -22,7 +22,7 @@ export function parseRules(json) {
   })).filter((r) => r.pattern && /[^*]/.test(r.pattern));
 }
 
-function patternToRegExp(pattern) {
+export function patternToRegExp(pattern) {
   const esc = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^\\s]*');
   return new RegExp(`^${esc}$`, 'i');
 }

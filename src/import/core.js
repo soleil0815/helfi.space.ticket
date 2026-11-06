@@ -5,6 +5,7 @@
 // - Comments (internal ones stay internal) and attachments
 // - Importing again updates already imported tickets instead of creating duplicates
 // - NO emails are sent during the import
+import { MAX_COMPONENTS } from '../components.js';
 import { normalizeLabels } from '../tickets.js';
 import { log } from '../lib/log.js';
 import { HttpError } from '../lib/http.js';
@@ -67,7 +68,7 @@ export function wantedNumber(key) {
 
 /**
  * Ticket in the common shape (from an adapter):
- * { extId, extKey, number?, title, description, typeName, statusName, statusCategory, priorityName, labels[], due,
+ * { extId, extKey, number?, title, description, typeName, statusName, statusCategory, priorityName, labels[], component?, due,
  *   created, updated, resolved, reporter: {email, name}, assignee: {email, name, username, ref},
  *   comments?: async () => [{ extId, author: {email, name}, body, internal, created }],
  *   attachments?: async () => [{ extId, filename, mime, size, created, author, commentExtId?, internal?, load: async (maxBytes) => Buffer }] }
@@ -98,6 +99,17 @@ export function createImportCore({ db, tickets, users }) {
     let u = email ? users.byEmail(email) : null;
     if (!u && email && /^[^\s@]+@[^\s@]+$/.test(email)) u = users.contactForEmail(email, name);
     return { id: u?.id ?? null, email: email || null, name };
+  }
+
+  /** Component by name in the project; created (without lead) if missing. Null if none given or the limit is reached. */
+  function componentFor(projectId, name) {
+    const n = String(name ?? '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!n) return null;
+    const found = db.prepare('SELECT id FROM components WHERE project_id=? AND name=?').get(projectId, n);
+    if (found) return found.id;
+    if (db.prepare('SELECT COUNT(*) c FROM components WHERE project_id=?').get(projectId).c >= MAX_COMPONENTS) return null;
+    const pos = db.prepare('SELECT COALESCE(MAX(position),0)+1 n FROM components WHERE project_id=?').get(projectId).n;
+    return db.prepare('INSERT INTO components(project_id,name,position) VALUES(?,?,?)').run(projectId, n, pos).lastInsertRowid;
   }
 
   const agentCache = new Map();
@@ -169,13 +181,16 @@ export function createImportCore({ db, tickets, users }) {
     if (unchanged) job.counts.unchanged++;
     db.transaction(() => {
       if (unchanged) return;
+      // Component by name in the target project (created if missing, without lead – the admin adds that)
+      const componentId = componentFor(project.id, it.component);
       if (ticketId) {
         // Record changed fields in the history (like a manual change) so nothing is overwritten without a trace
-        const old = db.prepare('SELECT title, description, type, status, priority, labels, due_date, assignee_id FROM tickets WHERE id=?').get(ticketId);
+        const old = db.prepare('SELECT title, description, type, status, priority, labels, due_date, assignee_id, component_id FROM tickets WHERE id=?').get(ticketId);
         const next = { title: values.title, description: values.description, type: values.type, status: values.status, priority: values.priority,
-          labels: values.labels, due_date: values.due, assignee_id: assigneeId ?? old.assignee_id };
-        const field = { due_date: 'dueDate', assignee_id: 'assignee' };
-        const show = (col, v) => (col === 'assignee_id' ? (v ? db.prepare('SELECT display_name n FROM users WHERE id=?').get(v)?.n ?? null : null) : v);
+          labels: values.labels, due_date: values.due, assignee_id: assigneeId ?? old.assignee_id, component_id: componentId ?? old.component_id };
+        const field = { due_date: 'dueDate', assignee_id: 'assignee', component_id: 'component' };
+        const show = (col, v) => (col === 'assignee_id' ? (v ? db.prepare('SELECT display_name n FROM users WHERE id=?').get(v)?.n ?? null : null)
+          : col === 'component_id' ? (v ? db.prepare('SELECT name FROM components WHERE id=?').get(v)?.name ?? null : null) : v);
         for (const col of Object.keys(next)) {
           if (String(old[col] ?? '') === String(next[col] ?? '')) continue;
           const [o, n] = col === 'description' ? [null, null] : [show(col, old[col]), show(col, next[col])];
@@ -183,9 +198,9 @@ export function createImportCore({ db, tickets, users }) {
             .run(ticketId, cfg.userId, field[col] || col, o === null ? null : String(o), n === null ? null : String(n));
         }
         db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
-          updated_at=MAX(updated_at, ?), resolved_at=? WHERE id=?`).run(
+          component_id=COALESCE(?,component_id), updated_at=MAX(updated_at, ?), resolved_at=? WHERE id=?`).run(
           values.title, values.description, values.type, values.status, values.priority, values.labels, values.due,
-          assigneeId, values.updated, values.resolved, ticketId);
+          assigneeId, componentId, values.updated, values.resolved, ticketId);
       } else {
         // Keep the number if it is free and never used in the target project: do not reuse numbers of
         // moved tickets (history "IT-11 → OPS-3"), otherwise old references would point to a different ticket
@@ -195,10 +210,10 @@ export function createImportCore({ db, tickets, users }) {
         if (number === null) number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(project.id).n;
         db.prepare('UPDATE projects SET next_number=MAX(next_number, ?) WHERE id=?').run(number + 1, project.id);
         const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,
-          assignee_id,labels,due_date,source,rank,created_at,updated_at,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          assignee_id,labels,due_date,source,rank,created_at,updated_at,resolved_at,component_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
           project.id, number, values.title, values.description, values.type, values.status, values.priority,
           reporter?.id ?? null, reporter?.email ?? null, reporter?.name ?? null, assigneeId, values.labels, values.due, adapter.ticketSource || 'import',
-          new Date(values.created).getTime() / 1e6, values.created, values.updated, values.resolved);
+          new Date(values.created).getTime() / 1e6, values.created, values.updated, values.resolved, componentId);
         ticketId = info.lastInsertRowid;
         const unmapped = it.assignee && !assigneeId ? (it.assignee.name || it.assignee.username || '') : null;
         db.prepare("INSERT INTO activity(ticket_id,user_id,action,old_value,new_value,created_at) VALUES(?,?,'imported',?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))")

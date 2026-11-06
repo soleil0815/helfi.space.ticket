@@ -442,6 +442,32 @@ export function createApi(ctx) {
     res.json(out);
   }));
 
+  // ---------- Components (per project) ----------
+  const components = tickets.components;
+  // Agents need the list for the ticket field and the filter; admins also see archived ones
+  r.get('/projects/:id/components', requireRole('agent'), (req, res) => {
+    res.json({ components: components.list(req.params.id, { includeArchived: req.query.all === '1' && req.user.role === 'admin' }) });
+  });
+  r.post('/projects/:id/components', requireRole('admin'), (req, res) => {
+    const c = components.create(req.params.id, req.body || {});
+    log.info(`Component "${c.name}" created by ${req.user.username}`);
+    res.status(201).json({ component: c });
+  });
+  r.post('/projects/:id/components/order', requireRole('admin'), (req, res) => res.json({ components: components.reorder(req.params.id, req.body?.ids) }));
+  r.post('/projects/:id/components/examples', requireRole('admin'), (req, res) => {
+    const out = components.addExamples(req.params.id, req.body?.keys, req.body?.lang);
+    log.info(`Example components taken over by ${req.user.username}`, { added: out.added.length, skipped: out.skipped.length });
+    res.status(201).json(out);
+  });
+  r.post('/projects/:id/components/test', requireRole('admin'), (req, res) => res.json(components.test(req.params.id, req.body || {})));
+  r.get('/components/examples', requireRole('admin'), (req, res) => res.json({ examples: components.examples() }));
+  r.patch('/components/:id', requireRole('admin'), (req, res) => res.json({ component: components.update(req.params.id, req.body || {}) }));
+  r.delete('/components/:id', requireRole('admin'), (req, res) => {
+    const out = components.remove(req.params.id);
+    log.info(`Component "${out.name}" deleted by ${req.user.username}`, { tickets: out.tickets });
+    res.json(out);
+  });
+
   // ---------- Tickets ----------
   r.get('/stats', requireRole('agent'), (req, res) => res.json(tickets.stats(req.user)));
   r.get('/queues', requireRole('agent'), (req, res) => {
@@ -481,7 +507,8 @@ export function createApi(ctx) {
     if (!isAgent(req.user) && !settings.get('general.allowSelfService')) throw new HttpError(403, 'err.selfServiceOff');
     const projectId = req.body.projectId || settings.get('general.defaultProject') || undefined;
     const t = tickets.create(req.user, { ...req.body, projectId });
-    res.status(201).json({ ticket: t });
+    // Users get their own view (no internal fields such as the component or agents' addresses)
+    res.status(201).json({ ticket: isAgent(req.user) ? t : tickets.ticketOut(tickets.rawById(t.id), false, req.user.id) });
   }));
 
   /**

@@ -33,7 +33,7 @@
     <li><a href="#itil">IT service management (ITIL)</a>
       <ol><li><a href="#links">Links and subtasks</a></li><li><a href="#major">Impact, urgency and major incident</a></li><li><a href="#sla">Service levels (SLA)</a></li><li><a href="#problems">Problems and known errors</a></li><li><a href="#changes">Change management</a></li><li><a href="#knowledge">Knowledge base</a></li><li><a href="#servicecatalog">Setting up the service catalog</a></li><li><a href="#devices">Devices &amp; services</a></li><li><a href="#satisfaction">Satisfaction survey</a></li><li><a href="#kpis">ITIL key figures</a></li></ol></li>
     <li><a href="#admin">For administrators: setup</a>
-      <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS and reverse proxy</a></li><li><a href="#initial">Initial setup</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single sign-on</a></li><li><a href="#2fa">Two-factor authentication and networks</a></li><li><a href="#email">Email</a></li><li><a href="#projects">Projects</a></li><li><a href="#usermgmt">Users</a></li><li><a href="#design">Appearance</a></li><li><a href="#signinpage">Sign-in page</a></li><li><a href="#import">Import from another ticket system</a></li></ol></li>
+      <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS and reverse proxy</a></li><li><a href="#initial">Initial setup</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single sign-on</a></li><li><a href="#2fa">Two-factor authentication and networks</a></li><li><a href="#email">Email</a></li><li><a href="#projects">Projects</a></li><li><a href="#components">Components</a></li><li><a href="#usermgmt">Users</a></li><li><a href="#design">Appearance</a></li><li><a href="#signinpage">Sign-in page</a></li><li><a href="#import">Import from another ticket system</a></li></ol></li>
     <li><a href="#operation">For administrators: operation</a>
       <ol><li><a href="#updates">Updates</a></li><li><a href="#rollback">Pinning a version and going back</a></li><li><a href="#backup">Backup and restore</a></li><li><a href="#security">Security</a></li><li><a href="#faq">Questions and solutions</a></li></ol></li>
   </ol>
@@ -191,7 +191,7 @@
 <p>The board shows the tickets in four columns by status. Drag a card into another column to change its status, or within a column to set the order. At the top you can filter by text, assignee (avatars), type or “Only mine”.</p>
 
 <h2 id="list">Ticket list and filters</h2>
-<p><em>All tickets</em> shows a sortable list. Filters for project, status, type, priority and assignee can be combined; clicking a column header sorts. The page address contains the filters – bookmark or share it.</p>
+<p><em>All tickets</em> shows a sortable list. Filters for project, status, type, priority, assignee and – with a project selected – <a href="#components">component</a> can be combined; clicking a column header sorts. The page address contains the filters – bookmark or share it.</p>
 <figure><img src="img/en/list.jpg" alt=""><figcaption>Ticket list with filters</figcaption></figure>
 <h3>Search</h3>
 <p>The search box at the top searches the full text of all tickets: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (also by email address and logon name). Users without the agent role find tickets by title, description, public replies, attachment names, labels and the names visible in the ticket – not by email addresses or logon names.</p>
@@ -208,7 +208,7 @@
 <figure><img src="img/en/ticket.jpg" alt=""><figcaption>Ticket view: description and activity on the left, status and details on the right</figcaption></figure>
 <ul>
   <li><strong>Status</strong> via the button at the top right (e.g. “Open” → “In progress”).</li>
-  <li>Change <strong>assignee</strong>, <strong>priority</strong>, <strong>type</strong>, <strong>labels</strong>, <strong>due date</strong> and <strong>project</strong> directly in the details. “Assign to me” takes one click or the <kbd>i</kbd> key.</li>
+  <li>Change <strong>assignee</strong>, <strong>priority</strong>, <strong>type</strong>, <strong>component</strong>, <strong>labels</strong>, <strong>due date</strong> and <strong>project</strong> directly in the details. “Assign to me” takes one click or the <kbd>i</kbd> key.</li>
   <li>Click <strong>title</strong> and <strong>description</strong> to edit them.</li>
   <li><strong>Changing the project:</strong> the ticket gets a new key in the new project; the old one stays in the history. Replies to old emails are still assigned correctly.</li>
   <li><strong>Activity:</strong> tabs <em>Comments</em>, <em>History</em> (every change with person and time) and <em>All</em>. For a changed description, <strong>Show change</strong> shows the differences and the previous version.</li>
@@ -273,8 +273,9 @@
 <figure class="small"><img src="img/en/bulk-link.jpg" alt=""><figcaption>Link all selected incidents with the problem at once – with suggestions for the possible cause</figcaption></figure>
 
 <h2 id="reports">Reports</h2>
-<p><em>Reports</em> shows, for a period (7, 30, 90 days, this year or custom) and optionally one project: created, resolved and open tickets, “Resolved per agent”, the “Created and resolved” trend and a table per agent (resolved, open assigned, worked on, replies, internal notes, average resolution time). The table can be sorted and downloaded as CSV.</p>
+<p><em>Reports</em> shows, for a period (7, 30, 90 days, this year or custom) and optionally one project: created, resolved and open tickets, “Resolved per agent”, the “Created and resolved” trend and a table per agent (resolved, open assigned, worked on, replies, internal notes, average resolution time). The table can be sorted and downloaded as CSV. Once components are used, <em>By component</em> shows the tickets of the period per component, how many are open, and the average resolution time.</p>
 <figure><img src="img/en/reports.jpg" alt=""><figcaption>Reports</figcaption></figure>
+<figure class="medium"><img src="img/en/report-components.jpg" alt=""><figcaption>Reports → By component</figcaption></figure>
 
 <h2 id="shortcuts">Keyboard shortcuts</h2>
 <p><kbd>?</kbd> shows all shortcuts. They never fire while you are typing in a field.</p>
@@ -515,6 +516,34 @@ docker compose logs helfi # shows the setup code</code></pre>
 <h2 id="projects">Projects</h2>
 <p><em>Administration → Projects</em>: create projects (key such as <code>IT</code> or <code>NET</code> and a name), set the lead, <strong>archive</strong> (kept with all tickets, disappears from the selection) or delete. A project with tickets can only be deleted if its tickets are moved to another project; a backup is made automatically beforehand.</p>
 <figure><img src="img/en/admin-projects.jpg" alt=""><figcaption>Projects</figcaption></figure>
+
+<h2 id="components">Components</h2>
+<p><em>Administration → Components</em> (or the <em>Components</em> button in <em>Projects</em>) splits a project into areas of responsibility, e.g. “VPN &amp; remote access” or “Printers &amp; scanners”. Each component has a name, a short description, a <strong>responsible person</strong>, optionally a <strong>deputy</strong>, <strong>keywords</strong> and optionally <strong>senders</strong>. Only agents see components.</p>
+<figure><img src="img/en/admin-components.jpg" alt=""><figcaption>Components with responsible people and rules</figcaption></figure>
+<ul>
+  <li><strong>How a ticket gets its component:</strong> a matching <strong>sender</strong> (address or pattern such as <code>*@zabbix.firma.local</code>) counts first. Otherwise the <strong>keywords</strong> decide: a hit in the title counts 3, in the description 1, each keyword once. The component with the most points wins, on a tie the one further up – change the order with ↑/↓. From 4 letters a keyword also counts inside a word (“print” finds “printer”), shorter ones only as a whole word (“pc” does not find “PCIe”). If nothing fits, the field stays empty.</li>
+  <li><strong>Assignment:</strong> if nobody is assigned yet, the responsible person gets the ticket – if they are deactivated, the deputy. If an agent picks someone when creating the ticket, that choice stays.</li>
+  <li><strong>The history</strong> says why: “component VPN &amp; remote access (keywords: vpn, forticlient)” and “assigned to Anna Agentin (responsible for VPN &amp; remote access)”.</li>
+  <li><strong>Changing:</strong> agents pick the component when creating a ticket (“Automatic” lets the rules decide) and change it in the details; on phones under <em>All details</em>. Moving the ticket to another project clears it, because components belong to a project.</li>
+  <li><strong>Archive or delete:</strong> archived components stay visible on old tickets but are no longer assigned. Deleting empties the field on the tickets; the tickets themselves stay.</li>
+  <li><strong>Jira import:</strong> the first component of a Jira issue comes along and is created in the target project if it does not exist yet. Add the responsible person afterwards.</li>
+</ul>
+<figure><img src="img/en/ticket-component.jpg" alt=""><figcaption>Ticket with component; the history shows the reason and the assignment</figcaption></figure>
+<h3>Taking over examples</h3>
+<p><em>Take over examples</em> offers ready-made components with description and German and English keywords: <strong>IT support</strong> (workplace &amp; PC, printers &amp; scanners, email &amp; calendar, network &amp; Wi-Fi, VPN &amp; remote access, user account &amp; password, telephony &amp; mobile devices, software &amp; licences, servers &amp; storage, website &amp; intranet), <strong>facilities</strong> (heating &amp; air conditioning, electrics &amp; lighting, locks &amp; keys, rooms &amp; furniture) and <strong>administration / service</strong> (access &amp; permissions, procurement, people / on-/offboarding). Those that already exist are greyed out.</p>
+<figure class="medium"><img src="img/en/admin-components-examples.jpg" alt=""><figcaption>Examples to tick</figcaption></figure>
+<h3>Testing the rules</h3>
+<p>Below the list, enter a title, a description and optionally a sender. <em>Check</em> shows which component a new ticket would get, why, and who it would go to.</p>
+<figure class="medium"><img src="img/en/admin-components-test.jpg" alt=""><figcaption>Testing the rules</figcaption></figure>
+<h3>Cutting components sensibly</h3>
+<ul>
+  <li><strong>By responsibility, not by technology:</strong> a component is what one person (or a small team) is in charge of. Whoever looks after printers and scanners does not need two components.</li>
+  <li><strong>6–12 rather than 40:</strong> components that are too fine get picked wrongly and clutter the reports. Labels handle finer distinctions.</li>
+  <li><strong>Every component needs a responsible person,</strong> ideally with a deputy – otherwise tickets end up “Unassigned” again.</li>
+  <li><strong>Keywords from real tickets:</strong> use the words your reporters actually write (“Outlook”, “FortiClient”, “password expired”), not IT jargon. Avoid words found in almost every mail (e.g. “email” or “phone” from signatures).</li>
+  <li><strong>Check with the test field</strong> and after a few weeks look at <em>Reports → By component</em>: many tickets “Without component” mean keywords are missing.</li>
+  <li><strong>Senders for systems:</strong> monitoring, backup or printers that send mails themselves are matched reliably with a sender pattern.</li>
+</ul>
 
 <h2 id="usermgmt">Users</h2>
 <p><em>Administration → Users</em> lists all accounts with origin (local, AD, SSO, email contact), role, 2FA status and last sign-in. Here you create local users, change roles (“Role locked” prevents AD groups from overriding them), deactivate accounts and reset 2FA. Self-registered accounts are marked; if approval is switched on under <em>Security → Registration and forgotten passwords</em>, new accounts show “Awaiting approval” with an <strong>Approve</strong> button.</p>

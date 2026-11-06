@@ -107,6 +107,22 @@ export function createReports(db) {
     return { unit: weekly ? 'week' : 'day', points };
   }
 
+  /**
+   * Tickets created in the period per component (incl. "without component"): total, still open,
+   * resolved and the average resolution time of those resolved.
+   */
+  function byComponent(range, projectId) {
+    return db.prepare(`SELECT t.component_id id, c.name, pr.key project_key,
+        COUNT(*) total, SUM(t.status<>'done') open, SUM(t.status='done') resolved,
+        AVG(CASE WHEN t.status='done' AND t.resolved_at IS NOT NULL THEN (julianday(t.resolved_at)-julianday(t.created_at))*24 END) avg_hours
+      FROM tickets t JOIN projects pr ON pr.id=t.project_id LEFT JOIN components c ON c.id=t.component_id
+      WHERE t.created_at >= ? AND t.created_at < ? ${projectId ? 'AND t.project_id=?' : 'AND pr.archived=0'}
+      GROUP BY t.component_id, pr.key ORDER BY total DESC, c.name`).all(range.fromIso, range.toIso, ...(projectId ? [projectId] : [])).map((r) => ({
+      componentId: r.id, name: r.name, projectKey: r.project_key, total: r.total, open: r.open, resolved: r.resolved,
+      avgResolutionHours: r.avg_hours === null ? null : Math.round(r.avg_hours * 10) / 10,
+    }));
+  }
+
   function report(query = {}) {
     const range = parseRange(query);
     let projectId = null;
@@ -127,6 +143,7 @@ export function createReports(db) {
       },
       agents: list,
       series: s,
+      components: byComponent(range, projectId),
     };
   }
 

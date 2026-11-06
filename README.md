@@ -16,6 +16,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **IT-Service-Management nach ITIL** (alles optional): Verknüpfungen und Unteraufgaben, Auswirkung/Dringlichkeit und Major Incidents, Service Level, Probleme und bekannte Fehler, Change-Management mit Genehmigung und Kalender, Wissensdatenbank, Servicekatalog mit Formularen und Genehmigung, Geräte & Dienste, Zufriedenheitsumfrage und Kennzahlen
 - **Suche mit Treffern beim Tippen** – mit Fundstelle, Tastatursteuerung und den zuletzt geöffneten Tickets, am PC und auf dem Handy
+- **Komponenten mit Zuständigkeit:** Projekte in Bereiche wie „VPN & Fernzugriff“ oder „Drucker & Scanner“ aufteilen, je mit verantwortlicher Person und Vertretung. Neue Tickets werden über Schlagwörter oder den Absender zugeordnet und gehen automatisch an die richtige Person – mit fertigen Beispielen für IT, Haustechnik und Verwaltung
 - **Zusammenarbeit im Team:** **@-Erwähnungen** in Antworten und internen Notizen (mit Mail und Ansicht „Erwähnt mich“), Anfrage-Teilnehmer, Antwortvorlagen, **Mehrfachauswahl** (Status, Zuweisung, Kommentar oder Verknüpfung für viele Tickets auf einmal), **Verknüpfen mit Suche und Vorschlägen** (mögliche Ursachen, ähnliche Tickets)
 - **KI-Unterstützung (optional):** Zusammenfassung, Antwortvorschlag und Umformulieren mit einem eigenen Modell (Ollama, LM Studio, vLLM …) oder einem beliebigen OpenAI-kompatiblen Dienst – nur Vorschläge, nichts wird automatisch verschickt
 - **Handy-App:** eigene, app-artige Oberfläche unter `/m`, als App installierbar, mit Fotos, Vorlagen, Erwähnungen und 2FA-Einrichtung
@@ -252,6 +253,23 @@ Bearbeiter holen Kollegen gezielt in ein Ticket: Im Antwortfeld (Desktop und Han
 - **Wiederfinden:** *Erwähnt mich* in der Seitenleiste (Handy: Chip *Erwähnt* unter *Tickets*) listet alle Tickets mit einer Erwähnung; die Zahl daneben zählt die noch nicht geöffneten. Neue Erwähnungen sind in den Listen mit **@** markiert, der betreffende Kommentar im Ticket ebenfalls. Mit dem Öffnen des Tickets gilt die Erwähnung als gesehen.
 - Erwähnungen werden nicht automatisch zu Teilnehmern oder Beobachtern – dafür gibt es *Anfrage-Teilnehmer*.
 
+## Komponenten
+
+*Administration → Komponenten* (oder *Projekte → Komponenten*)
+
+Komponenten teilen ein Projekt in Zuständigkeiten auf. Jede hat einen Namen, eine kurze Beschreibung, eine **verantwortliche Person**, optional eine **Vertretung**, **Schlagwörter** und optional **Absender-Muster**.
+
+- **Zuordnen:** Beim Anlegen eines Tickets (Web, Handy, E-Mail, Servicekatalog) entscheidet zuerst ein passender Absender (z. B. `*@zabbix.firma.local`), sonst die Schlagwörter: Ein Treffer im Titel zählt 3, in der Beschreibung 1. Bei Gleichstand gewinnt die Komponente, die weiter oben steht. Ab 4 Buchstaben zählt ein Schlagwort auch als Teil eines Worts („drucker“ findet „Netzwerkdrucker“), kürzere nur als ganzes Wort („pc“ findet nicht „PCIe“).
+- **Zuweisen:** Ist noch niemand zugewiesen, bekommt die verantwortliche Person das Ticket; ist sie deaktiviert, die Vertretung. Ein Bearbeiter, der beim Anlegen selbst jemanden auswählt, hat Vorrang.
+- **Nachvollziehbar:** Der Verlauf zeigt „Komponente VPN & Fernzugriff (Schlagwörter: vpn, forticlient)“ und „zugewiesen an Anna (verantwortlich für VPN & Fernzugriff)“. Bearbeiter ändern die Komponente im Ticket (Handy: unter *Alle Details*); auch das steht im Verlauf.
+- **Testen:** Unter der Liste probierst du mit Titel, Beschreibung und Absender aus, welche Komponente ein Ticket bekäme und warum.
+- **Beispiele übernehmen:** fertige Komponenten mit Beschreibung und deutschen wie englischen Schlagwörtern für IT-Support (Arbeitsplatz & PC, Drucker & Scanner, E-Mail & Kalender, Netzwerk & WLAN, VPN & Fernzugriff, Benutzerkonto & Kennwort, Telefonie & Mobilgeräte, Software & Lizenzen, Server & Speicher, Webseite & Intranet), Haustechnik und Verwaltung/Service.
+- **Liste und Berichte:** Filter und Spalte *Komponente* in der Ticketliste (bei gewähltem Projekt); unter *Berichte* Tickets, offene und Ø Lösungszeit je Komponente.
+- Komponenten sind nur für Bearbeiter sichtbar. Löschen lässt die Tickets unangetastet (das Feld wird leer), archivierte Komponenten bleiben an alten Tickets sichtbar, werden aber nicht mehr zugeordnet. Beim Verschieben in ein anderes Projekt fällt die Komponente weg.
+- Beim **Jira-Import** kommt die (erste) Jira-Komponente mit und wird im Zielprojekt angelegt, falls es sie noch nicht gibt.
+
+**Tipp – Komponenten sinnvoll schneiden:** nach Zuständigkeit, nicht nach Technik; lieber 6–12 Komponenten als 40; jede braucht eine verantwortliche Person; Schlagwörter aus echten Tickettiteln nehmen und mit dem Testfeld prüfen.
+
 ## Mehrere Tickets auf einmal bearbeiten
 
 In *Alle Tickets* (Bearbeiter):
@@ -408,6 +426,7 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
   - **Bearbeitet:** Tickets mit eigener Änderung oder eigenem Kommentar
   - **Antworten und interne Notizen**
   - **Ø Lösungsdauer:** von „erstellt“ bis „erledigt“
+- **Nach Komponente** (sobald Komponenten genutzt werden): im Zeitraum erstellte Tickets, davon offen, und Ø Lösungsdauer; ein Klick öffnet die gefilterte Liste
 - **ITIL-Kennzahlen** für denselben Zeitraum:
   - **Servicequalität:** erledigte Anfragen und Störungen, beim ersten Kontakt gelöst (höchstens eine Antwort der IT, keine Rückfrage, nie wieder geöffnet), Quote der Wiedereröffnungen, Major Incidents. Eigene Tickets der IT zählen nicht.
   - **SLA-Einhaltung** für Reaktion und Lösung, gesamt und je Priorität (wenn SLAs eingeschaltet sind)

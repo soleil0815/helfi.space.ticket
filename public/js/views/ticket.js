@@ -29,6 +29,7 @@ import { aiSummarySection, aiComposerTools } from '../aiassist.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
+import { projectComponents } from '../components.js';
 const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderTicket(content, key) {
@@ -44,6 +45,9 @@ export async function renderTicket(content, key) {
   const agent = state.isAgent;
   const canEditText = agent || tk.reporter?.id === state.user.id;
   let tab = 'comments';
+  // Components of the ticket's project (agents; empty list = field hidden unless one is set)
+  let comps = agent ? await projectComponents(tk.projectId) : [];
+  if (!content.isConnected) return;
 
   const save = async (patch) => {
     try {
@@ -53,7 +57,11 @@ export async function renderTicket(content, key) {
       await refresh();
     } catch (e) { toast(e.message, 'error'); }
   };
-  const refresh = async () => { tk = (await api.ticket(tk.key)).ticket; draw(); };
+  const refresh = async () => {
+    tk = (await api.ticket(tk.key)).ticket;
+    if (agent) comps = await projectComponents(tk.projectId); // project may have changed
+    draw();
+  };
 
   // ---------- Building blocks ----------
   function titleEl() {
@@ -176,7 +184,7 @@ export async function renderTicket(content, key) {
     return h('div.history',
       avatar(a.user, 'sm'),
       h('div',
-        h('strong', a.user?.displayName || (a.action === 'sla' ? 'Helfi.Space' : 'E-Mail')), ' ',
+        h('strong', a.user?.displayName || (['sla', 'classified', 'autoAssigned'].includes(a.action) ? 'Helfi.Space' : 'E-Mail')), ' ',
         t(`act.${a.action}`, { field: fieldLabel }),
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'changed' && a.field === 'description' && a.hasText ? h('button.link.small', { type: 'button', onclick: () => showDescriptionChange(a) }, t('ticket.showChange')) : null,
@@ -189,6 +197,8 @@ export async function renderTicket(content, key) {
         a.action === 'approval' ? h('span.change', t(`change.decision.${a.field}`), a.newValue ? ` – „${a.newValue}“` : '') : null,
         a.action === 'sla' ? h('span.change', t(`sla.kind.${a.field}`), ' ', t(`sla.state.${a.newValue}`)) : null,
         (a.action === 'linked' || a.action === 'unlinked') && a.field ? h('span.change', linkLabel(...a.field.split(':')), ' ', a.newValue || a.oldValue) : null,
+        a.action === 'classified' ? h('span.change', h('span.new', a.newValue), ` (${t(`comp.reason.${a.field}`)}: ${a.oldValue})`) : null,
+        a.action === 'autoAssigned' ? h('span.change', h('span.new', a.newValue), ` (${t(`comp.role.${a.field}`, { name: a.oldValue })})`) : null,
         a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
         h('span.muted', { title: fmtDate(a.createdAt) }, ' · ', relTime(a.createdAt))));
   }
@@ -357,7 +367,7 @@ export async function renderTicket(content, key) {
             e.currentTarget.setAttribute('aria-expanded', String(detailsOpen));
           },
         }, h('span', t('ticket.details')),
-        h('span.details-summary', [tk.assignee?.displayName || t('app.unassigned'), t(`priority.${tk.priority}`), t(`type.${tk.type}`)].join(' · ')),
+        h('span.details-summary', [tk.assignee?.displayName || t('app.unassigned'), t(`priority.${tk.priority}`), t(`type.${tk.type}`), tk.component?.name].filter(Boolean).join(' · ')),
         icon('chevron-down', 'details-chevron')),
         tk.sla ? detailRow(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
         tk.sla ? detailRow(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
@@ -372,6 +382,9 @@ export async function renderTicket(content, key) {
           (v) => h('span.person', priorityIcon(v), h('span', t(`priority.${v}`))))),
         detailRow(t('ticket.type'), pick(tk.type, TYPES.map((p) => [p, t(`type.${p}`), typeIcon(p)]), (v) => save({ type: v }),
           (v) => h('span.person', typeIcon(v), h('span', t(`type.${v}`))))),
+        agent && (comps.length || tk.component) ? detailRow(t('ticket.component'), pick(tk.component?.id ?? null,
+          [[null, t('app.none')], ...comps.map((c) => [c.id, c.name])], (v) => save({ componentId: v }),
+          () => (tk.component ? h('span', { title: comps.find((c) => c.id === tk.component.id)?.description || '' }, tk.component.name) : h('span.muted', t('app.none'))))) : null,
         detailRow(t('ticket.labels'), labels),
         detailRow(t('ticket.dueDate'), due),
         detailRow(t('ticket.project'), agent && state.projects.length > 1
@@ -440,6 +453,7 @@ export async function renderTicket(content, key) {
           tk.assignee ? { group: g('ticket.assignee'), label: t('app.unassigned'), run: () => save({ assigneeId: null }) } : null,
           ...PRIOS.filter((x) => x !== tk.priority).map((x) => ({ group: g('ticket.priority'), label: t(`priority.${x}`), run: () => save({ priority: x }) })),
           ...TYPES.filter((x) => x !== tk.type).map((x) => ({ group: g('ticket.type'), label: t(`type.${x}`), run: () => save({ type: x }) })),
+          ...comps.filter((c) => c.id !== tk.component?.id).map((c) => ({ group: g('ticket.component'), label: c.name, run: () => save({ componentId: c.id }) })),
           { group: g('ticket.comments'), label: t('ticket.addComment'), hint: 'm', run: focusComment },
           { group: g('ticket.comments'), label: t('canned.insertHint'), run: () => { focusComment(); setTimeout(() => click('[data-shortcut=template]'), 50); } },
           { group: g('ticket.labels'), label: t('keys.labels'), hint: 'l', run: () => click('[data-shortcut=labels]') },
@@ -466,6 +480,16 @@ export function openCreateDialog(defaults = {}) {
   const assignee = select([['', t('app.unassigned')], ...state.agents.map((a) => [a.id, a.displayName])], '');
   const labels = h('input', { placeholder: t('create.labelsHint') });
   const due = h('input', { type: 'date' });
+  // Component (agents): empty = "by rules" – keywords/sender decide after saving
+  const component = select([['', t('create.componentAuto')]], '');
+  const componentField = field(t('create.component'), component);
+  componentField.hidden = true;
+  const loadComponents = async () => {
+    const list = await projectComponents(Number(project.value));
+    component.replaceChildren(...[['', t('create.componentAuto')], ...list.map((c) => [c.id, c.name])].map(([v, l]) => h('option', { value: v }, l)));
+    componentField.hidden = !list.length;
+  };
+  if (agent) { loadComponents(); project.addEventListener('change', loadComponents); }
   const files = h('input', { type: 'file', multiple: true });
   const another = h('input', { type: 'checkbox' });
   const err = h('div.form-error', { role: 'alert', hidden: true });
@@ -477,7 +501,7 @@ export function openCreateDialog(defaults = {}) {
       submitBtn.disabled = true;
       try {
         const body = { projectId: Number(project.value), type: type.value, title: summary.value.trim(), description: desc.value, priority: prio.value };
-        if (agent) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null });
+        if (agent) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null, componentId: component.value ? Number(component.value) : null });
         const pend = descPaste.takePending();
         if (pend.length) body.description = replacePending(body.description, new Map()); // replace placeholders only after uploading
         const r = await api.createTicket(body);
@@ -506,6 +530,7 @@ export function openCreateDialog(defaults = {}) {
   field(t('create.description'), withEmoji(desc)),
   h('div.grid-2', field(t('create.priority'), prio), agent ? field(t('create.assignee'), assignee) : h('div')),
   agent ? h('div.grid-2', field(t('create.labels'), labels), field(t('create.dueDate'), due)) : null,
+  agent ? componentField : null,
   field(t('create.attachments'), files),
   );
   const submitBtn = h('button.btn.btn-primary', { type: 'submit', form: 'create-form' }, t('create.submit'));

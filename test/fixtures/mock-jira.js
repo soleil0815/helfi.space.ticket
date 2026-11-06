@@ -40,6 +40,7 @@ export function startMockJira({ type = 'cloud', issueCount = 3, throttleOnce = t
           : (n === 2 ? { name: 'Erledigt', statusCategory: { key: 'done' } } : { name: 'To Do', statusCategory: { key: 'new' } }),
         priority: { name: n === 1 ? 'Highest' : 'Medium' },
         labels: ['drucker', 'Import-Test'],
+        components: [{ id: '10001', name: 'Drucker & Scanner' }, { id: '10002', name: 'Hardware' }],
         created: `2024-0${Math.min(n, 9)}-01T10:00:00.000+0200`,
         updated: `2024-0${Math.min(n, 9)}-02T10:00:00.000+0200`,
         resolutiondate: n === 2 ? '2024-02-03T10:00:00.000+0200' : null,

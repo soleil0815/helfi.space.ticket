@@ -10,11 +10,13 @@ import { logoUrl, refreshBrandAssets } from '../brand.js';
 import { slaPage } from './sla.js';
 import { changeAdminPage } from './change.js';
 import { catalogAdminPage } from './catalog.js';
+import { componentsAdminPage } from './components.js';
 
 const SECTIONS = [
   ['general', 'admin.general', 'settings'],
   ['security', 'admin.security', 'shield'],
   ['projects', 'admin.projects', 'board'],
+  ['components', 'admin.components', 'list'],
   ['users', 'admin.users', 'users'],
   ['ldap', 'admin.ldap', 'server'],
   ['sso', 'admin.sso', 'key'],
@@ -40,6 +42,7 @@ export async function renderAdmin(content, section) {
       body));
 
   if (section === 'projects') return projectsPage(body);
+  if (section === 'components') return componentsAdminPage(body);
   if (section === 'users') return usersPage(body);
   if (section === 'system') return systemPage(body);
   if (section === 'import') return importPage(body);
@@ -402,6 +405,7 @@ async function projectsPage(body) {
         h('td', select([['', '—'], ...users.map((u) => [u.id, u.displayName])], p.leadId || '', { class: 'select-sm', onchange: async (e) => { await api.updateProject(p.id, { leadId: e.target.value || null }); toast(t('app.saved'), 'success'); } })),
         h('td', String(p.openCount ?? '')),
         h('td.actions-cell',
+          !p.archived ? h('a.btn.btn-subtle.small', { href: `/admin/components?project=${p.key}`, 'data-link': '' }, t('admin.components')) : null,
           h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { await api.updateProject(p.id, { archived: !p.archived }); await reloadBase(); projectsPage(body); } }, p.archived ? t('projects.unarchive') : t('projects.archive')),
           projects.length > 1 ? h('button.btn-icon.small', { type: 'button', title: t('projects.delete'), 'aria-label': t('projects.delete'), onclick: () => removeProject(p) }, icon('trash')) : null)))))));
 }

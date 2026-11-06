@@ -16,6 +16,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
 - **Search with results while typing** – with where it matched, keyboard control and recently opened tickets, on desktop and phone
+- **Components with ownership:** split projects into areas such as “VPN & remote access” or “Printers & scanners”, each with a responsible person and a deputy. New tickets are matched by keywords or the sender and go to the right person automatically – with ready-made examples for IT, facilities and administration
 - **Teamwork:** **@-mentions** in replies and internal notes (with email and a "Mentions me" view), request participants, reply templates, **multi-select** (status, assignment, comment or link for many tickets at once), **linking with search and suggestions** (possible causes, similar tickets)
 - **AI assistance (optional):** summary, reply suggestion and rewriting with your own model (Ollama, LM Studio, vLLM …) or any OpenAI-compatible service – suggestions only, nothing is sent automatically
 - **Phone app:** its own app-like interface under `/m`, installable as an app, with photos, templates, mentions and 2FA setup
@@ -252,6 +253,23 @@ Agents bring colleagues into a ticket directly: in the reply field (desktop and 
 - **Finding them again:** *Mentions me* in the sidebar (phone: *Mentions* chip under *Tickets*) lists all tickets with a mention; the number next to it counts those not opened yet. New mentions are marked with **@** in lists, and so is the comment in the ticket. Opening the ticket marks the mention as seen.
 - Mentions do not add people as participants or watchers – that is what *Request participants* is for.
 
+## Components
+
+*Administration → Components* (or *Projects → Components*)
+
+Components split a project into areas of responsibility. Each has a name, a short description, a **responsible person**, optionally a **deputy**, **keywords** and optionally **sender patterns**.
+
+- **Matching:** when a ticket is created (web, phone, email, service catalog), a matching sender (e.g. `*@zabbix.firma.local`) decides first, otherwise the keywords: a hit in the title counts 3, in the description 1. On a tie the component further up wins. From 4 letters a keyword also counts inside a word (“print” finds “printer”), shorter ones only as a whole word (“pc” does not find “PCIe”).
+- **Assigning:** if nobody is assigned yet, the responsible person gets the ticket; if they are deactivated, the deputy. An agent who picks someone when creating the ticket takes precedence.
+- **Traceable:** the history shows “component VPN & remote access (keywords: vpn, forticlient)” and “assigned to Anna (responsible for VPN & remote access)”. Agents change the component in the ticket (phone: under *All details*); that is recorded too.
+- **Testing:** below the list you try out with title, description and sender which component a ticket would get and why.
+- **Take over examples:** ready-made components with description and German and English keywords for IT support (workplace & PC, printers & scanners, email & calendar, network & Wi-Fi, VPN & remote access, user account & password, telephony & mobile devices, software & licences, servers & storage, website & intranet), facilities and administration/service.
+- **List and reports:** filter and column *Component* in the ticket list (with a project selected); under *Reports* tickets, open ones and average resolution time per component.
+- Components are only visible to agents. Deleting leaves the tickets untouched (the field becomes empty); archived components stay visible on old tickets but are no longer assigned. Moving a ticket to another project clears its component.
+- The **Jira import** brings the (first) Jira component along and creates it in the target project if it does not exist yet.
+
+**Tip – cutting components sensibly:** by responsibility, not by technology; 6–12 components rather than 40; each needs a responsible person; take keywords from real ticket titles and check them with the test field.
+
 ## Editing several tickets at once
 
 In *All tickets* (agents):
@@ -408,6 +426,7 @@ For replies that are always the same (e.g. "Please restart your computer"):
   - **Worked on:** tickets with an own change or comment
   - **Replies and internal notes**
   - **Avg. resolution time:** from "created" to "resolved"
+- **By component** (once components are used): tickets created in the period, how many are open, and average resolution time; a click opens the filtered list
 - **ITIL key figures** for the same period:
   - **Service quality:** resolved requests and incidents, resolved at first contact (at most one reply from IT, no follow-up question, never reopened), reopen rate, major incidents. IT's own tickets are not counted.
   - **SLA compliance** for response and resolution, overall and per priority (when SLAs are switched on)

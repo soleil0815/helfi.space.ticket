@@ -17,8 +17,9 @@ import { openSheet } from '../sheet.js';
 import { section } from '../ui.js';
 import { replyBar } from '../reply.js';
 import {
-  openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet, openLinkSheet,
+  openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet, openLinkSheet, openChoiceSheet,
 } from '../actions.js';
+import { projectComponents } from '/js/components.js';
 
 const isImage = (a) => /^image\/(png|jpeg|gif|webp)$/.test(a.mime);
 const desktopUrl = (tk) => `/browse/${encodeURIComponent(tk.key)}?ui=desktop`;
@@ -315,12 +316,14 @@ export async function renderTicket(page, ctx) {
   }
 
   function historyLine(a) {
-    const who = a.user?.displayName || (a.action === 'sla' ? 'Helfi.Space' : t('m.ticket.system'));
+    const who = a.user?.displayName || (['sla', 'classified', 'autoAssigned'].includes(a.action) ? 'Helfi.Space' : t('m.ticket.system'));
     let detail = null;
     if (a.action === 'changed' && a.field !== 'description') detail = `${activityValue(a, a.oldValue)} → ${activityValue(a, a.newValue)}`;
     else if (a.action === 'sla') detail = `${t(`sla.kind.${a.field}`)} ${t(`sla.state.${a.newValue}`)}`;
     else if (a.action === 'approval') detail = t(`change.decision.${a.field}`);
     else if ((a.action === 'linked' || a.action === 'unlinked') && a.field) detail = `${linkLabel(...a.field.split(':'))} ${a.newValue || a.oldValue || ''}`;
+    else if (a.action === 'classified') detail = `${a.newValue} (${t(`comp.reason.${a.field}`)}: ${a.oldValue})`;
+    else if (a.action === 'autoAssigned') detail = `${a.newValue} (${t(`comp.role.${a.field}`, { name: a.oldValue })})`;
     else if (a.action === 'rated') detail = '★'.repeat(Number(a.newValue) || 0);
     else if (['attached', 'detached', 'participantAdded', 'participantRemoved', 'ciLinked', 'ciUnlinked', 'approvalRequested', 'kbCreated'].includes(a.action)) detail = a.newValue || a.oldValue;
     const what = t(`act.${a.action}`, { field: activityFieldLabel(a) });
@@ -356,6 +359,15 @@ export async function renderTicket(page, ctx) {
     const links = tk.links || [];
     const cis = tk.cis || [];
     const edit = (value, onClick, label) => (agent ? h('button.m-drow-edit', { type: 'button', onclick: () => { after = onClick; sheet.close(); }, 'aria-label': `${label} – ${t('app.edit')}` }, value, icon('chevron-right')) : value);
+    // Component (agents): choice from the project's components
+    const componentSheet = async () => {
+      const list = await projectComponents(tk.projectId);
+      openChoiceSheet({
+        title: t('ticket.component'), current: tk.component?.id ?? null,
+        options: [{ value: null, label: t('app.none') }, ...list.map((c) => ({ value: c.id, label: c.name, sub: c.description || '' }))],
+        onPick: (v, o) => save({ componentId: v }, { component: v ? { id: v, name: o.label } : null }),
+      });
+    };
     const content = h('dl.m-details',
       row(t('m.filter.status'), edit(lozenge(tk.status), statusSheet, t('m.filter.status'))),
       row(t('ticket.priority'), edit(withIcon(priorityIcon(tk.priority), t(`priority.${tk.priority}`)), () => openPrioritySheet(tk, save), t('ticket.priority'))),
@@ -369,6 +381,7 @@ export async function renderTicket(page, ctx) {
       tk.sla ? row(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
       agent ? row(t('itil.impact'), level(tk.impact)) : null,
       agent ? row(t('itil.urgency'), level(tk.urgency)) : null,
+      agent ? row(t('ticket.component'), edit(tk.component ? h('span', tk.component.name) : none(), componentSheet, t('ticket.component'))) : null,
       row(t('ticket.labels'), tk.labels.length ? h('div.m-chips-wrap', tk.labels.map((l) => (agent
         ? h('a.m-label', { href: `/m/tickets?label=${encodeURIComponent(l)}`, 'data-link': '' }, l)
         : h('span.m-label', l)))) : none()),
