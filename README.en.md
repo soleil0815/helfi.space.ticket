@@ -15,6 +15,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Easy migration:** import from **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, systems with a REST API v2/v3 (cloud, Server/Data Center) or a **CSV file** – with comments, internal notes and attachments; ticket numbers are kept, a second run only adds what is new.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
+- **Search with results while typing** – with where it matched, keyboard control and recently opened tickets, on desktop and phone
 - **Teamwork:** **@-mentions** in replies and internal notes (with email and a "Mentions me" view), request participants, reply templates, **multi-select** (status, assignment, comment or link for many tickets at once), **linking with search and suggestions** (possible causes, similar tickets)
 - **AI assistance (optional):** summary, reply suggestion and rewriting with your own model (Ollama, LM Studio, vLLM …) or any OpenAI-compatible service – suggestions only, nothing is sent automatically
 - **Phone app:** its own app-like interface under `/m`, installable as an app, with photos, templates, mentions and 2FA setup
@@ -216,6 +217,7 @@ Helfi.Space shows HTML emails **formatted** in descriptions and replies, with ta
 
 The search box at the top searches all tickets in full text: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (reporter, assignee, people who replied, also by email address and logon name). Users without the agent role find tickets by title, description, public replies, attachment names, labels and the names they also see in the ticket (reporter, assignee, people who replied) – never by internal notes, email addresses or logon names.
 
+- **Results while typing:** from two characters a list below the search box shows up to eight tickets with key, title, status and where they matched (e.g. "Reply from Eva Berger: …"). ↑/↓ choose, Enter or click opens the ticket, Enter without a choice or *Show all results* leads to the ticket list with all results and filters as before; Esc closes. A ticket key appears as "Open IT-42" at the top. In the empty field the recently opened tickets appear (stored in the browser only, removed at sign-out). The same on phones in the *Tickets* tab.
 - **Parts of words** are found: `printer` also finds "networkprinter". Upper and lower case do not matter.
 - **Several words** in any order must all occur, `"exact phrase"` in quotes, `-word` excludes.
 - **Best matches first:** title matches count most. Clicking a column sorts as usual, "Best matches first" switches back.

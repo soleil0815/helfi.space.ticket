@@ -24,6 +24,7 @@ import { renderRate } from './views/survey.js';
 import { state } from './state.js';
 import { isPhone, setUiPref, wantsMobile, mobileUrlFor, takeDesktopOnce } from './uimode.js';
 import { clearUserData, noteUser } from './userdata.js';
+import { attachQuickSearch } from './quicksearch.js';
 
 // Shared with the mobile UI (/m) – see state.js
 export { state };
@@ -214,6 +215,12 @@ function layout(content, path) {
       if (/^[A-Za-z][A-Za-z0-9]{1,9}-\d+$/.test(q)) navigate(`/browse/${q.toUpperCase()}`);
       else navigate(`/${state.isAgent ? 'issues' : 'requests'}?q=${encodeURIComponent(q)}`);
     },
+  });
+
+  // Results while typing; Enter without a choice → all results as before
+  attachQuickSearch(search, {
+    openTicket: (key) => { search.value = ''; search.blur(); navigate(`/browse/${encodeURIComponent(key)}`); },
+    showAll: (q) => { search.blur(); navigate(`/${state.isAgent ? 'issues' : 'requests'}?q=${encodeURIComponent(q)}`); },
   });
 
   const userBtn = h('button.topbar-user', {

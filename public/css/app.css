@@ -1305,3 +1305,21 @@ a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px
 .import-source.active { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: var(--blue-subtle); }
 .import-source.active .icon { color: var(--blue); }
 table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Search with results while typing (top bar, phone "Tickets" tab) */
+.qs-pop { position: fixed; z-index: 1200; max-height: min(70vh, 520px); overflow-y: auto; background: var(--bg, #fff); border: 1px solid var(--border, #DCDFE4);
+  border-radius: 6px; box-shadow: var(--shadow-overlay, 0 8px 12px rgba(9,30,66,.15)); padding: 4px 0; }
+.qs-group { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-subtlest); }
+.qs-item { padding: 6px 12px; cursor: pointer; font-size: 14px; }
+.qs-item:hover, .qs-item.active { background: var(--bg-hover, #F1F2F4); }
+.qs-item.active { box-shadow: inset 2px 0 0 var(--blue); }
+.qs-line { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.qs-key { color: var(--text-subtle); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.qs-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qs-match { margin: 2px 0 0 26px; font-size: 12px; color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qs-match.internal { color: #7F5F01; }
+.qs-src { font-weight: 600; }
+.qs-item mark { background: #FFF0B3; color: inherit; border-radius: 2px; }
+.qs-direct, .qs-all { color: var(--blue); font-weight: 600; }
+.qs-all { border-top: 1px solid var(--border); margin-top: 4px; }
+.qs-empty { padding: 10px 12px; color: var(--text-subtle); font-size: 14px; }

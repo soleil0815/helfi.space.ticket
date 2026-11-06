@@ -3,6 +3,7 @@
 // What a user may see and do is decided by the API (no internal notes, no history, no agent
 // fields for users); the UI only offers what the API allows for this account.
 import { api } from '/js/api.js';
+import { rememberTicket } from '/js/userdata.js';
 import { h, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize, richText, toast } from '/js/dom.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
@@ -35,6 +36,7 @@ export async function renderTicket(page, ctx) {
     if (!page.el.isConnected && !page.isActive()) { tk = fresh; return; }
     if (tk && fresh.key !== tk.key) bar?.rekey(tk.key, fresh.key);
     tk = fresh;
+    rememberTicket(tk); // suggestions of the search field
     if (page.isActive() && location.pathname !== `/m/t/${encodeURIComponent(tk.key)}`) replaceUrl(`/m/t/${encodeURIComponent(tk.key)}`);
     page.title(tk.key);
     draw();
