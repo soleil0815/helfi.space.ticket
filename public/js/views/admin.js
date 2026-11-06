@@ -693,14 +693,85 @@ function aiLooksRemote(baseUrl, model) {
   return true;
 }
 
+/**
+ * Model choice: the installed models of the server as a list (Ollama with size/parameters,
+ * cloud models in their own group), "Other model…" for any name; reloads when address or key change.
+ */
+function aiModelPicker(s, onChange) {
+  const CUSTOM = '\u0000custom';
+  const sel = h('select', { 'aria-label': t('ai.model') });
+  const custom = h('input', { value: s['ai.model'] ?? '', placeholder: 'qwen3:14b', spellcheck: false, autocomplete: 'off', 'aria-label': t('ai.modelCustom') });
+  const status = h('div.muted.small.ai-models-status', { role: 'status' });
+  const reload = h('button.btn.btn-subtle.icon-btn', { type: 'button', title: t('ai.modelsReload'), 'aria-label': t('ai.modelsReload') }, icon('refresh'));
+  let models = null; // null = no list (yet)
+  let seq = 0;
+  let timer = null;
+
+  const label = (m) => [m.id, [m.params, m.quant, m.size].filter(Boolean).join(' · ')].filter(Boolean).join(' – ');
+  function draw() {
+    const current = String(s['ai.model'] || '').trim();
+    const usingList = models && models.length;
+    sel.hidden = !usingList;
+    if (usingList) {
+      const local = models.filter((m) => !m.cloud);
+      const cloud = models.filter((m) => m.cloud);
+      const opt = (m) => h('option', { value: m.id }, label(m));
+      const known = models.some((m) => m.id === current);
+      sel.replaceChildren(
+        current ? null : h('option', { value: '', disabled: true }, t('ai.modelChoose')),
+        current && !known ? h('option', { value: current }, t('ai.modelMissing', { model: current })) : null,
+        local.length ? h('optgroup', { label: t('ai.modelsLocal') }, local.map(opt)) : null,
+        cloud.length ? h('optgroup', { label: t('ai.modelsCloud') }, cloud.map(opt)) : null,
+        h('option', { value: CUSTOM }, t('ai.modelCustom')));
+      sel.value = current;
+      if (!current) sel.selectedIndex = 0;
+    }
+    custom.hidden = !!usingList && sel.value !== CUSTOM;
+  }
+  function setModel(v) { s['ai.model'] = v; onChange?.(); }
+  sel.addEventListener('change', () => {
+    if (sel.value === CUSTOM) { custom.hidden = false; custom.value = ''; custom.focus(); setModel(''); return; }
+    setModel(sel.value);
+    custom.value = sel.value;
+    custom.hidden = true;
+  });
+  custom.addEventListener('input', () => setModel(custom.value));
+
+  async function load() {
+    clearTimeout(timer);
+    const my = ++seq;
+    if (!String(s['ai.baseUrl'] || '').trim()) { models = null; status.textContent = ''; draw(); return; }
+    status.textContent = t('ai.modelsLoading');
+    reload.disabled = true;
+    try {
+      const r = await api.admin.aiModels(pick(s, 'ai.'));
+      if (my !== seq) return;
+      if (r.ok) {
+        models = r.models;
+        status.textContent = models.length
+          ? [t(models.length === 1 ? 'ai.modelsFoundOne' : 'ai.modelsFound', { n: models.length, source: r.source === 'ollama' ? 'Ollama' : t('ai.modelsOpenAi') }),
+            r.hidden ? t(r.hidden === 1 ? 'ai.modelsHiddenOne' : 'ai.modelsHidden', { n: r.hidden }) : ''].filter(Boolean).join(' · ')
+          : t('ai.modelsNone');
+      } else { models = null; status.textContent = r.error; }
+    } catch (e) { if (my === seq) { models = null; status.textContent = e.message; } }
+    finally { if (my === seq) { reload.disabled = false; draw(); } }
+  }
+  const later = () => { clearTimeout(timer); timer = setTimeout(load, 700); };
+  reload.addEventListener('click', load);
+  draw();
+  load();
+  return { el: h('div.ai-model-picker', h('div.ai-model-row', sel, reload), custom, status), later };
+}
+
 function aiPage(body, s) {
   const res = result();
   const remoteHint = h('div.hint-box.hint-warn', icon('warning'), h('div', t('ai.remoteHint')));
   const updateHint = () => { remoteHint.hidden = !aiLooksRemote(s['ai.baseUrl'], s['ai.model']); };
   const baseUrl = bindInput(s, 'ai.baseUrl', { placeholder: 'http://ollama:11434/v1', spellcheck: false, autocomplete: 'off' });
-  const model = bindInput(s, 'ai.model', { placeholder: 'qwen3:14b', spellcheck: false, autocomplete: 'off' });
-  baseUrl.addEventListener('input', updateHint);
-  model.addEventListener('input', updateHint);
+  const apiKey = bindInput(s, 'ai.apiKey', { type: 'password', autocomplete: 'new-password' });
+  const picker = aiModelPicker(s, updateHint);
+  baseUrl.addEventListener('input', () => { updateHint(); picker.later(); });
+  apiKey.addEventListener('input', picker.later);
   updateHint();
   mount(body,
     h('section.panel',
@@ -710,11 +781,11 @@ function aiPage(body, s) {
       field(t('ai.enabled'), bindCheck(s, 'ai.enabled')),
       h('div.grid-2',
         field(t('ai.baseUrl'), baseUrl, t('ai.baseUrlHint')),
-        field(t('ai.model'), model, t('ai.modelHint'))),
-      remoteHint,
+        field(t('ai.apiKey'), apiKey, t('ai.apiKeyHint'))),
       h('div.grid-2',
-        field(t('ai.apiKey'), bindInput(s, 'ai.apiKey', { type: 'password', autocomplete: 'new-password' }), t('ai.apiKeyHint')),
+        field(t('ai.model'), picker.el, t('ai.modelHint')),
         field(t('ai.reasoning'), bindSelect(s, 'ai.reasoning', ['low', 'medium', 'high', 'off'].map((v) => [v, t(`ai.reasoning.${v}`)])), t('ai.reasoningHint'))),
+      remoteHint,
       h('div.grid-2',
         field(t('ai.maxChars'), bindInput(s, 'ai.maxChars', { type: 'number', min: 2000, max: 200000, step: 1000 }), t('ai.maxCharsHint')),
         field(t('ai.timeout'), bindInput(s, 'ai.timeout', { type: 'number', min: 10, max: 600 }))),
