@@ -2,6 +2,13 @@
   "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
+      "version": "",
+      "date": "",
+      "items": [
+        { "audience": "all", "de": "Suche mit Treffern beim Tippen: Im Suchfeld oben erscheinen ab zwei Zeichen passende Tickets mit Fundstelle – mit ↑/↓ und Enter direkt öffnen, Enter ohne Auswahl zeigt wie bisher alle Treffer. Im leeren Feld stehen die zuletzt geöffneten Tickets. Für Bearbeiter auf dem Handy im Tab „Tickets“ genauso.", "en": "Search with results while typing: from two characters the search box at the top shows matching tickets with where they matched – open them directly with ↑/↓ and Enter; Enter without a choice shows all results as before. The empty field lists recently opened tickets. The same for agents on phones in the “Tickets” tab." }
+      ]
+    },
+    {
       "version": "1.24.0",
       "date": "2026-11-06",
       "items": [

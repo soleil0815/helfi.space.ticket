@@ -5,7 +5,8 @@ import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { QUEUES, VIEWS, matchQueue } from '/js/queues.js';
 import { typesFor } from '/js/types.js';
-import { replaceUrl } from '../router.js';
+import { replaceUrl, go } from '../router.js';
+import { attachQuickSearch } from '/js/quicksearch.js';
 import { pullToRefresh } from '../ptr.js';
 import { openSheet } from '../sheet.js';
 import { ticketCard, chip, chipRow, emptyState, skeletonList } from '../ui.js';
@@ -54,6 +55,11 @@ export async function renderTickets(page, ctx) {
   const search = h('form.m-search', { role: 'search', onsubmit: (e) => { e.preventDefault(); input.blur(); runSearch(); } },
     icon('search'), input);
   input.addEventListener('search', runSearch); // the clear button (×) of the field
+  // Results while typing (as on the desktop); Enter without a choice filters the list below
+  attachQuickSearch(input, {
+    openTicket: (key) => { input.blur(); go(`/m/t/${encodeURIComponent(key)}`); },
+    showAll: (q) => { input.value = q; input.blur(); runSearch(); },
+  });
   input.addEventListener('input', () => { if (!input.value) runSearch(); });
 
   // ---------- Chips ----------

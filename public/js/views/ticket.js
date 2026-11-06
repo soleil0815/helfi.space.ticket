@@ -1,5 +1,6 @@
 // Ticket view (two columns) and "Create ticket" dialog
 import { attachMentions } from '../mention.js';
+import { rememberTicket } from '../userdata.js';
 import { api } from '../api.js';
 import {
   h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, fmtDate, relTime, fmtSize,
@@ -32,6 +33,7 @@ const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderTicket(content, key) {
   let tk = (await api.ticket(key)).ticket;
+  rememberTicket(tk); // suggestions of the search field
   // Opening the ticket marks my mentions as seen: update the "Mentions me" count
   if (tk.comments?.some((c) => c.mentionsMe)) setTimeout(() => refreshQueueCounts(), 300);
   let linksEl = null; // links section (agents) – its form also opens from the button in the side panel

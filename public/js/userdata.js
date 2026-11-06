@@ -4,7 +4,8 @@
 // in. No imports – both UIs use this module.
 const UID_KEY = 'helfi.m.uid';
 const SESSION_PREFIXES = ['helfi.m.draft.', 'helfi.m.newTicket'];
-const LOCAL_KEYS = ['helfi.m.kbRecent'];
+const RECENT_TICKETS = 'helfi.recentTickets';
+const LOCAL_KEYS = ['helfi.m.kbRecent', RECENT_TICKETS];
 
 /** Remove all drafts and per-account lists (keeps the "continue after sign-in" address) */
 export function clearUserData() {
@@ -24,4 +25,21 @@ export function noteUser(id) {
       sessionStorage.setItem(UID_KEY, String(id));
     }
   } catch { /* storage blocked */ }
+}
+
+/** Recently opened tickets (search suggestions when the field is empty): newest first, at most 8 */
+export function rememberTicket(tk) {
+  if (!tk?.key) return;
+  try {
+    const entry = { key: tk.key, title: String(tk.title || '').slice(0, 200), type: tk.type, status: tk.status };
+    const list = recentTickets().filter((x) => x.key !== tk.key);
+    localStorage.setItem(RECENT_TICKETS, JSON.stringify([entry, ...list].slice(0, 8)));
+  } catch { /* storage blocked */ }
+}
+
+export function recentTickets() {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_TICKETS) || '[]');
+    return Array.isArray(list) ? list.filter((x) => x && typeof x.key === 'string') : [];
+  } catch { return []; }
 }
