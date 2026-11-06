@@ -2,8 +2,8 @@
   "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
-      "version": "",
-      "date": "",
+      "version": "1.23.0",
+      "date": "2026-11-06",
       "items": [
         { "audience": "agent", "de": "Verknüpfen mit Suche und Vorschlägen: Im Feld nach Nummer oder Stichwort suchen; solange es leer ist, schlägt Helfi mögliche Ursachen (offene Probleme, Major Incidents) und ähnliche Tickets vor – auch in der Mehrfachauswahl und auf dem Handy.", "en": "Linking with search and suggestions: search the field by number or keyword; while it is empty, Helfi suggests possible causes (open problems, major incidents) and similar tickets – also in the multi-select and on phones." },
         { "audience": "agent", "de": "Auf dem Handy zeigt ein Ticket jetzt nur die Kommentare; der Verlauf (Status, Zuweisungen …) kommt über „Alle“ dazu – das Handy merkt sich die Wahl.", "en": "On phones a ticket now shows only the comments; the history (status, assignments …) is added via “All” – the phone remembers the choice." }
