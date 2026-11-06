@@ -2,6 +2,14 @@
   "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
   "entries": [
     {
+      "version": "",
+      "date": "",
+      "items": [
+        { "audience": "all", "de": "Automatische Abmeldung nach Inaktivität: Zwei Minuten vorher fragt Helfi „Noch da?“ – mit „Weiterarbeiten“ geht es einfach weiter. Solange du arbeitest, auch beim Tippen, bleibst du angemeldet.", "en": "Automatic sign-out after inactivity: two minutes before, Helfi asks “Still there?” – “Keep working” simply continues. As long as you work, including typing, you stay signed in." },
+        { "audience": "admin", "de": "Neu unter Administration → Sicherheit: Fristen für die automatische Abmeldung (für alle, für Admins, von außen) und „Beim Schließen des Browsers abmelden“. Admins werden ab jetzt standardmäßig nach 60 Minuten ohne Aktivität abgemeldet.", "en": "New under Administration → Security: periods for automatic sign-out (everyone, admins, from outside) and “Sign out when the browser is closed”. Admins are now signed out after 60 minutes without activity by default." }
+      ]
+    },
+    {
       "version": "1.19.0",
       "date": "2026-11-05",
       "items": [

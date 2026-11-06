@@ -66,7 +66,7 @@ export function createApp(db) {
   fs.mkdirSync(paths.attachments, { recursive: true });
   const settings = createSettings(db);
   const policy = createNetworkPolicy(settings);
-  const sessions = createSessions(db, { policy });
+  const sessions = createSessions(db, { policy, settings });
   const users = createUsers(db);
   const tickets = createTickets(db, users);
   const links = createLinks(db, tickets);

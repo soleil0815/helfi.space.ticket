@@ -1248,3 +1248,16 @@ a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px
 .ai-working { display: flex; align-items: center; gap: 8px; color: var(--text-subtle); }
 .ai-note { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; font-size: 12px; color: var(--text-subtle); }
 .ai-note .icon { width: 14px; height: 14px; }
+
+/* Automatic sign-out: settings grid and the "continue?" dialog (desktop and mobile) */
+.grid-3eq { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 16px; }
+@media (max-width: 900px) { .grid-3eq { grid-template-columns: 1fr; } }
+.idle-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(9, 30, 66, .54); }
+.idle-box { width: 100%; max-width: 400px; background: var(--bg); color: var(--text); border-radius: 12px; padding: 24px; text-align: center; box-shadow: var(--shadow-overlay); }
+.idle-box h2 { margin: 8px 0; font-size: 18px; }
+.idle-box p { margin: 0 0 20px; color: var(--text-subtle); }
+.idle-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--blue-subtle); color: var(--blue); }
+.idle-icon .icon { width: 24px; height: 24px; }
+.idle-time { font-variant-numeric: tabular-nums; color: var(--text); }
+.idle-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.idle-actions .btn { min-height: 40px; }

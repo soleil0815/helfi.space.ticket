@@ -39,6 +39,13 @@ export const DEFAULTS = {
   'login.userLabelDe': '',
   'login.userLabelEn': '',
 
+  // Automatic sign-out after inactivity (minutes; 0 = not set). Everyone: 0 = HELFI_SESSION_HOURS.
+  // Admins and requests from outside the company network can get a shorter period (the shortest counts).
+  'session.idleMinutes': 0,
+  'session.adminIdleMinutes': 60,
+  'session.externalIdleMinutes': 0,
+  'session.browserSession': false, // sign out when the browser is closed (cookie without expiry)
+
   // AI assistance for agents (OpenAI-compatible endpoint, e.g. Ollama): summary, reply suggestion, rewrite
   'ai.enabled': false,
   'ai.baseUrl': '', // e.g. http://ollama:11434/v1

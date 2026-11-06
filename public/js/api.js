@@ -17,7 +17,8 @@ async function request(method, url, body, { raw = false } = {}) {
   let data = null;
   try { data = await res.json(); } catch { /* empty */ }
   if (!res.ok) {
-    if (res.status === 401 && !url.includes('/auth/')) window.dispatchEvent(new CustomEvent('helfi:unauthorized'));
+    // /api/session/*: idle.js handles the 401 itself (marks "signed out for inactivity" first)
+    if (res.status === 401 && !url.includes('/auth/') && !url.startsWith('/api/session/')) window.dispatchEvent(new CustomEvent('helfi:unauthorized'));
     throw new ApiError(res.status, data);
   }
   return data;
@@ -30,11 +31,16 @@ const qs = (o = {}) => {
   return s ? `?${s}` : '';
 };
 
+/** Tell idle.js about the session of this answer (null = not signed in) */
+const announceSession = (session) => window.dispatchEvent(new CustomEvent('helfi:session', { detail: session || null }));
+
 export const api = {
-  bootstrap: () => request('GET', '/api/bootstrap'),
+  bootstrap: () => request('GET', '/api/bootstrap').then((b) => { announceSession(b?.user ? b.session : null); return b; }),
+  sessionStatus: () => request('GET', '/api/session/status'),
+  sessionPing: () => request('POST', '/api/session/ping'),
   setup: (d) => request('POST', '/api/setup', d),
   login: (username, password) => request('POST', '/api/auth/login', { username, password }),
-  logout: () => request('POST', '/api/auth/logout'),
+  logout: () => request('POST', '/api/auth/logout').finally(() => announceSession(null)),
   register: (data) => request('POST', '/api/auth/register', data),
   confirmRegistration: (token) => request('POST', '/api/auth/register/confirm', { token }),
   forgotPassword: (email, language) => request('POST', '/api/auth/password/forgot', { email, language }),
