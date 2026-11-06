@@ -1820,6 +1820,21 @@ const de = {
   'rep.total': 'Tickets',
   'rep.open': 'Offen',
   'rep.avgResolve': 'Ø Lösungszeit',
+  'filters.title': 'Gespeicherte Filter',
+  'filters.manage': 'Filter verwalten',
+  'filters.sharedHint': 'Warteschlange für alle Bearbeiter (vom Admin geteilt)',
+  'filters.save': 'Filter speichern',
+  'filters.saved': 'Filter gespeichert.',
+  'filters.name': 'Name',
+  'filters.saveHint': 'Gespeichert werden die aktuellen Filter, die Suche und die Sortierung. Der Filter erscheint links in der Seitenleiste mit Anzahl, auf dem Handy als Chip unter „Tickets“.',
+  'filters.share': 'Für alle Bearbeiter freigeben',
+  'filters.shareHint': 'Erscheint bei allen Bearbeitern als Warteschlange. „Mir zugewiesen“ bezieht sich dabei auf die jeweilige Person.',
+  'filters.shared': 'Für alle Bearbeiter',
+  'filters.mine': 'Meine Filter',
+  'filters.byAdmin': 'vom Admin geteilt',
+  'filters.delete': 'Filter löschen',
+  'filters.deleteConfirm': 'Filter „{name}“ löschen?',
+  'filters.none': 'Noch keine Filter gespeichert. Stell in der Ticketliste Filter ein und wähle „Filter speichern“.',
 };
 
 const en = {
@@ -3643,6 +3658,21 @@ const en = {
   'rep.total': 'Tickets',
   'rep.open': 'Open',
   'rep.avgResolve': 'Avg. resolution time',
+  'filters.title': 'Saved filters',
+  'filters.manage': 'Manage filters',
+  'filters.sharedHint': 'Queue for all agents (shared by an admin)',
+  'filters.save': 'Save filter',
+  'filters.saved': 'Filter saved.',
+  'filters.name': 'Name',
+  'filters.saveHint': 'The current filters, search and sorting are saved. The filter appears in the sidebar with a count, on phones as a chip under “Tickets”.',
+  'filters.share': 'Share with all agents',
+  'filters.shareHint': 'Shows up as a queue for every agent. “Assigned to me” then refers to each person.',
+  'filters.shared': 'For all agents',
+  'filters.mine': 'My filters',
+  'filters.byAdmin': 'shared by an admin',
+  'filters.delete': 'Delete filter',
+  'filters.deleteConfirm': 'Delete filter “{name}”?',
+  'filters.none': 'No filters saved yet. Set filters in the ticket list and choose “Save filter”.',
 };
 
 const dicts = { de, en };

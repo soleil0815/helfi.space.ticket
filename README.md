@@ -16,6 +16,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **IT-Service-Management nach ITIL** (alles optional): Verknüpfungen und Unteraufgaben, Auswirkung/Dringlichkeit und Major Incidents, Service Level, Probleme und bekannte Fehler, Change-Management mit Genehmigung und Kalender, Wissensdatenbank, Servicekatalog mit Formularen und Genehmigung, Geräte & Dienste, Zufriedenheitsumfrage und Kennzahlen
 - **Suche mit Treffern beim Tippen** – mit Fundstelle, Tastatursteuerung und den zuletzt geöffneten Tickets, am PC und auf dem Handy
+- **Gespeicherte Filter und eigene Warteschlangen:** Filter der Ticketliste unter einem Namen speichern – persönlich oder vom Admin für alle Bearbeiter freigegeben, in der Seitenleiste mit Anzahl, auf dem Handy als Chip
 - **Komponenten mit Zuständigkeit:** Projekte in Bereiche wie „VPN & Fernzugriff“ oder „Drucker & Scanner“ aufteilen, je mit verantwortlicher Person und Vertretung. Neue Tickets werden über Schlagwörter oder den Absender zugeordnet und gehen automatisch an die richtige Person – mit fertigen Beispielen für IT, Haustechnik und Verwaltung
 - **Zusammenarbeit im Team:** **@-Erwähnungen** in Antworten und internen Notizen (mit Mail und Ansicht „Erwähnt mich“), Anfrage-Teilnehmer, Antwortvorlagen, **Mehrfachauswahl** (Status, Zuweisung, Kommentar oder Verknüpfung für viele Tickets auf einmal), **Verknüpfen mit Suche und Vorschlägen** (mögliche Ursachen, ähnliche Tickets)
 - **KI-Unterstützung (optional):** Zusammenfassung, Antwortvorschlag und Umformulieren mit einem eigenen Modell (Ollama, LM Studio, vLLM …) oder einem beliebigen OpenAI-kompatiblen Dienst – nur Vorschläge, nichts wird automatisch verschickt
@@ -252,6 +253,15 @@ Bearbeiter holen Kollegen gezielt in ein Ticket: Im Antwortfeld (Desktop und Han
 - **Benachrichtigung:** Wer erwähnt wird, bekommt eine Mail vom Ticketsystem („Anna hat Sie in IT-12 erwähnt“) mit dem Kommentar und dem Link. Melder und Teilnehmer, die die Antwort ohnehin per Mail bekommen, erhalten keine zweite. Wer sich selbst erwähnt, bekommt nichts. Antworten auf die Mail eines Bearbeiters werden wie gewohnt zu internen Notizen. Abschaltbar unter *Kanäle: E-Mail → Benachrichtigungen*.
 - **Wiederfinden:** *Erwähnt mich* in der Seitenleiste (Handy: Chip *Erwähnt* unter *Tickets*) listet alle Tickets mit einer Erwähnung; die Zahl daneben zählt die noch nicht geöffneten. Neue Erwähnungen sind in den Listen mit **@** markiert, der betreffende Kommentar im Ticket ebenfalls. Mit dem Öffnen des Tickets gilt die Erwähnung als gesehen.
 - Erwähnungen werden nicht automatisch zu Teilnehmern oder Beobachtern – dafür gibt es *Anfrage-Teilnehmer*.
+
+## Gespeicherte Filter und Warteschlangen
+
+In der Ticketliste Filter, Suche und Sortierung einstellen und **Filter speichern** wählen. Der Filter erscheint links unter *Gespeicherte Filter* mit der aktuellen Anzahl (Handy: als Chip unter *Tickets*); die Liste trägt dann seinen Namen.
+
+- **Persönlich:** Jeder Bearbeiter hat eigene Filter (bis zu 50). Andere sehen sie nicht.
+- **Für alle Bearbeiter:** Admins können einen Filter beim Speichern freigeben. Er erscheint bei allen Bearbeitern als Warteschlange (mit Personen-Symbol). „Mir zugewiesen“ bezieht sich dabei auf die jeweilige Person.
+- **Verwalten:** Das Symbol neben *Gespeicherte Filter* öffnet die Liste zum Umbenennen, Sortieren (↑/↓) und Löschen. Freigegebene Warteschlangen ändern nur Admins.
+- Gespeichert werden nur Filter der Ticketliste (Projekt, Status, Typ, Priorität, Bearbeiter, Komponente, Stichwort, Suche, Sortierung …).
 
 ## Komponenten
 

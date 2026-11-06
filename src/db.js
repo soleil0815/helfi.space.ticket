@@ -675,6 +675,23 @@ export const MIGRATIONS = [
     CREATE INDEX idx_tickets_component ON tickets(component_id);
     `,
   },
+  {
+    id: 31,
+    name: 'Gespeicherte Filter und geteilte Warteschlangen',
+    sql: `
+    -- owner_id NULL = queue shared by an admin with all agents
+    CREATE TABLE saved_filters (
+      id INTEGER PRIMARY KEY,
+      owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      query TEXT NOT NULL DEFAULT '',
+      position INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_saved_filters_owner ON saved_filters(owner_id, position);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

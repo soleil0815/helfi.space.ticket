@@ -3,7 +3,7 @@ import { api } from '/js/api.js';
 import { h, icon, avatar, priorityIcon, typeIcon } from '/js/dom.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
-import { QUEUES, VIEWS, matchQueue } from '/js/queues.js';
+import { QUEUES, VIEWS, matchQueue, matchSaved } from '/js/queues.js';
 import { typesFor } from '/js/types.js';
 import { replaceUrl, go } from '../router.js';
 import { attachQuickSearch } from '/js/quicksearch.js';
@@ -15,7 +15,7 @@ const PAGE = 50;
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 const PRIOS = ['highest', 'high', 'medium', 'low'];
 // Filter keys: a queue chip replaces all of them (search and project stay)
-const QUEUE_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla', 'approval', 'participant', 'mentioned'];
+const QUEUE_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla', 'approval', 'participant', 'mentioned', 'component'];
 const ALLOWED = [...QUEUE_KEYS, 'q', 'project', 'sort'];
 const USER_CHIPS = [
   { id: 'all', label: 'm.q.all', params: {} },
@@ -32,6 +32,7 @@ export async function renderTickets(page, ctx) {
   for (const k of ALLOWED) { const v = ctx.params.get(k); if (v) f[k] = v; }
   let limit = PAGE;
   let counts = null;
+  let saved = null; // saved filters and shared queues (agents), as chips after the queues
 
   const writeUrl = () => {
     const p = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
@@ -67,16 +68,33 @@ export async function renderTickets(page, ctx) {
   function drawChips() {
     if (state.isAgent) {
       const cur = matchQueue(new URLSearchParams(f));
-      chipsHost.replaceChildren(chipRow(AGENT_CHIPS.map((q) => chip(t(QUEUE_SHORT[q.id] || q.label), {
-        active: cur?.id === q.id,
-        count: counts ? counts[q.count] ?? null : null,
-        onClick: () => {
-          for (const k of QUEUE_KEYS) delete f[k];
-          Object.assign(f, q.params);
-          limit = PAGE;
-          writeUrl(); drawChips(); load();
-        },
-      })), t('nav.queues')));
+      const curSaved = cur ? null : matchSaved(saved, new URLSearchParams(f));
+      chipsHost.replaceChildren(chipRow([
+        ...AGENT_CHIPS.map((q) => chip(t(QUEUE_SHORT[q.id] || q.label), {
+          active: cur?.id === q.id,
+          count: counts ? counts[q.count] ?? null : null,
+          onClick: () => {
+            for (const k of QUEUE_KEYS) delete f[k];
+            Object.assign(f, q.params);
+            limit = PAGE;
+            writeUrl(); drawChips(); load();
+          },
+        })),
+        // A saved filter replaces all filters (including search, project and sorting)
+        ...(saved || []).map((sf) => chip(sf.name, {
+          active: curSaved?.id === sf.id,
+          count: sf.count ?? null,
+          onClick: () => {
+            for (const k of Object.keys(f)) delete f[k];
+            for (const [k, v] of new URLSearchParams(sf.query)) if (ALLOWED.includes(k)) f[k] = v;
+            input.value = f.q || '';
+            limit = PAGE;
+            writeUrl(); drawChips(); drawFilterBtn(); load();
+          },
+        })),
+      ], t('nav.queues')));
+      // Active chip (e.g. a saved filter far right) into view
+      requestAnimationFrame(() => chipsHost.querySelector('.m-chip.active')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
     } else {
       const curId = f.status === 'done' ? 'done' : (f.status === 'unresolved' ? 'open' : 'all');
       chipsHost.replaceChildren(chipRow(USER_CHIPS.map((c) => chip(t(c.label), {
@@ -148,12 +166,14 @@ export async function renderTickets(page, ctx) {
     const my = ++seq;
     if (!keepScroll) { listHost.replaceChildren(skeletonList(4)); more.replaceChildren(); info.textContent = ''; }
     const sort = f.sort || (f.q ? 'relevance' : 'updated');
-    const [{ tickets, searchTerms }, q] = await Promise.all([
+    const [{ tickets, searchTerms }, q, sf] = await Promise.all([
       api.tickets({ ...f, sort, limit }),
       state.isAgent && !counts ? api.queues().catch(() => null) : Promise.resolve(null),
+      state.isAgent && !counts ? api.filters().catch(() => null) : Promise.resolve(null),
     ]);
     if (my !== seq) return;
-    if (q) { counts = q.counts; drawChips(); }
+    if (sf) saved = sf.filters;
+    if (q || sf) { if (q) counts = q.counts; drawChips(); }
     const terms = searchTerms || [];
     info.textContent = tickets.length ? t(tickets.length >= limit ? 'm.tickets.countMore' : 'm.tickets.count', { n: tickets.length }) : '';
     listHost.replaceChildren(tickets.length

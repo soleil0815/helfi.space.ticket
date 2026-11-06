@@ -194,7 +194,8 @@ export function createTickets(db, users) {
     return isAgent(user) || isCustomer(user, row) || (!!user && !!approverStmt.get(row.id, user.id));
   }
 
-  function list(user, f = {}) {
+  /** WHERE clause of the ticket list (also used to count saved filters) */
+  function listFilter(user, f) {
     const where = [];
     const args = [];
     if (!isAgent(user)) {
@@ -233,6 +234,17 @@ export function createTickets(db, users) {
         if (hits) { where.push('t.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(hits.ids)); }
       }
     }
+    return { where, args, hits };
+  }
+
+  /** Number of tickets for list filters (without sorting/limit) */
+  function count(user, f = {}) {
+    const { where, args } = listFilter(user, f);
+    return db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`).get(...args).n;
+  }
+
+  function list(user, f = {}) {
+    const { where, args, hits } = listFilter(user, f);
     const sorts = {
       updated: 't.updated_at DESC', created: 't.created_at DESC', priority: "CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, t.updated_at DESC",
       key: 'p.key, t.number DESC', rank: 't.rank, t.id', status: "CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END, t.updated_at DESC",
@@ -805,7 +817,7 @@ export function createTickets(db, users) {
 
   return {
     search,
-    events, projects, components, list, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
+    events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
     descriptionVersion, participants, addParticipant, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
