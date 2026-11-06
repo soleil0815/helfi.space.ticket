@@ -12,7 +12,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Single Sign-on** über OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
 - **Übersichtlich:** Seitenleiste mit Warteschlangen (offen, mir zugewiesen, nicht zugewiesen, wartet, kürzlich erledigt, alle) samt Live-Zahlen, Zusammenfassung je Projekt, Board mit Drag & Drop, Ticketliste mit Filtern, Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
-- **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, Systemen mit REST-API v2/v3 (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
+- **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, Systemen mit REST-API v2/v3 (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **IT-Service-Management nach ITIL** (alles optional): Verknüpfungen und Unteraufgaben, Auswirkung/Dringlichkeit und Major Incidents, Service Level, Probleme und bekannte Fehler, Change-Management mit Genehmigung und Kalender, Wissensdatenbank, Servicekatalog mit Formularen und Genehmigung, Geräte & Dienste, Zufriedenheitsumfrage und Kennzahlen
 - **Zusammenarbeit im Team:** **@-Erwähnungen** in Antworten und internen Notizen (mit Mail und Ansicht „Erwähnt mich“), Anfrage-Teilnehmer, Antwortvorlagen, **Mehrfachauswahl** (Status, Zuweisung, Kommentar oder Verknüpfung für viele Tickets auf einmal), **Verknüpfen mit Suche und Vorschlägen** (mögliche Ursachen, ähnliche Tickets)
@@ -441,25 +441,31 @@ Helfi.Space übernimmt Tickets mit Kommentaren und Anhängen aus
 
 - **Zammad** (REST-API, Zugriffstoken),
 - **Znuny / OTRS** (Webservice über das Generic Interface),
+- **GLPI** (REST-API `apirest.php`, GLPI 9.5 bis 11),
+- **Zendesk** (E-Mail und API-Token),
+- **Freshdesk** (API-Schlüssel),
 - Systemen mit **REST-API v3 (Cloud) oder v2 (Server/Data Center)**, auch Service-Desk-Projekte,
-- einer **CSV-Datei** – Export aus jedem anderen System (z. B. osTicket, GLPI, Excel-Listen).
+- einer **CSV-Datei** – Export aus jedem anderen System (z. B. osTicket, ServiceNow, Excel-Listen).
 
 Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Import. Eine CSV-Datei bleibt höchstens zwei Stunden im Arbeitsspeicher.
 
 1. **Quelle wählen und verbinden:**
    - **Zammad:** Adresse und Zugriffstoken (in Zammad unter *Profil → Token-Zugriff*, Berechtigung `ticket.agent`), alternativ Benutzer und Kennwort. Das Konto braucht Lesezugriff auf die Gruppen.
    - **Znuny / OTRS:** Einmalig in Znuny unter *Admin → Webservices → Webservice hinzufügen* das mitgelieferte Beispiel `GenericTicketConnectorREST` importieren. In Helfi.Space die volle Adresse des Webservice eintragen, z. B. `https://tickets.firma.local/otrs/nph-genericinterface.pl/Webservice/GenericTicketConnectorREST` (Znuny 7: `/znuny/` statt `/otrs/`), dazu Anmeldename und Kennwort eines Bearbeiters mit Leserechten auf die Queues. Neuere (`POST /Ticket/Search`) und ältere Webservices (`GET /Ticket`) gehen beide.
+   - **GLPI:** In GLPI unter *Einrichtung → Allgemein → API* die REST-API aktivieren. Adresse bis einschließlich `apirest.php` (z. B. `https://glpi.firma.local/apirest.php`) und das persönliche Token des Kontos (*Einstellungen → Fernzugriffsschlüssel*), alternativ Benutzer und Kennwort; ein Anwendungs-Token nur, wenn in GLPI ein API-Client damit eingerichtet ist. Einheiten (Entities) werden zu Projekten; Folgeeinträge und Aufgaben werden Kommentare (private bleiben intern), Lösungen öffentliche Kommentare, die Kategorie ein Stichwort. Gelöschte Tickets (Papierkorb) bleiben weg.
+   - **Zendesk:** Adresse (`https://firma.zendesk.com`), E-Mail und API-Token (*Admin Center → Apps und Integrationen → APIs → Zendesk API*). Mit einem Administrator-Konto kommen über den inkrementellen Export auch archivierte Tickets mit, sonst nur die normale Ticketliste. Gruppen werden zu Projekten, Tags zu Stichwörtern; private Kommentare bleiben intern.
+   - **Freshdesk:** Adresse (`https://firma.freshdesk.com`) und API-Schlüssel aus dem Profil. Gruppen werden zu Projekten, private Notizen bleiben intern. Freshdesk liefert über seine Liste höchstens 30.000 Tickets; bei mehr bitte einen CSV-Export ergänzen. Eigene Status (ab Nummer 6) erscheinen als „Status 6“ … und werden in der Zuordnung von Hand verteilt.
    - **REST-API v2/v3:** Cloud mit Adresse, E-Mail und API-Token; Server/Data Center mit Adresse und Personal Access Token, alternativ Benutzername und Kennwort.
    - **CSV-Datei:** hochladen (Trennzeichen `;`, `,` oder Tab, UTF-8 oder Excel-Kodierung, höchstens 50 MB) und die Spalten zuordnen. Erkannte Spalten (z. B. „Betreff“, „Status“, „E-Mail“, „Erstellt am“) sind schon eingetragen, Pflicht ist nur der Titel. Eine Spalte *Projekt / Queue* verteilt die Tickets auf mehrere Projekte. Datumsangaben wie `02.01.2026 09:05` oder `2026-01-02 09:05` werden erkannt.
    - Bei einem internen Zertifikat die eigene Zertifizierungsstelle (PEM) eintragen.
-2. **Projekte wählen** (Gruppen in Zammad, Queues in Znuny, Projekte bzw. Werte der Projektspalte) und festlegen, in welches Helfi.Space-Projekt sie kommen. Gibt es das Projekt nicht, wird es angelegt.
+2. **Projekte wählen** (Gruppen in Zammad, Zendesk und Freshdesk, Queues in Znuny, Einheiten in GLPI, Projekte bzw. Werte der Projektspalte) und festlegen, in welches Helfi.Space-Projekt sie kommen. Gibt es das Projekt nicht, wird es angelegt.
 3. **Zuordnen:** Status und Typen des Quellsystems auf die vier Status und Typen von Helfi.Space verteilen. Vorschläge sind schon eingetragen, z. B. „pending reminder“ / „Waiting for customer“ → Wartet, „closed successful“ → Erledigt, „Incident“ / „Bug“ → Störung.
 4. **Importieren:** Der Fortschritt wird angezeigt. Der Import lässt sich abbrechen.
 
 Was übernommen wird:
 
 - Titel, Beschreibung (als Text, HTML-Mails werden umgewandelt), Typ, Status, Priorität, Stichwörter (Zammad-Tags), Fälligkeit, Erstell- und Erledigt-Datum
-- **Kommentare:** In Zammad und Znuny ist der erste für den Kunden sichtbare Artikel die Beschreibung, alle weiteren werden Kommentare. Interne Notizen (Zammad „intern“, Znuny „nicht für den Kunden sichtbar“, interne Kommentare aus Service-Desk-Projekten und Kommentare mit eingeschränkter Sichtbarkeit) bleiben intern. Aus CSV: eine Spalte *Kommentare* wird eine interne Notiz.
+- **Kommentare:** In Zammad, Znuny und Zendesk ist der erste für den Kunden sichtbare Artikel bzw. Kommentar die Beschreibung, alle weiteren werden Kommentare. Interne Notizen (Zammad „intern“, Znuny „nicht für den Kunden sichtbar“, interne Kommentare aus Service-Desk-Projekten und Kommentare mit eingeschränkter Sichtbarkeit) bleiben intern. Aus CSV: eine Spalte *Kommentare* wird eine interne Notiz.
 - **Anhänge** bis zur gewählten Größe. Dateien einer internen Notiz hängen an dieser Notiz und bleiben intern. Kleine eingebettete Bilder (Logos in Signaturen) und der HTML-Teil von Mails werden übersprungen.
 
 So werden Nummern und Personen behandelt:
