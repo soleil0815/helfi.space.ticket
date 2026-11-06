@@ -530,14 +530,22 @@ docker compose logs helfi # shows the setup code</code></pre>
 <figure><img src="img/en/admin-login.jpg" alt=""><figcaption>Customising the sign-in page with preview</figcaption></figure>
 
 <h2 id="import">Import from another ticket system</h2>
-<p><em>Administration → Import</em> takes over projects, tickets, comments and attachments via the REST API of the previous system (Cloud and Server/Data Center). Credentials are not stored.</p>
+<p><em>Administration → Import</em> takes over tickets with comments and attachments from <strong>Zammad</strong>, <strong>Znuny / OTRS</strong>, systems with a <strong>REST API v2/v3</strong> (cloud, Server/Data Center) or a <strong>CSV file</strong>. Credentials are not stored.</p>
+<figure class="medium"><img src="img/en/import-source.jpg" alt=""><figcaption>Choosing the source – here Zammad with an access token</figcaption></figure>
 <ol>
-  <li><strong>Connect</strong> (address, email and API token, or personal access token).</li>
-  <li><strong>Choose projects</strong> and the target project.</li>
+  <li><strong>Choose the source and connect:</strong>
+    <ul>
+      <li><em>Zammad:</em> address and access token (in Zammad under <em>Profile → Token Access</em>, permission <code>ticket.agent</code>).</li>
+      <li><em>Znuny / OTRS:</em> once in Znuny, import the bundled example <code>GenericTicketConnectorREST</code> under <em>Admin → Web Services</em>; in Helfi.Space enter the full web service URL and login and password of an agent with read access.</li>
+      <li><em>REST API v2/v3:</em> address and API token or personal access token.</li>
+      <li><em>CSV file:</em> upload it and map the columns – recognised columns are prefilled, only the title is required. A <em>project / queue</em> column spreads the tickets over several projects.</li>
+    </ul></li>
+  <li><strong>Choose projects</strong> (groups, queues or projects) and the target project.</li>
   <li><strong>Map statuses and types</strong> (suggestions are pre-filled).</li>
   <li><strong>Import</strong> – with progress, can be cancelled.</li>
 </ol>
-<p>Ticket keys are kept (<code>SUP-123</code> stays <code>SUP-123</code>), people are matched by email address, and no emails are sent. Before every import starts, Helfi.Space creates a backup. A second run only updates what changed and never creates duplicates – so you can import once as a trial and again on the cut-over day.</p>
+<figure class="medium"><img src="img/en/import-csv.jpg" alt=""><figcaption>CSV file: mapping columns with example values</figcaption></figure>
+<p>Ticket numbers are kept where possible (<code>SUP-123</code> stays <code>SUP-123</code>, Zammad <code>#31011</code> becomes <code>SD-31011</code>; very long, date-based numbers get a new one, the old one is kept in the history). Internal notes and their files stay internal. People are matched by email address, and no emails are sent. Before every import starts, Helfi.Space creates a backup. A second run only updates what changed and never creates duplicates – so you can import once as a trial and again on the cut-over day (for CSV with the same <em>name of the source</em>).</p>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="operation">For administrators: operation <span class="role role-admin">admin</span></h1>

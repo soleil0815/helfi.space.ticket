@@ -372,7 +372,7 @@ export async function renderTicket(page, ctx) {
         : h('span.m-label', l)))) : none()),
       row(t('ticket.dueDate'), tk.dueDate ? fmtDate(tk.dueDate, false) : none()),
       row(t('ticket.project'), `${tk.projectName} (${tk.projectKey})`),
-      row(t('ticket.source'), withIcon(icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' ? 'download' : 'globe')), t(`source.${tk.source}`))),
+      row(t('ticket.source'), withIcon(icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' || tk.source === 'import' ? 'download' : 'globe')), t(`source.${tk.source}`))),
       agent ? row(t('m.ticket.links'), h('div.m-stack', links.length ? h('div.m-linked', links.map((l) => h('a.m-linked-item', { href: `/m/t/${encodeURIComponent(l.ticket.key)}`, 'data-link': '' },
         h('span.m-muted.m-linked-kind', linkLabel(l.kind, l.direction)),
         h('span.m-linked-main', typeIcon(l.ticket.type), h('strong', l.ticket.key), h('span.m-linked-title', l.ticket.title)),

@@ -10,6 +10,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-jira-'));
 process.env.HELFI_DATA_DIR = dataDir;
 process.env.HELFI_SETUP_TOKEN = 'code';
 process.env.HELFI_LOG_LEVEL = 'error';
+process.env.HELFI_IMPORT_ALLOW_LOCAL = '1'; // mock systems run on 127.0.0.1
 
 const { adfToText, wikiToText } = await import('../src/import/jira-text.js');
 const { suggestStatus, suggestType, mapPriority, isInternalComment, sanitizeProjectKey } = await import('../src/import/jira-import.js');

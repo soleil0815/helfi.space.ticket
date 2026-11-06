@@ -33,6 +33,7 @@ import { createNews } from './news.js';
 import { createReports } from './reports.js';
 import { findByEmail as ldapFindByEmail, searchPeople as ldapSearchPeople, findByGuid as ldapFindByGuid, findBySid as ldapFindBySid } from './auth/ldap.js';
 import { createJiraImporter } from './import/jira-import.js';
+import { createImportCore } from './import/core.js';
 import { createApi } from './routes/api.js';
 import { createSelfService } from './auth/selfservice.js';
 import { createAi } from './ai.js';
@@ -100,13 +101,14 @@ export function createApp(db) {
     console.log(`\n${line}\n  Helfi.Space – Ersteinrichtung / initial setup\n  Einrichtungscode / setup code:  ${setup.token}\n  ${config.baseUrl}/setup\n${line}\n`);
   }
 
-  const jiraImporter = createJiraImporter({ db, tickets, users });
+  const importer = createImportCore({ db, tickets, users });
+  const jiraImporter = createJiraImporter({ core: importer });
   const canned = createCanned(db);
   const news = createNews(db);
   const reports = createReports(db);
   const selfService = createSelfService({ db, settings, users, sessions, mailer, baseUrl: config.baseUrl });
   const ai = createAi({ db, settings, tickets });
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, policy, mfa, canned, news, reports, suppressions, selfService, ai, ldapCertWarning: null,
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 

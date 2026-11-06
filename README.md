@@ -12,7 +12,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Single Sign-on** über OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
 - **Übersichtlich:** Seitenleiste mit Warteschlangen (offen, mir zugewiesen, nicht zugewiesen, wartet, kürzlich erledigt, alle) samt Live-Zahlen, Zusammenfassung je Projekt, Board mit Drag & Drop, Ticketliste mit Filtern, Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
-- **Import aus einem anderen Ticketsystem** (über dessen REST-API, Cloud und Server/Data Center): Projekte, Tickets, Kommentare und Anhänge. Die Ticketnummern bleiben erhalten.
+- **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, Systemen mit REST-API v2/v3 (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **IT-Service-Management nach ITIL** (alles optional): Verknüpfungen und Unteraufgaben, Auswirkung/Dringlichkeit und Major Incidents, Service Level, Probleme und bekannte Fehler, Change-Management mit Genehmigung und Kalender, Wissensdatenbank, Servicekatalog mit Formularen und Genehmigung, Geräte & Dienste, Zufriedenheitsumfrage und Kennzahlen
 - **Zusammenarbeit im Team:** **@-Erwähnungen** in Antworten und internen Notizen (mit Mail und Ansicht „Erwähnt mich“), Anfrage-Teilnehmer, Antwortvorlagen, **Mehrfachauswahl** (Status, Zuweisung, Kommentar oder Verknüpfung für viele Tickets auf einmal), **Verknüpfen mit Suche und Vorschlägen** (mögliche Ursachen, ähnliche Tickets)
@@ -437,32 +437,42 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
 
 *Administration → Import*
 
-Helfi.Space übernimmt Projekte und Tickets über die REST-API des bisherigen Systems: **Cloud** (REST-API v3) und **Server/Data Center** (REST-API v2), auch Service-Desk-Projekte. Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Import.
+Helfi.Space übernimmt Tickets mit Kommentaren und Anhängen aus
 
-1. **Verbinden:**
-   - Cloud: Adresse, E-Mail und API-Token.
-   - Server/Data Center: Adresse und Personal Access Token, alternativ Benutzername und Kennwort.
+- **Zammad** (REST-API, Zugriffstoken),
+- **Znuny / OTRS** (Webservice über das Generic Interface),
+- Systemen mit **REST-API v3 (Cloud) oder v2 (Server/Data Center)**, auch Service-Desk-Projekte,
+- einer **CSV-Datei** – Export aus jedem anderen System (z. B. osTicket, GLPI, Excel-Listen).
+
+Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Import. Eine CSV-Datei bleibt höchstens zwei Stunden im Arbeitsspeicher.
+
+1. **Quelle wählen und verbinden:**
+   - **Zammad:** Adresse und Zugriffstoken (in Zammad unter *Profil → Token-Zugriff*, Berechtigung `ticket.agent`), alternativ Benutzer und Kennwort. Das Konto braucht Lesezugriff auf die Gruppen.
+   - **Znuny / OTRS:** Einmalig in Znuny unter *Admin → Webservices → Webservice hinzufügen* das mitgelieferte Beispiel `GenericTicketConnectorREST` importieren. In Helfi.Space die volle Adresse des Webservice eintragen, z. B. `https://tickets.firma.local/otrs/nph-genericinterface.pl/Webservice/GenericTicketConnectorREST` (Znuny 7: `/znuny/` statt `/otrs/`), dazu Anmeldename und Kennwort eines Bearbeiters mit Leserechten auf die Queues. Neuere (`POST /Ticket/Search`) und ältere Webservices (`GET /Ticket`) gehen beide.
+   - **REST-API v2/v3:** Cloud mit Adresse, E-Mail und API-Token; Server/Data Center mit Adresse und Personal Access Token, alternativ Benutzername und Kennwort.
+   - **CSV-Datei:** hochladen (Trennzeichen `;`, `,` oder Tab, UTF-8 oder Excel-Kodierung, höchstens 50 MB) und die Spalten zuordnen. Erkannte Spalten (z. B. „Betreff“, „Status“, „E-Mail“, „Erstellt am“) sind schon eingetragen, Pflicht ist nur der Titel. Eine Spalte *Projekt / Queue* verteilt die Tickets auf mehrere Projekte. Datumsangaben wie `02.01.2026 09:05` oder `2026-01-02 09:05` werden erkannt.
    - Bei einem internen Zertifikat die eigene Zertifizierungsstelle (PEM) eintragen.
-2. **Projekte wählen** und festlegen, in welches Helfi.Space-Projekt sie kommen. Gibt es das Projekt nicht, wird es angelegt.
-3. **Zuordnen:** Status und Vorgangstypen des Quellsystems auf die vier Status und Typen von Helfi.Space verteilen. Vorschläge sind schon eingetragen, z. B. „Waiting for customer“ → Wartet und „Bug“ → Störung.
+2. **Projekte wählen** (Gruppen in Zammad, Queues in Znuny, Projekte bzw. Werte der Projektspalte) und festlegen, in welches Helfi.Space-Projekt sie kommen. Gibt es das Projekt nicht, wird es angelegt.
+3. **Zuordnen:** Status und Typen des Quellsystems auf die vier Status und Typen von Helfi.Space verteilen. Vorschläge sind schon eingetragen, z. B. „pending reminder“ / „Waiting for customer“ → Wartet, „closed successful“ → Erledigt, „Incident“ / „Bug“ → Störung.
 4. **Importieren:** Der Fortschritt wird angezeigt. Der Import lässt sich abbrechen.
 
 Was übernommen wird:
 
-- Zusammenfassung, Beschreibung (als Text), Typ, Status, Priorität, Stichwörter, Fälligkeit, Erstell- und Erledigt-Datum
-- Kommentare. Interne Kommentare aus Service-Desk-Projekten und Kommentare mit eingeschränkter Sichtbarkeit werden zu internen Notizen.
-- Anhänge bis zur gewählten Größe
+- Titel, Beschreibung (als Text, HTML-Mails werden umgewandelt), Typ, Status, Priorität, Stichwörter (Zammad-Tags), Fälligkeit, Erstell- und Erledigt-Datum
+- **Kommentare:** In Zammad und Znuny ist der erste für den Kunden sichtbare Artikel die Beschreibung, alle weiteren werden Kommentare. Interne Notizen (Zammad „intern“, Znuny „nicht für den Kunden sichtbar“, interne Kommentare aus Service-Desk-Projekten und Kommentare mit eingeschränkter Sichtbarkeit) bleiben intern. Aus CSV: eine Spalte *Kommentare* wird eine interne Notiz.
+- **Anhänge** bis zur gewählten Größe. Dateien einer internen Notiz hängen an dieser Notiz und bleiben intern. Kleine eingebettete Bilder (Logos in Signaturen) und der HTML-Teil von Mails werden übersprungen.
 
 So werden Nummern und Personen behandelt:
 
-- **Nummern:** `SUP-123` bleibt `SUP-123`. Ist die Nummer im Zielprojekt schon vergeben oder gehörte sie einem Ticket, das inzwischen in ein anderes Projekt verschoben wurde, bekommt das Ticket die nächste freie. Neue Tickets schließen an die höchste Nummer an.
-- **Personen** werden über die E-Mail-Adresse zugeordnet. Melder ohne Konto werden zu E-Mail-Kontakten, und meldet sich die Person später per AD oder SSO an, gehören ihr die Tickets. Bearbeiter werden nur zugewiesen, wenn sie in Helfi.Space schon Bearbeiter sind, sonst steht ihr Name im Verlauf. Cloud-Systeme geben E-Mail-Adressen je nach Datenschutzeinstellung nicht heraus, dann wird nur der Name übernommen.
+- **Nummern:** `SUP-123` bleibt `SUP-123`, Zammad `#31011` wird z. B. `SD-31011`. Sehr lange Nummern (datumsbasiert, z. B. `2025030110000071` aus Znuny) und schon vergebene Nummern bekommen die nächste freie; ebenso Nummern, die einem inzwischen verschobenen Ticket gehörten. Die alte Nummer steht im Verlauf („importiert“). Neue Tickets schließen an die höchste Nummer an.
+- **Personen** werden über die E-Mail-Adresse zugeordnet. Melder ohne Konto werden zu E-Mail-Kontakten, und meldet sich die Person später per AD oder SSO an, gehören ihr die Tickets. Bearbeiter werden nur zugewiesen, wenn sie in Helfi.Space schon Bearbeiter sind (über E-Mail, Anmeldename oder eindeutigen Namen), sonst steht ihr Name im Verlauf. Cloud-Systeme geben E-Mail-Adressen je nach Datenschutzeinstellung nicht heraus, dann wird nur der Name übernommen.
 
 Außerdem gilt:
 
 - Es werden **keine E-Mails** verschickt.
+- **Schutz vor Missbrauch (SSRF):** Der Import verbindet sich nie mit lokalen Adressen (`127.x`, `::1`), Link-Local-Adressen (`169.254.x.x`, z. B. Metadaten-Dienste von Cloud-Servern) oder Multicast – auch nicht über einen Namen oder eine Weiterleitung, die dorthin zeigt. Systeme im eigenen Netz (`10.x`, `172.16–31.x`, `192.168.x`) sind erreichbar. Läuft das Quellsystem wirklich auf demselben Rechner und ist nur über `127.0.0.1` erreichbar, hebt `HELFI_IMPORT_ALLOW_LOCAL=1` in der `.env` die Sperre auf.
 - Vor jedem Start eines Imports legt Helfi.Space eine Sicherung an (`helfi-vor-import-….sqlite`).
-- **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich im Quellsystem seitdem geändert haben (dann gilt der Stand von dort; die geänderten Felder stehen im Verlauf). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren.
+- **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich im Quellsystem seitdem geändert haben (dann gilt der Stand von dort; die geänderten Felder stehen im Verlauf). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren. Bei CSV-Dateien dafür denselben *Namen der Quelle* verwenden; ohne Nummern-Spalte wird eine Zeile an Titel, Erstelldatum und Melder wiedererkannt.
 
 ---
 
