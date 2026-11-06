@@ -12,7 +12,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Single sign-on** via OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **Email → ticket:** a mailbox is polled via IMAP, new mails become tickets and replies land in the matching ticket. Reporters get answers by email.
 - **Clear and simple:** sidebar with queues (open, assigned to me, unassigned, waiting, recently resolved, all) with live counts, per-project summary, board with drag & drop, ticket list with filters, ticket view with details, comments, internal notes, attachments and history
-- **Import from another ticket system** (via its REST API, cloud and Server/Data Center): projects, tickets, comments and attachments. Ticket numbers are kept.
+- **Easy migration:** import from **Zammad**, **Znuny/OTRS**, systems with a REST API v2/v3 (cloud, Server/Data Center) or a **CSV file** – with comments, internal notes and attachments; ticket numbers are kept, a second run only adds what is new.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
 - **Teamwork:** **@-mentions** in replies and internal notes (with email and a "Mentions me" view), request participants, reply templates, **multi-select** (status, assignment, comment or link for many tickets at once), **linking with search and suggestions** (possible causes, similar tickets)
@@ -437,32 +437,41 @@ For replies that are always the same (e.g. "Please restart your computer"):
 
 *Administration → Import*
 
-Helfi.Space takes over projects and tickets via the REST API of the previous system: **cloud** (REST API v3) and **Server/Data Center** (REST API v2), service desk projects included. Credentials are not stored; they are only used for the running import.
+Helfi.Space takes over tickets with comments and attachments from
 
-1. **Connect:**
-   - Cloud: address, email and API token.
-   - Server/Data Center: address and personal access token, alternatively user name and password.
+- **Zammad** (REST API, access token),
+- **Znuny / OTRS** (web service via the Generic Interface),
+- systems with a **REST API v3 (cloud) or v2 (Server/Data Center)**, service desk projects included,
+- a **CSV file** – an export from any other system (e.g. osTicket, GLPI, Excel lists).
+
+Credentials are not stored; they are only used for the running import. A CSV file stays in memory for at most two hours.
+
+1. **Choose the source and connect:**
+   - **Zammad:** address and access token (in Zammad under *Profile → Token Access*, permission `ticket.agent`), alternatively user name and password. The account needs read access to the groups.
+   - **Znuny / OTRS:** once in Znuny, import the bundled example `GenericTicketConnectorREST` under *Admin → Web Services → Add web service*. In Helfi.Space enter the full web service URL, e.g. `https://tickets.example.local/otrs/nph-genericinterface.pl/Webservice/GenericTicketConnectorREST` (Znuny 7: `/znuny/` instead of `/otrs/`), plus login and password of an agent with read access to the queues. Newer (`POST /Ticket/Search`) and older web services (`GET /Ticket`) both work.
+   - **REST API v2/v3:** cloud with address, email and API token; Server/Data Center with address and personal access token, alternatively user name and password.
+   - **CSV file:** upload it (separator `;`, `,` or tab, UTF-8 or Excel encoding, at most 50 MB) and map the columns. Recognised columns (e.g. "Subject", "Status", "Email", "Created") are prefilled; only the title is required. A *project / queue* column spreads the tickets over several projects. Dates like `02.01.2026 09:05` or `2026-01-02 09:05` are recognised.
    - With an internal certificate, enter your own certification authority (PEM).
-2. **Select projects** and choose which Helfi.Space project they go into. If the project does not exist, it is created.
-3. **Map:** distribute the source system's statuses and issue types over the four statuses and types of Helfi.Space. Suggestions are prefilled, e.g. "Waiting for customer" → Waiting and "Bug" → Incident.
+2. **Select projects** (groups in Zammad, queues in Znuny, projects or values of the project column) and choose which Helfi.Space project they go into. If the project does not exist, it is created.
+3. **Map:** distribute the source system's statuses and types over the four statuses and types of Helfi.Space. Suggestions are prefilled, e.g. "pending reminder" / "Waiting for customer" → Waiting, "closed successful" → Done, "Incident" / "Bug" → Incident.
 4. **Import:** progress is shown. The import can be cancelled.
 
 What is taken over:
 
-- Summary, description (as text), type, status, priority, labels, due date, created and resolved date
-- Comments. Internal comments from service desk projects and comments with restricted visibility become internal notes.
-- Attachments up to the chosen size
+- Title, description (as text, HTML mails are converted), type, status, priority, labels (Zammad tags), due date, created and resolved date
+- **Comments:** in Zammad and Znuny the first article visible to the customer is the description, all further ones become comments. Internal notes (Zammad "internal", Znuny "not visible for customer", internal comments from service desk projects and comments with restricted visibility) stay internal. From CSV: a *comments* column becomes one internal note.
+- **Attachments** up to the chosen size. Files of an internal note are attached to that note and stay internal. Small embedded images (logos in signatures) and the HTML part of mails are skipped.
 
 How numbers and people are handled:
 
-- **Numbers:** `SUP-123` stays `SUP-123`. If the number is already taken in the target project or belonged to a ticket that has since been moved to another project, the ticket gets the next free one. New tickets continue after the highest number.
-- **People** are matched by email address. Reporters without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they are already agents in Helfi.Space, otherwise their name appears in the history. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
+- **Numbers:** `SUP-123` stays `SUP-123`, Zammad `#31011` becomes e.g. `SD-31011`. Very long numbers (date based, e.g. `2025030110000071` from Znuny) and numbers already taken get the next free one; so do numbers that belonged to a ticket moved elsewhere since. The old number appears in the history ("imported"). New tickets continue after the highest number.
+- **People** are matched by email address. Reporters without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they are already agents in Helfi.Space (by email, login or a unique name), otherwise their name appears in the history. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
 
 Also:
 
 - **No emails** are sent.
 - Before every import starts, Helfi.Space creates a backup (`helfi-vor-import-….sqlite`).
-- **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins; the changed fields appear in the history). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day.
+- **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins; the changed fields appear in the history). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day. For CSV files use the same *name of the source*; without a number column a row is recognised by title, creation date and reporter.
 
 ---
 

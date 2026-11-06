@@ -1,24 +1,16 @@
 // Access to Jira Cloud (REST API v3) and Jira Server/Data Center (REST API v2).
-// Own small HTTP client so that internal certificates (on-prem) and
-// "do not verify" are possible and credentials are not sent along on redirects to other hosts
+// HTTP via ./http.js: internal certificates, no credentials on redirects to other hosts
 // (Cloud attachments are hosted at api.media.atlassian.com).
-import http from 'node:http';
-import https from 'node:https';
-import { log } from '../lib/log.js';
-import { normalizeBaseUrl } from '../lib/http.js';
+import { createSourceHttp, SourceError } from './http.js';
 
-const MAX_BODY = 512 * 1024 * 1024; // attachments
-const MAX_JSON = 64 * 1024 * 1024; // API responses
 const MAX_PAGES = 100000;
 
-export class JiraError extends Error {
-  constructor(message, status) { super(message); this.status = status; }
-}
+export class JiraError extends SourceError {}
 
 /**
  * @param {object} c
  * @param {'cloud'|'server'} c.type
- * @param {string} c.baseUrl  e.g. https://firma.atlassian.net or https://jira.firma.local
+ * @param {string} c.baseUrl  e.g. https://firma.atlassian.net or https://tickets.firma.local
  * @param {string} [c.email]  Cloud: email of the account
  * @param {string} [c.token]  Cloud: API token · Server/DC: personal access token
  * @param {string} [c.username] Server/DC: username (instead of token)
@@ -27,94 +19,17 @@ export class JiraError extends Error {
  * @param {string} [c.caPem] custom certificate authority (on-prem)
  */
 export function createJiraClient(c) {
-  const base = new URL(normalizeBaseUrl(c.baseUrl) + '/');
-  if (!/^https?:$/.test(base.protocol)) throw new JiraError('Nur http:// oder https:// Adressen sind erlaubt.', 400);
   const cloud = c.type === 'cloud';
   const api = cloud ? '/rest/api/3' : '/rest/api/2';
-  const basePath = base.pathname.replace(/\/$/, ''); // context path, e.g. /jira
 
   let auth;
   if (cloud) auth = `Basic ${Buffer.from(`${c.email || ''}:${c.token || ''}`).toString('base64')}`;
   else if (c.token) auth = `Bearer ${c.token}`;
   else auth = `Basic ${Buffer.from(`${c.username || ''}:${c.password || ''}`).toString('base64')}`;
 
-  const tlsOpts = { rejectUnauthorized: c.verifyTls !== false, ...(c.caPem ? { ca: c.caPem } : {}) };
-
-  function raw(urlStr, { method = 'GET', body, headers = {}, withAuth = true, redirects = 5, timeoutMs = 60000, maxBytes = MAX_BODY } = {}) {
-    return new Promise((resolve, reject) => {
-      const url = new URL(urlStr);
-      const mod = url.protocol === 'https:' ? https : http;
-      const payload = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
-      const req = mod.request(url, {
-        method,
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'Helfi.Space-Import',
-          ...(withAuth ? { Authorization: auth } : {}),
-          ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': payload.length } : {}),
-          ...headers,
-        },
-        timeout: timeoutMs,
-        ...(url.protocol === 'https:' ? tlsOpts : {}),
-      }, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
-          res.resume();
-          const next = new URL(res.headers.location, url);
-          // Pass credentials only to the same host
-          const sameOrigin = next.origin === base.origin;
-          return resolve(raw(next.href, { method: res.statusCode === 303 ? 'GET' : method, body: res.statusCode === 303 ? undefined : body, headers, withAuth: withAuth && sameOrigin, redirects: redirects - 1, timeoutMs, maxBytes }));
-        }
-        const chunks = [];
-        let size = 0;
-        res.on('data', (d) => {
-          size += d.length;
-          if (size > maxBytes) { req.destroy(new JiraError('Antwort zu groß', 413)); return; }
-          chunks.push(d);
-        });
-        res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
-        res.on('error', reject);
-      });
-      req.on('timeout', () => req.destroy(new JiraError(`Zeitüberschreitung bei ${url.host}`, 504)));
-      req.on('error', reject);
-      if (payload) req.write(payload);
-      req.end();
-    });
-  }
-
-  /** JSON request with retry on 429/503 (Retry-After) */
-  async function json(path, opts = {}) {
-    const url = path.startsWith('http') ? path : `${base.origin}${basePath}${path}`;
-    for (let attempt = 0; ; attempt++) {
-      let r;
-      try {
-        r = await raw(url, { maxBytes: MAX_JSON, ...opts });
-      } catch (e) {
-        if (e.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || e.code === 'SELF_SIGNED_CERT_IN_CHAIN' || e.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
-          throw new JiraError(`Zertifikat von ${base.host} wird nicht vertraut (${e.code}). Eigene CA eintragen oder Prüfung abschalten.`, 495);
-        }
-        // Brief network failure: retry a few times instead of aborting the whole import
-        if (attempt < 3 && !(e instanceof JiraError && e.status === 413)) { await new Promise((res) => setTimeout(res, 1000 * (attempt + 1))); continue; }
-        throw new JiraError(`${base.host} nicht erreichbar: ${e.message}`, 502);
-      }
-      if ([502, 504].includes(r.status) && attempt < 3) { await new Promise((res) => setTimeout(res, 1000 * (attempt + 1))); continue; }
-      if ((r.status === 429 || r.status === 503) && attempt < 6) {
-        const wait = Math.min(60, Number(r.headers['retry-after']) || 2 ** attempt) * 1000;
-        log.info(`Source system is throttling (HTTP ${r.status}), waiting ${wait / 1000}s`);
-        await new Promise((res) => setTimeout(res, wait));
-        continue;
-      }
-      const text = r.body.toString('utf8');
-      if (r.status === 401) throw new JiraError('Anmeldung beim Quellsystem fehlgeschlagen (Benutzer/Token prüfen).', 401);
-      if (r.status === 403) throw new JiraError('Keine Berechtigung im Quellsystem für diese Abfrage.', 403);
-      if (r.status >= 400) {
-        let msg = text.slice(0, 300);
-        try { const j = JSON.parse(text); msg = [...(j.errorMessages || []), ...Object.values(j.errors || {})].join('; ') || msg; } catch { /* not JSON */ }
-        throw new JiraError(`Quellsystem antwortet mit HTTP ${r.status}: ${msg}`, r.status);
-      }
-      try { return text ? JSON.parse(text) : null; }
-      catch { throw new JiraError(`Unerwartete Antwort von ${base.host} (kein JSON) – ist die Adresse richtig?`, 502); }
-    }
-  }
+  const { base, basePath, json, download } = createSourceHttp({
+    baseUrl: c.baseUrl, headers: () => ({ Authorization: auth }), verifyTls: c.verifyTls, caPem: c.caPem, ErrorClass: JiraError,
+  });
 
   const FIELDS = ['summary', 'description', 'issuetype', 'status', 'priority', 'labels', 'created', 'updated',
     'resolutiondate', 'duedate', 'reporter', 'creator', 'assignee', 'attachment'];
@@ -202,12 +117,7 @@ export function createJiraClient(c) {
     },
 
     /** Download an attachment (follows the redirect to other hosts without credentials) */
-    async download(contentUrl, maxBytes) {
-      const url = new URL(contentUrl, base);
-      const r = await raw(url.href, { headers: { Accept: '*/*' }, withAuth: url.origin === base.origin, maxBytes, timeoutMs: 300000 });
-      if (r.status >= 400) throw new JiraError(`Anhang nicht ladbar (HTTP ${r.status})`, r.status);
-      return r.body;
-    },
+    download,
   };
 }
 

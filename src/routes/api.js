@@ -6,6 +6,9 @@ import multer from 'multer';
 import { isHexColor, saveLogo, removeLogo } from '../brand.js';
 import { viewerDocument } from '../mail/html.js';
 import { createItilRoutes } from './itil.js';
+import { zammadAdapter } from '../import/zammad.js';
+import { znunyAdapter } from '../import/znuny.js';
+import { csvAdapter, readCsv, suggestColumns, CSV_FIELDS, MAX_CSV_BYTES } from '../import/csv.js';
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
@@ -884,8 +887,76 @@ export function createApi(ctx) {
   admin.get('/mail/suppressions', (req, res) => res.json({ suppressions: suppressions.list() }));
   admin.delete('/mail/suppressions/:address', (req, res) => { suppressions.remove(req.params.address); res.json({ suppressions: suppressions.list() }); });
 
-  admin.get('/import/status', (req, res) => res.json({ job: jiraImporter.status() }));
-  admin.post('/import/cancel', (req, res) => res.json({ job: jiraImporter.cancel() }));
+  admin.get('/import/status', (req, res) => res.json({ job: ctx.importer.status() }));
+  admin.post('/import/cancel', (req, res) => res.json({ job: ctx.importer.cancel() }));
+
+  // ---------- Import from Zammad, Znuny/OTRS and CSV files ----------
+  // Connection data is never stored; an uploaded CSV file stays in memory only (latest one, 2 hours)
+  let csvFile = null;
+  const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_CSV_BYTES, files: 1 } });
+  const decodeText = (buf) => {
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { return new TextDecoder('windows-1252').decode(buf); }
+  };
+  const tlsConn = (c) => ({ verifyTls: c.verifyTls !== false, caPem: str(c.caPem, 20000) });
+  const baseUrlOf = (c) => {
+    const baseUrl = str(c.baseUrl, 500).trim();
+    if (!/^https?:\/\/[^\s/]+/i.test(baseUrl)) throw new HttpError(400, 'err.badRequest', 'baseUrl');
+    return baseUrl;
+  };
+  function adapterFor(source, body) {
+    const c = body?.connection || {};
+    if (source === 'zammad') return zammadAdapter({ baseUrl: baseUrlOf(c), token: str(c.token, 2000).trim(), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
+    if (source === 'znuny') return znunyAdapter({ baseUrl: baseUrlOf(c), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
+    if (source === 'csv') {
+      if (!csvFile || csvFile.id !== str(c.uploadId, 64) || Date.now() - csvFile.at > 2 * 3600_000) throw new HttpError(400, 'err.importFileGone');
+      const columns = Object.fromEntries(Object.entries(c.columns && typeof c.columns === 'object' ? c.columns : {}).map(([k, v]) => [str(k, 40), str(v, 200)]).filter(([, v]) => v));
+      return csvAdapter({ text: csvFile.text, name: str(c.name, 60) || csvFile.name, columns });
+    }
+    throw notFound();
+  }
+  const SOURCES = ['zammad', 'znuny', 'csv'];
+  const sourceParam = (req) => { if (!SOURCES.includes(req.params.source)) throw notFound(); return req.params.source; };
+  const importFail = (res, e) => {
+    if (e instanceof HttpError) throw e;
+    log.warn('Import', { error: e.message });
+    res.json({ ok: false, error: e.message });
+  };
+
+  admin.post('/import/csv/upload', (req, res, next) => csvUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return next(new HttpError(413, 'err.fileTooLarge'));
+    return next(new HttpError(400, 'err.badRequest', err.code));
+  }), (req, res) => {
+    if (!req.file) throw new HttpError(400, 'err.badRequest', 'file');
+    const text = decodeText(req.file.buffer);
+    let parsed;
+    try { parsed = readCsv(text); } catch (e) { return res.json({ ok: false, error: e.message }); }
+    const name = String(req.file.originalname || 'CSV').slice(0, 200).replace(/\.[^.]*$/, '').replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 60) || 'CSV';
+    csvFile = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), text, name, at: Date.now() };
+    res.json({ ok: true, uploadId: csvFile.id, name, headers: parsed.headers, rows: parsed.records.length, suggested: suggestColumns(parsed.headers), preview: parsed.records.slice(0, 3), fields: Object.keys(CSV_FIELDS) });
+  });
+  admin.post('/import/:source/connect', wrap(async (req, res) => {
+    const source = sourceParam(req);
+    try { res.json({ ok: true, ...(await ctx.importer.connect(adapterFor(source, req.body), { type: source })) }); } catch (e) { importFail(res, e); }
+  }));
+  admin.post('/import/:source/inspect', wrap(async (req, res) => {
+    const source = sourceParam(req);
+    const keys = (Array.isArray(req.body.projects) ? req.body.projects : []).map((k) => str(k, 200)).slice(0, 500);
+    try { res.json({ ok: true, ...(await ctx.importer.inspect(adapterFor(source, req.body), keys)) }); } catch (e) { importFail(res, e); }
+  }));
+  admin.post('/import/:source/start', wrap(async (req, res) => {
+    const source = sourceParam(req);
+    const adapter = adapterFor(source, req.body);
+    if (ctx.importer.running()) throw new HttpError(409, 'err.importRunning');
+    if (!Array.isArray(req.body.projects) || !req.body.projects.length) throw new HttpError(400, 'err.badRequest', 'projects');
+    await backupDatabase(db, 'vor-import');
+    pruneBackups(settings.get('backup.keep'));
+    const job = ctx.importer.start(adapter, {
+      projects: req.body.projects, statusMap: req.body.statusMap || {}, typeMap: req.body.typeMap || {}, options: req.body.options || {},
+    }, req.user.id);
+    log.info(`Import (${source}) started by ${req.user.username}`, { projects: job.projects.map((p) => p.key) });
+    res.status(202).json({ job });
+  }));
 
   r.use('/admin', admin);
   return r;

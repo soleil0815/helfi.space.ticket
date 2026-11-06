@@ -530,14 +530,22 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <figure><img src="img/de/admin-login.jpg" alt=""><figcaption>Anmeldeseite anpassen mit Vorschau</figcaption></figure>
 
 <h2 id="import">Import aus einem anderen Ticketsystem</h2>
-<p><em>Administration → Import</em> übernimmt Projekte, Tickets, Kommentare und Anhänge über die REST-API des bisherigen Systems (Cloud und Server/Data Center). Die Zugangsdaten werden nicht gespeichert.</p>
+<p><em>Administration → Import</em> übernimmt Tickets mit Kommentaren und Anhängen aus <strong>Zammad</strong>, <strong>Znuny / OTRS</strong>, Systemen mit <strong>REST-API v2/v3</strong> (Cloud, Server/Data Center) oder einer <strong>CSV-Datei</strong>. Die Zugangsdaten werden nicht gespeichert.</p>
+<figure class="medium"><img src="img/de/import-source.jpg" alt=""><figcaption>Quelle wählen – hier Zammad mit Zugriffstoken</figcaption></figure>
 <ol>
-  <li><strong>Verbinden</strong> (Adresse, E-Mail und API-Token bzw. Personal Access Token).</li>
-  <li><strong>Projekte wählen</strong> und Zielprojekt festlegen.</li>
+  <li><strong>Quelle wählen und verbinden:</strong>
+    <ul>
+      <li><em>Zammad:</em> Adresse und Zugriffstoken (in Zammad unter <em>Profil → Token-Zugriff</em>, Berechtigung <code>ticket.agent</code>).</li>
+      <li><em>Znuny / OTRS:</em> einmalig in Znuny unter <em>Admin → Webservices</em> das mitgelieferte Beispiel <code>GenericTicketConnectorREST</code> importieren; in Helfi.Space die volle Adresse des Webservice sowie Anmeldename und Kennwort eines Bearbeiters mit Leserechten eintragen.</li>
+      <li><em>REST-API v2/v3:</em> Adresse und API-Token bzw. Personal Access Token.</li>
+      <li><em>CSV-Datei:</em> hochladen und die Spalten zuordnen – erkannte Spalten sind schon eingetragen, Pflicht ist nur der Titel. Eine Spalte <em>Projekt / Queue</em> verteilt die Tickets auf mehrere Projekte.</li>
+    </ul></li>
+  <li><strong>Projekte wählen</strong> (Gruppen, Queues oder Projekte) und Zielprojekt festlegen.</li>
   <li><strong>Status und Typen zuordnen</strong> (Vorschläge sind eingetragen).</li>
   <li><strong>Importieren</strong> – mit Fortschritt, abbrechbar.</li>
 </ol>
-<p>Ticketnummern bleiben erhalten (<code>SUP-123</code> bleibt <code>SUP-123</code>), Personen werden über die E-Mail-Adresse zugeordnet, es werden keine Mails verschickt. Vor jedem Import-Start legt Helfi.Space eine Sicherung an. Ein zweiter Lauf aktualisiert nur Geändertes und legt nichts doppelt an – so lässt sich vorab probehalber und am Stichtag noch einmal importieren.</p>
+<figure class="medium"><img src="img/de/import-csv.jpg" alt=""><figcaption>CSV-Datei: Spalten zuordnen mit Beispielwerten</figcaption></figure>
+<p>Ticketnummern bleiben möglichst erhalten (<code>SUP-123</code> bleibt <code>SUP-123</code>, Zammad <code>#31011</code> wird <code>SD-31011</code>; sehr lange, datumsbasierte Nummern bekommen eine neue, die alte steht im Verlauf). Interne Notizen und ihre Dateien bleiben intern. Personen werden über die E-Mail-Adresse zugeordnet, es werden keine Mails verschickt. Vor jedem Import-Start legt Helfi.Space eine Sicherung an. Ein zweiter Lauf aktualisiert nur Geändertes und legt nichts doppelt an – so lässt sich vorab probehalber und am Stichtag noch einmal importieren (bei CSV mit demselben <em>Namen der Quelle</em>).</p>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="betrieb">Für Administratoren: Betrieb <span class="role role-admin">Admin</span></h1>

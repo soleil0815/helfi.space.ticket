@@ -375,7 +375,7 @@ export async function renderTicket(content, key) {
         detailRow(t('ticket.project'), agent && state.projects.length > 1
           ? pick(tk.projectId, state.projects.map((p) => [p.id, `${p.name} (${p.key})`]), (v) => save({ projectId: v }), () => h('span', tk.projectName))
           : h('span', tk.projectName)),
-        detailRow(t('ticket.source'), h('span.person', icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' ? 'download' : 'globe')), h('span', t(`source.${tk.source}`)))),
+        detailRow(t('ticket.source'), h('span.person', icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' || tk.source === 'import' ? 'download' : 'globe')), h('span', t(`source.${tk.source}`)))),
       ),
       h('div.timestamps',
         h('div', `${t('ticket.created')} ${fmtDate(tk.createdAt)}`),
