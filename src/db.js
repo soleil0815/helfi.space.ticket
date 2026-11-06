@@ -627,6 +627,31 @@ export const MIGRATIONS = [
     CREATE INDEX idx_comment_mentions_user ON comment_mentions(user_id, ticket_id);
     `,
   },
+  {
+    id: 29,
+    name: 'Bewertung von Wissensartikeln (hilfreich / nicht hilfreich)',
+    sql: `
+    -- one vote per account and article (+1 helpful, -1 not helpful)
+    CREATE TABLE kb_votes (
+      article_id INTEGER NOT NULL REFERENCES kb_articles(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      vote INTEGER NOT NULL CHECK (vote IN (-1, 1)),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (article_id, user_id)
+    );
+    -- what was missing (only for agents); archived = from before the rating was reset
+    CREATE TABLE kb_feedback (
+      id INTEGER PRIMARY KEY,
+      article_id INTEGER NOT NULL REFERENCES kb_articles(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      body TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_kb_feedback_article ON kb_feedback(article_id, archived);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

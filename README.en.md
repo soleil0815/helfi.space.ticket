@@ -21,6 +21,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Phone app:** its own app-like interface under `/m`, installable as an app, with photos, templates, mentions and 2FA setup
 - **Self-registration and "forgot password"** for local accounts (off by default), optionally only for certain domains and with approval
 - **Automatic sign-out when idle,** stricter for admins and access from outside if desired, with a "Still there?" prompt
+- **Knowledge articles with 👍/👎 rating** and feedback on what was missing – articles that need rework at a glance
 - **Roles:** administrator, agent, user. Users only see their own requests.
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
@@ -322,6 +323,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 - **Templates:** “New article” starts with a choice: blank page, how-to, troubleshooting (FAQ), checklist, known error or a template of your own. Create your own templates in the editor with *Save as template* and manage them under *Knowledge → Templates*.
 - **Page tree:** articles can sit below other articles (*Located under* in the editor, *Subpage* on the article, on a PC by dragging in the page tree; *New folder* creates a collection page without text of its own), at any depth. The start page shows the tree and recently changed articles; each article shows its path, the tree on the left (on phones behind *Pages*) and its subpages. Users only see public pages; a public page below an internal one moves up a level for them. Deleting moves subpages up one level. Moving creates no new version.
 - **Print / PDF:** own print layout (title, path, date and content only; no breaks inside images, tables or info panels). With subpages you get one document with a table of contents, each page starting on a new sheet. Choose “Save as PDF” in the print dialog.
+- **"Was this article helpful?"** 👍/👎 below every article, on desktop and phone: one vote per account, clicking again withdraws it. After 👎 people can briefly say what was missing – only agents see that (*Feedback* on the article). Agents see the rating in the article list; the *Needs rework* filter shows articles with 👎 votes, most first. After reworking, *Reset rating* sets the votes back to zero; the notes are kept as earlier feedback.
 - **Comments:** anyone who can see an article can comment on it (including users on public articles). The author and last editor get an email, agents mark comments as done, your own can be deleted. The article list shows open comments.
 - **Search** in title and content, title matches first; filter by category. Read count per article for agents.
 - **Suggestions when reporting:** as a user types the summary in the “Create ticket” dialog, matching public articles appear (“Maybe this already helps”). They open without losing the report.

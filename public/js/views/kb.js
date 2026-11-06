@@ -8,6 +8,7 @@ import { renderDoc, headings } from '../kbdoc.js';
 import { createKbEditor } from '../kbeditor.js';
 import { builtinTemplates } from '../kbtemplates.js';
 import { diffView, diffLegend } from '../diffview.js';
+import { ratingBox } from '../kbrating.js';
 
 const visBadge = (v) => h(`span.badge.kb-${v}`, t(`kb.vis.${v}`));
 
@@ -37,10 +38,11 @@ async function list(content, params) {
   const tab = agent && ['known', 'templates'].includes(params.get('tab')) ? params.get('tab') : 'articles';
   const q = params.get('q') || '';
   const cat = params.get('category') || '';
+  const sort = agent && params.get('sort') === 'needsWork' ? 'needsWork' : '';
   const search = h('input.kb-search', { type: 'search', value: q, placeholder: t('kb.searchHint'), 'aria-label': t('kb.search') });
   const results = h('div.kb-results', h('div.loading', t('app.loading')));
   const go = (patch) => {
-    const p = new URLSearchParams({ ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(tab === 'known' ? { tab } : {}), ...patch });
+    const p = new URLSearchParams({ ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(sort ? { sort } : {}), ...(tab === 'known' ? { tab } : {}), ...patch });
     for (const [k, v] of [...p]) if (!v) p.delete(k);
     navigate(`/kb${p.toString() ? `?${p}` : ''}`, { replace: true });
   };
@@ -81,23 +83,26 @@ async function list(content, params) {
       h('div.kb-card-meta', t(`status.${k.status}`)))) : h('p.muted', t('kb.noKnown')));
     return;
   }
-  const [{ articles, categories }, { tree }] = await Promise.all([api.kb({ q, category: cat }), q || cat ? { tree: [] } : api.kbTree()]);
-  // Start page: page tree + recently changed; for a search or category the result list
-  const overview = !q && !cat && tree.length;
+  const [{ articles, categories }, { tree }] = await Promise.all([api.kb({ q, category: cat, ...(sort ? { sort } : {}) }), q || cat || sort ? { tree: [] } : api.kbTree()]);
+  // Start page: page tree + recently changed; for a search, category or "needs rework" the result list
+  const overview = !q && !cat && !sort && tree.length;
+  // Rating for agents: 👍 n · 👎 n (nothing while no one has voted)
+  const rated = (a) => (agent && a.rating && (a.rating.up || a.rating.down) ? h('span.kb-card-rating', { title: t('kb.rate.summary', { up: a.rating.up, down: a.rating.down }) }, `👍 ${a.rating.up} · 👎 ${a.rating.down}`) : null);
   mount(results,
-    categories.length ? h('div.kb-cats',
-      h('a.chip', { href: '/kb', 'data-link': '', class: !cat ? 'active' : '' }, t('kb.allCategories')),
-      categories.map((c) => h('a.chip', { href: `/kb?category=${encodeURIComponent(c.name)}`, 'data-link': '', class: c.name === cat ? 'active' : '' }, c.name, h('span.count', c.count)))) : null,
+    categories.length || agent ? h('div.kb-cats',
+      h('a.chip', { href: '/kb', 'data-link': '', class: !cat && !sort ? 'active' : '' }, t('kb.allCategories')),
+      categories.map((c) => h('a.chip', { href: `/kb?category=${encodeURIComponent(c.name)}`, 'data-link': '', class: c.name === cat ? 'active' : '' }, c.name, h('span.count', c.count))),
+      agent ? h('a.chip.kb-needs-work', { href: '/kb?sort=needsWork', 'data-link': '', class: sort ? 'active' : '', title: t('kb.rate.needsWorkHint') }, '👎 ', t('kb.rate.needsWork')) : null) : null,
     overview ? h('div.kb-overview',
       h('section.kb-overview-tree', treeHead(tree, null), treeNav(tree)),
       h('section.kb-overview-recent', h('h3', t('kb.recent')), articles.slice(0, 8).map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
         h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
         a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
-        h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · ')))))) : null,
+        h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))))) : null,
     overview ? null : articles.length ? articles.map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
       h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
       a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
-      h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · ')))) : h('p.muted', q ? t('kb.noResults') : t('kb.empty')));
+      h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))) : h('p.muted', sort ? t('kb.rate.noneNeedsWork') : q ? t('kb.noResults') : t('kb.empty')));
 }
 
 const reloadPage = () => navigate(location.pathname + location.search, { replace: true });
@@ -222,6 +227,7 @@ async function article(content, id) {
         articleBody(a.body),
         a.children.length ? h('section.kb-children', h('h3', t('kb.tree.children')),
           h('ul', a.children.map((c) => h('li', h('a', { href: `/kb/${c.id}`, 'data-link': '' }, c.title), agent && c.visibility === 'internal' ? h('span.badge.kb-internal', t('kb.vis.internal')) : null)))) : null,
+        a.body.trim() ? ratingBox(a) : null,
         commentsSection(a),
         !agent ? h('div.kb-help', t('kb.stillNeedHelp'), ' ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); import('./ticket.js').then((m) => m.openCreateDialog({ title: a.title })); } }, t('kb.reportProblem'))) : null)));
 }
