@@ -83,6 +83,9 @@
 <p><strong>Without a company account:</strong> if “Create account” appears below the sign-in, you can create an account yourself: enter name, email address and password and open the link in the confirmation email. If you have sent requests by email before, use the same address – they then appear in the account. You sign in with the email address. “Forgot password?” sends you a link to set a new password.</p>
 <p>When you sign in <strong>from outside the company network</strong>, Helfi.Space may additionally ask for a 6-digit code from your authenticator app, depending on the settings (see <a href="#2fa-setup">2.8</a>).</p>
 
+<p><strong>Automatic sign-out:</strong> whoever does nothing for a while is signed out for security reasons. Two minutes before, Helfi.Space asks “Still there?” – <em>Keep working</em> simply continues. As long as you click or type, you stay signed in.</p>
+<figure class="small"><img src="img/en/idle.jpg" alt=""><figcaption>Two minutes before the automatic sign-out</figcaption></figure>
+
 <h2 id="report">Reporting a problem</h2>
 <p>There are two ways:</p>
 <ul>
@@ -164,7 +167,7 @@
 <ul>
   <li><strong>Report a problem:</strong> ＋ → <em>Report a problem</em>. Enter a title and description, use <strong>Take photo</strong> to open the camera or <strong>File</strong> to attach pictures and documents. While you type the title, Helfi.Space shows matching help articles – maybe the solution is already there. <em>Submit</em> creates the request and opens it. What you have not sent yet is kept as long as the tab is open.</li>
   <li><strong>Request a service:</strong> under ＋ the offerings of the service catalog appear as tiles. Required fields are marked with *; if an offering needs approval, the form says so.</li>
-  <li><strong>Ticket:</strong> the activity looks like a chat. Write your reply at the bottom, attach photos or files with <strong>＋</strong>. Change title and description of your own request with <em>Edit</em> next to "Description".</li>
+  <li><strong>Ticket:</strong> the comments look like a chat. Write your reply at the bottom, attach photos or files with <strong>＋</strong>. Agents add status changes and assignments with <em>All</em> next to “Activity”; the phone remembers the choice. Change title and description of your own request with <em>Edit</em> next to "Description".</li>
   <li><strong>Knowledge:</strong> search, categories, <em>Recently viewed</em>, <em>Most read</em> and the page tree. Long articles have a <em>Contents</em> list at the top, wide tables scroll sideways. Below each article you can write a comment.</li>
   <li><strong>Me:</strong> name, email address and password (local accounts), language, two-factor authentication, <em>Install app</em>, what's new and <em>Desktop view</em>. The user menu of the desktop view (<em>Phone view</em>) brings you back.</li>
 </ul>
@@ -240,6 +243,7 @@
   <li><strong>AI</strong> in the reply field (the sparkle icon on phones): <em>Suggest a reply</em> drafts an answer from the ticket history. If you have already typed notes, the AI builds the reply from them. With text in the field there are also <em>Polish text</em>, <em>Shorten</em> and <em>Translate</em> (German/English).</li>
   <li>The suggestion replaces the text in the field; <em>Undo</em> brings back the previous text. Helfi adds the salutation and closing itself when sending the mail – please read and adjust the suggestion before saving.</li>
 </ul>
+<figure class="small"><img src="img/en/ai.jpg" alt=""><figcaption>AI summary and a reply suggestion built from notes – marked, with “Undo”</figcaption></figure>
 
 <h2 id="bulk">Several tickets at once</h2>
 <p>In <em>All tickets</em> select tickets with the check boxes (Shift+click for a range, <kbd>x</kbd> for the highlighted ticket). The action bar offers:</p>
@@ -249,7 +253,8 @@
   <li><strong>Link …</strong> – connect all selected tickets with one ticket, e.g. “is caused by IT-42”; optionally with status and comment right away (“the cause is being fixed in IT-42”).</li>
   <li><strong>Assign</strong>, <strong>Priority</strong> and <strong>Move</strong> to another project.</li>
 </ul>
-<figure><img src="img/en/bulk.jpg" alt=""><figcaption>Three tickets selected – action bar at the top</figcaption></figure>
+<figure><img src="img/en/bulk.jpg" alt=""><figcaption>Three incidents selected – action bar with Resolve, Status, Comment and Link</figcaption></figure>
+<figure class="small"><img src="img/en/bulk-link.jpg" alt=""><figcaption>Link all selected incidents with the problem at once – with suggestions for the possible cause</figcaption></figure>
 
 <h2 id="reports">Reports</h2>
 <p><em>Reports</em> shows, for a period (7, 30, 90 days, this year or custom) and optionally one project: created, resolved and open tickets, “Resolved per agent”, the “Created and resolved” trend and a table per agent (resolved, open assigned, worked on, replies, internal notes, average resolution time). The table can be sorted and downloaded as CSV.</p>
@@ -283,6 +288,7 @@
 
 <h2 id="links">Links and subtasks</h2>
 <p>In the <em>Links</em> section of a ticket – faster via the <strong>Link</strong> button at the top next to the status, on phones under <em>Details</em> – you connect tickets. Search the target ticket by number or keyword; while the field is empty, Helfi suggests <em>possible causes</em> (open problems, major incidents) and <em>similar tickets</em>. Kinds: “relates to”, “duplicates” (optionally resolving the duplicate right away), “blocks”, “causes” and “is subtask of”. <strong>Subtask</strong> directly creates a task with an assignee; a bar shows how many are done.</p>
+<figure class="medium"><img src="img/en/link-suggest.jpg" alt=""><figcaption>Linking: suggestions while the field is empty – possible cause and similar tickets</figcaption></figure>
 <figure><img src="img/en/itil-links.jpg" alt=""><figcaption>Subtasks with progress and caused incidents</figcaption></figure>
 
 <h2 id="major">Impact, urgency and major incident</h2>
