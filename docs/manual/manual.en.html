@@ -532,7 +532,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <figure><img src="img/en/admin-login.jpg" alt=""><figcaption>Customising the sign-in page with preview</figcaption></figure>
 
 <h2 id="import">Import from another ticket system</h2>
-<p><em>Administration → Import</em> takes over tickets with comments and attachments from <strong>Zammad</strong>, <strong>Znuny / OTRS</strong>, <strong>GLPI</strong>, <strong>Zendesk</strong>, <strong>Freshdesk</strong>, systems with a <strong>REST API v2/v3</strong> (cloud, Server/Data Center) or a <strong>CSV file</strong>. Credentials are not stored.</p>
+<p><em>Administration → Import</em> takes over tickets with comments and attachments from <strong>Zammad</strong>, <strong>Znuny / OTRS</strong>, <strong>GLPI</strong>, <strong>Zendesk</strong>, <strong>Freshdesk</strong>, <strong>Jira</strong> (cloud, Server/Data Center) or a <strong>CSV file</strong>. Credentials are not stored.</p>
 <figure class="medium"><img src="img/en/import-source.jpg" alt=""><figcaption>Choosing the source – here Zammad with an access token</figcaption></figure>
 <ol>
   <li><strong>Choose the source and connect:</strong>
@@ -542,7 +542,7 @@ docker compose logs helfi # shows the setup code</code></pre>
       <li><em>GLPI:</em> enable the REST API in GLPI (<em>Setup → General → API</em>), address up to <code>apirest.php</code> and the personal token (<em>Settings → remote access key</em>). Entities become projects.</li>
       <li><em>Zendesk:</em> address, email and API token; with an administrator account archived tickets come along too.</li>
       <li><em>Freshdesk:</em> address and API key from the profile (at most 30,000 tickets via the list).</li>
-      <li><em>REST API v2/v3:</em> address and API token or personal access token.</li>
+      <li><em>Jira:</em> address and API token (cloud) or personal access token (Server/Data Center).</li>
       <li><em>CSV file:</em> upload it and map the columns – recognised columns are prefilled, only the title is required. A <em>project / queue</em> column spreads the tickets over several projects.</li>
     </ul></li>
   <li><strong>Choose projects</strong> (groups, queues, entities or projects) and the target project.</li>

@@ -12,7 +12,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Single Sign-on** über OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
 - **Übersichtlich:** Seitenleiste mit Warteschlangen (offen, mir zugewiesen, nicht zugewiesen, wartet, kürzlich erledigt, alle) samt Live-Zahlen, Zusammenfassung je Projekt, Board mit Drag & Drop, Ticketliste mit Filtern, Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
-- **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, Systemen mit REST-API v2/v3 (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
+- **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, **Jira** (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **IT-Service-Management nach ITIL** (alles optional): Verknüpfungen und Unteraufgaben, Auswirkung/Dringlichkeit und Major Incidents, Service Level, Probleme und bekannte Fehler, Change-Management mit Genehmigung und Kalender, Wissensdatenbank, Servicekatalog mit Formularen und Genehmigung, Geräte & Dienste, Zufriedenheitsumfrage und Kennzahlen
 - **Suche mit Treffern beim Tippen** – mit Fundstelle, Tastatursteuerung und den zuletzt geöffneten Tickets, am PC und auf dem Handy
@@ -446,7 +446,7 @@ Helfi.Space übernimmt Tickets mit Kommentaren und Anhängen aus
 - **GLPI** (REST-API `apirest.php`, GLPI 9.5 bis 11),
 - **Zendesk** (E-Mail und API-Token),
 - **Freshdesk** (API-Schlüssel),
-- Systemen mit **REST-API v3 (Cloud) oder v2 (Server/Data Center)**, auch Service-Desk-Projekte,
+- **Jira** (Cloud über REST-API v3, Server/Data Center über v2), auch Service-Management-Projekte,
 - einer **CSV-Datei** – Export aus jedem anderen System (z. B. osTicket, ServiceNow, Excel-Listen).
 
 Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Import. Eine CSV-Datei bleibt höchstens zwei Stunden im Arbeitsspeicher.
@@ -457,7 +457,7 @@ Die Zugangsdaten werden nicht gespeichert, sie gelten nur für den laufenden Imp
    - **GLPI:** In GLPI unter *Einrichtung → Allgemein → API* die REST-API aktivieren. Adresse bis einschließlich `apirest.php` (z. B. `https://glpi.firma.local/apirest.php`) und das persönliche Token des Kontos (*Einstellungen → Fernzugriffsschlüssel*), alternativ Benutzer und Kennwort; ein Anwendungs-Token nur, wenn in GLPI ein API-Client damit eingerichtet ist. Einheiten (Entities) werden zu Projekten; Folgeeinträge und Aufgaben werden Kommentare (private bleiben intern), Lösungen öffentliche Kommentare, die Kategorie ein Stichwort. Gelöschte Tickets (Papierkorb) bleiben weg.
    - **Zendesk:** Adresse (`https://firma.zendesk.com`), E-Mail und API-Token (*Admin Center → Apps und Integrationen → APIs → Zendesk API*). Mit einem Administrator-Konto kommen über den inkrementellen Export auch archivierte Tickets mit, sonst nur die normale Ticketliste. Gruppen werden zu Projekten, Tags zu Stichwörtern; private Kommentare bleiben intern.
    - **Freshdesk:** Adresse (`https://firma.freshdesk.com`) und API-Schlüssel aus dem Profil. Gruppen werden zu Projekten, private Notizen bleiben intern. Freshdesk liefert über seine Liste höchstens 30.000 Tickets; bei mehr bitte einen CSV-Export ergänzen. Eigene Status (ab Nummer 6) erscheinen als „Status 6“ … und werden in der Zuordnung von Hand verteilt.
-   - **REST-API v2/v3:** Cloud mit Adresse, E-Mail und API-Token; Server/Data Center mit Adresse und Personal Access Token, alternativ Benutzername und Kennwort.
+   - **Jira:** Cloud mit Adresse, E-Mail und API-Token; Server/Data Center mit Adresse und Personal Access Token, alternativ Benutzername und Kennwort.
    - **CSV-Datei:** hochladen (Trennzeichen `;`, `,` oder Tab, UTF-8 oder Excel-Kodierung, höchstens 50 MB) und die Spalten zuordnen. Erkannte Spalten (z. B. „Betreff“, „Status“, „E-Mail“, „Erstellt am“) sind schon eingetragen, Pflicht ist nur der Titel. Eine Spalte *Projekt / Queue* verteilt die Tickets auf mehrere Projekte. Datumsangaben wie `02.01.2026 09:05` oder `2026-01-02 09:05` werden erkannt.
    - Bei einem internen Zertifikat die eigene Zertifizierungsstelle (PEM) eintragen.
 2. **Projekte wählen** (Gruppen in Zammad, Zendesk und Freshdesk, Queues in Znuny, Einheiten in GLPI, Projekte bzw. Werte der Projektspalte) und festlegen, in welches Helfi.Space-Projekt sie kommen. Gibt es das Projekt nicht, wird es angelegt.

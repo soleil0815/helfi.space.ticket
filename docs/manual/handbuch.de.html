@@ -532,7 +532,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <figure><img src="img/de/admin-login.jpg" alt=""><figcaption>Anmeldeseite anpassen mit Vorschau</figcaption></figure>
 
 <h2 id="import">Import aus einem anderen Ticketsystem</h2>
-<p><em>Administration → Import</em> übernimmt Tickets mit Kommentaren und Anhängen aus <strong>Zammad</strong>, <strong>Znuny / OTRS</strong>, <strong>GLPI</strong>, <strong>Zendesk</strong>, <strong>Freshdesk</strong>, Systemen mit <strong>REST-API v2/v3</strong> (Cloud, Server/Data Center) oder einer <strong>CSV-Datei</strong>. Die Zugangsdaten werden nicht gespeichert.</p>
+<p><em>Administration → Import</em> übernimmt Tickets mit Kommentaren und Anhängen aus <strong>Zammad</strong>, <strong>Znuny / OTRS</strong>, <strong>GLPI</strong>, <strong>Zendesk</strong>, <strong>Freshdesk</strong>, <strong>Jira</strong> (Cloud, Server/Data Center) oder einer <strong>CSV-Datei</strong>. Die Zugangsdaten werden nicht gespeichert.</p>
 <figure class="medium"><img src="img/de/import-source.jpg" alt=""><figcaption>Quelle wählen – hier Zammad mit Zugriffstoken</figcaption></figure>
 <ol>
   <li><strong>Quelle wählen und verbinden:</strong>
@@ -542,7 +542,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
       <li><em>GLPI:</em> REST-API in GLPI aktivieren (<em>Einrichtung → Allgemein → API</em>), Adresse bis <code>apirest.php</code> und das persönliche Token (<em>Einstellungen → Fernzugriffsschlüssel</em>). Einheiten werden zu Projekten.</li>
       <li><em>Zendesk:</em> Adresse, E-Mail und API-Token; mit einem Administrator-Konto kommen auch archivierte Tickets mit.</li>
       <li><em>Freshdesk:</em> Adresse und API-Schlüssel aus dem Profil (höchstens 30.000 Tickets über die Liste).</li>
-      <li><em>REST-API v2/v3:</em> Adresse und API-Token bzw. Personal Access Token.</li>
+      <li><em>Jira:</em> Adresse und API-Token (Cloud) bzw. Personal Access Token (Server/Data Center).</li>
       <li><em>CSV-Datei:</em> hochladen und die Spalten zuordnen – erkannte Spalten sind schon eingetragen, Pflicht ist nur der Titel. Eine Spalte <em>Projekt / Queue</em> verteilt die Tickets auf mehrere Projekte.</li>
     </ul></li>
   <li><strong>Projekte wählen</strong> (Gruppen, Queues, Einheiten oder Projekte) und Zielprojekt festlegen.</li>

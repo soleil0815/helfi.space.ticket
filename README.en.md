@@ -12,7 +12,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Single sign-on** via OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **Email → ticket:** a mailbox is polled via IMAP, new mails become tickets and replies land in the matching ticket. Reporters get answers by email.
 - **Clear and simple:** sidebar with queues (open, assigned to me, unassigned, waiting, recently resolved, all) with live counts, per-project summary, board with drag & drop, ticket list with filters, ticket view with details, comments, internal notes, attachments and history
-- **Easy migration:** import from **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, systems with a REST API v2/v3 (cloud, Server/Data Center) or a **CSV file** – with comments, internal notes and attachments; ticket numbers are kept, a second run only adds what is new.
+- **Easy migration:** import from **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, **Jira** (cloud, Server/Data Center) or a **CSV file** – with comments, internal notes and attachments; ticket numbers are kept, a second run only adds what is new.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
 - **Search with results while typing** – with where it matched, keyboard control and recently opened tickets, on desktop and phone
@@ -446,7 +446,7 @@ Helfi.Space takes over tickets with comments and attachments from
 - **GLPI** (REST API `apirest.php`, GLPI 9.5 to 11),
 - **Zendesk** (email and API token),
 - **Freshdesk** (API key),
-- systems with a **REST API v3 (cloud) or v2 (Server/Data Center)**, service desk projects included,
+- **Jira** (cloud via REST API v3, Server/Data Center via v2), service management projects included,
 - a **CSV file** – an export from any other system (e.g. osTicket, ServiceNow, Excel lists).
 
 Credentials are not stored; they are only used for the running import. A CSV file stays in memory for at most two hours.
@@ -457,7 +457,7 @@ Credentials are not stored; they are only used for the running import. A CSV fil
    - **GLPI:** enable the REST API in GLPI under *Setup → General → API*. Address up to and including `apirest.php` (e.g. `https://glpi.example.local/apirest.php`) and the account's personal token (*Settings → remote access key*), alternatively user name and password; an application token only if an API client with one is set up in GLPI. Entities become projects; followups and tasks become comments (private ones stay internal), solutions public comments, the category a label. Deleted tickets (trash) are left out.
    - **Zendesk:** address (`https://example.zendesk.com`), email and API token (*Admin Center → Apps and integrations → APIs → Zendesk API*). With an administrator account the incremental export also brings archived tickets, otherwise only the normal ticket list. Groups become projects, tags labels; private comments stay internal.
    - **Freshdesk:** address (`https://example.freshdesk.com`) and API key from the profile. Groups become projects, private notes stay internal. Freshdesk's list returns at most 30,000 tickets; for more, add a CSV export. Custom statuses (number 6 and up) appear as "Status 6" … and are mapped by hand.
-   - **REST API v2/v3:** cloud with address, email and API token; Server/Data Center with address and personal access token, alternatively user name and password.
+   - **Jira:** cloud with address, email and API token; Server/Data Center with address and personal access token, alternatively user name and password.
    - **CSV file:** upload it (separator `;`, `,` or tab, UTF-8 or Excel encoding, at most 50 MB) and map the columns. Recognised columns (e.g. "Subject", "Status", "Email", "Created") are prefilled; only the title is required. A *project / queue* column spreads the tickets over several projects. Dates like `02.01.2026 09:05` or `2026-01-02 09:05` are recognised.
    - With an internal certificate, enter your own certification authority (PEM).
 2. **Select projects** (groups in Zammad, Zendesk and Freshdesk, queues in Znuny, entities in GLPI, projects or values of the project column) and choose which Helfi.Space project they go into. If the project does not exist, it is created.
