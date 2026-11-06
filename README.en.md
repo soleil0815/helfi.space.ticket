@@ -240,8 +240,10 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 In *All tickets* (agents):
 - **Select:** checkbox in front of each row, "all" in the header, Shift+click for a range, `x` for the ticket highlighted with `j`/`k`.
 - **Action bar:**
-  - **Resolve:** optionally with a reply to reporters and participants, with templates and per-ticket placeholders. With a reply there is no extra "resolved" mail.
-  - **Status**, **Assign**, **Priority**
+  - **Resolve** and **Status:** each with an optional comment – either a reply to reporters and participants or an internal note, with templates and per-ticket placeholders. With a reply there is no extra "resolved" mail.
+  - **Comment:** reply or internal note for all selected tickets without changing the status.
+  - **Link …:** link all selected tickets with one ticket, e.g. "is caused by IT-42"; optionally with status and comment right away. Existing links stay as they are.
+  - **Assign**, **Priority**
   - **Move to another project**
 - Every change goes into the ticket history. If one ticket fails, the others still go through and the message names it.
 
@@ -249,7 +251,7 @@ In *All tickets* (agents):
 
 ## Links and subtasks
 
-In the ticket view (agents) under *Links*:
+In the ticket view (agents) under *Links* – or faster via **Link** at the top next to the status; on phones under *Details*. Many tickets at once are linked from the multi-select.
 
 - **Link:** “relates to”, “duplicates”, “blocks” / “is blocked by”, “causes” / “is caused by”, “is subtask of” / “has subtask”. The other ticket shows the link automatically, both get a history entry. With “duplicates” the ticket can be set to “Done” right away.
 - **Subtasks:** create them directly (a task in the same project) or put existing tickets underneath. A progress bar shows “x of y done”. A ticket has at most one parent, circles are rejected.

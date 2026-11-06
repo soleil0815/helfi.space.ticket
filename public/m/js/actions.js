@@ -7,6 +7,7 @@ import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { fillPlaceholders } from '/js/placeholders.js';
 import { openSheet } from './sheet.js';
+import { CHOICES } from '/js/views/links.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 export const PRIOS = ['highest', 'high', 'medium', 'low'];
@@ -362,5 +363,64 @@ export function openParticipantsSheet(getTicket, { changed, left }) {
       results, current],
   });
   if (canAdd()) setTimeout(() => input.focus({ preventScroll: true }), 320);
+  return sheet;
+}
+
+// ---------- Links ----------
+/** Link this ticket with another (same kinds as on the desktop); onDone after saving */
+export function openLinkSheet(tk, { onDone }) {
+  const kind = h('select.m-select', { 'aria-label': t('link.thisTicket') }, CHOICES.map(([id]) => h('option', { value: id }, t(`link.choice.${id}`))));
+  const input = h('input', {
+    type: 'search', placeholder: t('link.targetHint'), autocomplete: 'off', autocapitalize: 'characters', enterkeyhint: 'search', 'aria-label': t('bulk.linkTarget'),
+  });
+  const hits = h('div.m-choices', { role: 'listbox', 'aria-label': t('bulk.linkTarget') });
+  let chosen = null;
+  let timer = null;
+  let busy = false;
+  const btn = h('button.m-btn.m-btn-primary', { type: 'button', onclick: () => submit() }, icon('link'), t('link.add'));
+  const pickRow = (x) => h('button.m-choice-row', {
+    type: 'button', role: 'option', 'aria-selected': String(chosen === x.key), class: chosen === x.key ? 'active' : '',
+    onclick: () => { chosen = x.key; input.value = x.key; draw(lastList); },
+  }, h('span.m-choice-text', h('span.m-choice-label', `${x.key} · ${x.title}`), h('span.m-choice-sub', t(`status.${x.status}`))),
+  chosen === x.key ? h('span.m-choice-check', icon('check')) : null);
+  let lastList = [];
+  const draw = (list) => { lastList = list; hits.replaceChildren(...list.map(pickRow)); };
+  input.addEventListener('input', () => {
+    chosen = null;
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { draw([]); return; }
+    timer = setTimeout(async () => {
+      try {
+        const r = await api.tickets({ q, limit: 8 });
+        draw((r.tickets || []).filter((x) => x.key !== tk.key));
+      } catch { /* ignore */ }
+    }, 200);
+  });
+  async function submit() {
+    const target = (chosen || input.value).trim().toUpperCase();
+    if (!target || busy) { if (!target) input.focus(); return; }
+    busy = true; btn.disabled = true;
+    try {
+      const [, k, reverse] = CHOICES.find(([id]) => id === kind.value);
+      if (reverse) await api.link(target, { kind: k, target: tk.key });
+      else await api.link(tk.key, { kind: k, target });
+      sheet.close();
+      toast(t('m.link.done', { key: target }), 'success');
+      await onDone?.();
+    } catch (e) {
+      busy = false; btn.disabled = false;
+      toast(e.message, 'error');
+    }
+  }
+  const sheet = openSheet({
+    title: t('link.addLink'),
+    className: 'm-sheet-tall m-sheet-link',
+    content: h('div.m-form',
+      h('div.m-field', h('label', t('link.thisTicket')), kind),
+      h('div.m-field', h('label', t('bulk.linkTarget')), input),
+      hits),
+    footer: [h('button.m-btn', { type: 'button', onclick: () => sheet.close() }, t('app.cancel')), btn],
+  });
   return sheet;
 }

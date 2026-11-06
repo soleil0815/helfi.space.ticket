@@ -310,7 +310,7 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .change .new { font-weight: 500; color: var(--text); }
 
 .ticket-side { position: sticky; top: 0; }
-.side-top { display: flex; align-items: center; gap: 4px; margin-bottom: 16px; padding-top: 30px; }
+.side-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding-top: 30px; }
 .status-btn {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px 0 12px; border: 0; border-radius: var(--radius);
   font: 600 14px var(--font); cursor: pointer; margin-right: auto;
@@ -1261,3 +1261,8 @@ a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px
 .idle-time { font-variant-numeric: tabular-nums; color: var(--text); }
 .idle-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .idle-actions .btn { min-height: 40px; }
+
+/* Bulk dialog: comment as reply or internal note, link */
+.bulk-comment textarea.internal { background: #FFFBEB; border-color: #F5CD47; }
+.bulk-link select, .bulk-link .link-picker, .bulk-link .link-target { width: 100%; }
+.bulk-link { margin-bottom: 8px; }

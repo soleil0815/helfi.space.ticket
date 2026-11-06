@@ -31,6 +31,7 @@ const PRIOS = ['highest', 'high', 'medium', 'low'];
 
 export async function renderTicket(content, key) {
   let tk = (await api.ticket(key)).ticket;
+  let linksEl = null; // links section (agents) – its form also opens from the button in the side panel
   // Navigated away meanwhile (route() has rebuilt): no longer set shortcuts, title or URL
   if (!content.isConnected) return;
   if (tk.key !== key) history.replaceState({}, '', `/browse/${tk.key}`);
@@ -335,7 +336,9 @@ export async function renderTicket(content, key) {
           onclick: async () => { await save({ major: !tk.major }); try { state.boot = await api.bootstrap(); } catch { /* ignore */ } route(); },
         }, icon('warning'), tk.major ? t('major.end') : t('major.mark')) : null,
         agent ? createProblemButton(tk) : null,
-        agent ? kbFromTicketButton(tk) : null),
+        agent ? kbFromTicketButton(tk) : null,
+        // Quick access to links (the section itself is further down in the ticket)
+        agent ? h('button.btn.btn-subtle.small', { type: 'button', 'data-shortcut': 'link', onclick: () => linksEl?.openLinkForm() }, icon('link'), t('link.addLink')) : null),
       h('div.details-box', { class: detailsOpen ? 'open' : '' },
         h('button.details-head', {
           type: 'button', 'aria-expanded': String(detailsOpen),
@@ -376,6 +379,7 @@ export async function renderTicket(content, key) {
   }
 
   function draw() {
+    linksEl = agent ? linksSection(tk, refresh) : null;
     const page = h('div.ticket-page',
       h('div.ticket-main',
         h('div.breadcrumbs',
@@ -391,7 +395,7 @@ export async function renderTicket(content, key) {
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,
         attachmentsEl(),
-        agent ? linksSection(tk, refresh) : null,
+        linksEl,
         agent ? ciSection(tk, refresh) : null,
         activityEl()),
       sidePanel());
@@ -432,6 +436,7 @@ export async function renderTicket(content, key) {
           { group: g('ticket.comments'), label: t('ticket.addComment'), hint: 'm', run: focusComment },
           { group: g('ticket.comments'), label: t('canned.insertHint'), run: () => { focusComment(); setTimeout(() => click('[data-shortcut=template]'), 50); } },
           { group: g('ticket.labels'), label: t('keys.labels'), hint: 'l', run: () => click('[data-shortcut=labels]') },
+          { group: g('link.title'), label: t('link.addLink'), run: () => linksEl?.openLinkForm() },
           { group: g('ticket.details'), label: t('ticket.copyLink'), run: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* ignore */ } } },
         ].filter(Boolean));
       },

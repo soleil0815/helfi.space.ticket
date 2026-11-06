@@ -16,7 +16,7 @@ import { openSheet } from '../sheet.js';
 import { section } from '../ui.js';
 import { replyBar } from '../reply.js';
 import {
-  openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet,
+  openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet, openLinkSheet,
 } from '../actions.js';
 
 const isImage = (a) => /^image\/(png|jpeg|gif|webp)$/.test(a.mime);
@@ -357,10 +357,11 @@ export async function renderTicket(page, ctx) {
       row(t('ticket.dueDate'), tk.dueDate ? fmtDate(tk.dueDate, false) : none()),
       row(t('ticket.project'), `${tk.projectName} (${tk.projectKey})`),
       row(t('ticket.source'), withIcon(icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' ? 'download' : 'globe')), t(`source.${tk.source}`))),
-      agent ? row(t('m.ticket.links'), links.length ? h('div.m-linked', links.map((l) => h('a.m-linked-item', { href: `/m/t/${encodeURIComponent(l.ticket.key)}`, 'data-link': '' },
+      agent ? row(t('m.ticket.links'), h('div.m-stack', links.length ? h('div.m-linked', links.map((l) => h('a.m-linked-item', { href: `/m/t/${encodeURIComponent(l.ticket.key)}`, 'data-link': '' },
         h('span.m-muted.m-linked-kind', linkLabel(l.kind, l.direction)),
         h('span.m-linked-main', typeIcon(l.ticket.type), h('strong', l.ticket.key), h('span.m-linked-title', l.ticket.title)),
-        lozenge(l.ticket.status)))) : none()) : null,
+        lozenge(l.ticket.status)))) : none(),
+      h('button.m-link.m-add-link', { type: 'button', onclick: () => { after = () => openLinkSheet(tk, { onDone: reloadAfterChange }); sheet.close(); } }, icon('plus'), t('link.addLink')))) : null,
       agent && cis.length ? row(t('m.ticket.cis'), String(cis.length)) : null,
       row(t('ticket.created'), fmtDate(tk.createdAt)),
       row(t('ticket.updated'), fmtDate(tk.updatedAt)),

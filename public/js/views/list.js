@@ -7,6 +7,7 @@ import { state, navigate } from '../app.js';
 import { openCreateDialog } from './ticket.js';
 import { matchQueue } from '../queues.js';
 import { slaBadge } from './sla.js';
+import { CHOICES, ticketPicker } from './links.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES } from '../types.js';
@@ -134,25 +135,88 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
       onChanged?.();
     } catch (e) { toast(e.message, 'error'); }
   }
-  function resolveDialog() {
-    const ta = h('textarea', { rows: 5, placeholder: t('bulk.commentPlaceholder') });
+  /**
+   * One dialog for status changes, comments and links of the selection:
+   * mode "status" (status given, comment optional), "comment" (comment required),
+   * "link" (kind + target required; status and comment optional).
+   */
+  function bulkDialog(mode, status = null) {
+    const n = sel.size;
+    const ta = h('textarea', { id: 'bulk-comment-text', rows: 5, placeholder: t('bulk.commentPlaceholder') });
+    let internal = false;
+    const hint = h('div.hint');
+    const label = h('label', { for: 'bulk-comment-text' });
+    const setKind = (isInternal) => {
+      internal = isInternal;
+      reply.classList.toggle('active', !internal);
+      note.classList.toggle('active', internal);
+      reply.setAttribute('aria-pressed', String(!internal));
+      note.setAttribute('aria-pressed', String(internal));
+      label.textContent = mode === 'comment' ? t(internal ? 'bulk.noteLabel' : 'bulk.replyLabel') : t(internal ? 'bulk.noteLabelOpt' : 'bulk.comment');
+      hint.textContent = t(internal ? 'bulk.noteHint' : 'bulk.commentHint');
+      ta.classList.toggle('internal', internal);
+    };
+    const reply = h('button.mode', { type: 'button', onclick: () => setKind(false) }, icon('mail'), t('bulk.asReply'));
+    const note = h('button.mode', { type: 'button', onclick: () => setKind(true) }, icon('lock'), t('bulk.asNote'));
     const tpl = h('button.btn.btn-subtle.small', {
       type: 'button',
       onclick: (e) => openTemplatePicker(e.currentTarget, (x) => { ta.focus(); ta.setRangeText(x.body, ta.selectionStart, ta.selectionEnd, 'end'); }),
     }, icon('comment'), t('canned.insert'), icon('chevron-down'));
-    const dlg = modal(t('bulk.resolveTitle', { n: sel.size }), h('form#bulk-resolve', {
-      onsubmit: (e) => { e.preventDefault(); dlg.close(); run({ changes: { status: 'done' }, comment: ta.value.trim() }); },
-    }, field(t('bulk.comment'), ta, t('bulk.commentHint')), tpl), {
+    const commentPart = h('div.bulk-comment',
+      h('div.composer-modes.bulk-modes', { role: 'group', 'aria-label': t('bulk.kind') }, reply, note),
+      h('div.field', label, ta, hint), tpl);
+    setKind(false);
+
+    // Link: kind (from the point of view of the selected tickets) and target ticket
+    const linkKind = mode === 'link' ? h('select', CHOICES.map(([id]) => h('option', { value: id }, t(`link.choice.${id}`)))) : null;
+    if (linkKind) linkKind.value = 'causedBy';
+    const picker = mode === 'link' ? ticketPicker(null) : null;
+    // Status: fixed for "status", optional for "link"
+    const statusSel = mode === 'link' ? select([['', t('bulk.keepStatus')], ...STATUSES.map((st) => [st, t(`status.${st}`)])], '') : null;
+
+    const title = mode === 'status' ? (status === 'done' ? t('bulk.resolveTitle', { n }) : t('bulk.statusTitle', { n, status: t(`status.${status}`) }))
+      : mode === 'comment' ? t('bulk.commentTitle', { n }) : t('bulk.linkTitle', { n });
+    const submitLabel = mode === 'status' ? (status === 'done' ? t('bulk.resolve') : t('bulk.setStatus'))
+      : mode === 'comment' ? t('bulk.addComment') : t('link.add');
+    const err = h('div.form-error', { role: 'alert', hidden: true });
+    const dlg = modal(title, h('form#bulk-action', {
+      onsubmit: (e) => {
+        e.preventDefault();
+        const comment = ta.value.trim();
+        const payload = {};
+        if (mode === 'status') payload.changes = { status };
+        if (mode === 'link') {
+          const target = picker.input.value.trim().toUpperCase();
+          if (!target) { err.textContent = t('bulk.linkTargetMissing'); err.hidden = false; picker.input.focus(); return; }
+          const [, kind, reverse] = CHOICES.find(([id]) => id === linkKind.value);
+          payload.link = { kind, reverse, target };
+          if (statusSel.value) payload.changes = { status: statusSel.value };
+        }
+        if (mode === 'comment' && !comment) { err.textContent = t('bulk.commentMissing'); err.hidden = false; ta.focus(); return; }
+        if (comment) { payload.comment = comment; payload.internal = internal; }
+        dlg.close();
+        run(payload);
+      },
+    },
+    err,
+    mode === 'link' ? h('div.bulk-link',
+      field(t('bulk.linkKind'), linkKind, t('bulk.linkKindHint')),
+      field(t('bulk.linkTarget'), picker.el),
+      field(t('bulk.thenStatus'), statusSel)) : null,
+    commentPart), {
       footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')),
-        h('button.btn.btn-primary', { type: 'submit', form: 'bulk-resolve' }, icon('check'), t('bulk.resolve'))],
+        h('button.btn.btn-primary', { type: 'submit', form: 'bulk-action' }, icon(mode === 'link' ? 'link' : (mode === 'comment' ? 'comment' : 'check')), submitLabel)],
     });
+    setTimeout(() => (picker ? picker.input : ta).focus(), 0);
   }
   function drawBar() {
     const menu = (label, items) => h('button.btn.btn-subtle', { type: 'button', onclick: (e) => dropdown(e.currentTarget, items) }, label, icon('chevron-down'));
     mount(bar,
       h('strong', t('bulk.selected', { n: sel.size })),
-      h('button.btn.btn-primary', { type: 'button', onclick: resolveDialog }, icon('check'), t('bulk.resolve')),
-      menu(t('list.status'), STATUSES.map((st) => ({ label: t(`status.${st}`), onClick: () => run({ changes: { status: st } }) }))),
+      h('button.btn.btn-primary', { type: 'button', onclick: () => bulkDialog('status', 'done') }, icon('check'), t('bulk.resolve')),
+      menu(t('list.status'), STATUSES.map((st) => ({ label: t(`status.${st}`), onClick: () => bulkDialog('status', st) }))),
+      h('button.btn.btn-subtle', { type: 'button', onclick: () => bulkDialog('comment') }, icon('comment'), t('bulk.comment.action')),
+      h('button.btn.btn-subtle', { type: 'button', onclick: () => bulkDialog('link') }, icon('link'), t('bulk.link')),
       menu(t('bulk.assign'), [
         { label: t('ticket.assignToMe'), icon: avatar(state.user, 'sm'), onClick: () => run({ changes: { assigneeId: state.user.id } }) },
         { label: t('app.unassigned'), icon: avatar(null, 'sm'), onClick: () => run({ changes: { assigneeId: null } }) },

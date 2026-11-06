@@ -240,8 +240,10 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 In *Alle Tickets* (Bearbeiter):
 - **Auswählen:** Kästchen vor jeder Zeile, „alle“ im Kopf, Umschalt+Klick für einen Bereich, `x` für das mit `j`/`k` markierte Ticket.
 - **Aktionsleiste:**
-  - **Erledigen:** optional mit einer Antwort an Melder und Teilnehmer, mit Vorlagen und Platzhaltern je Ticket. Mit Antwort gibt es keine zusätzliche „Erledigt“-Mail.
-  - **Status**, **Zuweisen**, **Priorität**
+  - **Erledigen** und **Status:** jeweils mit optionalem Kommentar – wahlweise als Antwort an Melder und Teilnehmer oder als interne Notiz, mit Vorlagen und Platzhaltern je Ticket. Mit Antwort gibt es keine zusätzliche „Erledigt“-Mail.
+  - **Kommentieren:** Antwort oder interne Notiz für alle ausgewählten Tickets, ohne den Status zu ändern.
+  - **Verknüpfen …:** alle ausgewählten Tickets mit einem Ticket verknüpfen, z. B. „wird verursacht durch IT-42“; optional gleich mit Status und Kommentar. Bestehende Verknüpfungen bleiben, wie sie sind.
+  - **Zuweisen**, **Priorität**
   - **In ein anderes Projekt verschieben**
 - Jede Änderung landet im Verlauf des Tickets. Klappt ein Ticket nicht, laufen die anderen trotzdem durch, und die Meldung nennt es.
 
@@ -249,7 +251,7 @@ In *Alle Tickets* (Bearbeiter):
 
 ## Verknüpfungen und Unteraufgaben
 
-In der Ticketansicht (Bearbeiter) unter *Verknüpfungen*:
+In der Ticketansicht (Bearbeiter) unter *Verknüpfungen* – oder schneller über **Verknüpfen** oben neben dem Status; auf dem Handy unter *Details*. Viele Tickets auf einmal verknüpft die Mehrfachauswahl.
 
 - **Verknüpfen:** „bezieht sich auf“, „ist Duplikat von“, „blockiert“ / „wird blockiert von“, „verursacht“ / „wird verursacht durch“, „ist Unteraufgabe von“ / „hat Unteraufgabe“. Die Gegenseite sieht die Verknüpfung automatisch, beide Tickets bekommen einen Verlaufseintrag. Bei „ist Duplikat von“ lässt sich das Ticket gleich auf „Erledigt“ setzen.
 - **Unteraufgaben:** direkt anlegen (Aufgabe im selben Projekt) oder bestehende Tickets unterordnen. Ein Fortschrittsbalken zeigt „x von y erledigt“. Ein Ticket hat höchstens ein übergeordnetes Ticket, Kreise werden abgelehnt.

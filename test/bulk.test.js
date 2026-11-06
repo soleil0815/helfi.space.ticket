@@ -123,3 +123,55 @@ test('Deleting does not exist – not even for admins', async () => {
   assert.equal(r.body.error.code, 'err.ticketDeleteDisabled');
   for (const k of keys.slice(0, 2)) assert.equal((await admin('GET', `/api/tickets/${k}`)).status, 200);
 });
+
+test('Internal note for several tickets: no mail to reporters, normal resolved mail stays', async () => {
+  const fresh = [];
+  for (const title of ['Vier', 'Fünf']) fresh.push((await karl('POST', '/api/tickets', { title })).body.ticket.key);
+  events.length = 0;
+  const r = await anna('POST', '/api/tickets/bulk', { keys: fresh, comment: 'Intern: {ticket} gehört zum Ausfall', internal: true });
+  assert.deepEqual(r.body.failed, []);
+  for (const k of fresh) {
+    const tk = (await anna('GET', `/api/tickets/${k}`)).body.ticket;
+    const c = tk.comments.at(-1);
+    assert.equal(c.internal, true);
+    assert.equal(c.body, `Intern: ${k} gehört zum Ausfall`);
+    assert.equal(tk.status, 'open', 'comment only: status unchanged');
+    // The reporter does not see it
+    assert.ok(!(await karl('GET', `/api/tickets/${k}`)).body.ticket.comments.some((x) => x.body.startsWith('Intern')));
+  }
+  // Note + resolve: the reporter still gets the normal resolved mail (a note does not inform)
+  events.length = 0;
+  await anna('POST', '/api/tickets/bulk', { keys: [fresh[0]], changes: { status: 'done' }, comment: 'erledigt intern', internal: true });
+  await tick();
+  assert.equal(events.filter((x) => x.e === 'resolved').length, 1);
+});
+
+test('Link several tickets with one: "is caused by", with status and comment; repeat is harmless', async () => {
+  const problem = (await anna('POST', '/api/tickets', { title: 'Mailserver ausgefallen', type: 'problem' })).body.ticket.key;
+  const incidents = [];
+  for (const title of ['Keine Mails A', 'Keine Mails B']) incidents.push((await karl('POST', '/api/tickets', { title })).body.ticket.key);
+  // Selected tickets "are caused by" the problem → stored as problem causes incident
+  const r = await anna('POST', '/api/tickets/bulk', {
+    keys: incidents, link: { kind: 'causes', reverse: true, target: problem.toLowerCase() },
+    changes: { status: 'waiting' }, comment: 'Ursache wird in {ticket} … behoben', internal: true,
+  });
+  assert.deepEqual(r.body, { ok: incidents, failed: [] });
+  const p = (await anna('GET', `/api/tickets/${problem}`)).body.ticket;
+  assert.deepEqual(p.links.filter((l) => l.kind === 'causes' && l.direction === 'out').map((l) => l.ticket.key).sort(), [...incidents].sort());
+  for (const k of incidents) {
+    const tk = (await anna('GET', `/api/tickets/${k}`)).body.ticket;
+    assert.ok(tk.links.some((l) => l.kind === 'causes' && l.direction === 'in' && l.ticket.key === problem));
+    assert.equal(tk.status, 'waiting');
+  }
+  // Again: existing links count as done, no error
+  const again = await anna('POST', '/api/tickets/bulk', { keys: incidents, link: { kind: 'causes', reverse: true, target: problem } });
+  assert.deepEqual(again.body.failed, []);
+  // Forward direction ("relates"); the target itself in the selection cannot link to itself
+  const rel = await anna('POST', '/api/tickets/bulk', { keys: incidents, link: { kind: 'relates', target: incidents[1] } });
+  assert.deepEqual(rel.body.ok, [incidents[0]]);
+  assert.equal(rel.body.failed[0].key, incidents[1]);
+  assert.ok((await anna('GET', `/api/tickets/${incidents[0]}`)).body.ticket.links.some((l) => l.kind === 'relates' && l.ticket.key === incidents[1]));
+  // Unknown target / kind
+  assert.equal((await anna('POST', '/api/tickets/bulk', { keys: incidents, link: { kind: 'causes', target: 'IT-9999' } })).body.error.code, 'err.linkTarget');
+  assert.equal((await anna('POST', '/api/tickets/bulk', { keys: incidents, link: { kind: 'kills', target: problem } })).status, 400);
+});

@@ -22,6 +22,7 @@ import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKee
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
 import { REASONING, normalizeBaseUrl } from '../ai.js';
+import { LINK_KINDS } from '../itil/links.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -474,7 +475,10 @@ export function createApi(ctx) {
   /**
    * Bulk actions (agents): the normal logic for each ticket (permissions, history, notifications).
    * changes: { status, assigneeId, priority, projectId } · comment: reply to reporter/participants
-   * (placeholders replaced per ticket) · delete: admins only. Errors on single tickets do not abort the rest.
+   * (placeholders replaced per ticket), or an internal note with internal: true ·
+   * link: { kind, reverse, target } links every ticket with the target (reverse: target → ticket,
+   * e.g. "is caused by IT-42"; an existing link counts as done). Order per ticket: link, comment,
+   * changes. Tickets are never deleted. Errors on single tickets do not abort the rest.
    */
   r.post('/tickets/bulk', requireRole('agent'), wrap(async (req, res) => {
     const keys = [...new Set((Array.isArray(req.body.keys) ? req.body.keys : []).map((k) => str(k, 30)).filter(Boolean))];
@@ -483,27 +487,47 @@ export function createApi(ctx) {
     const c = req.body.changes || {};
     for (const k of ['status', 'assigneeId', 'priority', 'projectId']) if (c[k] !== undefined) changes[k] = c[k];
     const comment = str(req.body.comment, 100000).trim();
+    const internal = !!req.body.internal;
     // Tickets are never deleted (records) – not even via bulk action
     if (req.body.delete) throw new HttpError(400, 'err.ticketDeleteDisabled');
-    if (!comment && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
+    let link = null;
+    if (req.body.link) {
+      const kind = str(req.body.link.kind, 20);
+      if (!LINK_KINDS.includes(kind)) throw new HttpError(400, 'err.badRequest', 'link.kind');
+      // Check the target once (exists, visible) – then every ticket is linked with it
+      let target;
+      try { target = tickets.ticketOut(tickets.load(req.user, str(req.body.link.target, 30).trim().toUpperCase())); } catch { throw new HttpError(400, 'err.linkTarget'); }
+      link = { kind, reverse: !!req.body.link.reverse, target: target.key };
+    }
+    if (!comment && !link && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
+    const lang = normalizeLang(req.user?.language || langFromHeader(req.get('accept-language')));
     const ok = [];
     const failed = [];
     for (const key of keys) {
       try {
         let current = key;
+        if (link) {
+          try {
+            if (link.reverse) ctx.links.add(req.user, link.target, { kind: link.kind, target: key });
+            else ctx.links.add(req.user, key, { kind: link.kind, target: link.target });
+          } catch (e) {
+            // Already linked (in either direction): nothing to do, the rest still applies
+            if (!(e instanceof HttpError && e.code === 'err.linkExists')) throw e;
+          }
+        }
         if (comment) {
           const row = tickets.load(req.user, key);
           const tk = tickets.ticketOut(row);
-          tickets.addComment(req.user, row.id, { body: fillPlaceholders(comment, tk, { displayName: req.user.display_name }) });
+          tickets.addComment(req.user, row.id, { body: fillPlaceholders(comment, tk, { displayName: req.user.display_name }), internal });
         }
-        // With a reply no second "Resolved" mail – the reply already informs
-        if (Object.keys(changes).length) current = tickets.update(req.user, key, changes, { quietResolved: !!comment }).key;
+        // With a reply no second "Resolved" mail – the reply already informs (an internal note does not)
+        if (Object.keys(changes).length) current = tickets.update(req.user, key, changes, { quietResolved: !!comment && !internal }).key;
         ok.push(current);
       } catch (e) {
-        failed.push({ key, error: e instanceof HttpError ? (hasKey(e.code) ? t(normalizeLang(req.user?.language || langFromHeader(req.get('accept-language'))), e.code) : e.code) : 'error' });
+        failed.push({ key, error: e instanceof HttpError ? (hasKey(e.code) ? t(lang, e.code) : e.code) : 'error' });
       }
     }
-    log.info(`Bulk action by ${req.user.username}: ${ok.length} ok, ${failed.length} failed`, { changes: Object.keys(changes), comment: !!comment });
+    log.info(`Bulk action by ${req.user.username}: ${ok.length} ok, ${failed.length} failed`, { changes: Object.keys(changes), comment: comment ? (internal ? 'internal' : 'reply') : false, link: link ? `${link.reverse ? 'in' : 'out'}:${link.kind}` : false });
     res.json({ ok, failed });
   }));
 
