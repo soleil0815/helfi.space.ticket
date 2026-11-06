@@ -692,6 +692,26 @@ export const MIGRATIONS = [
     CREATE INDEX idx_saved_filters_owner ON saved_filters(owner_id, position);
     `,
   },
+  {
+    id: 32,
+    name: 'KI-Vorschläge für Komponenten (mit Trefferquote)',
+    sql: `
+    -- one entry per ticket: what the AI suggested and what became of it
+    -- state: pending (waiting for an agent) | accepted | rejected | auto (set by the AI) | corrected (changed by an agent) | none (nothing fits)
+    CREATE TABLE component_suggestions (
+      ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
+      component_id INTEGER REFERENCES components(id) ON DELETE SET NULL,
+      component_name TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      state TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      decided_at TEXT,
+      decided_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX idx_component_suggestions_state ON component_suggestions(state);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

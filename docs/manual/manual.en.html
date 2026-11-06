@@ -266,13 +266,16 @@
 </ul>
 
 <h2 id="ai">AI assistance</h2>
-<p>If an admin has set up AI assistance, agents get two helpers. Everything the AI returns is a <strong>suggestion</strong>: nothing is sent or saved automatically, and requesters see none of it.</p>
+<p>If an admin has set up AI assistance, agents get these helpers – depending on which functions are switched on. Everything the AI returns is a <strong>suggestion</strong>: nothing is sent or saved automatically, and requesters see none of it. The only exception, if explicitly set: assigning the component automatically.</p>
 <ul>
   <li><strong>AI summary</strong> below the description: <em>Summarize</em> creates an overview “What it is about – What happened so far – Open / next step”. It is kept; if the ticket changes, a note says so and <em>Create again</em> fetches a current one.</li>
   <li><strong>AI</strong> in the reply field (the sparkle icon on phones): <em>Suggest a reply</em> drafts an answer from the ticket history. If you have already typed notes, the AI builds the reply from them. With text in the field there are also <em>Polish text</em>, <em>Shorten</em> and <em>Translate</em> (German/English).</li>
   <li>The suggestion replaces the text in the field; <em>Undo</em> brings back the previous text. Helfi adds the salutation and closing itself when sending the mail – please read and adjust the suggestion before saving.</li>
 </ul>
 <figure class="small"><img src="img/en/ai.jpg" alt=""><figcaption>AI summary and a reply suggestion built from notes – marked, with “Undo”</figcaption></figure>
+<h3>Detecting the component</h3>
+<p>If <em>Detect component</em> is on, the AI looks at new tickets that no <a href="#components">component</a> rule matches and works out which component fits. In <em>Suggest</em> mode the details show “AI suggests: …” with a short reason: <strong>Accept</strong> sets the component (and gives the ticket to the responsible person if nobody is assigned yet), <strong>Dismiss</strong> hides the suggestion. On phones the suggestion is under <em>All details</em>. If you pick a different component yourself instead, that counts as a correction. In <em>Assign automatically</em> mode the AI sets the component directly; the history says “by AI”.</p>
+<figure class="small"><img src="img/en/ai-suggestion.jpg" alt=""><figcaption>AI suggestion for the component</figcaption></figure>
 
 <h2 id="bulk">Several tickets at once</h2>
 <p>In <em>All tickets</em> select tickets with the check boxes (Shift+click for a range, <kbd>x</kbd> for the highlighted ticket). The action bar offers:</p>
@@ -563,6 +566,8 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p><strong>Automatic sign-out</strong> (<em>Administration → Security</em>): period without activity for everyone (default 12 hours from <code>HELFI_SESSION_HOURS</code>), for admins (default 60 minutes) and optionally for access from outside – the shortest applicable one counts. Two minutes before, Helfi asks “Still there?”; whoever keeps working stays signed in. Optional: “Sign out when the browser is closed”.</p>
 <p><strong>Registration and forgotten passwords</strong> (<em>Administration → Security</em>, registration off by default): external people create a local account with the role “User” themselves; the email address is confirmed via a link, and an existing email contact becomes the account with its requests. Optional: allowed mail domains and approval by an admin. “Forgot password” applies by default to local accounts with the role “User”, optionally to all local accounts or not at all. Both require outgoing mail.</p>
 <p><strong>AI</strong> (<em>Administration → AI</em>, off by default): address of an OpenAI-compatible API (e.g. Ollama: <code>http://&lt;host&gt;:11434/v1</code>) and optionally an API key (stored encrypted). The <strong>installed models are fetched automatically</strong> and offered in a list – for Ollama with parameter count, quantisation and size, cloud models in a group of their own. Embedding models are hidden; if a model is missing, use <em>Reload</em> or <em>Other model …</em>. Recommended for production is a self-hosted model in your own network; for cloud models or external addresses the page points out that ticket content leaves the house. Internal notes are only sent if switched on; attachments never. <em>Test</em> checks the connection.</p>
+<p>Under <strong>Functions</strong> you switch <em>Summary</em>, <em>Reply suggestion</em> and <em>Rewrite</em> (on by default) and <em>Detect component</em> (off by default) one by one. For detection you choose <em>Suggest</em> or <em>Assign automatically</em>. Below is the <strong>hit rate</strong>: accepted suggestions and automatic ones nobody changed, against corrected and dismissed ones. With a cloud model, detection sends the title and description of every new ticket without a rule match to the provider – the page points it out.</p>
+<figure class="medium"><img src="img/en/ai-functions.jpg" alt=""><figcaption>Switching AI functions one by one, with hit rate</figcaption></figure>
 <figure class="medium"><img src="img/en/ai-models.jpg" alt=""><figcaption>The models of the Ollama server to choose from – cloud models separate</figcaption></figure>
 <figure><img src="img/en/admin-users.jpg" alt=""><figcaption>User management</figcaption></figure>
 

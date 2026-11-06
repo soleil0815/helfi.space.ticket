@@ -188,9 +188,18 @@ export function createAi({ db, settings, tickets }) {
       includeInternal: !!settings.get('ai.includeInternal'),
       maxChars: Math.min(200000, Math.max(2000, Number(settings.get('ai.maxChars')) || 12000)),
       timeoutMs: Math.min(600, Math.max(10, Number(settings.get('ai.timeout')) || 90)) * 1000,
+      // functions switched on (each can be turned off on its own)
+      features: {
+        summary: settings.get('ai.summary') !== false,
+        reply: settings.get('ai.reply') !== false,
+        rewrite: settings.get('ai.rewrite') !== false,
+        classify: !!settings.get('ai.classify'),
+      },
     };
   }
   const ready = (c = config()) => c.enabled && !!c.baseUrl && !!c.model;
+  /** Functions available right now (all false without a working configuration) */
+  const features = (c = config()) => Object.fromEntries(Object.entries(c.features).map(([k, v]) => [k, ready(c) && v]));
 
   /** One chat request (non-streaming). Throws HttpError 502/504 with a short reason. */
   async function chat(messages, { maxTokens = 1200, cfg = config() } = {}) {
@@ -226,9 +235,10 @@ export function createAi({ db, settings, tickets }) {
     return answer;
   }
 
-  function guard(user) {
+  function guard(user, feature) {
     const cfg = config();
     if (!ready(cfg)) throw new HttpError(404, 'err.aiNotConfigured');
+    if (feature && !cfg.features[feature]) throw new HttpError(404, 'err.aiFeatureOff');
     if (user.role !== 'agent' && user.role !== 'admin') throw new HttpError(403, 'err.forbidden');
     if (!perUser.take(`u|${user.id}`)) throw new HttpError(429, 'err.tooManyRequests');
     return cfg;
@@ -252,7 +262,7 @@ export function createAi({ db, settings, tickets }) {
   /** Stored summary (also if the ticket changed meanwhile: then marked as outdated) */
   function storedSummary(user, key) {
     const cfg = config();
-    if (!ready(cfg)) return null;
+    if (!ready(cfg) || !cfg.features.summary) return null;
     const tk = tickets.detail(user, key);
     const row = db.prepare('SELECT * FROM ai_summaries WHERE ticket_id=?').get(tk.id);
     if (!row) return null;
@@ -261,7 +271,7 @@ export function createAi({ db, settings, tickets }) {
   }
 
   async function summarize(user, key) {
-    const cfg = guard(user);
+    const cfg = guard(user, 'summary');
     const tk = tickets.detail(user, key);
     const lang = langOf(user);
     const ctx = ticketContext(tk, cfg);
@@ -277,7 +287,7 @@ export function createAi({ db, settings, tickets }) {
   }
 
   async function suggestReply(user, key, draft = '') {
-    const cfg = guard(user);
+    const cfg = guard(user, 'reply');
     const tk = tickets.detail(user, key);
     const lang = langOf(user);
     const notes = str(draft, 4000).trim();
@@ -289,7 +299,7 @@ export function createAi({ db, settings, tickets }) {
   }
 
   async function rewrite(user, text, mode) {
-    const cfg = guard(user);
+    const cfg = guard(user, 'rewrite');
     if (!REWRITE_MODES.includes(mode)) throw new HttpError(400, 'err.badRequest', 'mode');
     const input = str(text, 8000).trim();
     if (!input) throw new HttpError(400, 'err.badRequest', 'text');
@@ -311,5 +321,5 @@ export function createAi({ db, settings, tickets }) {
     return { ok: true, model: cfg.model, ms: Date.now() - start, answer: answer.slice(0, 80), remote: looksRemote(cfg.baseUrl, cfg.model) };
   }
 
-  return { config, ready, chat, storedSummary, summarize, suggestReply, rewrite, test };
+  return { config, ready, features, timed, chat, storedSummary, summarize, suggestReply, rewrite, test };
 }

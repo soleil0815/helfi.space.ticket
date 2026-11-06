@@ -55,6 +55,12 @@ export const DEFAULTS = {
   'ai.includeInternal': false, // also send internal notes to the model
   'ai.maxChars': 12000, // ticket text sent at most (newest comments first)
   'ai.timeout': 90, // seconds
+  // Which AI functions are offered (AI as a whole stays optional via ai.enabled)
+  'ai.summary': true,
+  'ai.reply': true,
+  'ai.rewrite': true,
+  'ai.classify': false, // component detection for new tickets that no rule matched
+  'ai.classifyMode': 'suggest', // suggest (agent accepts) | auto (set directly, marked "by AI")
 
   // Self-registration (local accounts with role "user", confirmed by mail) and "forgot password"
   'register.enabled': false,

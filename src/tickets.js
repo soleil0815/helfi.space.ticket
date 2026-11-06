@@ -159,6 +159,41 @@ export function createTickets(db, users) {
     };
   }
 
+  /** Who gets a ticket of this component: the lead, or the deputy if the lead is not assignable */
+  function leadFor(component) {
+    const leadId = component.lead_id ?? component.leadId;
+    const deputyId = component.deputy_id ?? component.deputyId;
+    if (leadId && isAssignable(leadId)) return { id: leadId, role: 'lead' };
+    if (deputyId && isAssignable(deputyId)) return { id: deputyId, role: 'deputy' };
+    return null;
+  }
+
+  /**
+   * Set the component from outside the normal update (AI): history entry "classified" with the
+   * source, and – like the rules at creation – the lead gets the ticket if nobody is assigned yet.
+   * userId: who accepted a suggestion (null = automatic). Returns the ticket (agent view).
+   */
+  function applyComponent(ticketId, componentId, { kind = 'ai', detail = '', userId = null } = {}) {
+    const row = rawById(ticketId);
+    if (!row) throw notFound();
+    const component = components.forProject(row.project_id, componentId);
+    let assigned = null;
+    db.transaction(() => {
+      db.prepare("UPDATE tickets SET component_id=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(component.id, row.id);
+      logActivity(row.id, userId, 'classified', kind, detail, component.name);
+      if (!row.assignee_id) {
+        assigned = leadFor(component);
+        if (assigned) {
+          db.prepare('UPDATE tickets SET assignee_id=? WHERE id=?').run(assigned.id, row.id);
+          logActivity(row.id, null, 'autoAssigned', assigned.role, component.name, users.byId(assigned.id)?.display_name || '');
+        }
+      }
+    })();
+    const t = ticketOut(rawById(row.id));
+    if (assigned) emitLater('assigned', { ticket: t, user: null });
+    return t;
+  }
+
   /** Assign only to active agents/admins */
   function isAssignable(id) {
     const u = users.byId(Number(id));
@@ -291,14 +326,8 @@ export function createTickets(db, users) {
         if (match) component = match.component;
       }
       let assigneeId = agent && int(data.assigneeId) && isAssignable(int(data.assigneeId)) ? int(data.assigneeId) : null;
-      let autoAssigned = null;
-      if (!assigneeId && component) {
-        const leadId = component.lead_id ?? component.leadId;
-        const deputyId = component.deputy_id ?? component.deputyId;
-        if (leadId && isAssignable(leadId)) autoAssigned = { id: leadId, role: 'lead' };
-        else if (deputyId && isAssignable(deputyId)) autoAssigned = { id: deputyId, role: 'deputy' };
-        if (autoAssigned) assigneeId = autoAssigned.id;
-      }
+      const autoAssigned = !assigneeId && component ? leadFor(component) : null;
+      if (autoAssigned) assigneeId = autoAssigned.id;
       const number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(project.id).n;
       const minRank = db.prepare("SELECT COALESCE(MIN(rank),0) r FROM tickets WHERE project_id=? AND status='open'").get(project.id).r;
       const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,assignee_id,labels,due_date,source,rank,component_id)
@@ -416,6 +445,7 @@ export function createTickets(db, users) {
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
     if (changes.status && changes.status.new === 'done' && !opts.quietResolved) emitLater('resolved', { ticket: t, user });
     if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
+    if (changes.component_id) events.emit('componentChanged', { ticketId: row.id, componentId: changes.component_id.new, userId: user.id });
     return result;
   }
 
@@ -819,6 +849,6 @@ export function createTickets(db, users) {
     search,
     events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
-    descriptionVersion, participants, addParticipant, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
+    applyComponent, descriptionVersion, participants, addParticipant, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
 }

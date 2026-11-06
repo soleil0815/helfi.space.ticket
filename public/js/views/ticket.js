@@ -15,7 +15,7 @@ import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
-import { activityFieldLabel, activityValue } from '../activity.js';
+import { activityFieldLabel, activityValue, componentReason } from '../activity.js';
 import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
@@ -48,6 +48,10 @@ export async function renderTicket(content, key) {
   // Components of the ticket's project (agents; empty list = field hidden unless one is set)
   let comps = agent ? await projectComponents(tk.projectId) : [];
   if (!content.isConnected) return;
+  // A new ticket may still be with the AI (component detection runs in the background): look once more
+  if (agent && state.boot.aiFeatures?.classify && comps.length && !tk.component && !tk.componentSuggestion && Date.now() - new Date(tk.createdAt).getTime() < 120000) {
+    setTimeout(() => { if (content.isConnected && !tk.component && !tk.componentSuggestion) refresh().catch(() => {}); }, 8000);
+  }
 
   const save = async (patch) => {
     try {
@@ -197,7 +201,7 @@ export async function renderTicket(content, key) {
         a.action === 'approval' ? h('span.change', t(`change.decision.${a.field}`), a.newValue ? ` – „${a.newValue}“` : '') : null,
         a.action === 'sla' ? h('span.change', t(`sla.kind.${a.field}`), ' ', t(`sla.state.${a.newValue}`)) : null,
         (a.action === 'linked' || a.action === 'unlinked') && a.field ? h('span.change', linkLabel(...a.field.split(':')), ' ', a.newValue || a.oldValue) : null,
-        a.action === 'classified' ? h('span.change', h('span.new', a.newValue), ` (${t(`comp.reason.${a.field}`)}: ${a.oldValue})`) : null,
+        a.action === 'classified' ? h('span.change', h('span.new', a.newValue), ` (${componentReason(a)})`) : null,
         a.action === 'autoAssigned' ? h('span.change', h('span.new', a.newValue), ` (${t(`comp.role.${a.field}`, { name: a.oldValue })})`) : null,
         a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
         h('span.muted', { title: fmtDate(a.createdAt) }, ' · ', relTime(a.createdAt))));
@@ -225,7 +229,7 @@ export async function renderTicket(content, key) {
       onclick: (e) => openTemplatePicker(e.currentTarget, insertTemplate),
     }, icon('comment'), t('canned.insert'), icon('chevron-down')) : null;
     // AI suggestions (agents, only if set up in the administration)
-    const ai = agent && state.boot.ai ? aiComposerTools(ta, tk, { isInternal: () => internal }) : null;
+    const ai = agent && (state.boot.aiFeatures?.reply || state.boot.aiFeatures?.rewrite) ? aiComposerTools(ta, tk, { isInternal: () => internal }) : null;
     const saveAsBtn = agent ? h('button.link.small', {
       type: 'button',
       onclick: () => { if (!ta.value.trim()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: ta.value }); },
@@ -261,6 +265,18 @@ export async function renderTicket(content, key) {
       type: 'button',
       onclick: (e) => dropdown(e.currentTarget, STATUSES.map((s) => ({ label: t(`status.${s}`), active: s === tk.status, onClick: () => save({ status: s }) }))),
     }, t(`status.${tk.status}`), icon('chevron-down'));
+  }
+
+  // AI component suggestion (suggest mode): accept or dismiss
+  function suggestionBox() {
+    const sg = tk.componentSuggestion;
+    const run = async (call) => { try { await call(); await refresh(); } catch (e) { toast(e.message, 'error'); } };
+    return h('div.ai-suggest', { title: sg.reason || '' },
+      h('span.ai-suggest-text', icon('sparkle'), ' ', t('ai.suggests'), ' ', h('strong', sg.name)),
+      sg.reason ? h('span.muted.small.block', sg.reason) : null,
+      h('span.ai-suggest-actions',
+        h('button.btn.btn-primary.small', { type: 'button', onclick: () => run(() => api.acceptSuggestion(tk.key)) }, t('ai.accept')),
+        h('button.btn.btn-subtle.small', { type: 'button', onclick: () => run(() => api.dismissSuggestion(tk.key)) }, t('ai.dismiss'))));
   }
 
   function detailRow(label, valueEl) { return h('div.detail-row', h('div.detail-label', label), h('div.detail-value', valueEl)); }
@@ -382,9 +398,11 @@ export async function renderTicket(content, key) {
           (v) => h('span.person', priorityIcon(v), h('span', t(`priority.${v}`))))),
         detailRow(t('ticket.type'), pick(tk.type, TYPES.map((p) => [p, t(`type.${p}`), typeIcon(p)]), (v) => save({ type: v }),
           (v) => h('span.person', typeIcon(v), h('span', t(`type.${v}`))))),
-        agent && (comps.length || tk.component) ? detailRow(t('ticket.component'), pick(tk.component?.id ?? null,
-          [[null, t('app.none')], ...comps.map((c) => [c.id, c.name])], (v) => save({ componentId: v }),
-          () => (tk.component ? h('span', { title: comps.find((c) => c.id === tk.component.id)?.description || '' }, tk.component.name) : h('span.muted', t('app.none'))))) : null,
+        agent && (comps.length || tk.component) ? detailRow(t('ticket.component'), h('div',
+          pick(tk.component?.id ?? null,
+            [[null, t('app.none')], ...comps.map((c) => [c.id, c.name])], (v) => save({ componentId: v }),
+            () => (tk.component ? h('span', { title: comps.find((c) => c.id === tk.component.id)?.description || '' }, tk.component.name) : h('span.muted', t('app.none')))),
+          tk.componentSuggestion ? suggestionBox() : null)) : null,
         detailRow(t('ticket.labels'), labels),
         detailRow(t('ticket.dueDate'), due),
         detailRow(t('ticket.project'), agent && state.projects.length > 1
@@ -411,7 +429,7 @@ export async function renderTicket(content, key) {
         catalogApprovalBox(tk, refresh),
         ratingBox(tk, refresh, agent),
         h('section.ticket-section', h('h3', t('ticket.description')), descriptionEl()),
-        agent && state.boot.ai ? aiSummarySection(tk) : null,
+        agent && state.boot.aiFeatures?.summary ? aiSummarySection(tk) : null,
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,
         attachmentsEl(),

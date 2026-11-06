@@ -3,6 +3,7 @@
 import { api } from './api.js';
 import { h, mount, icon, richText, toast, dropdown, relTime, fmtDate } from './dom.js';
 import { t } from './i18n.js';
+import { state } from './state.js';
 
 // Summary per ticket key, kept while the page is open (the view is redrawn on every change)
 const summaries = new Map();
@@ -61,10 +62,11 @@ export function aiComposerTools(ta, tk, { isInternal }) {
     type: 'button', title: t('ai.menuHint'),
     onclick: (e) => {
       const hasText = !!ta.value.trim();
-      if (isInternal() && !hasText) { toast(t('ai.noText')); return; }
+      const on = state.boot.aiFeatures || {};
+      if ((isInternal() || !on.reply) && !hasText) { toast(t('ai.noText')); return; }
       dropdown(e.currentTarget, [
-        ...(isInternal() ? [] : [{ label: hasText ? t('ai.replyFromNotes') : t('ai.reply'), icon: icon('sparkle'), onClick: () => apply(() => api.aiReply(tk.key, ta.value)) }]),
-        ...(hasText ? [
+        ...(isInternal() || !on.reply ? [] : [{ label: hasText ? t('ai.replyFromNotes') : t('ai.reply'), icon: icon('sparkle'), onClick: () => apply(() => api.aiReply(tk.key, ta.value)) }]),
+        ...(hasText && on.rewrite ? [
           { label: t('ai.polish'), icon: icon('pencil'), onClick: () => apply(() => api.aiRewrite(ta.value, 'polish')) },
           { label: t('ai.shorter'), icon: icon('list'), onClick: () => apply(() => api.aiRewrite(ta.value, 'shorter')) },
           { label: t('ai.toGerman'), icon: icon('globe'), onClick: () => apply(() => api.aiRewrite(ta.value, 'de')) },
