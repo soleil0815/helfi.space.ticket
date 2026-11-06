@@ -53,7 +53,7 @@ export async function renderTicket(page, ctx) {
       descriptionEl(),
       // Files of the ticket itself; files of a reply appear in its message
       tk.attachments.some((a) => !a.commentId) ? section(t('ticket.attachments'), attachmentsEl(tk.attachments.filter((a) => !a.commentId))) : null,
-      section(t('ticket.activity'), timeline()),
+      activitySection(),
     ].filter(Boolean));
     page.scroll.scrollTop = top;
   }
@@ -269,10 +269,26 @@ export async function renderTicket(page, ctx) {
   }
 
   // ---------- Timeline (oldest first, like a chat) ----------
-  function timeline() {
+  /** Comments only by default; agents can show the history lines too (remembered on this device) */
+  function activitySection() {
+    if (!agent || !tk.activity.length) return section(t('ticket.activity'), timeline(false));
+    const showAll = readShowAll();
+    const btn = (all, label) => h('button', {
+      type: 'button', class: showAll === all ? 'active' : '', 'aria-pressed': String(showAll === all),
+      onclick: () => { if (showAll !== all) { writeShowAll(all); draw(); } },
+    }, label);
+    return h('section.m-section',
+      h('div.m-section-row.m-activity-head',
+        h('h2.m-section-title', t('ticket.activity')),
+        h('div.m-segmented.m-segmented-small', { role: 'group', 'aria-label': t('ticket.activity') },
+          btn(false, t('ticket.comments')), btn(true, t('ticket.all')))),
+      timeline(showAll));
+  }
+
+  function timeline(withHistory) {
     const items = tk.comments.map((c) => ({ at: c.createdAt, el: bubble(c) }));
-    // History for agents: small grey lines (creation and changes); comments are already bubbles
-    if (agent) for (const a of tk.activity) items.push({ at: a.createdAt, el: historyLine(a) });
+    // History for agents (on request): small grey lines (creation and changes); comments are already bubbles
+    if (agent && withHistory) for (const a of tk.activity) items.push({ at: a.createdAt, el: historyLine(a) });
     items.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
     if (!items.length) return h('p.m-muted.m-pad', t('ticket.noComments'));
     return h('div.m-timeline', items.map((i) => i.el));
@@ -400,4 +416,13 @@ function slaPill(sla) {
 function skeleton() {
   return h('div.m-ticket-head.m-skeleton-block', { 'aria-busy': 'true', 'aria-label': t('app.loading') },
     h('div.sk.sk-line.short'), h('div.sk.sk-title'), h('div.sk.sk-line.mid'), h('div.sk.sk-line'), h('div.sk.sk-box'));
+}
+
+// "Comments" or "All" in the ticket timeline – per device, comments by default
+const SHOW_ALL_KEY = 'helfi.m.activityAll';
+function readShowAll() {
+  try { return localStorage.getItem(SHOW_ALL_KEY) === '1'; } catch { return false; }
+}
+function writeShowAll(on) {
+  try { if (on) localStorage.setItem(SHOW_ALL_KEY, '1'); else localStorage.removeItem(SHOW_ALL_KEY); } catch { /* ignore */ }
 }

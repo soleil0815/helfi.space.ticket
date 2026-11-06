@@ -7,6 +7,28 @@ import { isAgent } from '../auth/session.js';
 export const LINK_KINDS = ['relates', 'duplicates', 'blocks', 'causes', 'parent'];
 export const MAX_LINKS = 50;
 
+// Words that say nothing about the content (German/English filler, ticket phrases)
+const STOP = new Set(`aber alle allem allen aller alles also auch auf aus bei beim bin bis bitte bzw dann das dass dem den der des die dies diese diesem dieser doch dort durch ein eine einem einen einer eines etwas für geht gibt habe haben hallo hat hatte heute hier ich ihr ihre ist jetzt kann kein keine mehr mein meine mit morgen muss nach nicht noch nur oder ohne schon sehr seit sich sie sind über und uns unter vom von vor war wenn werden wie wieder wir wird zum zur danke gruß grüße viele freundlichen problem fehler frage hilfe ticket
+about after again also and any are been but can cannot does dont for from get has have hello help her his how its just more not now our please problem issue question thanks that the their there they this was what when where which with would you your`.split(/\s+/));
+
+/** The most telling words of some tickets (title counts double), for "similar tickets" */
+export function significantWords(items, max = 8) {
+  const score = new Map();
+  for (const { title, text } of items) {
+    const add = (s, w) => {
+      // Parts of compound words count on their own ("Spooler-Fehler" → spooler, fehler)
+      for (const m of String(s || '').toLowerCase().matchAll(/[\p{L}\p{N}]{4,}/gu)) {
+        const word = m[0];
+        if (STOP.has(word) || /^\d+$/.test(word)) continue;
+        score.set(word, (score.get(word) || 0) + w);
+      }
+    };
+    add(title, 2);
+    add(String(text || '').slice(0, 2000), 1);
+  }
+  return [...score.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, max).map(([w]) => w);
+}
+
 export function createLinks(db, tickets) {
   const keyOf = (row) => `${row.project_key}-${row.number}`;
 
@@ -98,5 +120,34 @@ export function createLinks(db, tickets) {
   // Ticket view: only agents see links
   tickets.addDetailExtra((user, row) => (isAgent(user) ? { links: list(row.id) } : {}));
 
-  return { list, add, remove, createSubtask };
+  /**
+   * Suggestions for linking (agents): open problems and major incidents ("possible cause") and
+   * tickets with the same striking words in title/description ("similar"). keys = the ticket(s) to
+   * link (one ticket or a multi-select); they and tickets already linked to a single one are left out.
+   */
+  function suggest(user, keys) {
+    const rows = [];
+    for (const k of keys.slice(0, 50)) {
+      try { rows.push(tickets.load(user, k)); } catch { /* unknown/invisible: ignore */ }
+    }
+    const exclude = new Set(rows.map((r) => r.id));
+    if (rows.length === 1) for (const l of db.prepare('SELECT from_id, to_id FROM ticket_links WHERE from_id=? OR to_id=?').all(rows[0].id, rows[0].id)) { exclude.add(l.from_id); exclude.add(l.to_id); }
+    const brief = (r) => {
+      const t = tickets.ticketOut(r);
+      return { key: t.key, title: t.title, status: t.status, type: t.type, major: !!t.major, updatedAt: t.updatedAt };
+    };
+    const causes = db.prepare(`SELECT id FROM tickets WHERE status<>'done' AND (type='problem' OR major=1)
+      ORDER BY major DESC, updated_at DESC LIMIT 30`).all()
+      .filter((r) => !exclude.has(r.id)).slice(0, 6)
+      .map((r) => tickets.rawById(r.id)).filter(Boolean).map(brief);
+    const shown = new Set(causes.map((c) => c.key));
+    const words = significantWords(rows.map((r) => ({ title: r.title, text: r.description })));
+    const similar = tickets.search.similar(words, { limit: 40 })
+      .filter((id) => !exclude.has(id))
+      .map((id) => tickets.rawById(id)).filter(Boolean).map(brief)
+      .filter((t) => !shown.has(t.key)).slice(0, 8);
+    return { causes, similar, words };
+  }
+
+  return { list, add, remove, createSubtask, suggest };
 }

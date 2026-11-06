@@ -26,23 +26,109 @@ function row(tk, l, refresh) {
 }
 
 /** Ticket number input with suggestions from the search */
-export function ticketPicker(currentKey) {
+/**
+ * Field for the ticket to link with: search by number or words (title, description, comments) and
+ * – while empty – suggestions: possible cause (open problems, major incidents) and similar tickets.
+ * forKeys = the ticket(s) to be linked (left out of the results, basis for "similar").
+ */
+export function ticketPicker(currentKey, { forKeys = currentKey ? [currentKey] : [] } = {}) {
   const listId = `tp-${Math.random().toString(36).slice(2, 8)}`;
-  const input = h('input.link-target', { placeholder: t('link.targetHint'), list: listId, autocomplete: 'off', required: true });
-  const dl = h('datalist', { id: listId });
+  const input = h('input.link-target', {
+    placeholder: t('link.searchHint'), autocomplete: 'off', required: true, spellcheck: false,
+    role: 'combobox', 'aria-expanded': 'false', 'aria-controls': listId, 'aria-autocomplete': 'list',
+  });
+  const pop = h('div.tp-pop', { id: listId, role: 'listbox', hidden: true });
+  const skip = new Set(forKeys.map((k) => String(k).toUpperCase()));
+  let items = []; // shown options (for the keyboard)
+  let active = -1;
+  let suggestions = null; // loaded once on first focus
   let timer;
+  let seq = 0;
+
+  // Fixed position under the field: also works inside dialogs that cut off their content
+  const place = () => {
+    if (pop.hidden) return;
+    const r = input.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom;
+    pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8))}px`;
+    pop.style.minWidth = `${r.width}px`;
+    if (below < 220 && r.top > below) { pop.style.top = ''; pop.style.bottom = `${window.innerHeight - r.top + 4}px`; }
+    else { pop.style.bottom = ''; pop.style.top = `${r.bottom + 4}px`; }
+  };
+  const onMove = () => place();
+  const open = (on) => {
+    const was = !pop.hidden;
+    pop.hidden = !on;
+    input.setAttribute('aria-expanded', String(on));
+    if (!on) active = -1;
+    if (on) { place(); if (!was) { window.addEventListener('scroll', onMove, true); window.addEventListener('resize', onMove); } }
+    else if (was) { window.removeEventListener('scroll', onMove, true); window.removeEventListener('resize', onMove); }
+  };
+  const option = (x) => h('div.tp-item', {
+    role: 'option', id: `${listId}-${x.key}`, 'aria-selected': 'false',
+    onmousedown: (e) => { e.preventDefault(); choose(x); }, // before the blur of the field
+  }, typeIcon(x.type), h('span.tp-key', x.key), h('span.tp-title', x.title), x.major ? h('span.tp-major', icon('warning')) : null, lozenge(x.status));
+  function render(groups, emptyText) {
+    items = [];
+    active = -1;
+    const parts = [];
+    for (const [label, list] of groups) {
+      const shown = list.filter((x) => !skip.has(x.key));
+      if (!shown.length) continue;
+      parts.push(h('div.tp-group', label));
+      for (const x of shown) { items.push(x); parts.push(option(x)); }
+    }
+    if (!parts.length && emptyText) parts.push(h('div.tp-empty', emptyText));
+    mount(pop, parts);
+    open(parts.length > 0 && document.activeElement === input);
+  }
+  function highlight(i) {
+    const els = pop.querySelectorAll('.tp-item');
+    els.forEach((el, n) => { el.classList.toggle('active', n === i); el.setAttribute('aria-selected', String(n === i)); });
+    active = i;
+    if (els[i]) { els[i].scrollIntoView({ block: 'nearest' }); input.setAttribute('aria-activedescendant', els[i].id); }
+  }
+  function choose(x) {
+    input.value = x.key;
+    open(false);
+    input.dispatchEvent(new Event('change'));
+  }
+  async function showSuggestions() {
+    if (!suggestions) {
+      try { suggestions = await api.linkSuggestions(forKeys); } catch { suggestions = { causes: [], similar: [] }; }
+    }
+    if (input.value.trim()) return;
+    render([[t('link.suggestCause'), suggestions.causes], [t('link.suggestSimilar'), suggestions.similar]], null);
+  }
+  async function searchNow(q) {
+    const my = ++seq;
+    try {
+      const r = await api.tickets({ q, limit: 10 });
+      if (my !== seq) return; // a newer search is on its way
+      render([[t('link.searchResults'), r.tickets || []]], t('link.noResults'));
+    } catch { /* ignore */ }
+  }
+  input.addEventListener('focus', () => { if (!input.value.trim()) showSuggestions(); else if (items.length) open(true); });
+  // Closed a moment after leaving the field (a click into the list comes first) – unless focus came back
+  input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input) open(false); }, 120));
   input.addEventListener('input', () => {
     clearTimeout(timer);
     const q = input.value.trim();
-    if (q.length < 2) return;
-    timer = setTimeout(async () => {
-      try {
-        const r = await api.tickets({ q, limit: 10 });
-        mount(dl, (r.tickets || []).filter((x) => x.key !== currentKey).map((x) => h('option', { value: x.key }, `${x.key} – ${x.title}`)));
-      } catch { /* ignore */ }
-    }, 200);
+    if (!q) { showSuggestions(); return; }
+    if (q.length < 2) { open(false); return; }
+    timer = setTimeout(() => searchNow(q), 200);
   });
-  return { input, el: h('span.link-picker', input, dl) };
+  input.addEventListener('keydown', (e) => {
+    if (pop.hidden || !items.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (!input.value.trim()) showSuggestions(); else if (items.length) open(true); }
+      return;
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(items.length - 1, active + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(0, active - 1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); choose(items[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); open(false); }
+  });
+  return { input, el: h('span.link-picker', input, pop) };
 }
 
 export function linksSection(tk, refresh) {

@@ -170,7 +170,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
     // Link: kind (from the point of view of the selected tickets) and target ticket
     const linkKind = mode === 'link' ? h('select', CHOICES.map(([id]) => h('option', { value: id }, t(`link.choice.${id}`)))) : null;
     if (linkKind) linkKind.value = 'causedBy';
-    const picker = mode === 'link' ? ticketPicker(null) : null;
+    const picker = mode === 'link' ? ticketPicker(null, { forKeys: [...sel] }) : null;
     // Status: fixed for "status", optional for "link"
     const statusSel = mode === 'link' ? select([['', t('bulk.keepStatus')], ...STATUSES.map((st) => [st, t(`status.${st}`)])], '') : null;
 

@@ -55,3 +55,32 @@ test('Removal with activity; only via one of the two tickets', async () => {
   assert.deepEqual(r.body.links, []);
   assert.ok((await anna('GET', `/api/tickets/${k.b}`)).body.ticket.activity.some((x) => x.action === 'unlinked' && x.oldValue === k.a));
 });
+
+test('Suggestions: possible cause (open problems, major incidents) and similar tickets', async () => {
+  const { significantWords } = await import('../src/itil/links.js');
+  const w = significantWords([{ title: 'Drucker im 2. OG druckt nicht', text: 'Hallo, der Drucker zeigt Toner leer. Bitte' }]);
+  assert.deepEqual(w.slice(0, 2), ['drucker', 'druckt'], 'title words count most');
+  assert.ok(w.includes('toner') && !w.includes('hallo') && !w.includes('bitte') && !w.includes('nicht'), 'filler words left out');
+  const problem = (await anna('POST', '/api/tickets', { title: 'Druckserver hängt', type: 'problem' })).body.ticket.key;
+  const closedProblem = (await anna('POST', '/api/tickets', { title: 'Alter Fehler', type: 'problem' })).body.ticket.key;
+  await anna('PATCH', `/api/tickets/${closedProblem}`, { status: 'done' });
+  const p1 = (await karl('POST', '/api/tickets', { title: 'Drucker im 2. OG druckt nicht', description: 'Toner leer' })).body.ticket.key;
+  const p2 = (await karl('POST', '/api/tickets', { title: 'Drucker Toner wechseln', description: 'Der Toner ist leer' })).body.ticket.key;
+  const other = (await karl('POST', '/api/tickets', { title: 'Outlook startet nicht', description: 'Fehlermeldung beim Start' })).body.ticket.key;
+  let r = await anna('GET', `/api/link-suggestions?keys=${p1}`);
+  assert.equal(r.status, 200);
+  assert.ok(r.body.causes.some((x) => x.key === problem && x.type === 'problem'));
+  assert.ok(!r.body.causes.some((x) => x.key === closedProblem), 'finished problems are no candidates');
+  assert.deepEqual(r.body.similar.map((x) => x.key), [p2], 'similar, without itself and unrelated tickets');
+  assert.ok(!r.body.similar.some((x) => x.key === other));
+  // Already linked: not suggested again
+  await anna('POST', `/api/tickets/${p1}/links`, { kind: 'relates', target: p2 });
+  r = await anna('GET', `/api/link-suggestions?keys=${p1}`);
+  assert.ok(!r.body.similar.some((x) => x.key === p2));
+  // Multi-select: words of all selected tickets, they themselves left out
+  r = await anna('GET', `/api/link-suggestions?keys=${p1},${p2}`);
+  assert.ok(!r.body.similar.some((x) => x.key === p1 || x.key === p2));
+  // Agents only; unknown keys are ignored
+  assert.equal((await karl('GET', `/api/link-suggestions?keys=${p1}`)).status, 403);
+  assert.equal((await anna('GET', '/api/link-suggestions?keys=XX-1')).status, 200);
+});

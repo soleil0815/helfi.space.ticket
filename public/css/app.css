@@ -1266,3 +1266,18 @@ a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px
 .bulk-comment textarea.internal { background: #FFFBEB; border-color: #F5CD47; }
 .bulk-link select, .bulk-link .link-picker, .bulk-link .link-target { width: 100%; }
 .bulk-link { margin-bottom: 8px; }
+
+/* Link picker: search results and suggestions below the field */
+.link-picker { position: relative; display: inline-block; }
+.link-picker input { width: 280px; }
+.bulk-link .link-picker { display: block; }
+.tp-pop { position: fixed; z-index: 1100; width: 440px; max-width: calc(100vw - 16px); max-height: 320px; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-overlay); padding: 4px 0; }
+.tp-group { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-subtlest); }
+.tp-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+.tp-item:hover, .tp-item.active { background: var(--bg-hover, #F1F2F4); }
+.tp-item.active { box-shadow: inset 2px 0 0 var(--blue); }
+.tp-key { color: var(--text-subtle); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tp-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-major .icon { width: 14px; height: 14px; color: var(--red, #C9372C); }
+.tp-empty { padding: 10px 12px; color: var(--text-subtle); font-size: 14px; }

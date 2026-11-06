@@ -371,32 +371,55 @@ export function openParticipantsSheet(getTicket, { changed, left }) {
 export function openLinkSheet(tk, { onDone }) {
   const kind = h('select.m-select', { 'aria-label': t('link.thisTicket') }, CHOICES.map(([id]) => h('option', { value: id }, t(`link.choice.${id}`))));
   const input = h('input', {
-    type: 'search', placeholder: t('link.targetHint'), autocomplete: 'off', autocapitalize: 'characters', enterkeyhint: 'search', 'aria-label': t('bulk.linkTarget'),
+    type: 'search', placeholder: t('link.searchHint'), autocomplete: 'off', autocapitalize: 'off', enterkeyhint: 'search', 'aria-label': t('bulk.linkTarget'),
   });
   const hits = h('div.m-choices', { role: 'listbox', 'aria-label': t('bulk.linkTarget') });
   let chosen = null;
   let timer = null;
   let busy = false;
+  let seq = 0;
+  let suggestions = null;
   const btn = h('button.m-btn.m-btn-primary', { type: 'button', onclick: () => submit() }, icon('link'), t('link.add'));
   const pickRow = (x) => h('button.m-choice-row', {
     type: 'button', role: 'option', 'aria-selected': String(chosen === x.key), class: chosen === x.key ? 'active' : '',
-    onclick: () => { chosen = x.key; input.value = x.key; draw(lastList); },
+    onclick: () => { chosen = x.key; input.value = x.key; redraw(); },
   }, h('span.m-choice-text', h('span.m-choice-label', `${x.key} · ${x.title}`), h('span.m-choice-sub', t(`status.${x.status}`))),
   chosen === x.key ? h('span.m-choice-check', icon('check')) : null);
-  let lastList = [];
-  const draw = (list) => { lastList = list; hits.replaceChildren(...list.map(pickRow)); };
+  let groups = [];
+  /** groups = [[label, tickets], …] – the ticket itself is never offered */
+  const draw = (g, emptyText = null) => {
+    groups = g;
+    const parts = [];
+    for (const [label, list] of g) {
+      const shown = list.filter((x) => x.key !== tk.key);
+      if (!shown.length) continue;
+      parts.push(h('div.m-choice-group', label), ...shown.map(pickRow));
+    }
+    if (!parts.length && emptyText) parts.push(h('p.m-sheet-empty', emptyText));
+    hits.replaceChildren(...parts);
+  };
+  const redraw = () => draw(groups);
+  async function showSuggestions() {
+    if (!suggestions) {
+      try { suggestions = await api.linkSuggestions([tk.key]); } catch { suggestions = { causes: [], similar: [] }; }
+    }
+    if (!input.value.trim()) draw([[t('link.suggestCause'), suggestions.causes], [t('link.suggestSimilar'), suggestions.similar]]);
+  }
   input.addEventListener('input', () => {
     chosen = null;
     clearTimeout(timer);
     const q = input.value.trim();
+    if (!q) { showSuggestions(); return; }
     if (q.length < 2) { draw([]); return; }
     timer = setTimeout(async () => {
+      const my = ++seq;
       try {
-        const r = await api.tickets({ q, limit: 8 });
-        draw((r.tickets || []).filter((x) => x.key !== tk.key));
+        const r = await api.tickets({ q, limit: 10 });
+        if (my === seq) draw([[t('link.searchResults'), r.tickets || []]], t('link.noResults'));
       } catch { /* ignore */ }
     }, 200);
   });
+  showSuggestions();
   async function submit() {
     const target = (chosen || input.value).trim().toUpperCase();
     if (!target || busy) { if (!target) input.focus(); return; }

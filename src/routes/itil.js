@@ -18,6 +18,11 @@ export function createItilRoutes(ctx) {
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {
     res.status(201).json({ links: links.add(req.user, req.params.key, { kind: str(req.body.kind, 20), target: req.body.target }) });
   }));
+  // Suggestions for the link picker: ?keys=IT-1,IT-2 (one ticket or a multi-select)
+  r.get('/link-suggestions', requireRole('agent'), (req, res) => {
+    const keys = str(req.query.keys, 2000).split(',').map((k) => k.trim().toUpperCase()).filter(Boolean);
+    res.json(links.suggest(req.user, keys));
+  });
   r.delete('/tickets/:key/links/:id', requireRole('agent'), (req, res) => {
     res.json({ links: links.remove(req.user, req.params.key, int(req.params.id)) });
   });
