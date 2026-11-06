@@ -16,6 +16,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
 - **Search with results while typing** – with where it matched, keyboard control and recently opened tickets, on desktop and phone
+- **Saved filters and custom queues:** save the ticket list filters under a name – personal or shared by an admin with all agents, in the sidebar with a count, on phones as a chip
 - **Components with ownership:** split projects into areas such as “VPN & remote access” or “Printers & scanners”, each with a responsible person and a deputy. New tickets are matched by keywords or the sender and go to the right person automatically – with ready-made examples for IT, facilities and administration
 - **Teamwork:** **@-mentions** in replies and internal notes (with email and a "Mentions me" view), request participants, reply templates, **multi-select** (status, assignment, comment or link for many tickets at once), **linking with search and suggestions** (possible causes, similar tickets)
 - **AI assistance (optional):** summary, reply suggestion and rewriting with your own model (Ollama, LM Studio, vLLM …) or any OpenAI-compatible service – suggestions only, nothing is sent automatically
@@ -252,6 +253,15 @@ Agents bring colleagues into a ticket directly: in the reply field (desktop and 
 - **Notification:** people mentioned get an email from the ticket system ("Anna mentioned you on IT-12") with the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
 - **Finding them again:** *Mentions me* in the sidebar (phone: *Mentions* chip under *Tickets*) lists all tickets with a mention; the number next to it counts those not opened yet. New mentions are marked with **@** in lists, and so is the comment in the ticket. Opening the ticket marks the mention as seen.
 - Mentions do not add people as participants or watchers – that is what *Request participants* is for.
+
+## Saved filters and queues
+
+Set filters, search and sorting in the ticket list and choose **Save filter**. The filter appears on the left under *Saved filters* with its current count (phone: as a chip under *Tickets*); the list then carries its name.
+
+- **Personal:** every agent has their own filters (up to 50). Others do not see them.
+- **For all agents:** admins can share a filter when saving it. It appears as a queue for all agents (with a people icon). “Assigned to me” then refers to each person.
+- **Managing:** the icon next to *Saved filters* opens the list to rename, sort (↑/↓) and delete. Only admins change shared queues.
+- Only ticket list filters are saved (project, status, type, priority, assignee, component, label, search, sorting …).
 
 ## Components
 

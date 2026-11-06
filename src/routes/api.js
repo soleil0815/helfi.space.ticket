@@ -29,6 +29,7 @@ import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
 import { REASONING, normalizeBaseUrl, listModels } from '../ai.js';
 import { LINK_KINDS } from '../itil/links.js';
+import { createSavedFilters } from '../filters.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -441,6 +442,14 @@ export function createApi(ctx) {
     log.info(`Project ${p.key} deleted by ${req.user.username}`, { moved: out.moved, target: out.target });
     res.json(out);
   }));
+
+  // ---------- Saved filters / shared queues (agents) ----------
+  const savedFilters = createSavedFilters(db, tickets);
+  r.get('/filters', requireRole('agent'), (req, res) => res.json({ filters: savedFilters.list(req.user) }));
+  r.post('/filters', requireRole('agent'), (req, res) => res.status(201).json({ filter: savedFilters.create(req.user, req.body || {}) }));
+  r.post('/filters/order', requireRole('agent'), (req, res) => res.json({ filters: savedFilters.reorder(req.user, req.body?.ids, !!req.body?.shared) }));
+  r.patch('/filters/:id', requireRole('agent'), (req, res) => res.json({ filter: savedFilters.update(req.user, req.params.id, req.body || {}) }));
+  r.delete('/filters/:id', requireRole('agent'), (req, res) => res.json(savedFilters.remove(req.user, req.params.id)));
 
   // ---------- Components (per project) ----------
   const components = tickets.components;

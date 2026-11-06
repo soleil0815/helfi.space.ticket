@@ -13,6 +13,7 @@ import { renderAdmin } from './views/admin.js';
 import { renderReports } from './views/reports.js';
 import { renderSummary } from './views/summary.js';
 import { QUEUES, VIEWS, queueHref, matchQueue } from './queues.js';
+import { savedFiltersNav, refreshSavedFilters } from './savedfilters.js';
 import { renderProfile } from './views/profile.js';
 import { renderNews, showNewsPopup } from './views/news.js';
 import { brandLogo, brandTitle } from './brand.js';
@@ -63,12 +64,15 @@ export function navigate(path, { replace = false, force = false } = {}) {
 }
 
 export async function reloadBase() {
-  const [p, a] = await Promise.all([
+  const [p, a, f] = await Promise.all([
     api.projects(),
     state.isAgent ? api.users() : Promise.resolve({ users: [] }),
+    // saved filters: the list page names a matching one at once
+    state.isAgent ? api.filters().catch(() => ({ filters: [] })) : Promise.resolve({ filters: [] }),
   ]);
   state.projects = p.projects;
   state.agents = a.users;
+  state.savedFilters = f.filters;
 }
 
 function applyLanguage() {
@@ -287,6 +291,7 @@ function layout(content, path) {
       ) : null,
       nav('/summary', t('nav.summary'), 'globe', path === '/summary'),
       queuesNav(path, p),
+      savedFiltersNav(path === '/issues' ? new URL(location.href).searchParams : null),
       nav('/board', t('nav.board'), 'board', path === '/board'),
       ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/changes', t('change.calendar'), 'board', path === '/changes'),
@@ -344,6 +349,7 @@ export async function refreshQueueCounts(projectKey = state.project?.key) {
     state.queueCounts = counts;
     document.querySelectorAll('[data-count]').forEach((el) => { el.textContent = counts[el.dataset.count] ?? ''; });
   } catch { /* ignore */ }
+  await refreshSavedFilters();
 }
 
 // Phones (or the preference "mobile") get the app-like UI under /m – decided before anything is rendered.

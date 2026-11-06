@@ -73,6 +73,11 @@ export const api = {
   addExampleComponents: (projectId, keys, lang) => request('POST', `/api/projects/${projectId}/components/examples`, { keys, lang }),
 
   stats: () => request('GET', '/api/stats'),
+  filters: () => request('GET', '/api/filters'),
+  createFilter: (d) => request('POST', '/api/filters', d),
+  updateFilter: (id, d) => request('PATCH', `/api/filters/${id}`, d),
+  deleteFilter: (id) => request('DELETE', `/api/filters/${id}`),
+  orderFilters: (ids, shared = false) => request('POST', '/api/filters/order', { ids, shared }),
   queues: (project) => request('GET', `/api/queues${qs({ project })}`),
   summary: (project) => request('GET', `/api/summary${qs({ project })}`),
   tickets: (f) => request('GET', `/api/tickets${qs(f)}`),

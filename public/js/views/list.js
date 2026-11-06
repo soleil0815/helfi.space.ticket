@@ -5,7 +5,8 @@ import { openTemplatePicker } from './canned.js';
 import { t } from '../i18n.js';
 import { state, navigate } from '../app.js';
 import { openCreateDialog } from './ticket.js';
-import { matchQueue } from '../queues.js';
+import { matchQueue, matchSaved, savedQuery } from '../queues.js';
+import { openSaveFilterDialog } from '../savedfilters.js';
 import { slaBadge } from './sla.js';
 import { CHOICES, ticketPicker } from './links.js';
 import { projectComponents } from '../components.js';
@@ -59,10 +60,15 @@ export async function renderList(content, params, { requests = false } = {}) {
   ));
 
   const queue = requests ? null : matchQueue(params);
-  const title = requests ? t('nav.myRequests') : (queue ? t(queue.label) : (f.overdue ? t('summary.overdue') : t('nav.list')));
+  // Saved filter (agents): title from the filter; "Save filter" when something is filtered that is not saved yet
+  const saved = !requests && state.isAgent && !queue ? matchSaved(state.savedFilters, params) : null;
+  const title = requests ? t('nav.myRequests') : (queue ? t(queue.label) : (saved ? saved.name : (f.overdue ? t('summary.overdue') : t('nav.list'))));
+  const canSave = !requests && state.isAgent && !queue && !saved && savedQuery(params, false) !== '';
   const tableHost = h('div', h('div.loading', t('app.loading')));
   mount(content,
-    h('div.page-head', h('h1', title), requests && state.boot.allowSelfService ? h('button.btn.btn-primary', { type: 'button', onclick: () => openCreateDialog() }, icon('plus'), t('app.create')) : null),
+    h('div.page-head', h('h1', title),
+      canSave ? h('button.btn.btn-subtle.save-filter-btn', { type: 'button', onclick: () => openSaveFilterDialog(params, { onSaved: () => navigate(`${location.pathname}${location.search}`, { replace: true }) }) }, icon('star'), t('filters.save')) : null,
+      requests && state.boot.allowSelfService ? h('button.btn.btn-primary', { type: 'button', onclick: () => openCreateDialog() }, icon('plus'), t('app.create')) : null),
     filters,
     tableHost,
   );

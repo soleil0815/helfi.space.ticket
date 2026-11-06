@@ -342,6 +342,17 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .chip-mail .icon { width: 12px; height: 12px; }
 .chip-x { border: 0; background: none; cursor: pointer; color: var(--text-subtle); font-size: 14px; line-height: 1; padding: 0 2px; border-radius: 50%; }
 .chip-x:hover { background: rgba(9, 30, 66, 0.13); color: var(--text); }
+/* Saved filters (sidebar, manage dialog) */
+.saved-head { display: flex; align-items: center; justify-content: space-between; padding-right: 4px; }
+.saved-head .btn-icon { width: 24px; height: 24px; }
+.saved-filter .saved-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-filter .saved-shared { width: 14px; height: 14px; color: var(--text-subtle); flex: none; }
+.manage-filters h3 { margin: 12px 0 6px; font-size: 14px; }
+.manage-list { list-style: none; margin: 0; padding: 0; }
+.manage-list li { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.manage-list .manage-name { flex: 1; min-width: 0; }
+.manage-list .btn-icon[disabled] { opacity: 0.3; cursor: default; }
+.page-head .save-filter-btn { margin-left: auto; }
 /* Components (admin) */
 .comp-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .comp-chips .chip { padding: 1px 8px; }

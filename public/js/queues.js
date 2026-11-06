@@ -20,7 +20,25 @@ export const VIEWS = [
   { id: 'slaRisk', label: 'nav.slaRisk', icon: 'warning', params: { sla: 'risk' }, count: 'slaRisk', when: (boot) => boot.sla?.enabled },
 ];
 
-const FILTER_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla', 'approval', 'mentioned'];
+const FILTER_KEYS = ['status', 'assignee', 'resolvedDays', 'type', 'priority', 'label', 'reporter', 'overdue', 'sla', 'approval', 'mentioned', 'participant', 'component'];
+
+// Saved filters: same keys and order as the server (src/filters.js)
+export const SAVED_KEYS = ['project', 'status', 'type', 'priority', 'assignee', 'reporter', 'participant', 'mentioned', 'label', 'overdue', 'resolvedDays', 'component', 'q', 'sort'];
+
+/** Canonical query of a filter set; withSort=false for "is this the saved filter?" */
+export function savedQuery(params, withSort = true) {
+  const p = params instanceof URLSearchParams ? params : new URLSearchParams(params);
+  const out = new URLSearchParams();
+  for (const k of SAVED_KEYS) if ((withSort || k !== 'sort') && p.get(k)) out.set(k, p.get(k).trim());
+  return out.toString();
+}
+
+/** Saved filter that matches the current list (sorting does not count) */
+export function matchSaved(filters, params) {
+  const cur = savedQuery(params, false);
+  if (!cur) return null;
+  return (filters || []).find((f) => savedQuery(f.query, false) === cur) || null;
+}
 
 export function queueHref(q, projectKey) {
   const p = new URLSearchParams({ ...(projectKey ? { project: projectKey } : {}), ...q.params });

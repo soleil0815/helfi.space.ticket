@@ -5,8 +5,8 @@
 // - Comments (internal ones stay internal) and attachments
 // - Importing again updates already imported tickets instead of creating duplicates
 // - NO emails are sent during the import
-import { MAX_COMPONENTS } from '../components.js';
 import { normalizeLabels } from '../tickets.js';
+import { MAX_COMPONENTS } from '../components.js';
 import { log } from '../lib/log.js';
 import { HttpError } from '../lib/http.js';
 import { SourceError } from './http.js';
