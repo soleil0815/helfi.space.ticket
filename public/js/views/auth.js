@@ -1,5 +1,6 @@
 // Login and initial setup
 import { api } from '../api.js';
+import { takeIdleNote } from '../idle.js';
 import { h, mount, field, icon, select, toast } from '../dom.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { state, navigate, reloadBase, route } from '../app.js';
@@ -120,10 +121,13 @@ export function renderLogin(root) {
     return renderMfaStep(root, step);
   }
   const oidc = state.boot.auth.oidc;
-  if (oidc?.autoRedirect && !params.has('error') && !params.has('local')) {
+  // Signed out for inactivity: show it (and do not sign in again silently via SSO)
+  const idleNote = takeIdleNote();
+  if (oidc?.autoRedirect && !idleNote && !params.has('error') && !params.has('local')) {
     location.href = '/auth/oidc/start';
     return;
   }
+  const idleHint = idleNote ? h('div.hint-box', { role: 'status' }, icon('clock'), h('div', t('idle.signedOut'))) : null;
   const err = h('div.form-error', { role: 'alert', hidden: !params.get('error') }, params.get('error') ? t(`login.err.${params.get('error')}`) : '');
   const mfaHint = state.boot.mfa && !state.boot.mfa.internal && state.boot.mfa.mode !== 'off'
     ? h('div.hint-box', icon('shield'), h('div', t('mfa.externalHint'))) : null;
@@ -151,6 +155,7 @@ export function renderLogin(root) {
     },
   },
   ...loginIntro(state.boot.login),
+  idleHint,
   mfaHint,
   err,
   field(loginUserLabel(state.boot.login) || t('login.username'), user, loginUserHint(state.boot.auth)),

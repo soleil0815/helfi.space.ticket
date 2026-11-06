@@ -8,27 +8,78 @@ export const COOKIE = 'helfi_sid';
 // Maximum session lifetime from sign-in – after that sign in again, even with constant use
 export const SESSION_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 
-export function createSessions(db, { policy } = {}) {
-  const insert = db.prepare('INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa) VALUES(?,?,?,?,?,?,?)');
-  const find = db.prepare(`SELECT s.id sid, s.expires_at, s.created_at session_created, s.auth_method, s.mfa session_mfa, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`);
+// Requests that only ask how long the session still runs – they must not count as activity
+const STATUS_PATH = '/api/session/status';
+// Write the last activity at most this often (the idle check is therefore accurate to a minute)
+const TOUCH_EVERY_MS = 60 * 1000;
+
+/** Minutes from a setting: 0/empty = not set; otherwise between 5 minutes and 30 days */
+export function idleMinutes(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(43200, Math.max(5, n));
+}
+
+/**
+ * Automatic sign-out after inactivity: one period for everyone (setting or HELFI_SESSION_HOURS),
+ * optionally shorter for admins and for requests from outside the company network – the shortest
+ * applicable one counts. Computed per request, so a session that moves from the office to the
+ * outside gets the shorter period at once.
+ */
+export function idlePolicy(settings, policy) {
+  const base = () => (idleMinutes(settings?.get('session.idleMinutes')) || Math.round(config.sessionHours * 60)) * 60000;
+  return {
+    base,
+    forRequest(req, user) {
+      let ms = base();
+      const admin = idleMinutes(settings?.get('session.adminIdleMinutes'));
+      if (admin && user?.role === 'admin') ms = Math.min(ms, admin * 60000);
+      const ext = idleMinutes(settings?.get('session.externalIdleMinutes'));
+      if (ext && policy && !policy.isInternal(req)) ms = Math.min(ms, ext * 60000);
+      return ms;
+    },
+  };
+}
+
+export function createSessions(db, { policy, settings } = {}) {
+  const insert = db.prepare('INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa,last_seen) VALUES(?,?,?,?,?,?,?,?)');
+  const find = db.prepare(`SELECT s.id sid, s.expires_at, s.created_at session_created, s.auth_method, s.mfa session_mfa, s.last_seen session_seen, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`);
   const del = db.prepare('DELETE FROM sessions WHERE id=?');
-  const touch = db.prepare('UPDATE sessions SET expires_at=? WHERE id=?');
+  const touch = db.prepare('UPDATE sessions SET expires_at=?, last_seen=? WHERE id=?');
   const purge = db.prepare('DELETE FROM sessions WHERE expires_at < ?');
 
-  const ttl = () => config.sessionHours * 3600 * 1000;
+  const idle = idlePolicy(settings, policy);
+  // Kept in the table until then (cleanup); the actual idle check uses last_seen per request
+  const ttl = () => idle.base();
+  // "Sign out when the browser closes": cookie without expiry (the browser drops it at the end)
+  const browserSession = () => !!settings?.get('session.browserSession');
 
-  function cookieOpts() {
-    return { httpOnly: true, sameSite: 'lax', secure: config.secureCookies, path: '/', maxAge: ttl() };
+  function cookieOpts(maxAge = ttl()) {
+    const o = { httpOnly: true, sameSite: 'lax', secure: config.secureCookies, path: '/' };
+    return browserSession() ? o : { ...o, maxAge };
+  }
+
+  /** Time left for this request's session (idle period and maximum lifetime) */
+  function remaining(req, row, now = Date.now()) {
+    const seen = Number(row.session_seen) || Number(row.session_created);
+    const idleMs = idle.forRequest(req, row);
+    const left = Math.min(seen + idleMs, Number(row.session_created) + SESSION_MAX_AGE_MS) - now;
+    return { idleMs, remainingMs: Math.max(0, left) };
   }
 
   return {
     create(res, userId, ip, method, { mfa = false } = {}) {
       const id = randomToken(32);
       const now = Date.now();
-      insert.run(id, userId, now + ttl(), now, ip || null, method, mfa ? 1 : 0);
+      insert.run(id, userId, now + ttl(), now, ip || null, method, mfa ? 1 : 0, now);
       db.prepare('UPDATE users SET last_login=? WHERE id=?').run(new Date().toISOString(), userId);
       res.cookie(COOKIE, id, cookieOpts());
       return id;
+    },
+    /** For the client: idle period, time left, warn before (only for a signed-in request) */
+    info(req) {
+      if (!req.user) return null;
+      return { ...remaining(req, req.user), warnMs: 2 * 60 * 1000, browserSession: browserSession() };
     },
     destroy(req, res) {
       const id = req.cookies?.[COOKIE];
@@ -40,20 +91,25 @@ export function createSessions(db, { policy } = {}) {
       const id = req.cookies?.[COOKIE];
       if (id) {
         let row = find.get(id);
-        // Older than the maximum lifetime: invalid (deleted below)
+        // Older than the maximum lifetime or idle for too long: invalid (deleted below)
         if (row && !(Date.now() - Number(row.session_created) < SESSION_MAX_AGE_MS)) row = { ...row, expires_at: 0 };
+        if (row && row.expires_at > 0 && remaining(req, row).remainingMs <= 0) row = { ...row, expires_at: 0 };
         if (row && row.expires_at > Date.now() && row.active && !row.session_mfa && policy?.mfaRequired(req, row)) {
           // Session without second factor (e.g. signed in at the office), but now from outside → sign in again
           req.mfaBlocked = true;
         } else if (row && row.expires_at > Date.now() && row.active) {
           req.user = row;
           req.sessionId = id;
-          // sliding extension, write at most once per minute
-          // (but never beyond the maximum lifetime from sign-in)
-          const until = Math.min(Date.now() + ttl(), Number(row.session_created) + SESSION_MAX_AGE_MS);
-          if (until - row.expires_at > 60000) {
-            touch.run(until, id);
-            res.cookie(COOKIE, id, { ...cookieOpts(), maxAge: until - Date.now() });
+          // Activity: remember it at most once per minute (never beyond the maximum lifetime).
+          // Asking for the remaining time is not activity.
+          const now = Date.now();
+          const seen = Number(row.session_seen) || 0;
+          if (!String(req.originalUrl || req.url || '').startsWith(STATUS_PATH) && now - seen > TOUCH_EVERY_MS) {
+            const until = Math.min(now + ttl(), Number(row.session_created) + SESSION_MAX_AGE_MS);
+            touch.run(until, now, id);
+            row.session_seen = now;
+            req.user = row;
+            res.cookie(COOKIE, id, cookieOpts(until - now));
           }
         } else if (row) {
           del.run(id);

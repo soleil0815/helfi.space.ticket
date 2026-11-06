@@ -283,7 +283,40 @@ async function securityPage(body, s) {
       field(t('mfa.ssoSecondFactor'), bindSelect(s, 'mfa.ssoSecondFactor', ['confirmed', 'always', 'never'].map((v) => [v, t(`mfa.sso.${v}`)])), t('mfa.ssoSecondFactorHint')),
       s['oidc.enabled'] && s['mfa.ssoSecondFactor'] === 'always' ? h('div.hint-box.hint-warn', icon('warning'), h('p', t('mfa.ssoAlwaysWarn'))) : null,
       saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })),
+    sessionPanel(s),
     registrationPanel(s, netInfo.levels));
+}
+
+// Automatic sign-out after inactivity (minutes; 0 = everyone: HELFI_SESSION_HOURS, others: not shorter)
+const IDLE_CHOICES = [5, 15, 30, 60, 120, 240, 480, 720, 1440, 4320, 10080];
+function idleLabel(min) {
+  if (min < 60) return t('idle.minutes', { n: min });
+  if (min < 1440) return t(min === 60 ? 'idle.hour' : 'idle.hours', { n: min / 60 });
+  return t(min === 1440 ? 'idle.day' : 'idle.days', { n: min / 1440 });
+}
+function sessionPanel(s) {
+  const opts = (zero) => {
+    const list = [[0, zero], ...IDLE_CHOICES.map((m) => [m, idleLabel(m)])];
+    // A value set by hand that is not in the list stays selectable
+    for (const k of ['session.idleMinutes', 'session.adminIdleMinutes', 'session.externalIdleMinutes']) {
+      const v = Number(s[k]) || 0;
+      if (v && !list.some(([m]) => m === v)) list.push([v, idleLabel(v)]);
+    }
+    return list.sort((a, b) => a[0] - b[0]).map(([v, l]) => [String(v), l]);
+  };
+  const sel = (key, zero) => {
+    s[key] = String(Number(s[key]) || 0);
+    return bindSelect(s, key, opts(zero));
+  };
+  return h('section.panel',
+    h('h2', t('idle.adminTitle')),
+    h('p.muted', t('idle.adminIntro')),
+    h('div.grid-3eq',
+      field(t('idle.everyone'), sel('session.idleMinutes', t('idle.fromEnv')), t('idle.everyoneHint')),
+      field(t('idle.admins'), sel('session.adminIdleMinutes', t('idle.notShorter')), t('idle.adminsHint')),
+      field(t('idle.external'), sel('session.externalIdleMinutes', t('idle.notShorter')), t('idle.externalHint'))),
+    field(t('idle.browserSession'), bindCheck(s, 'session.browserSession'), t('idle.browserSessionHint')),
+    saveBar(async () => { if (await saveKeys(s, ['session.'])) route(); }));
 }
 
 // Self-registration and "forgot password"

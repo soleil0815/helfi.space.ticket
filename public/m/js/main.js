@@ -1,5 +1,6 @@
 // Mobile UI (/m): start, sign-in state, app shell with tab bar, routes.
 import { api } from '/js/api.js';
+import { initIdle } from '/js/idle.js';
 import { h, mount, icon, toast, loadSprite } from '/js/dom.js';
 import { t, setLang, browserLang } from '/js/i18n.js';
 import { state } from '/js/state.js';
@@ -190,6 +191,7 @@ function trackKeyboard() {
 
 async function start() {
   const app = document.getElementById('m-app');
+  initIdle({ login: '/m/login' });
   trackKeyboard();
   setupPwa();
   try {

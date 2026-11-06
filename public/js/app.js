@@ -5,6 +5,7 @@ import { h, mount, icon, avatar, dropdown, toast, loadSprite } from './dom.js';
 import { t, setLang, getLang, browserLang } from './i18n.js';
 import { renderLogin, renderSetup } from './views/auth.js';
 import { renderRegister, renderRegisterConfirm, renderForgot, renderReset } from './views/account.js';
+import { initIdle } from './idle.js';
 import { renderBoard } from './views/board.js';
 import { renderList, renderMyWork } from './views/list.js';
 import { renderTicket, openCreateDialog } from './views/ticket.js';
@@ -86,6 +87,7 @@ export async function setLanguage(lang) {
 }
 
 async function start() {
+  initIdle({ login: '/login' });
   try {
     [state.boot] = await Promise.all([api.bootstrap(), loadSprite()]);
   } catch {

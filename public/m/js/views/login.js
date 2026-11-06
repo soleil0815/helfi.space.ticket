@@ -1,5 +1,6 @@
 // Mobile sign-in: user name/password, SSO, error from ?error=, two-factor code step.
 import { api } from '/js/api.js';
+import { takeIdleNote } from '/js/idle.js';
 import { h, icon, toast } from '/js/dom.js';
 import { t, getLang, setLang } from '/js/i18n.js';
 import { state } from '/js/state.js';
@@ -36,10 +37,13 @@ export function renderLogin(page) {
     return step === 'code' ? renderCode(page) : renderEnroll(page);
   }
   const oidc = state.boot.auth.oidc;
-  if (oidc?.autoRedirect && !params.has('error') && !params.has('local')) {
+  // Signed out for inactivity: show it (and do not sign in again silently via SSO)
+  const idleNote = takeIdleNote();
+  if (oidc?.autoRedirect && !idleNote && !params.has('error') && !params.has('local')) {
     location.href = '/auth/oidc/start';
     return;
   }
+  const idleHint = idleNote ? h('div.m-alert.m-alert-info', { role: 'status' }, icon('clock'), h('span', t('idle.signedOut'))) : null;
   const error = params.get('error');
   const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: !error }, error ? t(`login.err.${error}`) : '');
   const mfaHint = state.boot.mfa && !state.boot.mfa.internal && state.boot.mfa.mode !== 'off'
@@ -67,6 +71,7 @@ export function renderLogin(page) {
     },
   },
   ...loginIntro(state.boot.login),
+  idleHint,
   mfaHint,
   err,
   fieldEl(loginUserLabel(state.boot.login) || t('login.username'), user, loginUserHint(state.boot.auth)),

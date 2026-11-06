@@ -9,7 +9,7 @@ import { createItilRoutes } from './itil.js';
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
-import { requireAuth, requireRole, isAgent } from '../auth/session.js';
+import { requireAuth, requireRole, isAgent, idleMinutes } from '../auth/session.js';
 import { publicUser, userRef, roleFromGroups, normalizeEmail } from '../users.js';
 import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
@@ -58,6 +58,7 @@ export function createApi(ctx) {
       pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
       adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // people search in AD available
       ai: !!(req.user && isAgent(req.user) && ctx.ai.ready()), // AI assistance (summary, reply suggestion)
+      session: ctx.sessions.info(req), // automatic sign-out: idle period, time left (signed in only)
       // News of the current version that this account has not seen yet
       news: req.user ? ctx.news.unseen(req.user) : null,
       maxUploadMb: config.maxUploadMb, // upload limit per file (the mobile UI checks it before uploading)
@@ -186,6 +187,10 @@ export function createApi(ctx) {
   r.post('/auth/register/confirm', wrap(async (req, res) => res.json(ctx.selfService.confirmRegistration(req.body.token))));
   r.post('/auth/password/forgot', wrap(async (req, res) => res.json(ctx.selfService.requestReset(req))));
   r.post('/auth/password/reset', wrap(async (req, res) => res.json(ctx.selfService.resetPassword(req))));
+
+  // Automatic sign-out: "status" does not count as activity (see session.js), "ping" does
+  r.get('/session/status', requireAuth, (req, res) => res.json(ctx.sessions.info(req)));
+  r.post('/session/ping', requireAuth, (req, res) => res.json(ctx.sessions.info(req)));
 
   r.post('/auth/logout', (req, res) => {
     sessions.destroy(req, res);
@@ -667,6 +672,9 @@ export function createApi(ctx) {
     if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     if (incoming['backup.keep'] !== undefined) incoming['backup.keep'] = clampBackupKeep(incoming['backup.keep']);
     if (incoming['register.passwordReset'] !== undefined && !RESET_MODES.includes(incoming['register.passwordReset'])) throw new HttpError(400, 'err.badRequest', 'register.passwordReset');
+    for (const k of ['session.idleMinutes', 'session.adminIdleMinutes', 'session.externalIdleMinutes']) {
+      if (incoming[k] !== undefined) incoming[k] = idleMinutes(incoming[k]);
+    }
     if (incoming['ai.reasoning'] !== undefined && !REASONING.includes(incoming['ai.reasoning'])) throw new HttpError(400, 'err.badRequest', 'ai.reasoning');
     if (incoming['ai.baseUrl'] !== undefined && String(incoming['ai.baseUrl']).trim()) {
       let u = null;

@@ -601,6 +601,16 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 27,
+    name: 'Automatische Abmeldung nach Inaktivität',
+    sql: `
+    -- Last activity of a session (idle check per request: the period depends on role and network)
+    ALTER TABLE sessions ADD COLUMN last_seen INTEGER;
+    -- Existing sessions count as active now (otherwise long-running ones would end at once)
+    UPDATE sessions SET last_seen = CAST(strftime('%s','now') AS INTEGER) * 1000;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
