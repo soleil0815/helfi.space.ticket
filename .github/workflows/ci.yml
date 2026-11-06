@@ -71,12 +71,10 @@ jobs:
       # fail instead of skipping when it is missing.
       PLAYWRIGHT_VERSION: '1.63.0'
       HELFI_REQUIRE_BROWSER: '1'
-      HELFI_REQUIRE_TAGS: '1' # test/news-release.test.js compares with the last release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0 # release tags for the news check
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -222,6 +220,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # release tags: news items get the version they were first shipped with
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
@@ -234,6 +233,8 @@ jobs:
         run: |
           sed -i "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$V\"/" package.json
           grep -q "^  \"version\": \"$V\"," package.json || { echo "::error::Version not set"; exit 1; }
+          # Upcoming news items (version "") get their release version – no follow-up pull request
+          node scripts/news-versions.mjs "$V" src/news.json
       - name: Build and push candidate (${{ matrix.arch }}, no cache)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:

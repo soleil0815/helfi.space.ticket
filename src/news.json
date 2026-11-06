@@ -1,5 +1,5 @@
 {
-  "_note": "News per version, newest first. version \"\" = upcoming version (automatically becomes the new number at release). With the next new entry, fill in the previous version. audience: all | agent | admin.",
+  "_note": "News per version, newest first. New items go into an entry with version \"\" (create it at the top if missing) – never fill in a number by hand: the release workflow (scripts/news-versions.mjs) gives each item the version it was first shipped with. audience: all | agent | admin.",
   "entries": [
     {
       "version": "1.27.0",
