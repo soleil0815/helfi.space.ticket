@@ -599,7 +599,7 @@ Rebuild the manual (after changes in `docs/manual/`): `npm install --no-save pla
 
 Structure: `src/` server (Express, better-sqlite3), `public/` UI (plain JavaScript without a build step), `src/i18n.js` and `public/js/i18n.js` for the texts (de/en).
 
-What's new: `src/news.json`, per version items for `all`, `agent` or `admin` (de/en). New items go into the top entry with `"version": ""` – that is the next version, the build sets the number. Once that version is released and something new is added, put the number into that entry and add a new empty one on top. Users see the items once after the update, all versions are listed under *What's new*.
+What's new: `src/news.json`, per version items for `all`, `agent` or `admin` (de/en). New items go into an entry with `"version": ""` (create it at the top if there is none) – a number is never filled in by hand: at release, `scripts/news-versions.mjs` assigns each item, based on the release tags, to the version it was first shipped with; new items get the version being built. So nothing needs to be done after a release. Users see the items once after the update, all versions are listed under *What's new*.
 
 Releases: *Actions → CI → Run workflow*, branch `main`, choose `patch`, `minor` or `major` under "Release". The version counts up by itself (highest tag + 1), no need to edit `package.json`. CI tests, builds the images for amd64 and arm64 natively, scans for vulnerabilities and only then creates the tag, images and GitHub release. This is the only way to a release: a manually pushed tag starts nothing. Only one release runs at a time; exactly the scanned image (same digest) is published. The base image is pinned by digest; Dependabot proposes new digests weekly.
 

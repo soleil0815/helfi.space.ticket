@@ -1,5 +1,6 @@
 // What's new per version (src/news.json): shown once after an update, all versions can be looked up.
-// Entry with version "" = the version currently built (config.version) – so nothing needs to be changed at release.
+// Entry with version "" = the version currently built (config.version). Release builds assign the real
+// versions beforehand (scripts/news-versions.mjs), so nothing needs to be changed by hand at release.
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
