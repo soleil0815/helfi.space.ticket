@@ -1,13 +1,20 @@
 # Check dependencies, actions and base image weekly
 version: 2
 updates:
+  # Minor and patch updates as ONE pull request per week (fewer CI runs); major versions stay separate
   - package-ecosystem: npm
     directory: /
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    groups:
+      actions:
+        patterns: ['*']
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }

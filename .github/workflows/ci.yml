@@ -1,5 +1,9 @@
 # Tests, image checks and (from main only) publishing.
-# - Pull requests and main: tests, AD integration test, image build, smoke test (hardened), vulnerability scan
+# - Pull requests: tests; AD integration test and image build/smoke test/vulnerability scan only when
+#   relevant files changed (.github/scripts/changes.sh) – a documentation-only change just runs the tests.
+#   A newer push to the same pull request cancels the older run.
+# - main after a merge: only the image build (keeps the build cache warm). The pull request was tested
+#   already, and every release runs ALL checks again before publishing.
 # - Release by button: Actions → CI → Run workflow (branch main) → Release: patch/minor/major.
 #   The version increments itself (highest tag + 1); the CI creates the tag and the GitHub release.
 #   This is the ONLY way to a release – a manually pushed tag triggers nothing.
@@ -30,14 +34,36 @@ permissions:
 # Never run releases concurrently (a second button press waits); other runs per branch/PR
 concurrency:
   group: ${{ github.event_name == 'workflow_dispatch' && 'release' || format('ci-{0}', github.ref) }}
-  cancel-in-progress: false
+  # outdated runs of a pull request are cancelled; releases and main never
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  test:
+  # Which checks does this run need? (pull requests: by changed files; otherwise everything)
+  changes:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.c.outputs.code }}
+      ad: ${{ steps.c.outputs.ad }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: c
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || '' }}
+        run: sh .github/scripts/changes.sh "$BASE" "$HEAD"
+
+  test:
+    # main after a merge: already tested in the pull request
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     env:
       # Browser tests (test/mobile*.test.js, people-picker, UI audit) need Playwright with Chromium.
       # It is not a dependency of the app: installed below at this exact version, outside the
@@ -85,7 +111,10 @@ jobs:
           dash -n update.sh && dash -n docker/entrypoint.sh
 
   ad-integration:
+    needs: [changes]
+    if: github.event_name != 'push' && needs.changes.outputs.ad == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -108,8 +137,12 @@ jobs:
 
   # Build and check the image (no write permissions, no publishing)
   image:
-    needs: [test, ad-integration]
+    needs: [changes, test, ad-integration]
+    # Runs when code changed and nothing before it failed (skipped checks are fine)
+    if: >-
+      !cancelled() && !contains(needs.*.result, 'failure') && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -145,6 +178,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && inputs.release != 'nein' && github.ref == 'refs/heads/main'
     needs: [image]
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.v.outputs.version }}
       latest: ${{ steps.v.outputs.latest }}
@@ -180,6 +214,7 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     permissions:
       contents: read
       packages: write
@@ -218,6 +253,7 @@ jobs:
   publish:
     needs: [release-check, release-build]
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     # Environment "release": only allowed from branch main (repository setting)
     environment: release
     permissions:
