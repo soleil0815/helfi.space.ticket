@@ -181,5 +181,7 @@ test('Translations: same keys, texts in the right language, no product name', as
   const eng = /\b(the|is|with|and|not|please|of|to|in source|for|this|you|your)\b/i;
   assert.deepEqual(Object.keys(en).filter((k) => ger.test(en[k])), []);
   assert.deepEqual(Object.keys(de).filter((k) => eng.test(de[k]) && !/[äöüß]/.test(de[k])), []);
-  assert.deepEqual(Object.keys(de).filter((k) => /jira/i.test(`${de[k]} ${en[k]}`)), []);
+  // The product name only where it names the import source (otherwise the tile is not recognisable)
+  const jiraAllowed = new Set(['imp.src.jira', 'imp.intro']);
+  assert.deepEqual(Object.keys(de).filter((k) => !jiraAllowed.has(k) && /jira/i.test(`${de[k]} ${en[k]}`)), []);
 });
