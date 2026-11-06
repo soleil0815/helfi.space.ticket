@@ -601,6 +601,8 @@ What's new: `src/news.json`, per version items for `all`, `agent` or `admin` (de
 
 Releases: *Actions → CI → Run workflow*, branch `main`, choose `patch`, `minor` or `major` under "Release". The version counts up by itself (highest tag + 1), no need to edit `package.json`. CI tests, builds the images for amd64 and arm64 natively, scans for vulnerabilities and only then creates the tag, images and GitHub release. This is the only way to a release: a manually pushed tag starts nothing. Only one release runs at a time; exactly the scanned image (same digest) is published. The base image is pinned by digest; Dependabot proposes new digests weekly.
 
+Economical CI: pull requests always run the tests; the AD integration test only when sign-in/AD code, dependencies or the workflows changed, image build and vulnerability scan only when not only documentation changed (`.github/scripts/changes.sh`). A new push to the same PR cancels the older run. After a merge to `main` only the image is built (keeps the build cache warm) – a release runs all checks again anyway. Every job has a time limit; Dependabot bundles minor updates into one PR per week.
+
 ## License
 
 MIT – see [LICENSE](LICENSE).

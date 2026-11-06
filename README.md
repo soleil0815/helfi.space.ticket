@@ -601,6 +601,8 @@ Neuigkeiten: `src/news.json`, je Version Punkte für `all`, `agent` oder `admin`
 
 Releases: *Actions → CI → Run workflow*, Branch `main`, bei „Release“ `patch`, `minor` oder `major` wählen. Die Version zählt sich selbst hoch (höchster Tag + 1), `package.json` muss nicht angepasst werden. Die CI testet, baut die Images für amd64 und arm64 nativ, prüft auf Schwachstellen und legt erst danach Tag, Images und GitHub-Release an. Das ist der einzige Weg zu einem Release: Ein von Hand gepushter Tag startet nichts. Es läuft immer nur ein Release gleichzeitig; freigegeben wird genau das geprüfte Image (gleicher Digest). Das Basis-Image ist per Digest festgelegt; neue Digests schlägt Dependabot wöchentlich vor.
 
+CI sparsam: Pull Requests laufen immer durch die Tests; der AD-Integrationstest nur, wenn sich Anmeldung/AD, Abhängigkeiten oder die Workflows geändert haben, Image-Bau und Schwachstellen-Scan nur, wenn nicht ausschließlich Doku geändert wurde (`.github/scripts/changes.sh`). Ein neuer Push auf denselben PR bricht den alten Lauf ab. Nach dem Merge auf `main` wird nur das Image gebaut (hält den Build-Cache warm) – ein Release führt ohnehin alle Prüfungen erneut aus. Jeder Job hat ein Zeitlimit; Dependabot fasst kleinere Updates zu einem PR pro Woche zusammen.
+
 ## Lizenz
 
 MIT – siehe [LICENSE](LICENSE).
