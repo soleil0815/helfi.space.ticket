@@ -174,11 +174,13 @@ test('External with app code; code only once; half-login expires after failed at
   db.prepare("UPDATE users SET totp_last_step=0 WHERE username='max'").run();
   const ext = client(EXTERN);
   await ext('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
-  let r = await ext('POST', '/api/auth/mfa', { code: code(secret) });
+  // One code for both attempts: computing it twice could cross a 30-second step and give a new, valid code
+  const once = code(secret);
+  let r = await ext('POST', '/api/auth/mfa', { code: once });
   assert.equal(r.status, 200);
   const ext2 = client(EXTERN);
   await ext2('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
-  r = await ext2('POST', '/api/auth/mfa', { code: code(secret) });
+  r = await ext2('POST', '/api/auth/mfa', { code: once });
   assert.equal(r.status, 401, 'the same code not a second time');
   // Without a prior password login there is no code step
   const anon = client(EXTERN);
