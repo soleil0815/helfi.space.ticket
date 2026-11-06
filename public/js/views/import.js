@@ -5,7 +5,7 @@ import { t } from '../i18n.js';
 import { reloadBase } from '../app.js';
 
 // Connection data only in page memory – it is never stored
-const emptyConn = () => ({ type: 'cloud', baseUrl: '', email: '', token: '', username: '', password: '', verifyTls: true, caPem: '', uploadId: '', name: '', columns: {} });
+const emptyConn = () => ({ type: 'cloud', baseUrl: '', email: '', token: '', appToken: '', username: '', password: '', verifyTls: true, caPem: '', uploadId: '', name: '', columns: {} });
 let source = 'zammad';
 let conn = emptyConn();
 let csvInfo = null; // { headers, rows, preview, suggested, fields }
@@ -16,6 +16,9 @@ let pollTimer = null;
 const SOURCES = [
   { id: 'zammad', icon: 'inbox' },
   { id: 'znuny', icon: 'server' },
+  { id: 'glpi', icon: 'monitor' },
+  { id: 'zendesk', icon: 'comment' },
+  { id: 'freshdesk', icon: 'mail' },
   { id: 'jira', icon: 'globe' },
   { id: 'csv', icon: 'file' },
 ];
@@ -103,6 +106,25 @@ function connectStep(body, lastJob) {
         h('div.grid-2', field(t('imp.znuny.user'), bind('username', { autocomplete: 'off' })), field(t('login.password'), bind('password', { type: 'password', autocomplete: 'new-password' }))),
         h('div.hint-box', icon('info'), h('div', h('p', t('imp.znuny.setup')))),
         tls());
+    } else if (source === 'glpi') {
+      mount(form,
+        field(t('imp.glpi.url'), bind('baseUrl', { placeholder: 'https://glpi.firma.local/apirest.php' }), t('imp.glpi.urlHint')),
+        h('div.grid-2',
+          field(t('imp.glpi.userToken'), bind('token', { type: 'password', autocomplete: 'new-password' }), t('imp.glpi.userTokenHint')),
+          field(t('imp.glpi.appToken'), bind('appToken', { type: 'password', autocomplete: 'new-password' }), t('imp.glpi.appTokenHint'))),
+        h('details', h('summary', t('imp.basicAuth')),
+          h('div.grid-2', field(t('login.username'), bind('username', { autocomplete: 'off' })), field(t('login.password'), bind('password', { type: 'password', autocomplete: 'new-password' })))),
+        tls());
+    } else if (source === 'zendesk') {
+      mount(form,
+        field(t('imp.url'), bind('baseUrl', { placeholder: 'https://firma.zendesk.com' }), t('imp.zendesk.urlHint')),
+        h('div.grid-2',
+          field(t('imp.email'), bind('email', { type: 'email', autocomplete: 'off', placeholder: 'admin@firma.local' })),
+          field(t('imp.apiToken'), bind('token', { type: 'password', autocomplete: 'new-password' }), t('imp.zendesk.tokenHint'))));
+    } else if (source === 'freshdesk') {
+      mount(form,
+        field(t('imp.url'), bind('baseUrl', { placeholder: 'https://firma.freshdesk.com' }), t('imp.freshdesk.urlHint')),
+        field(t('imp.freshdesk.key'), bind('token', { type: 'password', autocomplete: 'new-password' }), t('imp.freshdesk.keyHint')));
     } else {
       mount(form, csvForm());
     }

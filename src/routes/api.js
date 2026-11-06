@@ -8,6 +8,9 @@ import { viewerDocument } from '../mail/html.js';
 import { createItilRoutes } from './itil.js';
 import { zammadAdapter } from '../import/zammad.js';
 import { znunyAdapter } from '../import/znuny.js';
+import { glpiAdapter } from '../import/glpi.js';
+import { zendeskAdapter } from '../import/zendesk.js';
+import { freshdeskAdapter } from '../import/freshdesk.js';
 import { csvAdapter, readCsv, suggestColumns, CSV_FIELDS, MAX_CSV_BYTES } from '../import/csv.js';
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
@@ -890,7 +893,7 @@ export function createApi(ctx) {
   admin.get('/import/status', (req, res) => res.json({ job: ctx.importer.status() }));
   admin.post('/import/cancel', (req, res) => res.json({ job: ctx.importer.cancel() }));
 
-  // ---------- Import from Zammad, Znuny/OTRS and CSV files ----------
+  // ---------- Import from Zammad, Znuny/OTRS, GLPI, Zendesk, Freshdesk and CSV files ----------
   // Connection data is never stored; an uploaded CSV file stays in memory only (latest one, 2 hours)
   let csvFile = null;
   const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_CSV_BYTES, files: 1 } });
@@ -907,6 +910,9 @@ export function createApi(ctx) {
     const c = body?.connection || {};
     if (source === 'zammad') return zammadAdapter({ baseUrl: baseUrlOf(c), token: str(c.token, 2000).trim(), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
     if (source === 'znuny') return znunyAdapter({ baseUrl: baseUrlOf(c), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
+    if (source === 'glpi') return glpiAdapter({ baseUrl: baseUrlOf(c), token: str(c.token, 2000).trim(), appToken: str(c.appToken, 2000).trim(), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
+    if (source === 'zendesk') return zendeskAdapter({ baseUrl: baseUrlOf(c), email: str(c.email, 254).trim(), token: str(c.token, 2000).trim(), ...tlsConn(c) });
+    if (source === 'freshdesk') return freshdeskAdapter({ baseUrl: baseUrlOf(c), token: str(c.token, 2000).trim(), ...tlsConn(c) });
     if (source === 'csv') {
       if (!csvFile || csvFile.id !== str(c.uploadId, 64) || Date.now() - csvFile.at > 2 * 3600_000) throw new HttpError(400, 'err.importFileGone');
       const columns = Object.fromEntries(Object.entries(c.columns && typeof c.columns === 'object' ? c.columns : {}).map(([k, v]) => [str(k, 40), str(v, 200)]).filter(([, v]) => v));
@@ -914,7 +920,7 @@ export function createApi(ctx) {
     }
     throw notFound();
   }
-  const SOURCES = ['zammad', 'znuny', 'csv'];
+  const SOURCES = ['zammad', 'znuny', 'glpi', 'zendesk', 'freshdesk', 'csv'];
   const sourceParam = (req) => { if (!SOURCES.includes(req.params.source)) throw notFound(); return req.params.source; };
   const importFail = (res, e) => {
     if (e instanceof HttpError) throw e;
