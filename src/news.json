@@ -5,6 +5,14 @@
       "version": "",
       "date": "",
       "items": [
+        { "audience": "agent", "de": "Mehrfachauswahl: Jede Statusänderung kann einen Kommentar mitnehmen – als Antwort an Melder oder als interne Notiz. Neu sind „Kommentieren“ und „Verknüpfen …“, z. B. alle Störungsmeldungen auf einmal mit „wird verursacht durch IT-42“.", "en": "Multi-select: every status change can carry a comment – as a reply to reporters or as an internal note. New: “Comment” and “Link …”, e.g. all incident reports at once with “is caused by IT-42”." },
+        { "audience": "agent", "de": "Verknüpfen geht jetzt schneller über den Knopf oben neben dem Status – und auch auf dem Handy unter „Details“.", "en": "Linking is now quicker via the button at the top next to the status – and also on phones under “Details”." }
+      ]
+    },
+    {
+      "version": "1.21.0",
+      "date": "2026-11-06",
+      "items": [
         { "audience": "all", "de": "Automatische Abmeldung nach Inaktivität: Zwei Minuten vorher fragt Helfi „Noch da?“ – mit „Weiterarbeiten“ geht es einfach weiter. Solange du arbeitest, auch beim Tippen, bleibst du angemeldet.", "en": "Automatic sign-out after inactivity: two minutes before, Helfi asks “Still there?” – “Keep working” simply continues. As long as you work, including typing, you stay signed in." },
         { "audience": "admin", "de": "Neu unter Administration → Sicherheit: Fristen für die automatische Abmeldung (für alle, für Admins, von außen) und „Beim Schließen des Browsers abmelden“. Admins werden ab jetzt standardmäßig nach 60 Minuten ohne Aktivität abgemeldet.", "en": "New under Administration → Security: periods for automatic sign-out (everyone, admins, from outside) and “Sign out when the browser is closed”. Admins are now signed out after 60 minutes without activity by default." }
       ]

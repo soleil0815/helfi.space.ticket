@@ -4,7 +4,7 @@ import { h, mount, icon, lozenge, typeIcon, toast, avatar } from '../dom.js';
 import { t } from '../i18n.js';
 
 // Choice from the current ticket's point of view → [kind, reversed?]
-const CHOICES = [
+export const CHOICES = [
   ['relates', 'relates', false], ['duplicates', 'duplicates', false], ['duplicatedBy', 'duplicates', true],
   ['blocks', 'blocks', false], ['blockedBy', 'blocks', true], ['causes', 'causes', false], ['causedBy', 'causes', true],
   ['childOf', 'parent', false], ['parentOf', 'parent', true],
@@ -26,7 +26,7 @@ function row(tk, l, refresh) {
 }
 
 /** Ticket number input with suggestions from the search */
-function ticketPicker(currentKey) {
+export function ticketPicker(currentKey) {
   const listId = `tp-${Math.random().toString(36).slice(2, 8)}`;
   const input = h('input.link-target', { placeholder: t('link.targetHint'), list: listId, autocomplete: 'off', required: true });
   const dl = h('datalist', { id: listId });
@@ -98,7 +98,7 @@ export function linksSection(tk, refresh) {
   }
   const done = children.filter((c) => c.ticket.status === 'done').length;
 
-  return h('section.ticket-section.links-section',
+  const section = h('section.ticket-section.links-section',
     h('div.section-head',
       h('h3', t('link.title'), links.length ? h('span.count', links.length) : null),
       h('span.spacer'),
@@ -111,4 +111,10 @@ export function linksSection(tk, refresh) {
       children.map((l) => row(tk, l, refresh))) : null,
     subForm,
     [...groups].map(([label, items]) => h('div.link-group', h('div.link-group-label', label), items.map((l) => row(tk, l, refresh)))));
+  // For the "Link" button in the ticket header: open the form and bring it into view
+  section.openLinkForm = () => {
+    openForm();
+    section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  return section;
 }
