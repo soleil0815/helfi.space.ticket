@@ -251,7 +251,7 @@ In *All tickets* (agents):
 
 ## Links and subtasks
 
-In the ticket view (agents) under *Links* – or faster via **Link** at the top next to the status; on phones under *Details*. Many tickets at once are linked from the multi-select.
+In the ticket view (agents) under *Links* – or faster via **Link** at the top next to the status; on phones under *Details*. Many tickets at once are linked from the multi-select. The ticket field searches by number or keyword (title, description, comments); while it is empty there are suggestions: **possible cause** (open problems and major incidents) and **similar tickets** (the same striking words in title and description, without those already linked).
 
 - **Link:** “relates to”, “duplicates”, “blocks” / “is blocked by”, “causes” / “is caused by”, “is subtask of” / “has subtask”. The other ticket shows the link automatically, both get a history entry. With “duplicates” the ticket can be set to “Done” right away.
 - **Subtasks:** create them directly (a task in the same project) or put existing tickets underneath. A progress bar shows “x of y done”. A ticket has at most one parent, circles are rejected.
@@ -346,7 +346,7 @@ On phones Helfi.Space opens automatically in its own app-like interface (under `
 
 - **Tab bar at the bottom:** *My work* or *Requests*, *Tickets* (agents), the round **＋** button, *Knowledge* and *Me*. Pages slide in like in an app; go back with the button, a swipe from the left edge or the back key. Pull lists down to refresh.
 - **Report (＋):** report a problem with title, description, **Take photo** or **File**; agents also choose project, type and priority (as on the PC). While you type the title, Helfi.Space suggests matching knowledge articles. If there is a service catalog, its offerings appear as large tiles next to it – with all field types, required fields and approval. An unsent draft is kept until the tab is closed.
-- **Ticket:** activity like a chat, reply bar at the bottom with photos and files; agents also write internal notes, use templates, change status, assignee, priority, type and participants and approve requests. Title and description can be changed by agents and by the reporter.
+- **Ticket:** comments like a chat, reply bar at the bottom with photos and files; agents add the history (status, assignments …) via *All* – the phone remembers the choice. Agents also write internal notes, use templates, change status, assignee, priority, type and participants, link tickets and approve requests. Title and description can be changed by agents and by the reporter.
 - **Knowledge:** search, categories, *Recently viewed*, *Most read* and the page tree to browse. Articles with a table of contents, sideways-scrolling tables and comments. Articles are edited on the PC (*Edit on desktop*). Users only see public articles.
 - **Me:** name, email and password (local accounts), language, **two-factor authentication** right on the phone (secret key to copy and an *Open in authenticator app* button instead of a QR code, the QR code stays available for a second device; then the recovery codes to copy or share), what's new and *Desktop view*.
 - **Install as an app:** iPhone/iPad: in Safari *Share* → *Add to Home Screen*. Android: in Chrome ⋮ → *Install app* (or the button under *Me → Install app*). Helfi.Space then starts full screen with its own icon; a small service worker keeps only the program files ready and shows a notice page without a connection. New versions arrive automatically ("New version – Reload").

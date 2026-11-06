@@ -5,6 +5,14 @@
       "version": "",
       "date": "",
       "items": [
+        { "audience": "agent", "de": "Verknüpfen mit Suche und Vorschlägen: Im Feld nach Nummer oder Stichwort suchen; solange es leer ist, schlägt Helfi mögliche Ursachen (offene Probleme, Major Incidents) und ähnliche Tickets vor – auch in der Mehrfachauswahl und auf dem Handy.", "en": "Linking with search and suggestions: search the field by number or keyword; while it is empty, Helfi suggests possible causes (open problems, major incidents) and similar tickets – also in the multi-select and on phones." },
+        { "audience": "agent", "de": "Auf dem Handy zeigt ein Ticket jetzt nur die Kommentare; der Verlauf (Status, Zuweisungen …) kommt über „Alle“ dazu – das Handy merkt sich die Wahl.", "en": "On phones a ticket now shows only the comments; the history (status, assignments …) is added via “All” – the phone remembers the choice." }
+      ]
+    },
+    {
+      "version": "1.22.0",
+      "date": "2026-11-06",
+      "items": [
         { "audience": "agent", "de": "Mehrfachauswahl: Jede Statusänderung kann einen Kommentar mitnehmen – als Antwort an Melder oder als interne Notiz. Neu sind „Kommentieren“ und „Verknüpfen …“, z. B. alle Störungsmeldungen auf einmal mit „wird verursacht durch IT-42“.", "en": "Multi-select: every status change can carry a comment – as a reply to reporters or as an internal note. New: “Comment” and “Link …”, e.g. all incident reports at once with “is caused by IT-42”." },
         { "audience": "agent", "de": "Verknüpfen geht jetzt schneller über den Knopf oben neben dem Status – und auch auf dem Handy unter „Details“.", "en": "Linking is now quicker via the button at the top next to the status – and also on phones under “Details”." }
       ]

@@ -392,7 +392,15 @@ test('Ticket view: internal note and history for the agent, never for the user',
   await ready(agent.p);
   assert.match(await agent.p.textContent('.m-msg.internal'), /Trommel vermutlich defekt/);
   assert.ok(await agent.p.locator('.m-msg.internal .m-msg-internal').isVisible());
-  assert.ok(await agent.p.locator('.m-event').count() >= 3, 'history lines');
+  // Comments only by default; "All" adds the history lines and is remembered on the device
+  assert.equal(await agent.p.locator('.m-event').count(), 0, 'no history lines by default');
+  await agent.p.tap('.m-activity-head button:not(.active)');
+  assert.ok(await agent.p.locator('.m-event').count() >= 3, 'history lines with "All"');
+  await agent.p.reload();
+  await ready(agent.p);
+  assert.ok(await agent.p.locator('.m-event').count() >= 3, 'choice remembered');
+  await agent.p.tap('.m-activity-head button:not(.active)');
+  assert.equal(await agent.p.locator('.m-event').count(), 0);
   const img = await agent.p.$eval('.m-att-img img', (i) => { i.loading = 'eager'; return i.decode().then(() => i.naturalWidth).catch(() => 0); });
   assert.ok(img > 0, 'image thumbnail loads');
   assert.equal(await agent.p.getAttribute('.m-att-file', 'href'), `/api/attachments/${await agent.p.$eval('.m-att-file', (a) => a.getAttribute('href').match(/\d+/)[0])}?download=1`);

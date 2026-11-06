@@ -130,5 +130,22 @@ export function createSearch(db) {
     return null;
   }
 
-  return { flush, find, snippet, reindex };
+  /**
+   * Tickets that share words with a text ("similar tickets"): any of the words, best matches first
+   * (title counts most). Only public text – the same for every agent. Returns ticket ids.
+   */
+  function similar(words, { limit = 30 } = {}) {
+    const ws = [...new Set(words.map((w) => String(w).trim()).filter((w) => w.length >= 3))].slice(0, 12);
+    if (!ws.length) return [];
+    flush();
+    try {
+      return db.prepare(`SELECT f.rowid id FROM ticket_fts f WHERE ticket_fts MATCH ? ORDER BY bm25(ticket_fts, 10.0, 2.0, 0.0, 0.0, 0.0) LIMIT ?`)
+        .all(`{title public_text} : (${ws.map(ftsQuote).join(' OR ')})`, Math.min(200, limit)).map((r) => r.id);
+    } catch (e) {
+      if (e?.code?.startsWith?.('SQLITE_') || e?.name === 'SqliteError') return [];
+      throw e;
+    }
+  }
+
+  return { flush, find, snippet, reindex, similar };
 }
