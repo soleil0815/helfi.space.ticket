@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { h, mount, icon, toast, modal, field, dropdown } from './dom.js';
 import { t } from './i18n.js';
 import { openEmojiPicker } from './emoji.js';
-import { renderDoc, toMarkdown, linkTarget, safeImg, PANEL_KINDS, IMAGE_SIZES } from './kbdoc.js';
+import { renderDoc, toMarkdown, linkTarget, safeImg, PANEL_KINDS, IMAGE_SIZES, panelKind } from './kbdoc.js';
 
 const IMAGE_TYPES = /^image\/(png|jpeg|gif|webp)$/;
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -109,7 +109,7 @@ export function createKbEditor({
   const BLOCKS = [['p', 'kb.ed.normal'], ['h1', 'kb.ed.h1'], ['h2', 'kb.ed.h2'], ['h3', 'kb.ed.h3'], ['blockquote', 'kb.ed.quote'], ['pre', 'kb.ed.code']];
   function setBlock(wanted) {
     // Only the known block tags – never a tag name taken from elsewhere
-    const tag = BLOCK_TAGS.find((x) => x === wanted) || 'p';
+    const tag = BLOCK_TAGS[Math.max(0, BLOCK_TAGS.indexOf(wanted))];
     restore();
     const quote = closest('blockquote');
     if (quote && tag !== 'blockquote') { quote.replaceWith(...(quote.querySelector('p,h1,h2,h3,pre') ? quote.childNodes : [h('p', ...quote.childNodes)])); }
@@ -192,7 +192,8 @@ export function createKbEditor({
     if (existing) { existing.dataset.kind = kind; existing.className = `kb-panel kb-panel-${kind}`; changed(); return; }
     let block = currentBlock();
     while (block && block.parentElement !== area) block = block.parentElement;
-    const box = h(`div.kb-panel.kb-panel-${kind}`, { 'data-kind': kind });
+    const k = panelKind(kind);
+    const box = h(`div.kb-panel.kb-panel-${k}`, { 'data-kind': k });
     if (block && block.tagName === 'P') { block.replaceWith(box); box.append(block); } else { insertBlock(box); box.append(h('p', h('br'))); }
     caretTo(box.querySelector('p') || box, true);
     changed();

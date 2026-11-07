@@ -13,6 +13,10 @@ import { h } from './dom.js';
 import { state } from './state.js';
 
 export const PANEL_KINDS = ['info', 'tip', 'warning'];
+const HEADING_TAGS = ['h1', 'h2', 'h3'];
+/** Element names only from fixed lists (by index): text from the document never becomes a tag name */
+export const panelKind = (kind) => PANEL_KINDS[Math.max(0, PANEL_KINDS.indexOf(kind))];
+const headingTag = (level) => HEADING_TAGS[Math.min(Math.max(Number(level) || 1, 1), 3) - 1];
 export const IMAGE_SIZES = ['small', 'medium', 'full'];
 const IMG_SRC = /^\/api\/(kb\/images\/[A-Za-z0-9_-]{16,64}|attachments\/\d+)$/;
 const ESCAPABLE = '\\`*[]~+|#>-.:!_()';
@@ -237,14 +241,15 @@ function renderBlocks(blocks, o, parent) {
   for (const b of blocks) {
     if (b.type === 'para') { const p = h('p'); p.append(inline(b.text, o)); parent.append(p); }
     else if (b.type === 'heading') {
-      const el = h(`h${b.level}`); el.append(inline(b.text, o));
+      const el = h(headingTag(b.level)); el.append(inline(b.text, o));
       if (!o.edit) { let id = slug(el.textContent); const n = ids.get(id) || 0; ids.set(id, n + 1); if (n) id += `-${n + 1}`; el.id = id; }
       parent.append(el);
     } else if (b.type === 'hr') parent.append(h('hr'));
     else if (b.type === 'code') parent.append(h('pre', h('code', b.text)));
     else if (b.type === 'quote') { const q = h('blockquote'); renderBlocks(b.children.length ? b.children : [{ type: 'para', text: '' }], o, q); parent.append(q); }
     else if (b.type === 'panel') {
-      const box = h(`div.kb-panel.kb-panel-${b.kind}`, { 'data-kind': b.kind });
+      const kind = panelKind(b.kind);
+      const box = h(`div.kb-panel.kb-panel-${kind}`, { 'data-kind': kind });
       renderBlocks(b.children.length ? b.children : [{ type: 'para', text: '' }], o, box);
       if (o.edit) box.querySelectorAll('p:empty').forEach((p) => p.append(h('br')));
       parent.append(box);
