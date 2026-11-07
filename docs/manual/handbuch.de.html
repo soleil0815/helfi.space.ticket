@@ -248,7 +248,7 @@
 </ol>
 <figure class="medium"><img src="img/de/reporter-create.jpg" alt=""><figcaption>Ticket für eine Kollegin erfassen</figcaption></figure>
 <p>Im Verlauf steht, wer das Ticket für wen angelegt hat. <em>Zurück zu mir</em> macht die Wahl rückgängig.</p>
-<p><strong>Nachträglich ändern:</strong> In den Details unter <em>Melder</em> auf <em>Melder ändern</em> klicken, Person wählen und bestätigen. Der bisherige Melder behält als Anfrage-Teilnehmer Zugriff (außer Bearbeiter und reine E-Mail-Kontakte). Antwortet ein früherer Melder später noch auf eine alte Mail, wird daraus nur eine interne Notiz. Auf dem Handy: <em>Alle Details → Melder</em>.</p>
+<p><strong>Nachträglich ändern:</strong> In den Details unter <em>Melder</em> auf <em>Melder ändern</em> klicken, Person wählen und bestätigen. Der bisherige Melder behält als Anfrage-Teilnehmer Zugriff (außer Bearbeiter und reine E-Mail-Kontakte). Antwortet ein früherer Melder später noch auf eine alte Mail, wird daraus nur eine interne Notiz. Dasselbe gilt für Mails von Bearbeiter-Adressen, die nur über die Ticketnummer im Betreff zugeordnet werden – antworte dem Melder im Ticket. Auf dem Handy: <em>Alle Details → Melder</em>.</p>
 <figure class="small"><img src="img/de/m-reporter.jpg" alt=""><figcaption>Auf dem Handy: Melder beim Erstellen wählen</figcaption></figure>
 
 <h2 id="formatieren">Antworten formatieren</h2>
@@ -499,7 +499,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <pre><code>helfi.firma.local {
     reverse_proxy 10.0.10.20:8080
 }</code></pre>
-<div class="warn"><p>Trage die Adresse des Proxys in <code>HELFI_TRUST_PROXY</code> ein, z. B. <code>10.0.10.5</code> (mehrere mit Komma: <code>loopback, 10.0.10.5</code>). Ohne diesen Eintrag glaubt Helfi.Space <code>X-Forwarded-For</code> nur vom eigenen Rechner (<code>loopback</code>); Werte wie <code>true</code> oder eine Zahl werden mit einer Warnung im Protokoll ignoriert. Steht der Proxy auf einem anderen Rechner, sieht Helfi.Space ohne Eintrag nur ihn: Die Bremse gegen Kennwort-Raten trifft dann alle gemeinsam, und jeder Zugriff gilt sicherheitshalber als „von außen“.</p></div>
+<div class="warn"><p>Trage die Adresse des Proxys in <code>HELFI_TRUST_PROXY</code> ein, z. B. <code>10.0.10.5</code> (mehrere mit Komma: <code>loopback, 10.0.10.5</code>). Ohne diesen Eintrag glaubt Helfi.Space <code>X-Forwarded-For</code> nur vom eigenen Rechner (<code>loopback</code>); Werte wie <code>true</code> oder eine Zahl werden mit einer Warnung im Protokoll ignoriert. Schickt ein einzeln eingetragener Proxy (Adresse, kein Bereich) eine Anfrage ohne <code>X-Forwarded-For</code>, gilt sie als von außen. Steht der Proxy auf einem anderen Rechner, sieht Helfi.Space ohne Eintrag nur ihn: Die Bremse gegen Kennwort-Raten trifft dann alle gemeinsam, und jeder Zugriff gilt sicherheitshalber als „von außen“.</p></div>
 
 <h2 id="ersteinrichtung">Ersteinrichtung</h2>
 <p>Beim ersten Aufruf von <code>HELFI_BASE_URL</code> startet der Einrichtungsassistent. Er fragt nach dem <strong>Einrichtungscode</strong> aus dem Container-Protokoll (<code>docker compose logs helfi</code>) und legt den <strong>lokalen Administrator</strong> und das erste Projekt an. Danach geht es direkt zur AD-Einrichtung.</p>

@@ -50,6 +50,12 @@ export function imapOptions(cfg) {
 const NOT_INVOLVED_NOTE = 'Antwort von einer Adresse, die an diesem Ticket nicht (mehr) beteiligt ist – nur als interne Notiz. / '
   + 'Reply from an address that is not (or no longer) involved in this ticket – internal note only.\n\n';
 
+// Shown to agents when a mail from an agent address was matched only via [KEY] in the subject
+const UNVERIFIED_AGENT_NOTE = 'Mail von einer Bearbeiter-Adresse, nur über die Ticketnummer im Betreff zugeordnet – der Absender ist nicht überprüfbar, '
+  + 'deshalb nur als interne Notiz. Antworten an den Melder bitte im Ticket schreiben. / '
+  + 'Mail from an agent address matched only via the ticket number in the subject – the sender cannot be verified, so it is an internal note only. '
+  + 'Please reply to the reporter in the ticket.\n\n';
+
 export function createMailProcessor({ db, settings, tickets, users, adLookup = null, suppressions = null }) {
   const adMisses = new Map(); // address → time until which it is not looked up again
   const seen = db.prepare('SELECT ticket_id FROM mail_messages WHERE message_id=?');
@@ -284,7 +290,10 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     // The same applies to replies via our Message-ID from someone who is no longer reporter/participant
     // (reporter changed, participant removed, approver, forwarded mail).
     const notInvolved = !!existingId && found.via === 'reference' && !found.agentMail && !privileged && !isCurrentParty(found.id, sender, fromAddr);
-    const noteOnly = (!!existingId && found.via === 'reference' && !!found.agentMail) || notInvolved;
+    // Agent address matched only via the number in the subject: the sender address can be forged and
+    // the ticket number is guessable → never a public comment in the agent's name, no reopening
+    const unverifiedAgent = !!existingId && found.via !== 'reference' && privileged;
+    const noteOnly = (!!existingId && found.via === 'reference' && !!found.agentMail) || notInvolved || unverifiedAgent;
 
     // Protection against mail loops with unmarked auto-responders
     if (!existingId) {
@@ -326,7 +335,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     return db.transaction(() => {
       if (existingId) {
         const asUser = privileged || noteOnly ? null : sender;
-        const comment = tickets.addComment(asUser, existingId, { body: (notInvolved ? NOT_INVOLVED_NOTE : '') + withNote(stripQuotedReply(text) || '(leer)') }, {
+        const comment = tickets.addComment(asUser, existingId, { body: (notInvolved ? NOT_INVOLVED_NOTE : unverifiedAgent ? UNVERIFIED_AGENT_NOTE : '') + withNote(stripQuotedReply(text) || '(leer)') }, {
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
           // system: always internal, does not reopen, no account rights
           ...(noteOnly ? { system: true } : {}),

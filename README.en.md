@@ -68,7 +68,7 @@ The host only holds a few things:
 
 Helfi.Space itself speaks HTTP on port 8080. In production, put a reverse proxy with HTTPS in front of it (Synology reverse proxy, Nginx Proxy Manager, Caddy, Traefik …). Then set `HELFI_BASE_URL=https://helfi.firma.local`. Cookies are then marked `Secure` automatically.
 
-So that the brake against password guessing sees the real client address, enter the proxy's address in `.env`, e.g. `HELFI_TRUST_PROXY=10.0.10.5`. Separate several entries with commas, e.g. `loopback, 10.0.10.5`. Without it, Helfi.Space only trusts `X-Forwarded-For` from its own host (`loopback`), because the header could otherwise be forged. Values such as `true` or a number (count of proxies) are ignored with a warning in the log; `loopback` then applies as well.
+So that the brake against password guessing sees the real client address, enter the proxy's address in `.env`, e.g. `HELFI_TRUST_PROXY=10.0.10.5`. Separate several entries with commas, e.g. `loopback, 10.0.10.5`. Without it, Helfi.Space only trusts `X-Forwarded-For` from its own host (`loopback`), because the header could otherwise be forged. Values such as `true` or a number (count of proxies) are ignored with a warning in the log; `loopback` then applies as well. If a proxy listed by its address (not a range) forwards a request without `X-Forwarded-For`, the device behind it is unknown – the request then counts as external (2FA per the external rule).
 
 Example Caddy:
 
@@ -205,6 +205,7 @@ Example: reporters without a code, agents with a code from outside, administrato
 - Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the reporter. Agents reply through the web interface.
 - Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.
 - Replies to a ticket-system email from someone who is no longer reporter or participant (e.g. after a reporter change, or an approver who is not a participant) also only become internal notes: no new participants from CC, no reopening.
+- Mails from an agent's address that are matched only via `[IT-123]` in the subject become internal notes and reopen nothing – a mail's sender can be forged and the ticket number guessed. So write replies to the reporter in the ticket.
 - Helfi.Space marks processed mails with its own IMAP flag (`$HelfiDone`). If someone reads the mailbox in parallel in Outlook or on a phone, the mails are still processed. If the mail server cannot store custom flags, Helfi.Space fetches only unread mails as before – then do not read the mailbox in parallel. A folder for processed mails is recommended.
 - Confirmations of receipt go out at most 60 times per hour (protection against abuse with forged senders).
 - Loop protection: more than 20 new tickets per hour from the same sender are ignored.

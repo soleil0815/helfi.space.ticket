@@ -195,6 +195,12 @@ jobs:
           [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::Release by button only from branch main ($GITHUB_REF)"; exit 1; }
           [ "$GITHUB_SHA" = "$(git rev-parse origin/main)" ] || { echo "::error::$GITHUB_SHA is not the current state of main"; exit 1; }
           case "$MODE" in patch|minor|major) ;; *) echo "::error::Unknown release type ($MODE)"; exit 1 ;; esac
+          # Re-run of this release ("Re-run all jobs"): the version it reserved as git tag on exactly this
+          # commit is used again – otherwise the re-run would publish the next number and leave a gap
+          if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+            mine="$(git tag -l 'v*.*.*' --points-at "$GITHUB_SHA" | sort -V | tail -n 1)"
+            if [ -n "$mine" ]; then MODE="tag:$mine"; echo "Re-run: version $mine reserved by this release"; fi
+          fi
           out="$(sh .github/scripts/next-version.sh "$MODE")" || { echo "::error::Cannot determine version ($MODE)"; exit 1; }
           echo "$out"
           echo "$out" >> "$GITHUB_OUTPUT"
@@ -280,10 +286,15 @@ jobs:
       - name: Tag must not exist yet
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          V: ${{ steps.v.outputs.version }}
         run: |
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
-            echo "::error::Tag v${{ steps.v.outputs.version }} already exists (two releases at once?)"; exit 1
+          # Only "404 Not Found" means free – any other API error stops the release (never guess "free")
+          if out="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$V" --jq .object.sha 2>&1)"; then
+            # Re-run of failed jobs of this release: the tag this run reserved points to exactly this commit
+            if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ] && [ "$out" = "$GITHUB_SHA" ]; then echo "Tag v$V reserved by this release (re-run)"; exit 0; fi
+            echo "::error::Tag v$V already exists (two releases at once?)"; exit 1
           fi
+          case "$out" in *"Not Found"*|*"HTTP 404"*) ;; *) echo "::error::Cannot check tag v$V: $out"; exit 1 ;; esac
       - name: Merge candidate from both architectures (record digest)
         id: cand
         run: |
@@ -347,12 +358,33 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/helfi-*.tar.gz
+      # Reserve the version as git tag before any image tag: if a later step fails, a new release
+      # computes the next number (highest tag + 1) and can never overwrite a published image tag.
+      # A pushed tag triggers nothing (no tag-push trigger); the release step at the end uses this tag.
+      - name: Reserve the version (git tag)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          if have="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$V" --jq .object.sha 2>/dev/null)"; then
+            if [ "$GITHUB_RUN_ATTEMPT" -le 1 ] || [ "$have" != "$GITHUB_SHA" ]; then echo "::error::Tag v$V exists already ($have)"; exit 1; fi
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$V" -f sha="$GITHUB_SHA" >/dev/null
+          fi
       # Publish only at the very end: if anything fails before, no half release is left in the registry
       - name: Publish the checked image (same digest)
         env:
           DIGEST: ${{ steps.cand.outputs.digest }}
         run: |
           v="${{ steps.v.outputs.version }}"
+          # Never overwrite a published version: an existing tag may only be this very digest (re-run)
+          if old="$(docker buildx imagetools inspect "$IMAGE:$v" --format '{{json .Manifest.Digest}}' 2>inspect.err)"; then
+            old="$(printf '%s' "$old" | tr -d '"')"
+            [ "$old" = "$DIGEST" ] || { echo "::error::$IMAGE:$v exists already with another digest ($old) – not overwritten"; exit 1; }
+          else
+            old="$(cat inspect.err)"
+            case "$old" in *"not found"*|*"manifest unknown"*|*"MANIFEST_UNKNOWN"*|*"404"*) ;; *) echo "::error::Cannot check $IMAGE:$v: $old"; exit 1 ;; esac
+          fi
           tags="-t $IMAGE:$v"
           [ "${{ steps.v.outputs.latest }}" = true ] && tags="$tags -t $IMAGE:latest"
           # shellcheck disable=SC2086

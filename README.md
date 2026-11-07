@@ -68,7 +68,7 @@ Auf dem Host liegen nur vier Dinge:
 
 Helfi.Space selbst spricht HTTP auf Port 8080. Für den Betrieb gehört ein Reverse-Proxy mit HTTPS davor (Synology-Reverse-Proxy, Nginx Proxy Manager, Caddy, Traefik …). Danach `HELFI_BASE_URL=https://helfi.firma.local` setzen. Cookies werden dann automatisch als `Secure` markiert.
 
-Damit die Bremse gegen Kennwort-Raten die echte Client-Adresse sieht, trägst du in der `.env` die Adresse des Proxys ein, z. B. `HELFI_TRUST_PROXY=10.0.10.5`. Mehrere Angaben trennst du mit Komma, z. B. `loopback, 10.0.10.5`. Ohne diesen Eintrag glaubt Helfi.Space `X-Forwarded-For` nur vom eigenen Rechner (`loopback`), weil sich die Angabe sonst fälschen ließe. Werte wie `true` oder eine Zahl (Anzahl der Proxys) werden mit einer Warnung im Protokoll ignoriert; dann gilt ebenfalls `loopback`.
+Damit die Bremse gegen Kennwort-Raten die echte Client-Adresse sieht, trägst du in der `.env` die Adresse des Proxys ein, z. B. `HELFI_TRUST_PROXY=10.0.10.5`. Mehrere Angaben trennst du mit Komma, z. B. `loopback, 10.0.10.5`. Ohne diesen Eintrag glaubt Helfi.Space `X-Forwarded-For` nur vom eigenen Rechner (`loopback`), weil sich die Angabe sonst fälschen ließe. Werte wie `true` oder eine Zahl (Anzahl der Proxys) werden mit einer Warnung im Protokoll ignoriert; dann gilt ebenfalls `loopback`. Schickt ein einzeln eingetragener Proxy (Adresse, kein Bereich) eine Anfrage ohne `X-Forwarded-For`, ist das Gerät dahinter unbekannt – sie zählt dann als von außen (2FA nach der Regel für außen).
 
 Beispiel Caddy:
 
@@ -205,6 +205,7 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 - Absenderadressen lassen sich fälschen. Deshalb gilt eine Mail nie als Bearbeiter-Antwort, auch wenn sie von der Adresse eines Bearbeiters kommt: Sie erscheint mit der Absenderadresse, nicht unter dem Konto, und wird nicht an den Melder weitergeleitet. Bearbeiter antworten über die Weboberfläche.
 - Antworten per Mail auf Zuweisungs-, SLA- oder Genehmigungsmails an Bearbeiter werden interne Notizen und öffnen das Ticket nicht wieder.
 - Antworten auf eine Mail des Ticketsystems von jemandem, der nicht mehr Melder oder Teilnehmer ist (z. B. nach einem Melderwechsel oder als Genehmigender ohne Teilnahme), werden ebenfalls nur interne Notizen: keine neuen Teilnehmer aus CC, kein Wiedereröffnen.
+- Mails von der Adresse eines Bearbeiters, die nur über `[IT-123]` im Betreff zugeordnet werden, werden interne Notizen und öffnen nichts wieder – der Absender einer Mail lässt sich fälschen, die Ticketnummer erraten. Antworten an den Melder deshalb im Ticket schreiben.
 - Helfi.Space merkt sich verarbeitete Mails mit einem eigenen IMAP-Kennzeichen (`$HelfiDone`). Liest jemand das Postfach parallel in Outlook oder auf dem Handy, werden die Mails trotzdem verarbeitet. Kann der Mailserver keine eigenen Kennzeichen speichern, holt Helfi.Space wie früher nur ungelesene Mails – dann das Postfach nicht parallel lesen. Empfohlen ist ein Ordner für verarbeitete Mails.
 - Eingangsbestätigungen gehen höchstens 60-mal pro Stunde raus (Schutz vor Missbrauch mit gefälschten Absendern).
 - Schleifenschutz: Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.
