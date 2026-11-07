@@ -1527,3 +1527,8 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .examples-list { max-height: 55vh; overflow: auto; }
 .page-head .actions, .section-head .actions { display: flex; gap: 8px; align-items: center; }
 .dup-of { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ai-duplicate { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius); background: var(--purple-subtle); font-size: 14px; }
+.ai-duplicate .icon { width: 14px; height: 14px; vertical-align: -2px; color: #6E5DC6; }
+.ai-duplicate .ai-suggest-actions { margin-top: 0; }
+[data-theme="dark"] .ai-duplicate .icon { color: var(--ai-accent); }
+.ai-fn-sub { margin: -4px 0 12px 30px; max-width: 560px; }

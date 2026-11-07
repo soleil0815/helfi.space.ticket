@@ -74,6 +74,7 @@ export const api = {
 
   stats: () => request('GET', '/api/stats'),
   acceptSuggestion: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/component-suggestion/accept`),
+  dismissDuplicate: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/duplicate-suggestion/dismiss`),
   dismissSuggestion: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/component-suggestion/dismiss`),
   filters: () => request('GET', '/api/filters'),
   createFilter: (d) => request('POST', '/api/filters', d),

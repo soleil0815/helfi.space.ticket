@@ -12,7 +12,7 @@ import { withEmoji } from '../emoji.js';
  * kind: 'rejected' | 'duplicate'; keys: ticket keys; tk: the single ticket (for placeholders in
  * templates – with several tickets they are filled per ticket on the server); onDone(result)
  */
-export function openResolveDialog({ kind, keys, tk = null, onDone }) {
+export function openResolveDialog({ kind, keys, tk = null, original: preset = '', onDone }) {
   const many = keys.length > 1;
   const reason = h('textarea', { rows: 6, maxLength: 100000, placeholder: t(kind === 'rejected' ? 'resolve.reasonPlaceholder' : 'resolve.notePlaceholder') });
   const tplBtn = h('button.btn.btn-subtle.small', { type: 'button', onclick: (e) => openTemplatePicker(e.currentTarget, (x) => {
@@ -22,6 +22,7 @@ export function openResolveDialog({ kind, keys, tk = null, onDone }) {
     reason.focus();
   }) }, icon('comment'), t('canned.toolbar'));
   const picker = kind === 'duplicate' ? ticketPicker(many ? null : keys[0], { forKeys: keys }) : null;
+  if (picker && preset) picker.input.value = preset;
   const addToOriginal = h('input', { type: 'checkbox' });
   const err = h('div.form-error', { role: 'alert', hidden: true });
   const ok = h('button.btn.btn-primary', { type: 'submit', form: 'resolve-form' }, t(kind === 'rejected' ? 'resolve.rejectBtn' : 'resolve.duplicateBtn'));
@@ -61,6 +62,6 @@ export function openResolveDialog({ kind, keys, tk = null, onDone }) {
     picker ? h('p.muted.small', t('resolve.addToOriginalHint')) : null),
     { wide: true, footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), ok] });
   reason.id = 'resolve-reason';
-  (picker ? picker.input : reason).focus();
+  (picker && !preset ? picker.input : reason).focus();
   return dlg;
 }

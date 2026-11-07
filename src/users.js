@@ -109,7 +109,7 @@ export function createUsers(db) {
       ['kb_articles', 'created_by'], ['kb_articles', 'updated_by'], ['kb_images', 'created_by'], ['kb_versions', 'author_id'],
       ['kb_templates', 'created_by'], ['kb_templates', 'updated_by'], ['kb_comments', 'author_id'], ['kb_comments', 'resolved_by'],
       ['kb_feedback', 'user_id'], ['saved_filters', 'owner_id'], ['saved_filters', 'created_by'],
-      ['components', 'lead_id'], ['components', 'deputy_id'], ['component_suggestions', 'decided_by'],
+      ['components', 'lead_id'], ['components', 'deputy_id'], ['component_suggestions', 'decided_by'], ['duplicate_suggestions', 'decided_by'],
     ]) db.prepare(`UPDATE ${table} SET ${col}=? WHERE ${col}=?`).run(intoId, fromId);
     // Approver lists as text (service catalog, change approvers in the settings)
     const swap = (list, sep) => [...new Set(String(list).split(sep).filter(Boolean).map((x) => (Number(x) === fromId ? String(intoId) : x.trim())))].join(',');

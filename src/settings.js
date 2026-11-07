@@ -62,6 +62,7 @@ export const DEFAULTS = {
   'ai.classify': false, // component detection for new tickets that no rule matched
   'ai.classifyMode': 'suggest', // suggest (agent accepts) | auto (set directly, marked "by AI")
   'ai.kb': true, // help writing knowledge articles
+  'ai.duplicates': false, // hint "possible duplicate of …" for new tickets
 
   // Self-registration (local accounts with role "user", confirmed by mail) and "forgot password"
   'register.enabled': false,
