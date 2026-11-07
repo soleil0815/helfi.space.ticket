@@ -1,7 +1,7 @@
 // Administration → Components: sub-areas per project with lead/deputy, keywords and sender patterns,
 // order (decides ties), test field and example sets to take over.
 import { api } from '../api.js';
-import { h, mount, icon, select, field, modal, toast } from '../dom.js';
+import { h, mount, icon, select, field, modal, toast, lozenge } from '../dom.js';
 import { t, getLang } from '../i18n.js';
 import { state, navigate } from '../app.js';
 import { clearComponentCache } from '../components.js';
@@ -9,8 +9,10 @@ import { clearComponentCache } from '../components.js';
 export async function componentsAdminPage(body) {
   const projects = state.projects;
   if (!projects.length) return mount(body, h('section.panel', h('p.muted', t('comp.noProject'))));
-  const wanted = new URLSearchParams(location.search).get('project');
+  const params = new URLSearchParams(location.search);
+  const wanted = params.get('project');
   const project = projects.find((p) => p.key === String(wanted || '').toUpperCase()) || projects[0];
+  if (params.get('view') === 'review') return reviewPage(body, project);
   const { components } = await api.components(project.id, true);
   const agents = state.agents || [];
   const reload = () => { clearComponentCache(); componentsAdminPage(body); };
@@ -155,5 +157,147 @@ export async function componentsAdminPage(body) {
         field(t('comp.testDescription'), tDesc),
         field(t('comp.testSender'), tSender),
         h('div', h('button.btn.btn-primary', { type: 'submit' }, t('comp.testRun')))),
-      tOut) : null);
+      tOut) : null,
+    components.some((c) => !c.archived) ? backfillPanel(project) : null);
 }
+
+// ---------- Sort existing tickets without component afterwards ----------
+let backfillTimer = null;
+function backfillPanel(project) {
+  const aiOn = !!state.boot?.aiFeatures?.classify;
+  const includeDone = h('input', { type: 'checkbox', checked: true }); // all tickets by default
+  const retry = h('input', { type: 'checkbox' });
+  const mode = select([['suggest', t('backfill.modeSuggest')], ['auto', t('backfill.modeAuto')]], 'suggest');
+  const result = h('div.backfill-result', { role: 'status', 'aria-live': 'polite' });
+  const progress = h('div.backfill-progress', { hidden: true });
+  const reviewLink = h('a.backfill-review', { href: `/admin/components?project=${project.key}&view=review`, 'data-link': '', hidden: true });
+  let plan = null;
+  const startBtn = h('button.btn.btn-primary', { type: 'button', disabled: true, onclick: () => confirmStart() }, t('backfill.start'));
+  const opts = () => ({ includeDone: includeDone.checked, retry: retry.checked, mode: mode.value });
+  const invalidate = () => { plan = null; startBtn.disabled = true; mount(result); };
+  [includeDone, retry, mode].forEach((x) => x.addEventListener('change', invalidate));
+
+  async function previewNow() {
+    try {
+      plan = await api.admin.backfillPreview(project.id, opts());
+      mount(result,
+        h('p', h('strong', t('backfill.total', { n: plan.total })), plan.total ? ' – ' : '', plan.total ? t('backfill.split', plan) : ''),
+        plan.skipped ? h('p.muted.small', t('backfill.skipped', { n: plan.skipped })) : null,
+        plan.aiMore ? h('p.muted.small', t('backfill.aiMore', { n: plan.aiMore, max: plan.maxAi })) : null,
+        !plan.aiOn && plan.remaining ? h('p.muted.small', t('backfill.noAi', { n: plan.remaining })) : null);
+      startBtn.disabled = !(plan.rules || plan.ai) || !!plan.run?.running;
+      if (plan.run) showRun(plan.run);
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  function confirmStart() {
+    if (!plan) return;
+    if (!plan.ai) { start(); return; }
+    const dlg = modal(t('backfill.title'), h('div',
+      h('p', t('backfill.confirm', { rules: plan.rules, ai: plan.ai })),
+      h('p.muted', t('backfill.confirmData')),
+      h('p.muted', t(mode.value === 'auto' ? 'backfill.confirmAuto' : 'backfill.confirmSuggest'))), {
+      footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')),
+        h('button.btn.btn-primary', { type: 'button', onclick: () => { dlg.close(); start(); } }, t('backfill.start'))],
+    });
+  }
+
+  async function start() {
+    startBtn.disabled = true;
+    try {
+      const { run } = await api.admin.backfillStart(project.id, opts());
+      if (run.rules) toast(t('backfill.rulesDone', { n: run.rules }), 'success');
+      showRun(run);
+      poll();
+    } catch (e) { toast(e.message, 'error'); startBtn.disabled = false; }
+  }
+
+  function poll() {
+    clearTimeout(backfillTimer);
+    backfillTimer = setTimeout(async () => {
+      if (!progress.isConnected) return; // page left
+      try {
+        const { run } = await api.admin.backfillStatus();
+        if (run) showRun(run);
+        if (run?.running) poll(); else { refreshReview(); previewNow(); } // fresh counts after the run
+      } catch { poll(); }
+    }, 1500);
+  }
+
+  function showRun(run) {
+    progress.hidden = false;
+    const pct = run.total ? Math.round((run.done / run.total) * 100) : 100;
+    mount(progress,
+      run.project !== project.key ? h('p.muted.small', t('backfill.otherProject', { project: run.project })) : null,
+      run.total ? h('div.progress', { role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': t('backfill.title') },
+        h('div.progress-bar', { style: { width: `${pct}%` } })) : null,
+      h('p.small',
+        run.running ? t('backfill.running', run) : t(run.cancelled ? (run.error === 'aiFailing' ? 'backfill.aiFailing' : 'backfill.cancelled') : 'backfill.finished', run),
+        ' · ', t('backfill.counts', run)),
+      run.running ? h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { const r = await api.admin.backfillCancel(); if (r.run) showRun(r.run); } }, t('backfill.cancel')) : null);
+    if (run.running) poll();
+  }
+
+  async function refreshReview() {
+    try {
+      const { suggestions } = await api.componentSuggestions(project.id);
+      reviewLink.hidden = !suggestions.length;
+      mount(reviewLink, icon('sparkle'), ' ', t('backfill.review', { n: suggestions.length }));
+    } catch { /* ignore */ }
+  }
+  refreshReview();
+  api.admin.backfillStatus().then(({ run }) => { if (run) showRun(run); }).catch(() => {});
+
+  return h('section.panel.backfill',
+    h('h3', t('backfill.title')),
+    h('p.muted', t(aiOn ? 'backfill.intro' : 'backfill.introNoAi')),
+    h('div.backfill-options',
+      h('label.check-inline', includeDone, t('backfill.includeDone')),
+      aiOn ? h('label.check-inline', retry, t('backfill.retry')) : null,
+      aiOn ? field(t('backfill.mode'), mode) : null),
+    h('div.actions', h('button.btn.btn-subtle', { type: 'button', onclick: previewNow }, t('backfill.preview')), startBtn),
+    result, progress, reviewLink);
+}
+
+/** Review list: open AI suggestions, accept or dismiss several at once */
+async function reviewPage(body, project) {
+  const { suggestions } = await api.componentSuggestions(project.id);
+  const back = `/admin/components?project=${project.key}`;
+  const boxes = [];
+  const all = h('input', { type: 'checkbox', 'aria-label': t('backfill.selectAll'), onchange: () => { boxes.forEach((b) => { b.checked = all.checked; }); sync(); } });
+  const accept = h('button.btn.btn-primary', { type: 'button', disabled: true, onclick: () => decide('accept') }, t('backfill.accept'));
+  const dismiss = h('button.btn.btn-subtle', { type: 'button', disabled: true, onclick: () => decide('dismiss') }, t('backfill.dismiss'));
+  function sync() {
+    const n = boxes.filter((b) => b.checked).length;
+    accept.disabled = dismiss.disabled = !n;
+    accept.textContent = n ? t('backfill.acceptN', { n }) : t('backfill.accept');
+    all.checked = n && n === boxes.length;
+  }
+  async function decide(action) {
+    const keys = boxes.filter((b) => b.checked).map((b) => b.value);
+    try {
+      const r = await api.decideSuggestions(keys, action);
+      toast(t(action === 'accept' ? 'backfill.accepted' : 'backfill.dismissed', { n: r.done }), r.failed.length ? 'error' : 'success');
+      reviewPage(body, project);
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  mount(body, h('section.panel',
+    h('div.section-head', h('h2', t('backfill.reviewTitle'), h('span.muted', ` · ${project.name}`)),
+      h('a.btn.btn-subtle', { href: back, 'data-link': '' }, t('backfill.back'))),
+    h('p.muted', t('backfill.reviewIntro')),
+    suggestions.length ? [
+      h('div.actions.backfill-bulk', accept, dismiss),
+      h('div.table-wrap', h('table.data.backfill-table',
+        h('thead', h('tr', h('th', all), h('th', t('list.key')), h('th', t('list.summary')), h('th', t('backfill.suggestion')), h('th', t('list.status')))),
+        h('tbody', suggestions.map((s) => {
+          const box = h('input', { type: 'checkbox', value: s.key, 'aria-label': s.key, onchange: sync });
+          boxes.push(box);
+          return h('tr',
+            h('td', box),
+            h('td', h('a', { href: `/browse/${s.key}`, 'data-link': '' }, s.key)),
+            h('td', s.title),
+            h('td', h('strong', s.component.name), s.reason ? h('span.muted.block.small', s.reason) : null),
+            h('td', lozenge(s.status)));
+        }))))] : h('div.empty-state.small', t('backfill.reviewEmpty'))));
+}
+

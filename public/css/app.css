@@ -1504,3 +1504,13 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .reporter-field .person .badge-ad { margin-left: 6px; }
 .field .reporter-notify { display: inline-flex; margin: 8px 0 0; font-size: 14px; font-weight: 400; color: var(--text); }
 .reporter-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+/* Components: sort existing tickets afterwards, review list of AI suggestions */
+.backfill-options { display: flex; flex-direction: column; align-items: flex-start; gap: 0; margin: 8px 0 4px; }
+.backfill-options .field { min-width: 320px; }
+.backfill .actions { display: flex; gap: 8px; margin: 4px 0 12px; }
+.backfill-result p { margin: 4px 0; }
+.backfill-progress { margin-top: 8px; }
+.backfill-progress .progress { max-width: 480px; margin-bottom: 6px; }
+.backfill-review { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-weight: 600; }
+.backfill-bulk { display: flex; gap: 8px; margin-bottom: 12px; }
+.backfill-table td:first-child, .backfill-table th:first-child { width: 32px; }

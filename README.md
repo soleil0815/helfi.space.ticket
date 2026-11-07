@@ -313,6 +313,10 @@ Komponenten teilen ein Projekt in Zuständigkeiten auf. Jede hat einen Namen, ei
 - **Liste und Berichte:** Filter und Spalte *Komponente* in der Ticketliste (bei gewähltem Projekt); unter *Berichte* Tickets, offene und Ø Lösungszeit je Komponente.
 - Komponenten sind nur für Bearbeiter sichtbar. Löschen lässt die Tickets unangetastet (das Feld wird leer), archivierte Komponenten bleiben an alten Tickets sichtbar, werden aber nicht mehr zugeordnet. Beim Verschieben in ein anderes Projekt fällt die Komponente weg.
 - Beim **Jira-Import** kommt die (erste) Jira-Komponente mit und wird im Zielprojekt angelegt, falls es sie noch nicht gibt.
+- **Bestehende Tickets einordnen:** Unten auf der Seite ordnest du Tickets ohne Komponente nachträglich zu – etwa nach dem Import oder wenn Komponenten neu dazukommen. *Vorschau* zeigt, wie viele es sind und wie viele eine Regel trifft; *Einordnen starten* wendet zuerst die Regeln an und schickt den Rest – wenn die KI-Funktion *Komponente erkennen* an ist – nacheinander an die KI (nacheinander im Hintergrund, mit Fortschritt, jederzeit abbrechbar).
+  - Standardmäßig alle Tickets, auch erledigte; ohne Haken bei *Auch erledigte Tickets* nur offene. Tickets, die die KI schon geprüft hat, überspringt der Lauf (außer mit *erneut prüfen*).
+  - Die KI macht standardmäßig nur **Vorschläge**: Unter *KI-Vorschläge prüfen* übernimmst oder verwirfst du sie einzeln oder mehrere auf einmal. Wahlweise setzt sie die Komponente direkt („von KI“ im Verlauf).
+  - Nachträglich gehen **keine Mails** raus, niemand bekommt Tickets **zugewiesen**, und die Zeit „Aktualisiert“ bleibt, damit Listen ihre Reihenfolge behalten. Der Verlauf zeigt, woher die Komponente kommt.
 
 **Tipp – Komponenten sinnvoll schneiden:** nach Zuständigkeit, nicht nach Technik; lieber 6–12 Komponenten als 40; jede braucht eine verantwortliche Person; Schlagwörter aus echten Tickettiteln nehmen und mit dem Testfeld prüfen.
 

@@ -751,6 +751,15 @@ export const MIGRATIONS = [
     ALTER TABLE mail_messages ADD COLUMN recipient TEXT;
     `,
   },
+  {
+    id: 37,
+    name: 'KI-Vorschläge: nachträgliche Einordnung',
+    sql: `
+    -- 1 = from sorting existing tickets afterwards: accepting it neither assigns the lead nor
+    -- moves the ticket's "updated" time
+    ALTER TABLE component_suggestions ADD COLUMN backfill INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

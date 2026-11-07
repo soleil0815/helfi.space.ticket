@@ -313,6 +313,10 @@ Components split a project into areas of responsibility. Each has a name, a shor
 - **List and reports:** filter and column *Component* in the ticket list (with a project selected); under *Reports* tickets, open ones and average resolution time per component.
 - Components are only visible to agents. Deleting leaves the tickets untouched (the field becomes empty); archived components stay visible on old tickets but are no longer assigned. Moving a ticket to another project clears its component.
 - The **Jira import** brings the (first) Jira component along and creates it in the target project if it does not exist yet.
+- **Sort existing tickets:** at the bottom of the page you assign a component to tickets without one afterwards – e.g. after the import or when components are added. *Preview* shows how many there are and how many a rule matches; *Start sorting* applies the rules first and sends the rest – if the AI function *Detect component* is on – to the AI one after the other (one after the other in the background, with progress, can be cancelled at any time).
+  - All tickets by default, done ones included; untick *Also done tickets* for open ones only. Tickets the AI already checked are skipped (unless *check again*).
+  - By default the AI only makes **suggestions**: under *Review AI suggestions* you accept or dismiss them one by one or several at once. Optionally it sets the component directly (“by AI” in the history).
+  - Afterwards **no mails** are sent, nobody gets tickets **assigned**, and the “Updated” time stays so lists keep their order. The history shows where the component came from.
 
 **Tip – cutting components sensibly:** by responsibility, not by technology; 6–12 components rather than 40; each needs a responsible person; take keywords from real ticket titles and check them with the test field.
 
