@@ -27,6 +27,14 @@ export const PRIORITY_MATRIX = {
 const KEY_RE = /^[A-Z][A-Z0-9]{1,9}$/;
 export const MAX_PARTICIPANTS = 20;
 
+/** Name for people without the agent role: a display name that is just a mail address
+ *  (email contacts, mail clients without a name) is shortened to "local@…". */
+export function publicName(name) {
+  const v = String(name ?? '');
+  const at = v.indexOf('@');
+  return at > 0 && /^[^\s@]+@[^\s@]+$/.test(v.trim()) ? `${v.trim().slice(0, at)}@…` : v;
+}
+
 export function normalizeLabels(v) {
   const arr = Array.isArray(v) ? v : str(v, 2000).split(/[,;\s]+/);
   return [...new Set(arr.map((x) => str(x, 100).trim().toLowerCase().replace(/[^\p{L}\p{N}_.-]/gu, '')).filter(Boolean))].slice(0, 20).join(',');
@@ -150,8 +158,8 @@ export function createTickets(db, users) {
       rank: t.rank,
       assignee: t.assignee_id ? { id: t.assignee_id, displayName: t.a_name, username: agent ? t.a_username : undefined, email: agent ? (t.a_email || '') : undefined } : null,
       reporter: t.reporter_id
-        ? { id: t.reporter_id, displayName: t.r_name, username: own ? t.r_username : undefined, email: own ? (t.r_email || t.reporter_email || '') : undefined }
-        : (t.reporter_email || t.reporter_name ? { id: null, displayName: t.reporter_name || (agent ? t.reporter_email : '—'), email: agent ? (t.reporter_email || '') : undefined } : null),
+        ? { id: t.reporter_id, displayName: own ? t.r_name : publicName(t.r_name), username: own ? t.r_username : undefined, email: own ? (t.r_email || t.reporter_email || '') : undefined }
+        : (t.reporter_email || t.reporter_name ? { id: null, displayName: agent ? (t.reporter_name || t.reporter_email) : (publicName(t.reporter_name) || '—'), email: agent ? (t.reporter_email || '') : undefined } : null),
       commentCount: agent ? t.comment_count : t.public_comment_count,
       createdAt: t.created_at,
       updatedAt: t.updated_at,
@@ -238,7 +246,8 @@ export function createTickets(db, users) {
       args.push(user.id, user.id, user.id);
     }
     if (f.project) { where.push('(p.key=? OR p.id=?)'); args.push(String(f.project).toUpperCase(), Number(f.project) || 0); }
-    else where.push('p.archived=0');
+    // Archived projects are hidden from the agents' lists; a user's own requests stay visible
+    else if (isAgent(user)) where.push('p.archived=0');
     if (f.status) {
       const st = String(f.status).split(',').filter((s) => STATUSES.includes(s) || s === 'unresolved');
       if (st.includes('unresolved')) where.push("t.status<>'done'");
@@ -253,8 +262,10 @@ export function createTickets(db, users) {
     if (f.reporter === 'me') { where.push('t.reporter_id=?'); args.push(user.id); }
     if (f.mentioned === 'me') { where.push('t.id IN (SELECT ticket_id FROM comment_mentions WHERE user_id=?)'); args.push(user.id); }
     if (f.participant === 'me') { where.push('t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?)'); args.push(user.id); }
-    if (f.component === 'none') where.push('t.component_id IS NULL');
-    else if (f.component) { where.push('t.component_id=?'); args.push(int(f.component) || 0); }
+    // Components are only shown to agents (ticketOut): no filter for users, it would reveal them
+    const comp = isAgent(user) ? f.component : null;
+    if (comp === 'none') where.push('t.component_id IS NULL');
+    else if (comp) { where.push('t.component_id=?'); args.push(int(comp) || 0); }
     if (f.label) { where.push("(','||t.labels||',') LIKE ?"); args.push(`%,${String(f.label).toLowerCase()},%`); }
     if (f.overdue === '1' || f.overdue === 1 || f.overdue === true) where.push("t.status<>'done' AND t.due_date IS NOT NULL AND t.due_date < date('now')");
     const rd = int(f.resolvedDays);
@@ -357,7 +368,8 @@ export function createTickets(db, users) {
     return t;
   }
 
-  /** opts.quietResolved: no "Resolved" mail (e.g. when a reply goes out at the same time). */
+  /** opts.quietResolved: no "Resolved" mail to everyone (e.g. when a reply goes out at the same time);
+   *  the 'resolved' event still fires (with quiet: true), the reporter only gets the rating links. */
   function update(user, idOrKey, data, opts = {}) {
     const row = load(user, idOrKey);
     const agent = isAgent(user);
@@ -446,7 +458,8 @@ export function createTickets(db, users) {
     const t = ticketOut(rawById(row.id));
     const result = agent ? t : ticketOut(rawById(row.id), false, user.id);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
-    if (changes.status && changes.status.new === 'done' && !opts.quietResolved) emitLater('resolved', { ticket: t, user });
+    // Always emit (e.g. satisfaction survey); quiet only suppresses the separate "Resolved" mail
+    if (changes.status && changes.status.new === 'done') emitLater('resolved', { ticket: t, user, quiet: !!opts.quietResolved });
     if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
     if (changes.component_id) events.emit('componentChanged', { ticketId: row.id, componentId: changes.component_id.new, userId: user.id });
     return result;
@@ -499,7 +512,10 @@ export function createTickets(db, users) {
       internal: !!c.internal,
       source: c.source,
       createdAt: c.created_at,
-      author: c.author_id ? { id: c.author_id, displayName: c.u_name, username: c.u_username } : { id: null, displayName: c.author_name || c.author_email || '?', email: c.author_email },
+      // Login name/address only for agents and the author themselves (self-registered: login name = private address)
+      author: c.author_id
+        ? { id: c.author_id, displayName: agent || c.author_id === user?.id ? c.u_name : publicName(c.u_name), username: agent || c.author_id === user?.id ? c.u_username : undefined }
+        : agent ? { id: null, displayName: c.author_name || c.author_email || '?', email: c.author_email } : { id: null, displayName: publicName(c.author_name) || '?' },
     }));
   }
 
@@ -650,7 +666,7 @@ export function createTickets(db, users) {
     return db.prepare(`SELECT u.id, u.display_name, u.username, u.email, u.source, p.created_at FROM ticket_participants p
       JOIN users u ON u.id=p.user_id WHERE p.ticket_id=? ORDER BY p.created_at, u.display_name`).all(ticketId)
       .map((u) => ({
-        id: u.id, displayName: u.display_name, username: agent ? u.username : undefined,
+        id: u.id, displayName: agent || viewer?.id === u.id ? u.display_name : publicName(u.display_name), username: agent ? u.username : undefined,
         email: agent || viewer?.id === u.id ? (u.email || '') : undefined, contact: u.source === 'email', addedAt: u.created_at,
       }));
   }

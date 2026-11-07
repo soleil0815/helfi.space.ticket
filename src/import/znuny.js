@@ -23,10 +23,12 @@ export function znunyCategory(stateType, name = '') {
   return 'indeterminate';
 }
 
-/** Internal article? Znuny 6+/OTRS 7: IsVisibleForCustomer, OTRS 5 and older: ArticleType "…-internal" */
+/** Internal article? Znuny 6+/OTRS 7: IsVisibleForCustomer, OTRS 5 and older: ArticleType "…-internal" / "…-int" */
 export function znunyInternal(a) {
   if (a.IsVisibleForCustomer !== undefined && a.IsVisibleForCustomer !== null && a.IsVisibleForCustomer !== '') return String(a.IsVisibleForCustomer) === '0';
-  return /internal/i.test(a.ArticleType || '');
+  // "email-internal", "note-internal", but also the short forms "email-notification-int", "note-int"
+  const type = String(a.ArticleType || '');
+  return /internal/i.test(type) || /-int$/i.test(type.trim());
 }
 
 function articleText(a) {
@@ -135,7 +137,12 @@ export function znunyAdapter(c) {
     async *tickets(key, options = {}) {
       for (const m of await overview()) {
         if (queueKey(m) !== String(key)) continue;
-        const [tk] = await getTickets([m.TicketID], { articles: true, attachments: options.attachments !== false });
+        let tk;
+        try { [tk] = await getTickets([m.TicketID], { articles: true, attachments: options.attachments !== false }); } catch (e) {
+          if (e.status === 401 || e.status === 403) throw e;
+          yield { extId: String(m.TicketID), extKey: `#${m.TicketNumber || m.TicketID}`, fetchError: e }; // counted as failed, import goes on
+          continue;
+        }
         if (!tk) continue;
         const articles = asArray(tk.Article).sort((a, b) => Number(a.ArticleID) - Number(b.ArticleID));
         const first = articles.find((a) => !znunyInternal(a));

@@ -248,7 +248,7 @@
 </ol>
 <figure class="medium"><img src="img/en/reporter-create.jpg" alt=""><figcaption>Entering a ticket for a colleague</figcaption></figure>
 <p>The history shows who created the ticket for whom. <em>Back to me</em> undoes the choice.</p>
-<p><strong>Change later:</strong> in the details under <em>Reporter</em> click <em>Change reporter</em>, pick the person and confirm. The previous reporter keeps access as a request participant (except agents and pure email contacts). On phones: <em>All details → Reporter</em>.</p>
+<p><strong>Change later:</strong> in the details under <em>Reporter</em> click <em>Change reporter</em>, pick the person and confirm. The previous reporter keeps access as a request participant (except agents and pure email contacts). If a former reporter later replies to an old email, it only becomes an internal note. On phones: <em>All details → Reporter</em>.</p>
 <figure class="small"><img src="img/en/m-reporter.jpg" alt=""><figcaption>On phones: choosing the reporter when creating</figcaption></figure>
 
 <h2 id="formatting">Formatting replies</h2>
@@ -257,7 +257,7 @@
   <li><strong>AI</strong> (if set up): suggest a reply, polish, shorten, translate.</li>
   <li><strong>Formatting:</strong> bold (<kbd>Ctrl</kbd>+<kbd>B</kbd>), italic (<kbd>Ctrl</kbd>+<kbd>I</kbd>), under <em>…</em> underline, strikethrough and code; bullets, numbered list, quote and code block. You see the formatting right away while writing. Shortcuts work too: “- ” or “1. ” at the start of a line starts a list, “&gt; ” a quote.</li>
   <li><strong>Link</strong> (<kbd>Ctrl</kbd>+<kbd>K</kbd>; also ticket numbers such as IT-42 or KB-3), <strong>image</strong> (or Ctrl+V), <strong>emoji</strong> (also “:)” or “:thumbsup:”) and <strong>@</strong> to mention someone.</li>
-  <li>On the right: <strong>Canned responses</strong> to insert – <em>Save as canned response</em> is in the same menu.</li>
+  <li>On the right: <strong>Canned responses</strong> to insert – <em>Save as template</em> is in the same menu.</li>
   <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> saves.</li>
 </ul>
 <figure class="medium"><img src="img/en/comment-toolbar.jpg" alt=""><figcaption>Comment field with toolbar: bold, mention and emoji</figcaption></figure>
@@ -562,7 +562,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <h3>Mail loop protection and sender rules</h3>
 <figure><img src="img/en/admin-mail-3.jpg" alt=""><figcaption>Sender rules and blocked recipients</figcaption></figure>
 <ul>
-  <li>Delivery failure reports and read receipts never become tickets and are never answered. The affected address gets no emails for 7 days (<em>Blocked recipients</em>, can be released early there). Only addresses from real header lines of the report or from its <code>message/delivery-status</code> part are blocked.</li>
+  <li>Delivery failure reports and read receipts never become tickets and are never answered. The affected address gets no emails for 7 days (<em>Blocked recipients</em>, can be released early there). Only addresses from real header lines of the report or from its <code>message/delivery-status</code> part are blocked – and only if the report refers to a mail Helfi.Space sent to exactly that address.</li>
   <li><strong>Sender rules</strong> (address or pattern like <code>*@pve.firma.local</code>): “Create ticket, never reply” – optionally into a separate project – or “Ignore”.</li>
   <li><strong>Automatically generated emails</strong> (Proxmox, NAS, monitoring; recognised by <code>Auto-Submitted</code>, <code>Precedence: bulk</code> or <code>noreply@</code>) are <strong>only accepted with the rule “Create ticket, never reply”</strong>. <em>Recently skipped emails</em> lists sender and reason.</li>
   <li>More than 20 new tickets per hour from the same sender are ignored.</li>
@@ -605,7 +605,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p><strong>Automatic sign-out</strong> (<em>Administration → Security</em>): period without activity for everyone (default 12 hours from <code>HELFI_SESSION_HOURS</code>), for admins (default 60 minutes) and optionally for access from outside – the shortest applicable one counts. Two minutes before, Helfi asks “Still there?”; whoever keeps working stays signed in. Optional: “Sign out when the browser is closed”.</p>
 <p><strong>Registration and forgotten passwords</strong> (<em>Administration → Security</em>, registration off by default): external people create a local account with the role “User” themselves; the email address is confirmed via a link, and an existing email contact becomes the account with its requests. Optional: allowed mail domains and approval by an admin. “Forgot password” applies by default to local accounts with the role “User”, optionally to all local accounts or not at all. Both require outgoing mail.</p>
 <p><strong>AI</strong> (<em>Administration → AI</em>, off by default): address of an OpenAI-compatible API (e.g. Ollama: <code>http://&lt;host&gt;:11434/v1</code>) and optionally an API key (stored encrypted). The <strong>installed models are fetched automatically</strong> and offered in a list – for Ollama with parameter count, quantisation and size, cloud models in a group of their own. Embedding models are hidden; if a model is missing, use <em>Reload</em> or <em>Other model …</em>. Recommended for production is a self-hosted model in your own network; for cloud models or external addresses the page points out that ticket content leaves the house. Internal notes are only sent if switched on; attachments never. <em>Test</em> checks the connection.</p>
-<p>Under <strong>Functions</strong> you switch <em>Summary</em>, <em>Reply suggestion</em> and <em>Rewrite</em> (on by default) and <em>Detect component</em> (off by default) one by one. For detection you choose <em>Suggest</em> or <em>Assign automatically</em>. Below is the <strong>hit rate</strong>: accepted suggestions and automatic ones nobody changed, against corrected and dismissed ones. With a cloud model, detection sends the title and description of every new ticket without a rule match to the provider – the page points it out.</p>
+<p>Under <strong>Functions</strong> you switch <em>Summary</em>, <em>Reply suggestion</em> and <em>Rewrite</em> and <em>Knowledge articles</em> (on by default) and <em>Detect component</em> (off by default) one by one. For detection you choose <em>Suggest</em> or <em>Assign automatically</em>. Below is the <strong>hit rate</strong>: accepted suggestions and automatic ones nobody changed, against corrected and dismissed ones. With a cloud model, detection sends the title and description of every new ticket without a rule match to the provider – the page points it out.</p>
 <figure class="medium"><img src="img/en/ai-functions.jpg" alt=""><figcaption>Switching AI functions one by one, with hit rate</figcaption></figure>
 <figure class="medium"><img src="img/en/ai-models.jpg" alt=""><figcaption>The models of the Ollama server to choose from – cloud models separate</figcaption></figure>
 <figure><img src="img/en/admin-users.jpg" alt=""><figcaption>User management</figcaption></figure>
@@ -691,7 +691,7 @@ docker compose up -d</code></pre></li>
 <ul>
   <li>Passwords of local accounts are stored with scrypt, stored credentials (service account, mailbox, SSO) are encrypted with AES-256-GCM and never sent to the browser.</li>
   <li>Anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, weakens the certificate check (including “Fetched certificate” → “System certificate authorities”) or stores a different AD certificate, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server; connection tests with a weakened check do not send it either.</li>
-  <li>Sessions end after <code>HELFI_SESSION_HOURS</code> (default 12 hours) without use and at the latest 30 days after sign-in. Disabled accounts get the same message at sign-in as for a wrong password.</li>
+  <li>Sessions end after the time set under <em>Automatic sign-out</em> without use (without a setting <code>HELFI_SESSION_HOURS</code>, default 12 hours; administrators 60 minutes) and at the latest 30 days after sign-in. Disabled accounts get the same message at sign-in as for a wrong password.</li>
   <li>Two-factor authentication per RFC 6238, each code works once, recovery codes are stored only as hashes.</li>
   <li>Brake on wrong passwords, cookies <code>HttpOnly</code>/<code>SameSite</code>, CSRF protection, strict Content Security Policy. The interface loads nothing from the internet.</li>
   <li>HTML emails are cleaned and shown in an isolated frame without scripts.</li>

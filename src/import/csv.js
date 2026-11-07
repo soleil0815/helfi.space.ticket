@@ -91,8 +91,21 @@ export function csvAdapter(c) {
   const name = String(c.name || 'CSV').trim().slice(0, 60) || 'CSV';
   const get = (r, f) => (cols[f] ? String(r[cols[f]] ?? '').trim() : '');
   const projectOf = (r) => get(r, 'project') || '*';
-  const extIdOf = (r) => get(r, 'id') || crypto.createHash('sha256').update(JSON.stringify([get(r, 'title'), get(r, 'created'), get(r, 'reporterEmail'), get(r, 'reporterName'), get(r, 'description').slice(0, 200)])).digest('hex').slice(0, 24);
   const rows = records.filter((r) => get(r, 'title') || get(r, 'description'));
+  // Without an ID column: hash of the content. Identical rows must not merge into one ticket, so the
+  // 2nd, 3rd … occurrence of the same content also gets its occurrence number (the first keeps the plain
+  // hash, as before) – importing the same file again stays idempotent.
+  const extIds = new Map();
+  const occurrences = new Map();
+  for (const r of rows) {
+    if (get(r, 'id')) continue;
+    const parts = [get(r, 'title'), get(r, 'created'), get(r, 'reporterEmail'), get(r, 'reporterName'), get(r, 'description').slice(0, 200)];
+    const plain = JSON.stringify(parts);
+    const n = (occurrences.get(plain) || 0) + 1;
+    occurrences.set(plain, n);
+    extIds.set(r, crypto.createHash('sha256').update(n === 1 ? plain : JSON.stringify([...parts, n])).digest('hex').slice(0, 24));
+  }
+  const extIdOf = (r) => get(r, 'id') || extIds.get(r);
 
   return {
     kind: 'csv',

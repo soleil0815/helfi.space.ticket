@@ -111,7 +111,8 @@ export function createItilRoutes(ctx) {
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(f.filename)}`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
-    res.setHeader('Cache-Control', 'private, max-age=86400');
+    // Internal article images: not kept in the browser cache of a shared device (like ticket attachments)
+    res.setHeader('Cache-Control', 'private, no-store');
     fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
   r.get('/kb/tree', (req, res) => res.json({ tree: kb.tree(req.user) }));

@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { takeIdleNote } from '../idle.js';
 import { h, mount, field, icon, select, toast } from '../dom.js';
 import { t, getLang, setLang } from '../i18n.js';
-import { state, navigate, reloadBase, route } from '../app.js';
+import { state, navigate, reloadBase, route, resetAccountState } from '../app.js';
 import { brandLogo, brandTitle } from '../brand.js';
 import { loginIntro, loginUserLabel, loginUserHint, accountLinks } from '../logintext.js';
 import { noteUser } from '../userdata.js';
@@ -26,6 +26,7 @@ export function authFrame(...children) {
 }
 
 async function finishLogin(user) {
+  resetAccountState();
   noteUser(user.id);
   state.user = user;
   state.boot = await api.bootstrap();

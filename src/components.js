@@ -161,10 +161,17 @@ export function createComponents(db, users) {
     return get(prev.id);
   }
 
-  /** Delete: tickets keep their history, the field becomes empty (ON DELETE SET NULL) */
-  function remove(id) {
+  /**
+   * Delete: the field of its tickets becomes empty (ON DELETE SET NULL); each ticket gets the
+   * same history entry as a manual component change, so the record shows what it was.
+   */
+  function remove(id, userId = null) {
     const c = raw(id);
-    db.prepare('DELETE FROM components WHERE id=?').run(c.id);
+    db.transaction(() => {
+      db.prepare(`INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value)
+        SELECT id, ?, 'changed', 'component', ?, NULL FROM tickets WHERE component_id=?`).run(userId, c.name, c.id);
+      db.prepare('DELETE FROM components WHERE id=?').run(c.id);
+    })();
     return { name: c.name, tickets: c.ticket_count };
   }
 

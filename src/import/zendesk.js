@@ -114,8 +114,15 @@ export function zendeskAdapter(c) {
     async *tickets(key, options = {}) {
       for (const t of await allTickets()) {
         if (groupKey(t) !== String(key)) continue;
-        const list = (await comments(t.id)).sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id - b.id));
-        await users([t.requester_id, t.submitter_id, t.assignee_id, ...list.map((x) => x.author_id)]);
+        let list;
+        try {
+          list = (await comments(t.id)).sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id - b.id));
+          await users([t.requester_id, t.submitter_id, t.assignee_id, ...list.map((x) => x.author_id)]);
+        } catch (e) {
+          if (e.status === 401 || e.status === 403) throw e;
+          yield { extId: String(t.id), extKey: `#${t.id}`, fetchError: e }; // counted as failed, import goes on
+          continue;
+        }
         const first = list.find((x) => x.public !== false); // a private first comment must not become the visible description
         const done = t.status === 'solved' || t.status === 'closed';
         yield {

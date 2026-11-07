@@ -1,28 +1,59 @@
 // Data of the signed-in account that the browser keeps between pages (unsent drafts of the mobile UI,
-// recently viewed articles). It must never reach the next account on the same device: everything is
-// removed on sign-out (mobile and desktop), when the session expires, and when another account signs
-// in. No imports – both UIs use this module.
-const UID_KEY = 'helfi.m.uid';
+// unsaved knowledge article drafts, recently viewed articles and tickets). It must never reach the next account on the same device: everything is
+// removed on sign-out (mobile and desktop), when the session expires (except unsaved knowledge article
+// drafts, which only their own account gets back), and when another account signs in. No imports – both UIs use this module.
+const UID_KEY = 'helfi.m.uid'; // sessionStorage: account of this tab (drafts of the tab)
+const LOCAL_UID_KEY = 'helfi.uid'; // localStorage: account the lists and drafts below belong to
 const SESSION_PREFIXES = ['helfi.m.draft.', 'helfi.m.newTicket'];
 const RECENT_TICKETS = 'helfi.recentTickets';
-const LOCAL_KEYS = ['helfi.m.kbRecent', RECENT_TICKETS];
+const LOCAL_KEYS = ['helfi.m.kbRecent', RECENT_TICKETS, LOCAL_UID_KEY];
+// Unsaved knowledge article and template drafts of the desktop editor (views/kb.js)
+const LOCAL_PREFIXES = ['helfi.kbdraft.', 'helfi.kbtpl.'];
 
-/** Remove all drafts and per-account lists (keeps the "continue after sign-in" address) */
-export function clearUserData() {
+function clearSession() {
   try {
     for (const k of Object.keys(sessionStorage)) if (k === UID_KEY || SESSION_PREFIXES.some((p) => k.startsWith(p))) sessionStorage.removeItem(k);
   } catch { /* storage blocked */ }
-  try { for (const k of LOCAL_KEYS) localStorage.removeItem(k); } catch { /* storage blocked */ }
 }
 
-/** The account in this tab: another one than before → the old account's data goes */
+function clearLocal(keepDrafts = false) {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      // keepDrafts: the drafts and the owner id they are checked against stay
+      if (keepDrafts && (k === LOCAL_UID_KEY || LOCAL_PREFIXES.some((p) => k.startsWith(p)))) continue;
+      if (LOCAL_KEYS.includes(k) || LOCAL_PREFIXES.some((p) => k.startsWith(p))) localStorage.removeItem(k);
+    }
+  } catch { /* storage blocked */ }
+}
+
+/**
+ * Remove all drafts and per-account lists (keeps the "continue after sign-in" address).
+ * keepDrafts (session expired, start without session): unsaved knowledge article drafts stay – they carry
+ * the account id and are only offered to that account; noteUser() removes them when another account signs in.
+ */
+export function clearUserData({ keepDrafts = false } = {}) {
+  clearSession();
+  clearLocal(keepDrafts);
+}
+
+/**
+ * The signed-in account: data of another account than before goes. Tab drafts are checked against
+ * the account of this tab (sessionStorage), the lists and drafts in localStorage against the account
+ * that stored them – a new tab or app start of the same account keeps them.
+ */
 export function noteUser(id) {
   if (!id) return;
+  const uid = String(id);
   try {
-    const prev = sessionStorage.getItem(UID_KEY);
-    if (prev !== String(id)) {
-      clearUserData();
-      sessionStorage.setItem(UID_KEY, String(id));
+    if (sessionStorage.getItem(UID_KEY) !== uid) {
+      clearSession();
+      sessionStorage.setItem(UID_KEY, uid);
+    }
+  } catch { /* storage blocked */ }
+  try {
+    if (localStorage.getItem(LOCAL_UID_KEY) !== uid) {
+      clearLocal();
+      localStorage.setItem(LOCAL_UID_KEY, uid);
     }
   } catch { /* storage blocked */ }
 }

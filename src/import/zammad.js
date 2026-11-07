@@ -125,7 +125,12 @@ export function zammadAdapter(c) {
       for (const tk of await allTickets()) {
         if (String(tk.group_id) !== String(key)) continue;
         // Articles once per ticket: first public one = description, the rest = comments
-        const articles = (await json(`${api}/ticket_articles/by_ticket/${tk.id}`)) || [];
+        let articles;
+        try { articles = (await json(`${api}/ticket_articles/by_ticket/${tk.id}`)) || []; } catch (e) {
+          if (e.status === 401 || e.status === 403) throw e;
+          yield { extId: String(tk.id), extKey: `#${tk.number}`, fetchError: e }; // counted as failed, import goes on
+          continue;
+        }
         articles.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id - b.id));
         const first = articles.find((a) => !a.internal);
         const customer = await user(tk.customer_id);

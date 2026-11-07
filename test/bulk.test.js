@@ -23,7 +23,7 @@ before(async () => {
   const built = createApp(db);
   ctx = built.ctx;
   ctx.settings.set('mfa.internalNetworks', '127.0.0.1, ::1');
-  for (const e of ['commented', 'resolved', 'assigned']) ctx.tickets.events.on(e, (p) => events.push({ e, key: p.ticket.key, body: p.comment?.body }));
+  for (const e of ['commented', 'resolved', 'assigned']) ctx.tickets.events.on(e, (p) => events.push({ e, key: p.ticket.key, body: p.comment?.body, quiet: !!p.quiet }));
   await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -91,13 +91,15 @@ test('Resolve with reply: placeholders per ticket, no additional resolved mail',
   const comments = events.filter((x) => x.e === 'commented');
   assert.equal(comments.length, 2);
   assert.equal(comments[0].body, `Hallo Karl Kunde, ${keys[0]} ist erledigt. – Anna`);
-  assert.equal(events.filter((x) => x.e === 'resolved').length, 0, 'only the reply, no second mail');
+  // The event still fires (survey), but quietly: the mail handler sends no second "Resolved" mail
+  assert.equal(events.filter((x) => x.e === 'resolved' && !x.quiet).length, 0, 'only the reply, no second mail');
+  assert.equal(events.filter((x) => x.e === 'resolved' && x.quiet).length, 2, 'quiet resolved event per ticket');
   for (const k of keys.slice(0, 2)) assert.equal((await anna('GET', `/api/tickets/${k}`)).body.ticket.status, 'done');
 
   events.length = 0;
   await anna('POST', '/api/tickets/bulk', { keys: [keys[2]], changes: { status: 'done' } });
   await tick();
-  assert.equal(events.filter((x) => x.e === 'resolved').length, 1, 'without reply the normal resolved mail');
+  assert.equal(events.filter((x) => x.e === 'resolved' && !x.quiet).length, 1, 'without reply the normal resolved mail');
 });
 
 test('Moving: new numbers, result contains new keys', async () => {

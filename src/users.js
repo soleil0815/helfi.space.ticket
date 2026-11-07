@@ -86,6 +86,8 @@ export function createUsers(db) {
     const from = byId.get(fromId);
     if (!from || from.source !== 'email') throw new Error('Nur E-Mail-Kontakte lassen sich übernehmen');
     db.prepare('UPDATE tickets SET reporter_id=? WHERE reporter_id=?').run(intoId, fromId);
+    // The account is now the reporter there: no additional participant row for the same person
+    db.prepare('DELETE FROM ticket_participants WHERE user_id=? AND ticket_id IN (SELECT id FROM tickets WHERE reporter_id=?)').run(intoId, intoId);
     db.prepare('UPDATE comments SET author_id=? WHERE author_id=?').run(intoId, fromId);
     db.prepare('UPDATE attachments SET uploaded_by=? WHERE uploaded_by=?').run(intoId, fromId);
     db.prepare('UPDATE activity SET user_id=? WHERE user_id=?').run(intoId, fromId);
@@ -97,12 +99,17 @@ export function createUsers(db) {
     // e.g. open approvals: the request would otherwise stay "pending" forever.
     // Approvals: if the account was already asked in the same round, its row stays (OR IGNORE).
     db.prepare('UPDATE OR IGNORE approvals SET approver_id=? WHERE approver_id=?').run(intoId, fromId);
+    // Mentions and votes (CASCADE, one row per person): keep the account's row if it already has one
+    db.prepare('UPDATE OR IGNORE comment_mentions SET user_id=? WHERE user_id=?').run(intoId, fromId);
+    db.prepare('UPDATE OR IGNORE kb_votes SET user_id=? WHERE user_id=?').run(intoId, fromId);
     for (const [table, col] of [
       ['tickets', 'assignee_id'], ['projects', 'lead_id'], ['ticket_participants', 'added_by'],
       ['canned_responses', 'owner_id'], ['canned_responses', 'created_by'], ['ticket_links', 'created_by'],
       ['config_items', 'owner_id'], ['ticket_ratings', 'assignee_id'],
       ['kb_articles', 'created_by'], ['kb_articles', 'updated_by'], ['kb_images', 'created_by'], ['kb_versions', 'author_id'],
       ['kb_templates', 'created_by'], ['kb_templates', 'updated_by'], ['kb_comments', 'author_id'], ['kb_comments', 'resolved_by'],
+      ['kb_feedback', 'user_id'], ['saved_filters', 'owner_id'], ['saved_filters', 'created_by'],
+      ['components', 'lead_id'], ['components', 'deputy_id'], ['component_suggestions', 'decided_by'],
     ]) db.prepare(`UPDATE ${table} SET ${col}=? WHERE ${col}=?`).run(intoId, fromId);
     // Approver lists as text (service catalog, change approvers in the settings)
     const swap = (list, sep) => [...new Set(String(list).split(sep).filter(Boolean).map((x) => (Number(x) === fromId ? String(intoId) : x.trim())))].join(',');
