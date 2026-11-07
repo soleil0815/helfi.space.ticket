@@ -246,9 +246,11 @@ export function createTickets(db, users) {
   }
 
   /** WHERE clause of the ticket list (also used to count saved filters) */
-  function listFilter(user, f) {
+  function listFilter(user, f, { ids } = {}) {
     const where = [];
     const args = [];
+    // Internal pre-selection (e.g. "my open approvals"), never from the query string
+    if (Array.isArray(ids)) { where.push('t.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(ids)); }
     if (!isAgent(user)) {
       where.push('(t.reporter_id=? OR t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?) OR t.id IN (SELECT ticket_id FROM approvals WHERE approver_id=?))');
       args.push(user.id, user.id, user.id);
@@ -293,32 +295,39 @@ export function createTickets(db, users) {
   }
 
   /** Number of tickets for list filters (without sorting/limit) */
-  function count(user, f = {}) {
-    const { where, args } = listFilter(user, f);
+  function count(user, f = {}, opts = {}) {
+    const { where, args } = listFilter(user, f, opts);
     return db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`).get(...args).n;
   }
 
-  function list(user, f = {}) {
-    const { where, args, hits } = listFilter(user, f);
+  /**
+   * Ticket list. f.limit (default 500, max 2000) and f.offset page through it;
+   * opts.ids restricts to these ticket ids, opts.all returns every match (for filters computed afterwards).
+   */
+  function list(user, f = {}, opts = {}) {
+    const { where, args, hits } = listFilter(user, f, opts);
     const sorts = {
       updated: 't.updated_at DESC', created: 't.created_at DESC', priority: "CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, t.updated_at DESC",
       key: 'p.key, t.number DESC', rank: 't.rank, t.id', status: "CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END, t.updated_at DESC",
     };
     const lim = int(f.limit);
-    const limit = lim && lim > 0 ? Math.min(lim, 2000) : 500;
+    const limit = opts.all ? -1 : lim && lim > 0 ? Math.min(lim, 2000) : 500;
+    const off = opts.all ? 0 : Math.max(0, int(f.offset) || 0);
     // Search: default "best matches first" (order from the index), otherwise as selected
     const relevance = hits && (!f.sort || f.sort === 'relevance');
     const order = sorts[f.sort] || sorts.updated;
-    let rows = db.prepare(`${SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ${relevance ? '' : `ORDER BY ${order} LIMIT ${limit}`}`).all(...args);
+    let rows = db.prepare(`${SELECT} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ${relevance ? '' : `ORDER BY ${order} LIMIT ${limit} OFFSET ${off}`}`).all(...args);
     if (relevance) {
       const pos = new Map(hits.ids.map((id, i) => [id, i]));
-      rows = rows.sort((a, b) => pos.get(a.id) - pos.get(b.id)).slice(0, limit);
+      rows = rows.sort((a, b) => pos.get(a.id) - pos.get(b.id));
+      if (limit > 0) rows = rows.slice(off, off + limit);
     }
     const out = rows.map((r) => ticketOut(r, isAgent(user), user.id));
     if (hits) {
       // Match location for the first results (description, reply, attachment)
       out.slice(0, 100).forEach((tk) => { const m = search.snippet(tk.id, hits.terms, { internal: isAgent(user) }); if (m) tk.match = m; });
       out.searchTerms = hits.terms;
+      if (hits.capped) out.searchCapped = true;
     }
     return out;
   }

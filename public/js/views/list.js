@@ -16,12 +16,60 @@ const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES } from '../types.js';
 const PRIOS = ['highest', 'high', 'medium', 'low'];
 
+// ---------- Pages ----------
+export const PAGE_SIZES = [50, 100, 250, 500];
+const PAGE_SIZE_KEY = 'helfi.pageSize';
+export function getPageSize() {
+  try { const v = Number(localStorage.getItem(PAGE_SIZE_KEY)); if (PAGE_SIZES.includes(v)) return v; } catch { /* storage blocked */ }
+  return 100;
+}
+function setPageSize(n) { try { localStorage.setItem(PAGE_SIZE_KEY, String(n)); } catch { /* storage blocked */ } }
+
+/** Page numbers around the current page: 1 … 4 5 [6] 7 8 … 80 (null = gap) */
+export function pageNumbers(page, pages) {
+  const want = new Set([1, pages]);
+  for (let i = page - 2; i <= page + 2; i++) if (i >= 1 && i <= pages) want.add(i);
+  const sorted = [...want].sort((a, b) => a - b);
+  const out = [];
+  sorted.forEach((n, i) => {
+    if (i && n - sorted[i - 1] === 2) out.push(n - 1); // a single missing number instead of "…"
+    else if (i && n - sorted[i - 1] > 2) out.push(null);
+    out.push(n);
+  });
+  return out;
+}
+
+/** Pager below the list: « ‹ 1 … 5 6 7 … 80 › » plus entries per page */
+function pager({ page, pages, pageSize, range, onPage, onSize }) {
+  const btn = (n, label, aria, disabled = false) => h('button.btn.btn-subtle.small.pager-btn', {
+    type: 'button', disabled, 'aria-label': aria, title: aria, onclick: () => onPage(n),
+  }, label);
+  return h('nav.pager', { 'aria-label': t('list.pages') },
+    pages > 1 ? h('div.pager-pages',
+      btn(1, '«', t('list.firstPage'), page === 1),
+      btn(page - 1, '‹', t('list.prevPage'), page === 1),
+      ...pageNumbers(page, pages).map((n) => (n === null
+        ? h('span.pager-gap', { 'aria-hidden': 'true' }, '…')
+        : h('button.btn.btn-subtle.small.pager-btn', {
+          type: 'button', class: n === page ? 'active' : '', 'aria-label': t('list.page', { n }),
+          ...(n === page ? { 'aria-current': 'page' } : {}), onclick: () => { if (n !== page) onPage(n); },
+        }, String(n)))),
+      btn(page + 1, '›', t('list.nextPage'), page === pages),
+      btn(pages, '»', t('list.lastPage'), page === pages)) : null,
+    range ? h('span.pager-range', range) : null,
+    h('span.spacer'),
+    select(PAGE_SIZES.map((n) => [String(n), t('list.perPage', { n })]), String(pageSize), {
+      class: 'select-sm', 'aria-label': t('list.pageSize'), onchange: (e) => onSize(Number(e.target.value)),
+    }));
+}
+
 export async function renderList(content, params, { requests = false } = {}) {
   const f = Object.fromEntries(params);
   if (!('status' in f) && requests) f.status = '';
   const set = (k, v) => {
     const p = new URLSearchParams(location.search);
     if (v) p.set(k, v); else p.delete(k);
+    p.delete('page'); // other filter, search or sorting → back to page 1
     navigate(`${location.pathname}?${p}`, { replace: true });
   };
 
@@ -46,7 +94,7 @@ export async function renderList(content, params, { requests = false } = {}) {
         class: 'select-sm',
         onchange: (e) => {
           const p = new URLSearchParams(location.search);
-          p.delete('reporter'); p.delete('participant');
+          p.delete('reporter'); p.delete('participant'); p.delete('page');
           if (e.target.value) p.set(e.target.value, 'me');
           navigate(`${location.pathname}?${p}`, { replace: true });
         },
@@ -78,20 +126,45 @@ export async function renderList(content, params, { requests = false } = {}) {
 
   // Search: default “best matches first”
   const sort = f.sort || (f.q ? 'relevance' : 'updated');
-  const { tickets, searchTerms } = await api.tickets({ ...f, sort });
+  const pageSize = getPageSize();
+  const want = Math.max(1, Number.parseInt(f.page, 10) || 1);
+  const { tickets, searchTerms, searchCapped, total, page } = await api.tickets({ ...f, sort, page: want, pageSize });
+  if (!content.isConnected) return;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  // Page past the end (e.g. after bulk changes): the server delivered the last one – keep the address right
+  if (page !== want) {
+    const p = new URLSearchParams(location.search);
+    if (page > 1) p.set('page', String(page)); else p.delete('page');
+    history.replaceState({}, '', `${location.pathname}?${p}`);
+  }
+  const goPage = (n) => {
+    const p = new URLSearchParams(location.search);
+    if (n > 1) p.set('page', String(n)); else p.delete('page');
+    navigate(`${location.pathname}?${p}`);
+    document.querySelector('.main')?.scrollTo({ top: 0 });
+  };
+  const from = total ? (page - 1) * pageSize + 1 : 0;
   mount(tableHost,
     f.q && searchTerms ? h('div.search-info',
       sort !== 'relevance' ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => set('sort', '') }, t('search.byRelevance')) : h('span.muted.small', t('search.sortedByRelevance')),
       h('span.muted.small.search-help', { title: t('search.help') }, ' ⓘ')) : null,
+    searchCapped ? h('div.hint-box.small.search-capped', t('search.capped')) : null,
     ticketTable(tickets, {
-    terms: searchTerms || [],
-    requests, sort, onSort: (s) => set('sort', s),
-    selectable: state.isAgent && !requests,
-    onChanged: () => navigate(`${location.pathname}${location.search}`, { replace: true }),
-  }));
+      terms: searchTerms || [],
+      requests, sort, onSort: (s) => set('sort', s),
+      selectable: state.isAgent && !requests,
+      count: total > tickets.length ? t('list.range', { from, last: from + tickets.length - 1, total }) : null,
+      onChanged: () => navigate(`${location.pathname}${location.search}`, { replace: true }),
+    }),
+    total ? pager({
+      page, pages, pageSize,
+      range: pages > 1 ? t('list.range', { from, last: from + tickets.length - 1, total }) : null,
+      onPage: goPage,
+      onSize: (n) => { setPageSize(n); const p = new URLSearchParams(location.search); p.delete('page'); navigate(`${location.pathname}?${p}`, { replace: true }); },
+    }) : null);
 }
 
-export function ticketTable(tickets, { requests = false, sort, onSort, compact = false, selectable = false, onChanged, terms = [] } = {}) {
+export function ticketTable(tickets, { requests = false, sort, onSort, compact = false, selectable = false, onChanged, terms = [], count = null } = {}) {
   if (!tickets.length) return h('div.empty-state.small', t('list.empty'));
   const th = (label, key) => h('th', onSort && key ? h('button.th-sort', { type: 'button', class: sort === key ? 'active' : '', onclick: () => onSort(key) }, label, sort === key ? icon('arrow-down') : null) : label);
 
@@ -275,7 +348,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
   const showSla = !requests && tickets.some((tk) => tk.sla !== undefined);
   const showComponent = !requests && !compact && tickets.some((tk) => tk.component);
   return h('div.table-wrap',
-    compact ? null : h('div.table-count', t('list.count', { n: tickets.length })),
+    compact ? null : h('div.table-count', count || t('list.count', { n: tickets.length })),
     bar,
     h('table.issues', { class: selectable ? 'selectable' : '' },
       h('thead', h('tr',
