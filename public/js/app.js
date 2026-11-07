@@ -212,24 +212,24 @@ export async function route() {
 function layout(content, path) {
   const u = state.user;
   const p = state.project;
-  const nav = (href, label, ic, active) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', label));
+  const nav = (href, label, ic, active) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', { title: label }, label));
   const activeQueue = path === '/issues' ? matchQueue(new URL(location.href).searchParams) : null;
   // Count on an entry – filled after loading /api/queues (until then the last known value)
   const countEl = (field) => h('span.nav-count', { 'data-count': field }, state.queueCounts?.[field] ?? '');
-  const countedNav = (href, label, ic, active, field) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', label), countEl(field));
+  const countedNav = (href, label, ic, active, field) => h('a.nav-item', { href, 'data-link': '', class: active ? 'active' : '' }, icon(ic), h('span', { title: label }, label), countEl(field));
   function queuesNav(curPath, proj) {
     let open = true;
     try { open = localStorage.getItem('helfi.queuesOpen') !== '0'; } catch { /* ignore */ }
     const list = h('div.queue-list', { hidden: !open }, QUEUES.map((q) => h('a.nav-item.nav-sub', {
       href: queueHref(q, proj?.key), 'data-link': '', class: curPath === '/issues' && activeQueue?.id === q.id ? 'active' : '',
-    }, h('span', t(q.label)), countEl(q.count))));
+    }, h('span', { title: t(q.label) }, t(q.label)), countEl(q.count))));
     const head = h('button.nav-item.nav-group', {
       type: 'button', 'aria-expanded': String(open),
       onclick: () => {
         open = !open; list.hidden = !open; head.setAttribute('aria-expanded', String(open)); head.classList.toggle('collapsed', !open);
         try { localStorage.setItem('helfi.queuesOpen', open ? '1' : '0'); } catch { /* ignore */ }
       },
-    }, icon('inbox'), h('span', t('nav.queues')), icon('chevron-down', 'nav-chevron'));
+    }, icon('inbox'), h('span', { title: t('nav.queues') }, t('nav.queues')), icon('chevron-down', 'nav-chevron'));
     head.classList.toggle('collapsed', !open);
     return h('div.queue-group', head, list);
   }
