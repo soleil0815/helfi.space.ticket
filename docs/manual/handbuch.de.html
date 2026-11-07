@@ -299,6 +299,7 @@
 <ul>
   <li><strong>Platzhalter</strong> werden beim Einfügen ersetzt: <code>{melder}</code>, <code>{ticket}</code>, <code>{titel}</code>, <code>{bearbeiter}</code>.</li>
   <li><strong>Neue Vorlage:</strong> Text im Kommentarfeld schreiben und <em>Als Vorlage speichern</em> wählen. Persönliche Vorlagen verwaltest du im <em>Profil</em>, Vorlagen für alle pflegen Admins unter <em>Administration → Antwortvorlagen</em>.</li>
+  <li><strong>Beispiele übernehmen</strong> <span class="role role-admin">Admin</span>: Unter <em>Administration → Antwortvorlagen</em> legt <em>Beispiele</em> zehn häufige Antworten für alle an – von „Eingang bestätigen“ bis „Gelöst – bitte bestätigen“ –, auf Deutsch oder Englisch und mit Platzhaltern. Danach nach Belieben anpassen.</li>
 </ul>
 
 <h2 id="ki">KI-Unterstützung</h2>
@@ -395,6 +396,8 @@
 <h2 id="wissen">Wissensdatenbank</h2>
 <p><em>Wissen</em> sammelt Anleitungen und Lösungen. Artikel sind <strong>intern</strong> (nur Bearbeiter) oder <strong>öffentlich</strong> (alle Angemeldeten, auch als Vorschlag beim Melden). Die Suche gewichtet Treffer im Titel höher. Aus einem gelösten Ticket legt <strong>Wissensartikel</strong> oben im Ticket einen Entwurf an; vor dem Veröffentlichen persönliche Angaben entfernen. Ab drei Überschriften zeigt die Artikelansicht rechts ein Inhaltsverzeichnis.</p>
 <figure><img src="img/de/itil-kb.jpg" alt=""><figcaption>Wissensdatenbank mit Kategorien</figcaption></figure>
+<p><strong>Beispiel-Artikel:</strong> Ist die Wissensdatenbank noch leer, übernimmt <em>Beispiele</em> fertige Musterartikel – etwa „So meldest du ein Problem richtig“, „VPN einrichten“ oder „Kennwort ändern oder vergessen“. Sie zeigen, wie ein guter Artikel aufgebaut ist, und werden <strong>intern</strong> angelegt: Ersetze die Angaben in eckigen Klammern durch eure eigenen und stelle sie dann auf öffentlich.</p>
+<figure class="medium"><img src="img/de/examples-kb.jpg" alt=""><figcaption>Ein übernommener Beispiel-Artikel</figcaption></figure>
 <h3>Bewertung und Rückmeldungen</h3>
 <p>Unter jedem Artikel steht „War dieser Artikel hilfreich?“ mit 👍 und 👎. In der Artikelliste siehst du die Bewertung je Artikel; der Filter <em>Braucht Überarbeitung</em> zeigt Artikel mit 👎-Stimmen, die meisten zuerst. Am Artikel öffnet <em>Rückmeldungen</em> die Notizen, was gefehlt hat. Hast du den Artikel überarbeitet, setzt <em>Bewertung zurücksetzen</em> die Stimmen auf null – die Notizen bleiben unter „Frühere Rückmeldungen“.</p>
 <figure class="medium"><img src="img/de/kb-feedback.jpg" alt=""><figcaption>Rückmeldungen zu einem Artikel</figcaption></figure>
@@ -443,6 +446,8 @@
 <h2 id="servicekatalog">Servicekatalog einrichten <span class="role role-admin">Admin</span></h2>
 <p>Unter <em>Administration → Servicekatalog</em> legst du Angebote an: Bezeichnung, Emoji, Beschreibung, Projekt und Formularfelder (Text, mehrzeilig, Auswahl, Häkchen, Datum; jeweils optional Pflicht). Optional wählst du Genehmiger, auch ohne Bearbeiter-Rolle, und ob eine oder alle Zustimmungen nötig sind. Anfragen werden Tickets vom Typ <em>Anfrage</em>; die Antworten stehen in der Beschreibung. Wie Benutzer den Katalog sehen, steht in <a href="#katalog">2.9</a>.</p>
 <figure><img src="img/de/admin-catalog.jpg" alt=""><figcaption>Administration → Servicekatalog</figcaption></figure>
+<p><strong>Beispiele übernehmen:</strong> <em>Beispiele</em> legt typische Angebote mit fertigem Formular an, z. B. „Neue Mitarbeiterin / neuer Mitarbeiter“, „Software installieren“ oder „WLAN-Zugang für Gäste“ – auf Deutsch oder Englisch. Sie sind zunächst <strong>ausgeschaltet</strong>, damit Benutzer sie erst sehen, wenn du Felder, Projekt und Genehmigende geprüft und sie eingeschaltet hast.</p>
+<figure class="medium"><img src="img/de/examples-catalog.jpg" alt=""><figcaption>Beispiel-Angebote auswählen</figcaption></figure>
 
 <h2 id="geraete">Geräte &amp; Dienste</h2>
 <p>Ein schlankes Verzeichnis der IT-Ausstattung und Dienste (CI-Verzeichnis). Jeder Eintrag hat Art, Status (in Betrieb, in Wartung, ausgemustert), Standort, Benutzer, IP-Adresse, Seriennummer, Hersteller und Modell. Im Ticket verknüpfst du betroffene Geräte und Dienste im Abschnitt <em>Geräte &amp; Dienste</em>. Bei Changes sind das die betroffenen Dienste. Die Detailseite eines Eintrags zeigt alle Tickets dazu, so fallen wiederkehrende Störungen auf.</p>

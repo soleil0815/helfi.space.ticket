@@ -175,6 +175,8 @@ export const api = {
   aiKb: (d) => request('POST', '/api/ai/kb', d),
   aiKbDraft: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/ai/kb-draft`),
   descriptionVersion: (key, id) => request('GET', `/api/tickets/${encodeURIComponent(key)}/description-versions/${id}`),
+  examples: (kind) => request('GET', `/api/examples/${encodeURIComponent(kind)}`),
+  takeExamples: (kind, keys, lang) => request('POST', `/api/examples/${encodeURIComponent(kind)}`, { keys, lang }),
   componentSuggestions: (project) => request('GET', `/api/component-suggestions${project ? `?project=${encodeURIComponent(project)}` : ''}`),
   decideSuggestions: (keys, action) => request('POST', '/api/component-suggestions/decide', { keys, action }),
   setReporter: (key, reporter, notify = true) => request('PUT', `/api/tickets/${encodeURIComponent(key)}/reporter`, { reporter, notify }),

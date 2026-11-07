@@ -397,6 +397,7 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 - **Vorschläge beim Melden:** Tippt ein Benutzer im Dialog „Ticket erstellen“ die Zusammenfassung, erscheinen passende öffentliche Artikel („Vielleicht hilft das schon“). Sie öffnen sich, ohne dass die Meldung verloren geht.
 - **Aus einem Ticket:** *Wissensartikel* im Ticket legt einen Entwurf an, mit Beschreibung, letzter Antwort und bei Problemen mit Ursache und Workaround. Vor dem Veröffentlichen persönliche Angaben entfernen. Der Verlauf des Tickets verweist auf den Artikel.
 - **Bekannte Fehler:** Reiter mit allen Problemen, die als bekannter Fehler markiert sind, samt Workaround.
+- **Beispiel-Artikel:** *Beispiele* (Bearbeiter) übernimmt fertige Musterartikel – „So meldest du ein Problem richtig“, „VPN einrichten“, „Drucker hinzufügen“, „Kennwort ändern oder vergessen“, „Abwesenheitsnotiz einrichten“ – auf Deutsch oder Englisch. Sie werden **intern** angelegt: Angaben in eckigen Klammern anpassen, dann öffentlich machen.
 
 ## Servicekatalog
 
@@ -406,6 +407,7 @@ Standardanfragen mit eigenem Formular, z. B. „Neuer Mitarbeiter“, „Softwar
 - **Service anfordern** in der Seitenleiste zeigt Benutzern und Bearbeitern alle Angebote als Kacheln.
 - **Genehmigung (optional):** Pro Angebot legst du fest, wer zustimmen muss und ob eine Zustimmung genügt oder alle zustimmen müssen. Genehmiger dürfen auch Personen ohne Bearbeiter-Rolle sein, etwa Vorgesetzte; sie sehen dann nur die Anfragen, über die sie entscheiden. Sie bekommen eine Mail und finden offene Entscheidungen unter **Meine Genehmigungen**.
 - **Ergebnis:** Die Entscheidung kommt als Antwort ins Ticket, der Melder bekommt sie also auch per Mail. Eine Ablehnung schließt die Anfrage.
+- **Beispiele übernehmen:** *Beispiele* legt typische Angebote mit fertigem Formular an – neue Mitarbeiterin/neuer Mitarbeiter, Ausscheiden, Software installieren, Zugriff auf Laufwerk oder Ordner, Hardware bestellen, WLAN für Gäste, Verteiler oder Gruppenpostfach – auf Deutsch oder Englisch. Sie sind zunächst **ausgeschaltet**: Felder, Projekt und Genehmigende prüfen, dann einschalten.
 
 ## Geräte & Dienste
 
@@ -460,6 +462,7 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
   - Text im Kommentarfeld schreiben und **Als Vorlage speichern** wählen.
   - Vorlagen für alle pflegen Admins unter *Administration → Antwortvorlagen*.
   - Persönliche Vorlagen pflegt jeder Bearbeiter in seinem *Profil*; sie sieht nur er selbst.
+- **Beispiele übernehmen:** Unter *Administration → Antwortvorlagen* legt *Beispiele* zehn häufige Antworten für alle an (Eingang bestätigen, weitere Angaben nötig, bitte neu starten, Kennwort zurückgesetzt, Fernwartung vereinbaren, wartet auf Hersteller, Hardware bestellt, bekannte Störung, gelöst – bitte bestätigen, schließen ohne Rückmeldung), mit Platzhaltern, auf Deutsch (Sie-Form) oder Englisch. Vorhandene mit gleichem Titel werden übersprungen.
 
 ## Berichte
 
