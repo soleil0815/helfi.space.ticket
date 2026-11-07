@@ -259,6 +259,14 @@ export function createApi(ctx) {
         db.prepare('UPDATE users SET theme=? WHERE id=?').run(req.body.theme === 'system' ? null : req.body.theme, u.id);
       }
       if (displayName) db.prepare('UPDATE users SET display_name=? WHERE id=?').run(displayName, u.id);
+      if (email) {
+        // Self-service must never merge an email contact: knowing the password of one's own account
+        // does not prove ownership of the address. Accounts first (409 emailTaken as before),
+        // then contacts – only an admin may link them (PATCH /users/:id merges).
+        const others = db.prepare('SELECT source FROM users WHERE lower(email)=? AND id<>?').all(email, u.id);
+        if (others.some((o) => o.source !== 'email')) throw new HttpError(409, 'err.emailTaken');
+        if (others.length) throw new HttpError(409, 'err.emailKnownContact');
+      }
       if (email !== undefined) users.setEmail(u.id, email);
       if (newHash) {
         db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
@@ -286,7 +294,8 @@ export function createApi(ctx) {
   });
 
   // Search people (e.g. request participants): name/login name only, from 2 characters, at most 10 matches.
-  // Users only find real accounts (no email contacts); only agents see addresses.
+  // Users only find real accounts (no email contacts); only agents see addresses and login names.
+  // Users do not match self-registered login names (= private address), so the search is no address oracle.
   // ---------- Search people (participants, owners) ----------
   const adPeopleOn = () => settings.get('ldap.enabled') && settings.get('ldap.peopleSearch') && !!settings.get('ldap.bindDn');
   const AD_TIMEOUT_MS = 5000;
@@ -301,7 +310,7 @@ export function createApi(ctx) {
     const agent = isAgent(req.user);
     const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
     let rows = db.prepare(`SELECT * FROM users WHERE active=1 ${agent ? '' : "AND source<>'email'"}
-      AND (display_name LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\' ${agent ? "OR email LIKE ? ESCAPE '\\'" : ''})
+      AND (display_name LIKE ? ESCAPE '\\' OR (username LIKE ? ESCAPE '\\' ${agent ? '' : 'AND self_registered=0'}) ${agent ? "OR email LIKE ? ESCAPE '\\'" : ''})
       ORDER BY display_name LIMIT 10`).all(...(agent ? [like, like, like] : [like, like]));
     const out = { people: [] };
     const ad = [];
@@ -324,7 +333,8 @@ export function createApi(ctx) {
         out.adError = true;
       }
     }
-    out.people = rows.map((u) => ({ id: u.id, displayName: u.display_name, username: u.username, email: agent ? (u.email || '') : undefined }));
+    // Login name only for agents (self-registered accounts: login name = private address)
+    out.people = rows.map((u) => ({ id: u.id, displayName: u.display_name, username: agent ? u.username : undefined, email: agent ? (u.email || '') : undefined }));
     out.people.push(...ad);
     res.json(out);
   }));

@@ -82,15 +82,19 @@ test('Invalid or foreign addresses are rejected', async () => {
   assert.equal((await admin('POST', '/api/users', { username: 'karl2', email: 'karl@firma.local', password: PW })).status, 409, 'also when creating');
 });
 
-test('Address of an email contact: contact including tickets is taken over', async () => {
+test('Address of an email contact: refused in the profile, an admin link takes the contact including tickets over', async () => {
   const p = ctx.processor;
   const r = p.process(await p.parse(Buffer.from(['From: Karl Privat <karl.privat@example.org>', 'Subject: Laptop', 'Message-ID: <k1@x>', '', 'Hilfe'].join('\r\n'))));
   const contact = ctx.users.byEmail('karl.privat@example.org');
   assert.equal(contact.source, 'email');
 
+  // Self-service: knowing one's own password does not prove the address → no merge
   const k = await karl('PATCH', '/api/me', { email: 'karl.privat@example.org', currentPassword: PW });
-  assert.equal(k.status, 200);
+  assert.equal(k.status, 409);
+  assert.equal(k.body.error.code, 'err.emailKnownContact');
+  assert.equal(ctx.users.byId(contact.id).source, 'email', 'contact untouched');
   const karlId = ctx.users.byName('karl').id;
+  assert.equal((await admin('PATCH', `/api/users/${karlId}`, { email: 'karl.privat@example.org' })).status, 200);
   assert.equal(ctx.users.byId(contact.id), undefined, 'contact deleted');
   assert.equal(db.prepare('SELECT reporter_id FROM tickets WHERE id=?').get(r.ticketId).reporter_id, karlId);
   assert.ok((await karl('GET', '/api/tickets')).body.tickets.some((x) => x.id === r.ticketId), 'Karl sees his ticket');

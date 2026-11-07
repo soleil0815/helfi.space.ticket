@@ -138,9 +138,12 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
     return { ok: true };
   }
 
-  /** An account (not just an email contact) already uses this address or this user name */
+  /**
+   * An account (not just an email contact) already uses this address or this user name,
+   * or an admin disabled the email contact of this address (it must not reactivate itself).
+   */
   function accountBlocking(email) {
-    const byMail = db.prepare("SELECT 1 FROM users WHERE lower(email)=? AND source<>'email' LIMIT 1").get(email);
+    const byMail = db.prepare("SELECT 1 FROM users WHERE lower(email)=? AND (source<>'email' OR active=0) LIMIT 1").get(email);
     const byName = db.prepare("SELECT 1 FROM users WHERE username=? AND NOT (source='email' AND lower(email)=?) LIMIT 1").get(email, email);
     return !!(byMail || byName);
   }
@@ -148,6 +151,11 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
   function confirmRegistration(token) {
     const row = findToken('register', token);
     if (!row) throw new HttpError(400, 'err.linkInvalid');
+    // Registration switched off or domain no longer allowed since the link was sent: the link no longer applies
+    if (!registrationOpen() || !domainAllowed(row.email.toLowerCase(), parseDomains(settings.get('register.domains')))) {
+      db.prepare('DELETE FROM account_tokens WHERE id=?').run(row.id);
+      throw new HttpError(400, 'err.linkInvalid');
+    }
     const approval = !!settings.get('register.approval');
     const user = db.transaction(() => {
       db.prepare('DELETE FROM account_tokens WHERE id=?').run(row.id);

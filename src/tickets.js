@@ -502,7 +502,10 @@ export function createTickets(db, users) {
       internal: !!c.internal,
       source: c.source,
       createdAt: c.created_at,
-      author: c.author_id ? { id: c.author_id, displayName: c.u_name, username: c.u_username } : { id: null, displayName: c.author_name || c.author_email || '?', email: c.author_email },
+      // Login name/address only for agents and the author themselves (self-registered: login name = private address)
+      author: c.author_id
+        ? { id: c.author_id, displayName: c.u_name, username: agent || c.author_id === user?.id ? c.u_username : undefined }
+        : agent ? { id: null, displayName: c.author_name || c.author_email || '?', email: c.author_email } : { id: null, displayName: c.author_name || '?' },
     }));
   }
 
