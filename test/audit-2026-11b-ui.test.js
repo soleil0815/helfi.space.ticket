@@ -95,6 +95,32 @@ test('U1: unsaved KB article draft is removed on sign-out and never offered to a
   await c.close();
 });
 
+test('U1b: an expired session keeps the own KB draft for the same account; another account clears it', { skip }, async () => {
+  const { p, c, errors } = await open();
+  await signIn(p, 'anna');
+  await nav(p, `/kb/${art.id}/edit`);
+  await p.waitForSelector('.kb-editable');
+  await p.click('.kb-editable');
+  await p.keyboard.type(' Langer Entwurf vor dem Ablauf');
+  await p.waitForFunction(() => Object.keys(localStorage).some((k) => k.startsWith('helfi.kbdraft.')));
+  // Session expires (e.g. overnight): the cookie is gone, the app starts without a session
+  await c.clearCookies();
+  await p.reload();
+  await p.waitForSelector('input[name=username]');
+  assert.equal((await kbKeys(p)).length, 1, 'draft kept while nobody is signed in');
+  await signIn(p, 'anna');
+  await nav(p, `/kb/${art.id}/edit`);
+  await p.waitForSelector('.kb-draft-banner');
+  // Expired again, then another account signs in: the draft goes
+  await c.clearCookies();
+  await p.reload();
+  await p.waitForSelector('input[name=username]');
+  await signIn(p, 'bert');
+  assert.deepEqual(await kbKeys(p), [], 'another account removes the draft');
+  assert.deepEqual(errors, []);
+  await c.close();
+});
+
 test('U2: personal templates and import access data of the previous account are gone after sign-out and sign-in without reload', { skip }, async () => {
   const { p, c, errors } = await open();
   await signIn(p, 'anna');

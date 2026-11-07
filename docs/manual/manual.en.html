@@ -562,7 +562,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <h3>Mail loop protection and sender rules</h3>
 <figure><img src="img/en/admin-mail-3.jpg" alt=""><figcaption>Sender rules and blocked recipients</figcaption></figure>
 <ul>
-  <li>Delivery failure reports and read receipts never become tickets and are never answered. The affected address gets no emails for 7 days (<em>Blocked recipients</em>, can be released early there). Only addresses from real header lines of the report or from its <code>message/delivery-status</code> part are blocked.</li>
+  <li>Delivery failure reports and read receipts never become tickets and are never answered. The affected address gets no emails for 7 days (<em>Blocked recipients</em>, can be released early there). Only addresses from real header lines of the report or from its <code>message/delivery-status</code> part are blocked – and only if the report refers to a mail Helfi.Space sent to exactly that address.</li>
   <li><strong>Sender rules</strong> (address or pattern like <code>*@pve.firma.local</code>): “Create ticket, never reply” – optionally into a separate project – or “Ignore”.</li>
   <li><strong>Automatically generated emails</strong> (Proxmox, NAS, monitoring; recognised by <code>Auto-Submitted</code>, <code>Precedence: bulk</code> or <code>noreply@</code>) are <strong>only accepted with the rule “Create ticket, never reply”</strong>. <em>Recently skipped emails</em> lists sender and reason.</li>
   <li>More than 20 new tickets per hour from the same sender are ignored.</li>

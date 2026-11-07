@@ -48,6 +48,7 @@ test('Former reporter replying to an old mail: internal note only, no CC partici
   const last = db.prepare('SELECT * FROM comments WHERE ticket_id=? ORDER BY id DESC LIMIT 1').get(first.ticketId);
   assert.equal(last.internal, 1);
   assert.match(last.body, /still here/);
+  assert.match(last.body, /not \(or no longer\) involved/, "agents see why it is only a note");
   assert.equal(ctx.tickets.rawById(first.ticketId).status, 'done', 'not reopened');
   outbox.length = 0;
   await anna('POST', `/api/tickets/${first.key}/comments`, { body: 'Confidential reply' });
@@ -137,11 +138,26 @@ test('Forged delivery report without our Message-ID does not block the address',
   // Report about one of our own mails still blocks
   const tk = (await anna('POST', '/api/tickets', { title: 'Bounce', reporter: { userId: S.ids.bob }, notifyReporter: false })).body.ticket;
   const outId = `helfi.${tk.id}.1.abcdef@firma.local`;
-  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'out')").run(outId, tk.id);
+  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction,recipient) VALUES(?,?,'out',?)").run(outId, tk.id, 'bob@firma.local');
   const r2 = await run(dsn('b5b@mail.extern.example', 'bob@firma.local', outId));
   assert.equal(r2.ticketId, tk.id);
   assert.equal(ctx.suppressions.isBlocked('bob@firma.local'), true);
   ctx.suppressions.remove('bob@firma.local');
+});
+
+test('Delivery report with a real Message-ID only blocks the address that mail went to', async () => {
+  // Anyone who once got a mail from us (e.g. a receipt) knows such a Message-ID
+  const tk = (await anna('POST', '/api/tickets', { title: 'Bounce2', reporter: { userId: S.ids.bob }, notifyReporter: false })).body.ticket;
+  const outId = `helfi.${tk.id}.2.abcdef@firma.local`;
+  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction,recipient) VALUES(?,?,'out',?)").run(outId, tk.id, 'attacker@extern.example');
+  const r = await run(dsn('b5c@mail.extern.example', 'ceo@firma.local', outId));
+  assert.equal(r.action, 'bounce');
+  assert.equal(ctx.suppressions.isBlocked('ceo@firma.local'), false, 'address the mail did not go to stays deliverable');
+  // The mailer records the recipient of each ticket mail
+  outbox.length = 0;
+  await ctx.mailer.send({ to: 'Bob@Firma.local', subject: 'x', text: 'x', ticketId: tk.id, customer: true });
+  const row = db.prepare("SELECT recipient FROM mail_messages WHERE ticket_id=? AND direction='out' ORDER BY rowid DESC LIMIT 1").get(tk.id);
+  assert.equal(row.recipient, 'bob@firma.local');
 });
 
 test('Bulk reply + done still starts the survey and sends the reporter the rating link', async () => {

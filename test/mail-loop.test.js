@@ -75,7 +75,7 @@ test('Report for one of our own mails: internal note, no reopening, address bloc
   assert.equal(first.action, 'ticket');
   ctx.tickets.update({ id: 1, role: 'admin' }, first.ticketId, { status: 'waiting' });
   const outId = `helfi.${first.ticketId}.1730500000000.abcdef@firma.local`;
-  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'out')").run(outId, first.ticketId);
+  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction,recipient) VALUES(?,?,'out',?)").run(outId, first.ticketId, 'monitor@firma.local');
 
   const before = db.prepare('SELECT COUNT(*) n FROM tickets').get().n;
   const r = await run(exchangeNdr(outId));
@@ -103,7 +103,7 @@ test('Report without our own Message-ID (forged/foreign): no note in any ticket,
   // Postfix report about one of our real outgoing mails: address is blocked
   const tk = db.prepare('SELECT id FROM tickets ORDER BY id LIMIT 1').get();
   const outId = `helfi.${tk.id}.1730500000001.fedcba@firma.local`;
-  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'out')").run(outId, tk.id);
+  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction,recipient) VALUES(?,?,'out',?)").run(outId, tk.id, 'drucker@firma.local');
   const r2 = await run(postfixNdr(outId, 'drucker@firma.local').toString().replace('ndr2@mail.firma.local', 'ndr3@mail.firma.local'));
   assert.equal(r2.ticketId, tk.id);
   assert.equal(ctx.suppressions.isBlocked('drucker@firma.local'), true);

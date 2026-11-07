@@ -73,13 +73,13 @@ export function navigate(path, { replace = false, force = false } = {}) {
  * sign-in/sign-out): module caches (personal templates, import access data, AI summaries,
  * components) and lists. clearData also removes drafts and lists in the browser storage.
  */
-export function resetAccountState({ clearData = false } = {}) {
+export function resetAccountState({ clearData = false, keepDrafts = false } = {}) {
   resetCannedCache();
   resetImportState();
   clearAiSummaries();
   clearComponentCache();
   state.projects = []; state.agents = []; state.savedFilters = [];
-  if (clearData) clearUserData();
+  if (clearData) clearUserData({ keepDrafts });
 }
 
 export async function reloadBase() {
@@ -122,7 +122,7 @@ async function start() {
   }
   state.user = state.boot.user;
   // Drafts of the mobile UI belong to one account (see userdata.js)
-  if (state.user) noteUser(state.user.id); else clearUserData();
+  if (state.user) noteUser(state.user.id); else clearUserData({ keepDrafts: true });
   applyLanguage();
   if (state.user) await reloadBase();
   window.addEventListener('popstate', () => {
@@ -130,7 +130,7 @@ async function start() {
     leaveGuard = null;
     route();
   });
-  window.addEventListener('helfi:unauthorized', () => { state.user = null; resetAccountState({ clearData: true }); navigate('/login', { replace: true }); });
+  window.addEventListener('helfi:unauthorized', () => { state.user = null; resetAccountState({ clearData: true, keepDrafts: true }); navigate('/login', { replace: true }); });
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');
     if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;

@@ -1,7 +1,7 @@
 // Data of the signed-in account that the browser keeps between pages (unsent drafts of the mobile UI,
 // unsaved knowledge article drafts, recently viewed articles and tickets). It must never reach the next account on the same device: everything is
-// removed on sign-out (mobile and desktop), when the session expires, and when another account signs
-// in. No imports – both UIs use this module.
+// removed on sign-out (mobile and desktop), when the session expires (except unsaved knowledge article
+// drafts, which only their own account gets back), and when another account signs in. No imports – both UIs use this module.
 const UID_KEY = 'helfi.m.uid'; // sessionStorage: account of this tab (drafts of the tab)
 const LOCAL_UID_KEY = 'helfi.uid'; // localStorage: account the lists and drafts below belong to
 const SESSION_PREFIXES = ['helfi.m.draft.', 'helfi.m.newTicket'];
@@ -16,16 +16,24 @@ function clearSession() {
   } catch { /* storage blocked */ }
 }
 
-function clearLocal() {
+function clearLocal(keepDrafts = false) {
   try {
-    for (const k of Object.keys(localStorage)) if (LOCAL_KEYS.includes(k) || LOCAL_PREFIXES.some((p) => k.startsWith(p))) localStorage.removeItem(k);
+    for (const k of Object.keys(localStorage)) {
+      // keepDrafts: the drafts and the owner id they are checked against stay
+      if (keepDrafts && (k === LOCAL_UID_KEY || LOCAL_PREFIXES.some((p) => k.startsWith(p)))) continue;
+      if (LOCAL_KEYS.includes(k) || LOCAL_PREFIXES.some((p) => k.startsWith(p))) localStorage.removeItem(k);
+    }
   } catch { /* storage blocked */ }
 }
 
-/** Remove all drafts and per-account lists (keeps the "continue after sign-in" address) */
-export function clearUserData() {
+/**
+ * Remove all drafts and per-account lists (keeps the "continue after sign-in" address).
+ * keepDrafts (session expired, start without session): unsaved knowledge article drafts stay – they carry
+ * the account id and are only offered to that account; noteUser() removes them when another account signs in.
+ */
+export function clearUserData({ keepDrafts = false } = {}) {
   clearSession();
-  clearLocal();
+  clearLocal(keepDrafts);
 }
 
 /**

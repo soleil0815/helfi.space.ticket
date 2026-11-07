@@ -46,12 +46,16 @@ export function imapOptions(cfg) {
   };
 }
 
+// Shown to agents when a reply came from someone no longer reporter/participant (so it was not made public)
+const NOT_INVOLVED_NOTE = 'Antwort von einer Adresse, die an diesem Ticket nicht (mehr) beteiligt ist – nur als interne Notiz. / '
+  + 'Reply from an address that is not (or no longer) involved in this ticket – internal note only.\n\n';
+
 export function createMailProcessor({ db, settings, tickets, users, adLookup = null, suppressions = null }) {
   const adMisses = new Map(); // address → time until which it is not looked up again
   const seen = db.prepare('SELECT ticket_id FROM mail_messages WHERE message_id=?');
   // Matching via references ONLY by our own outgoing Message-IDs (random, not guessable).
   // Incoming Message-IDs are known to every recipient of the original mail (e.g. in CC).
-  const seenOut = db.prepare("SELECT ticket_id, agent_only FROM mail_messages WHERE message_id=? AND direction='out'");
+  const seenOut = db.prepare("SELECT ticket_id, agent_only, recipient FROM mail_messages WHERE message_id=? AND direction='out'");
   const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'in')");
 
   /** Find the ticket for a reply: via our Message-ID (not guessable) or [KEY-123] in the subject. */
@@ -211,11 +215,13 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     if (report?.kind === 'receipt') { remember.run(messageId, null); return { action: 'skipped', reason: 'receipt', messageId }; }
     if (report?.kind === 'bounce') {
       // Only reports about our own mails (unguessable Message-ID) end up as a note in the ticket
-      const ticketId = report.refs.map((r) => seenOut.get(r)?.ticket_id).find(Boolean) || null;
+      const outRows = report.refs.map((r) => seenOut.get(r)).filter(Boolean);
+      const ticketId = outRows.map((o) => o.ticket_id).find(Boolean) || null;
+      // Only addresses one of the referenced mails actually went to – anyone who once got a mail from us
+      // knows such a Message-ID, so a forged report must not block other addresses (registration, approval, replies)
+      const sentTo = new Set(outRows.map((o) => o.recipient).filter(Boolean));
       return db.transaction(() => {
-        // Block addresses only for reports about our own mails – otherwise a forged report
-        // could block mail to any address (registration, approval, replies)
-        if (ticketId) for (const a of report.failed) suppressions?.add(a, cleanSubject(parsed.subject) || 'Unzustellbar');
+        for (const a of report.failed) if (sentTo.has(a)) suppressions?.add(a, cleanSubject(parsed.subject) || 'Unzustellbar');
         if (ticketId && report.failed.length) {
           tickets.addComment(null, ticketId, {
             body: `Zustellung fehlgeschlagen / delivery failed: ${report.failed.join(', ')}
@@ -277,7 +283,8 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     // Grants no rights: the author stays the sender address, only the agent knows the Message-ID.
     // The same applies to replies via our Message-ID from someone who is no longer reporter/participant
     // (reporter changed, participant removed, approver, forwarded mail).
-    const noteOnly = !!existingId && found.via === 'reference' && (!!found.agentMail || (!privileged && !isCurrentParty(found.id, sender, fromAddr)));
+    const notInvolved = !!existingId && found.via === 'reference' && !found.agentMail && !privileged && !isCurrentParty(found.id, sender, fromAddr);
+    const noteOnly = (!!existingId && found.via === 'reference' && !!found.agentMail) || notInvolved;
 
     // Protection against mail loops with unmarked auto-responders
     if (!existingId) {
@@ -319,7 +326,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     return db.transaction(() => {
       if (existingId) {
         const asUser = privileged || noteOnly ? null : sender;
-        const comment = tickets.addComment(asUser, existingId, { body: withNote(stripQuotedReply(text) || '(leer)') }, {
+        const comment = tickets.addComment(asUser, existingId, { body: (notInvolved ? NOT_INVOLVED_NOTE : '') + withNote(stripQuotedReply(text) || '(leer)') }, {
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
           // system: always internal, does not reopen, no account rights
           ...(noteOnly ? { system: true } : {}),

@@ -26,7 +26,7 @@ export function transportOptions(cfg) {
 export const MAX_CONFIRMATIONS_PER_HOUR = 60;
 
 export function createMailer(db, settings, { suppressions = null } = {}) {
-  const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction,agent_only) VALUES(?,?,'out',?)");
+  const remember = db.prepare("INSERT OR IGNORE INTO mail_messages(message_id,ticket_id,direction,agent_only,recipient) VALUES(?,?,'out',?,?)");
   let transport = null;
   let transportKey = '';
 
@@ -75,7 +75,7 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
       references: inReplyTo || undefined,
       headers: { 'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All', 'X-Helfi-Ticket': ticketId ? String(ticketId) : '' },
     });
-    if (ticketId) remember.run(messageId.replace(/[<>]/g, ''), ticketId, agentOnly ? 1 : 0);
+    if (ticketId) remember.run(messageId.replace(/[<>]/g, ''), ticketId, agentOnly ? 1 : 0, String(to || '').trim().toLowerCase());
     return true;
   }
 

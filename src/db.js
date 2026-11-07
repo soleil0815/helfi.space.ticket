@@ -743,6 +743,14 @@ export const MIGRATIONS = [
     INSERT OR IGNORE INTO search_dirty SELECT DISTINCT ticket_id FROM comments WHERE author_id IS NOT NULL;
     `,
   },
+  {
+    id: 36,
+    name: 'Mail: Empfänger je gesendeter Mail',
+    sql: `
+    -- Recipient of each outgoing mail: a delivery report may only block the address the mail went to
+    ALTER TABLE mail_messages ADD COLUMN recipient TEXT;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

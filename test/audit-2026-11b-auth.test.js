@@ -20,6 +20,22 @@ function captureMail() {
 const tokenFor = (sent, to) => sent.filter((m) => m.to === to).pop()?.text.match(/#([A-Za-z0-9_-]{20,})/)?.[1];
 const settle = () => new Promise((r) => setTimeout(r, 30));
 
+test('F2b: display names that are just mail addresses are shortened for users (comments, participants, reporter)', async () => {
+  const bob = await S.user('bob2', 'user');
+  const t = (await bob('POST', '/api/tickets', { title: 'name check' })).body.ticket;
+  // Email contact without a name (display name = address) as participant, mail reply without a name
+  await (await S.user('agnes2', 'agent'))('POST', `/api/tickets/${t.key}/participants`, { email: 'carl.private@extern.example' });
+  const carl = S.ctx.users.byEmail('carl.private@extern.example');
+  S.ctx.tickets.addComment(carl, t.key, { body: 'from carl' }, { source: 'email', authorEmail: 'carl.private@extern.example', authorName: 'carl.private@extern.example', skipPermission: true });
+  S.ctx.tickets.addComment(null, t.key, { body: 'no name' }, { source: 'email', authorEmail: 'nn@extern.example', authorName: 'nn@extern.example', skipPermission: true });
+  const view = (await bob('GET', `/api/tickets/${t.key}`)).body.ticket;
+  const json = JSON.stringify({ c: view.comments.map((c) => c.author), p: view.participants });
+  assert.ok(!json.includes('extern.example'), `no address domain for users: ${json}`);
+  assert.ok(json.includes('carl.private@…'), 'shortened form shown');
+  const agentView = (await (await S.user('agnes3', 'agent'))('GET', `/api/tickets/${t.key}`)).body.ticket;
+  assert.ok(JSON.stringify(agentView.comments.map((c) => c.author)).includes('carl.private@extern.example'), 'agents see the address');
+});
+
 test('F1: profile address change refuses an email contact address instead of merging it', async () => {
   const r = await mail(['From: CEO <ceo@partner.example>', 'Subject: Confidential', 'Message-ID: <f1@x>', '', 'secret']);
   const contact = S.ctx.users.byEmail('ceo@partner.example');

@@ -562,7 +562,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <h3>Schutz vor Mail-Schleifen und Absender-Regeln</h3>
 <figure><img src="img/de/admin-mail-3.jpg" alt=""><figcaption>Absender-Regeln und gesperrte Empfänger</figcaption></figure>
 <ul>
-  <li>Unzustellbarkeitsberichte und Lesebestätigungen werden nie zu Tickets und nie beantwortet. Die betroffene Adresse bekommt 7 Tage lang keine Mails (<em>Gesperrte Empfänger</em>, dort vorzeitig freigebbar). Gesperrt werden nur Adressen aus echten Kopfzeilen des Berichts bzw. aus seinem Teil <code>message/delivery-status</code>.</li>
+  <li>Unzustellbarkeitsberichte und Lesebestätigungen werden nie zu Tickets und nie beantwortet. Die betroffene Adresse bekommt 7 Tage lang keine Mails (<em>Gesperrte Empfänger</em>, dort vorzeitig freigebbar). Gesperrt werden nur Adressen aus echten Kopfzeilen des Berichts bzw. aus seinem Teil <code>message/delivery-status</code> – und nur, wenn der Bericht sich auf eine Mail bezieht, die Helfi.Space an genau diese Adresse geschickt hat.</li>
   <li><strong>Absender-Regeln</strong> (Adresse oder Muster wie <code>*@pve.firma.local</code>): „Ticket anlegen, nie antworten“ – wahlweise in ein eigenes Projekt – oder „Ignorieren“.</li>
   <li><strong>Automatisch erzeugte Mails</strong> (Proxmox, NAS, Monitoring; erkennbar an <code>Auto-Submitted</code>, <code>Precedence: bulk</code> oder <code>noreply@</code>) werden <strong>nur mit der Regel „Ticket anlegen, nie antworten“</strong> angenommen. Unter <em>Zuletzt übersprungene E-Mails</em> stehen Absender und Grund.</li>
   <li>Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.</li>
