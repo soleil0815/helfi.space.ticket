@@ -21,9 +21,11 @@ function readDraft(key) {
     return d && d.uid === uid ? d : null;
   } catch { return null; }
 }
-function writeDraft(key, d) {
+function writeDraft(key, d, owner) {
   const uid = state.user?.id;
-  if (!uid) return; // signed out meanwhile: keep nothing
+  // Signed out meanwhile, or another account signed in while this bar still existed
+  // (a late blur/timer of the old view): keep nothing
+  if (!uid || uid !== owner) return;
   try {
     if (d && d.text) sessionStorage.setItem(draftKey(uid, key), JSON.stringify({ ...d, uid }));
     else sessionStorage.removeItem(draftKey(uid, key));
@@ -38,6 +40,7 @@ const altText = (name) => String(name || '').replace(/[[\]\n\r]/g, ' ').slice(0,
  * Returns { el, focus(), setMode(internal) }.
  */
 export function replyBar({ getTicket, onSent }) {
+  const owner = state.user?.id; // drafts of this bar belong to the account it was opened for
   const agent = state.isAgent;
   const key = () => getTicket().key;
   let internal = false;
@@ -135,7 +138,7 @@ export function replyBar({ getTicket, onSent }) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraft, 250);
   }
-  const saveDraft = () => writeDraft(key(), { text: field.isEmpty() ? '' : text(), internal, format: 'md' });
+  const saveDraft = () => writeDraft(key(), { text: field.isEmpty() ? '' : text(), internal, format: 'md' }, owner);
   field.area.addEventListener('input', () => { update(); });
   field.area.addEventListener('blur', saveDraft);
 
@@ -264,7 +267,7 @@ export function replyBar({ getTicket, onSent }) {
       files = [];
       field.clear();
       field.mentions?.close();
-      writeDraft(k, null);
+      writeDraft(k, null, owner);
       busy = false;
       drawFiles(); update();
       await onSent?.(r.comment);
@@ -295,6 +298,6 @@ export function replyBar({ getTicket, onSent }) {
     focus: () => field.area.focus(),
     setMode,
     /** After a project move the key changes: keep the draft under the new key */
-    rekey(oldKey, newKey) { if (oldKey !== newKey && !field.isEmpty()) { writeDraft(oldKey, null); writeDraft(newKey, { text: text(), internal, format: 'md' }); } },
+    rekey(oldKey, newKey) { if (oldKey !== newKey && !field.isEmpty()) { writeDraft(oldKey, null, owner); writeDraft(newKey, { text: text(), internal, format: 'md' }, owner); } },
   };
 }

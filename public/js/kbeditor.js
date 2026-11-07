@@ -15,6 +15,10 @@ const mod = isMac ? '⌘' : 'Strg+';
  * Ctrl+Enter = onSubmit, slots left/right for AI and canned responses, images via uploadImage).
  * uploadImage(file) → Promise<url>; null = no image button (pasted images are refused).
  */
+// Markdown shortcuts typed at the start of a line
+const COMMENT_RULES = new Map([['-', 'ul'], ['*', 'ul'], ['1.', 'ol'], ['[]', 'check'], ['[ ]', 'check'], ['>', 'blockquote']]);
+const ARTICLE_RULES = new Map([['#', 'h1'], ['##', 'h2'], ['###', 'h3'], ...COMMENT_RULES]);
+
 export function createKbEditor({
   value = '', placeholder = '', onChange = () => {}, variant = 'article', uploadImage = undefined,
   left = [], right = [], onSubmit = null, mention = null, label = '',
@@ -101,8 +105,11 @@ export function createKbEditor({
   const setValue = (md) => { mount(area, ...renderDoc(md, { edit: true }).childNodes); normalize(); updateState(); };
 
   // ---------- Block and inline formats ----------
+  const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'blockquote', 'pre'];
   const BLOCKS = [['p', 'kb.ed.normal'], ['h1', 'kb.ed.h1'], ['h2', 'kb.ed.h2'], ['h3', 'kb.ed.h3'], ['blockquote', 'kb.ed.quote'], ['pre', 'kb.ed.code']];
-  function setBlock(tag) {
+  function setBlock(wanted) {
+    // Only the known block tags – never a tag name taken from elsewhere
+    const tag = BLOCK_TAGS.find((x) => x === wanted) || 'p';
     restore();
     const quote = closest('blockquote');
     if (quote && tag !== 'blockquote') { quote.replaceWith(...(quote.querySelector('p,h1,h2,h3,pre') ? quote.childNodes : [h('p', ...quote.childNodes)])); }
@@ -462,7 +469,8 @@ export function createKbEditor({
       const pre = document.createRange(); pre.selectNodeContents(block); pre.setEnd(r.endContainer, r.endOffset);
       const before = pre.toString();
       if (before !== blockText(block)) return;
-      const rule = { ...(comment ? {} : { '#': 'h1', '##': 'h2', '###': 'h3' }), '-': 'ul', '*': 'ul', '1.': 'ol', '[]': 'check', '[ ]': 'check', '>': 'blockquote' }[before];
+      // Map instead of an object lookup: typed text never reaches inherited keys ('constructor' …)
+      const rule = (comment ? COMMENT_RULES : ARTICLE_RULES).get(before);
       if (!rule) return;
       e.preventDefault();
       block.replaceChildren(h('br'));
