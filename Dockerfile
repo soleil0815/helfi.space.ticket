@@ -20,7 +20,7 @@ ARG VERSION=dev
 LABEL org.opencontainers.image.title="Helfi.Space" \
       org.opencontainers.image.description="Ticket system with Active Directory integration, SSO and email retrieval" \
       org.opencontainers.image.source="https://github.com/soleil0815/helfi.space.ticket" \
-      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
       org.opencontainers.image.version="${VERSION}"
 
 # npm, corepack and yarn (all from the Node base image) are not needed at runtime – remove them

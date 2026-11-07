@@ -53,7 +53,7 @@ export function createApi(ctx) {
   r.get('/bootstrap', (req, res) => {
     const userCount = db.prepare('SELECT COUNT(*) n FROM users').get().n;
     res.json({
-      app: { title: settings.get('general.title'), version: config.version },
+      app: { title: settings.get('general.title'), version: config.version, license: 'AGPL-3.0-or-later', sourceUrl: config.sourceUrl },
       brand: { logo: settings.get('brand.logo'), showTitle: settings.get('brand.showTitle'), header: settings.get('brand.header') },
       // Custom texts of the sign-in page (length limited; rendered without HTML)
       login: {

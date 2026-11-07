@@ -22,7 +22,9 @@ export function authFrame(...children) {
       h('div.auth-brand', brandLogo(40), brandTitle()),
       ...children),
     langSwitch(),
-    h('a.auth-home', { href: 'https://helfi.space', target: '_blank', rel: 'noopener noreferrer' }, 'helfi.space'));
+    h('div.auth-links',
+      h('a.auth-home', { href: 'https://helfi.space', target: '_blank', rel: 'noopener noreferrer' }, 'helfi.space'),
+      state.boot?.app?.sourceUrl ? h('a.auth-home', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer', title: t('app.sourceTitle') }, t('app.source')) : null));
 }
 
 async function finishLogin(user) {

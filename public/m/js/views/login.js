@@ -19,7 +19,8 @@ function frame(page, ...children) {
   page.body.replaceChildren(h('div.m-login',
     h('div.m-login-brand', brandLogo(48), h('div.m-login-name', brandTitle())),
     h('div.m-login-card', ...children),
-    langs));
+    langs,
+    state.boot?.app?.sourceUrl ? h('a.m-login-source', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer', title: t('app.sourceTitle') }, t('app.source')) : null));
   document.title = `${t('login.submit')} – ${state.boot?.app?.title || 'Helfi.Space'}`;
 }
 

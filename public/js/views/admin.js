@@ -922,6 +922,7 @@ async function systemPage(body) {
       h('h2', t('system.info')),
       h('dl.kv',
         h('dt', t('app.version')), h('dd', sys.version),
+        h('dt', t('app.license')), h('dd', 'GNU AGPL-3.0 · ', h('a', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, t('app.source'))),
         h('dt', t('system.baseUrl')), h('dd.mono', sys.baseUrl),
         h('dt', t('system.compose')), h('dd', `${sys.composeVersion || '?'} / ${sys.composeVersionExpected}`),
         h('dt', t('system.dbSize')), h('dd', fmtSize(sys.dbSize)),

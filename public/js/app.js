@@ -54,7 +54,10 @@ function sidebarFoot() {
     h('div.sidebar-meta',
       h('a.home-link', { href: HOME_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.website') }, 'Helfi.Space'),
       h('span', { 'aria-hidden': 'true' }, '·'),
-      h('a.version-link', { href: '/news', 'data-link': '', title: t('news.title') }, state.boot.app.version)));
+      h('a.version-link', { href: '/news', 'data-link': '', title: t('news.title') }, state.boot.app.version),
+      h('span', { 'aria-hidden': 'true' }, '·'),
+      // AGPL-3.0: every user can get the source code of the running program
+      h('a.source-link', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer', title: t('app.sourceTitle') }, t('app.source'))));
 }
 
 export function setLeaveGuard(isDirty) { leaveGuard = isDirty; guardUrl = isDirty ? location.pathname + location.search : null; }

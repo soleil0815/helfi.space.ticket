@@ -896,3 +896,5 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-field .m-link-small { align-self: flex-start; }
 .m-field .m-check[hidden], .m-field .m-link[hidden] { display: none; }
 .m-reporter-confirm > p { text-align: left; }
+.m-login-source { margin-top: 4px; padding: 10px; font-size: 13px; color: var(--text-subtlest); text-decoration: none; }
+.m-version a { color: inherit; }
