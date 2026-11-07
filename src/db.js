@@ -1,6 +1,9 @@
 // SQLite database: opening, backup before version change, migrations.
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import crypto from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
 import Database from 'better-sqlite3';
 import { config, paths } from './config.js';
 import { log } from './lib/log.js';
@@ -830,24 +833,97 @@ function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 }
 
-/** Backs up the database (consistent, also while running). */
-export async function backupDatabase(db, label, dir = paths.backups) {
+/**
+ * Packs a file with gzip into `dest` (written as dest.part, then renamed) and checks the result:
+ * unpacked again it must be byte for byte the original (SHA-256). Returns the packed size.
+ */
+async function gzipVerified(src, dest) {
+  const part = `${dest}.part`;
+  try {
+    const want = crypto.createHash('sha256');
+    const read = fs.createReadStream(src);
+    read.on('data', (c) => want.update(c));
+    await pipeline(read, zlib.createGzip({ level: 6 }), fs.createWriteStream(part, { mode: 0o600 }));
+    const got = crypto.createHash('sha256');
+    const check = zlib.createGunzip();
+    check.on('data', (c) => got.update(c));
+    await pipeline(fs.createReadStream(part), check);
+    if (got.digest('hex') !== want.digest('hex')) throw new Error(`packed backup differs from the original: ${path.basename(src)}`);
+    try { fs.chmodSync(part, 0o600); } catch { /* e.g. file system without permissions */ }
+    fs.renameSync(part, dest);
+    return fs.statSync(dest).size;
+  } catch (e) {
+    try { fs.rmSync(part, { force: true }); } catch { /* ignore */ }
+    throw e;
+  }
+}
+
+/**
+ * Backs up the database (consistent, also while running) and stores it packed (helfi-….sqlite.gz).
+ * Exception: the backup before a version change (helfi-vor-<version>-….sqlite) stays unpacked for a
+ * day – update.sh (also older ones) restores exactly this file if the new version does not start;
+ * packPendingBackups packs it afterwards.
+ */
+export async function backupDatabase(db, label, dir = paths.backups, { compress } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `helfi-${label}-${stamp()}.sqlite`);
+  const pack = compress ?? backupKind(path.basename(file)) !== 'version';
   // Write under a temporary name first, then rename: if startup is aborted midway,
   // there is never a half-written backup under the final name (update.sh would otherwise restore it)
   const part = `${file}.part`;
+  let out = file;
   try {
     await db.backup(part);
     // Contains password hashes and personal data → readable by the owner only
     try { fs.chmodSync(part, 0o600); } catch { /* e.g. file system without permissions */ }
-    fs.renameSync(part, file);
+    if (pack) {
+      out = `${file}.gz`;
+      await gzipVerified(part, out);
+      fs.rmSync(part, { force: true });
+    } else fs.renameSync(part, file);
   } catch (e) {
     for (const f of [part, `${part}-journal`]) { try { fs.rmSync(f, { force: true }); } catch { /* ignore */ } }
     throw e;
   }
-  log.info(`Backup created: ${file}`);
-  return file;
+  log.info(`Backup created: ${out}`);
+  return out;
+}
+
+/** How long the unpacked backup before a version change is kept for update.sh (then packed). */
+export const VERSION_BACKUP_UNPACKED_MS = 24 * 3600 * 1000;
+
+/**
+ * Packs unpacked backups (from older versions, or the one before a version change after a day).
+ * One after another; the original is only removed once the packed copy is complete and checked.
+ * The time stamp stays, so order and cleanup do not change. Returns { packed, saved }.
+ */
+let packing = false;
+export async function packPendingBackups(dir = paths.backups, { now = Date.now() } = {}) {
+  if (packing) return { packed: 0, saved: 0 }; // one run at a time (start and daily job)
+  packing = true;
+  try { return await packAll(dir, now); } finally { packing = false; }
+}
+
+async function packAll(dir, now) {
+  let packed = 0; let saved = 0;
+  for (const b of listBackups(dir)) {
+    if (b.name.endsWith('.gz')) continue;
+    if (b.kind === 'version' && now - b.time < VERSION_BACKUP_UNPACKED_MS) continue;
+    const src = path.join(dir, b.name);
+    // Still being written (journal next to it) → leave it alone
+    if (fs.existsSync(`${src}-journal`) || fs.existsSync(`${src}-wal`)) continue;
+    const dest = `${src}.gz`;
+    if (fs.existsSync(dest)) continue;
+    try {
+      const size = await gzipVerified(src, dest);
+      const t = new Date(b.time);
+      fs.utimesSync(dest, t, t);
+      fs.rmSync(src, { force: true });
+      packed++; saved += b.size - size;
+    } catch (e) { log.warn(`Could not pack backup: ${b.name}`, { error: e.message }); }
+  }
+  if (packed) log.info(`Backups packed: ${packed} (${Math.round(saved / 1048576)} MB saved)`);
+  return { packed, saved };
 }
 
 /** How many backups per kind are kept by default (setting backup.keep). */
@@ -859,7 +935,7 @@ export function clampBackupKeep(n) {
   return Math.min(MAX_BACKUP_KEEP, Math.max(1, v));
 }
 
-const BACKUP_NAME = /^helfi-[A-Za-z0-9._-]+\.sqlite$/;
+const BACKUP_NAME = /^helfi-[A-Za-z0-9._-]+\.sqlite(\.gz)?$/;
 
 /**
  * Kind of backup: daily, version (before version change), manual,
@@ -898,7 +974,7 @@ export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
     catch (e) { log.warn(`Could not delete backup: ${b.name}`, { error: e.message }); }
   }
   // Remove leftover partial backups (aborted while writing) after one hour
-  const PART = /^helfi-[A-Za-z0-9._-]+\.sqlite\.part(-journal)?$/;
+  const PART = /^helfi-[A-Za-z0-9._-]+\.sqlite(\.gz)?\.part(-journal)?$/;
   let names = [];
   try { names = fs.readdirSync(dir); } catch { /* folder missing */ }
   for (const name of names) {
@@ -994,7 +1070,7 @@ export async function openDatabase(file = paths.db, { appVersion = config.versio
       `Die Datenbank stammt von einer neueren Helfi.Space-Version (${dbApp || 'unbekannt'}, Schema ${dbSchema}) ` +
       `als dieses Programm (${appVersion}, Schema ${SCHEMA_VERSION}). ` +
       `Entweder wieder die neuere Version starten oder die passende Sicherung zurückspielen: ` +
-      `${backupDir}/helfi-vor-${dbApp || '<neuere Version>'}-*.sqlite (siehe README, „Version festhalten und zurückgehen“).`,
+      `${backupDir}/helfi-vor-${dbApp || '<neuere Version>'}-*.sqlite bzw. *.sqlite.gz (siehe README, „Version festhalten und zurückgehen“).`,
     );
   }
 

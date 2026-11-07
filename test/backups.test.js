@@ -12,7 +12,7 @@ before(async () => {
 });
 after(() => S.stop());
 
-const files = () => fs.readdirSync(paths.backups).filter((f) => f.endsWith('.sqlite')).sort();
+const files = () => fs.readdirSync(paths.backups).filter((f) => /\.sqlite(\.gz)?$/.test(f)).sort();
 function fake(name, ageMin) {
   fs.mkdirSync(paths.backups, { recursive: true });
   const f = path.join(paths.backups, name);

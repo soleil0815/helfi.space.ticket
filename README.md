@@ -618,6 +618,7 @@ Nie angefasst werden `data/`, Sicherungen, `.env`, `docker-compose.yml`, Ordner,
    rm -f data/helfi.sqlite-wal data/helfi.sqlite-shm
    docker compose up -d
    ```
+   Ist die Sicherung schon gepackt (`….sqlite.gz`, nach einem Tag), statt `cp` entpacken: `gunzip -c data/backups/helfi-vor-1.2.0-<Datum>.sqlite.gz > data/helfi.sqlite`
 
 ### Ohne Internet
 
@@ -655,7 +656,9 @@ Die Datei hat eine Versionsnummer (`HELFI_COMPOSE_VERSION`). Braucht eine neue P
 ## Sicherung
 
 - Automatisch: täglich, vor jedem Versionswechsel, vor dem Löschen eines Projekts und vor jedem Import-Start, in `data/backups/`. Wird das Löschen eines Projekts abgelehnt (z. B. letztes Projekt), entsteht keine Sicherung.
-- Jede Sicherung entsteht zuerst als `….sqlite.part` und wird erst fertig umbenannt. Eine nach einem Absturz liegengebliebene `.part`-Datei wird nie verwendet und nach einer Stunde beim nächsten Aufräumen entfernt.
+- **Gepackt:** Sicherungen liegen als `helfi-….sqlite.gz` im Ordner, typischerweise nur noch ein Drittel bis ein Zehntel so groß. Jede gepackte Datei wird vor dem Umbenennen entpackt und mit dem Original verglichen. Ausnahme: Die Sicherung vor einem Versionswechsel (`helfi-vor-<Version>-….sqlite`) bleibt einen Tag ungepackt, weil `./update.sh` genau diese Datei zurückspielt, falls die neue Version nicht startet; danach wird sie bei der täglichen Sicherung gepackt. Ungepackte Sicherungen älterer Versionen packt Helfi.Space nach dem Start einmalig im Hintergrund, das Original verschwindet erst, wenn die gepackte Datei geprüft ist.
+- Zurückspielen von Hand: `gunzip -c data/backups/helfi-….sqlite.gz > data/helfi.sqlite` (bei gestopptem Container, vorher `helfi.sqlite-wal`/`-shm` entfernen). `gzip` ist auf jedem Linux vorhanden.
+- Jede Sicherung entsteht zuerst als `….part` und wird erst fertig umbenannt. Eine nach einem Absturz liegengebliebene `.part`-Datei wird nie verwendet und nach einer Stunde beim nächsten Aufräumen entfernt.
 - Von Hand: *Administration → System → Jetzt sichern*. Dort stehen auch alle Sicherungen mit Art, Datum, Größe und dem belegten Platz insgesamt; einzelne lassen sich löschen.
 - **Herunterladen:** Jede Sicherung lässt sich dort mit ⤓ als ZIP-Datei herunterladen, *Sichern und herunterladen* macht beides in einem Schritt. Die ZIP enthält die Datenbank (`helfi.sqlite`, gepackt deutlich kleiner) und eine `INFO.txt` mit der Anleitung zum Wiederherstellen. Anhänge und `secret.key` sind mit Absicht nicht dabei: Mit dem Schlüssel ließen sich die gespeicherten Kennwörter entschlüsseln. Auf derselben Installation reicht die ZIP zum Zurückspielen; für eine neue Installation braucht es zusätzlich `secret.key` vom Docker-Host. Nur für Admins, jeder Download steht im Protokoll.
 - **Mitsichern:** den ganzen Ordner `data/`, einschließlich `secret.key`. Ohne diese Datei lassen sich gespeicherte Kennwörter (Dienstkonto, Postfach, SSO) und 2FA-Schlüssel nicht mehr entschlüsseln. Helfi.Space startet dann nicht und meldet das im Protokoll. Alternativ `HELFI_SECRET` (mindestens 16 Zeichen) in der `.env` setzen, aber gleich bei der Einrichtung: Ein späterer Wechsel zwischen `secret.key` und `HELFI_SECRET` macht gespeicherte Daten unlesbar.

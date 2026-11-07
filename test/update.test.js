@@ -152,6 +152,15 @@ test('New version does not start: with -y previous version, backup and version i
   assert.match(r.stdout, /Vorherige Version läuft wieder/);
 });
 
+test('Rollback also restores a packed backup (helfi-vor-….sqlite.gz)', () => {
+  const ctx = setup();
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_BACKUP_GZ: '1' });
+  assert.equal(r.status, 1);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-neu', 'unpacked, not the gzip bytes');
+  assert.match(r.stdout, /zurückgespielt/);
+  assert.equal(fs.existsSync(path.join(ctx.dir, 'data/helfi.sqlite.zurueck')), false);
+});
+
 test('Rollback uses the real data folder from the mount (Audit)', () => {
   const ctx = setup();
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-volume-'));

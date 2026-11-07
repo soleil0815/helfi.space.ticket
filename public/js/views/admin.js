@@ -994,7 +994,7 @@ function backupPanel(body, sys) {
         h('tbody', sys.backups.map((b) => h('tr',
           h('td.mono', b.name), h('td', t(`system.kind.${b.kind}`)), h('td', fmtDate(b.time)), h('td.num', fmtSize(b.size)),
           h('td.row-actions',
-            h('a.btn-icon.small', { href: api.admin.backupDownloadUrl(b.name), download: b.name.replace(/\.sqlite$/, '.zip'), title: t('system.backupDownload'), 'aria-label': t('system.backupDownload'), 'data-backup-download': b.name }, icon('download')),
+            h('a.btn-icon.small', { href: api.admin.backupDownloadUrl(b.name), download: b.name.replace(/\.sqlite(\.gz)?$/, '.zip'), title: t('system.backupDownload'), 'aria-label': t('system.backupDownload'), 'data-backup-download': b.name }, icon('download')),
             h('button.btn-icon.small', { type: 'button', title: t('system.backupDelete'), 'aria-label': t('system.backupDelete'), onclick: () => remove(b) }, icon('trash')))))),
         h('tfoot', h('tr', h('td', { colspan: 3 }, t('system.backupTotal', { n: sys.backups.length })), h('td.num', fmtSize(sys.backupsSize)), h('td', '')))))
       : h('p.muted', '—'));

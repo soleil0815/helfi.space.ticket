@@ -21,7 +21,7 @@ before(async () => {
 });
 after(() => S.stop());
 
-const backups = () => (fs.existsSync(paths.backups) ? fs.readdirSync(paths.backups).filter((f) => f.endsWith('.sqlite')) : []);
+const backups = () => (fs.existsSync(paths.backups) ? fs.readdirSync(paths.backups).filter((f) => /\.sqlite(\.gz)?$/.test(f)) : []);
 const keys = async (who, q) => (await who('GET', `/api/tickets?q=${encodeURIComponent(q)}`)).body.tickets.map((t) => t.key);
 async function waitJob() {
   for (let i = 0; i < 200; i++) {
@@ -73,6 +73,8 @@ test('Deleting a project: rejected → no backup; allowed → own kind, gets cle
   assert.equal(backupKind('helfi-vor-import-2026-01-01T00-00-00.sqlite'), 'preimport');
   assert.equal(backupKind('helfi-manuell-2026-01-01T00-00-00.sqlite'), 'manual');
   assert.equal(backupKind('helfi-vor-1.9.0-2026-01-01T00-00-00.sqlite'), 'version');
+  assert.equal(backupKind('helfi-vor-loeschen-HR-2026-01-01T00-00-00.sqlite.gz'), 'predelete', 'packed: same kind');
+  assert.equal(backupKind('helfi-vor-1.9.0-2026-01-01T00-00-00.sqlite.gz'), 'version');
 
   // after the backup, cleanup runs (backup.keep per kind)
   await S.admin('PUT', '/api/admin/settings', { settings: { 'backup.keep': 1 } });

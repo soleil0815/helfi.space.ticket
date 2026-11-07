@@ -618,6 +618,7 @@ Never touched: `data/`, backups, `.env`, `docker-compose.yml`, folders, links an
    rm -f data/helfi.sqlite-wal data/helfi.sqlite-shm
    docker compose up -d
    ```
+   If the backup is already packed (`….sqlite.gz`, after a day), unpack instead of `cp`: `gunzip -c data/backups/helfi-vor-1.2.0-<date>.sqlite.gz > data/helfi.sqlite`
 
 ### Without internet
 
@@ -655,7 +656,9 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 ## Backup
 
 - Automatic: daily, before every version change, before deleting a project and before every import starts, in `data/backups/`. If deleting a project is refused (e.g. last project), no backup is created.
-- Each backup is first written as `….sqlite.part` and only renamed once complete. A `.part` file left behind after a crash is never used and is removed by the next clean-up after one hour.
+- **Packed:** backups are stored as `helfi-….sqlite.gz`, typically only a third to a tenth of the size. Each packed file is unpacked and compared with the original before it is renamed. Exception: the backup before a version change (`helfi-vor-<version>-….sqlite`) stays unpacked for a day, because `./update.sh` restores exactly this file if the new version does not start; afterwards the daily backup packs it. Unpacked backups from older versions are packed once in the background after startup, the original is removed only after the packed file has been checked.
+- Restoring by hand: `gunzip -c data/backups/helfi-….sqlite.gz > data/helfi.sqlite` (with the container stopped, remove `helfi.sqlite-wal`/`-shm` first). `gzip` is available on every Linux.
+- Each backup is first written as `….part` and only renamed once complete. A `.part` file left behind after a crash is never used and is removed by the next clean-up after one hour.
 - Manual: *Administration → System → Back up now*. That page also lists all backups with kind, date, size and the total space used; single backups can be deleted.
 - **Download:** every backup there can be downloaded as a ZIP file with ⤓, *Back up and download* does both in one step. The ZIP contains the database (`helfi.sqlite`, much smaller when packed) and an `INFO.txt` with restore instructions. Attachments and `secret.key` are left out on purpose: the key would decrypt the stored passwords. On the same installation the ZIP is enough to restore; a new installation also needs `secret.key` from the Docker host. Admins only, every download is logged.
 - **Back up as well:** the whole `data/` folder, including `secret.key`. Without this file, stored passwords (service account, mailbox, SSO) and 2FA keys can no longer be decrypted. Helfi.Space then does not start and says so in the log. Alternatively set `HELFI_SECRET` (at least 16 characters) in `.env`, but right at setup: switching between `secret.key` and `HELFI_SECRET` later makes stored data unreadable.
