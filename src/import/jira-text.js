@@ -11,9 +11,27 @@ export function adfToText(node) {
   return out.join('').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function walk(node, out, ctx) {
+// Deeper nesting than this is not real content (stack overflow otherwise): only its text is kept
+export const MAX_ADF_DEPTH = 100;
+
+/** Text of all "text" nodes below node, without recursion */
+function flatText(node, out) {
+  const stack = [node];
+  while (stack.length) {
+    const n = stack.pop();
+    if (!n || typeof n !== 'object') continue;
+    if (typeof n.text === 'string') out.push(n.text);
+    const c = Array.isArray(n.content) ? n.content : [];
+    for (let i = c.length - 1; i >= 0; i--) stack.push(c[i]);
+  }
+  out.push('\n\n');
+}
+
+function walk(node, out, ctx, depth = 0) {
   if (!node || typeof node !== 'object') return;
-  const kids = (n, c = ctx) => (n.content || []).forEach((k) => walk(k, out, c));
+  if (depth > MAX_ADF_DEPTH) { flatText(node, out); return; }
+  const d = depth + 1;
+  const kids = (n, c = ctx) => (n.content || []).forEach((k) => walk(k, out, c, d));
   switch (node.type) {
     case 'doc': kids(node); break;
     case 'paragraph': kids(node); out.push('\n\n'); break;
@@ -33,7 +51,7 @@ function walk(node, out, ctx) {
     case 'codeBlock': out.push('```\n'); kids(node); out.push('\n```\n\n'); break;
     case 'blockquote': {
       const inner = [];
-      (node.content || []).forEach((k) => walk(k, inner, ctx));
+      (node.content || []).forEach((k) => walk(k, inner, ctx, d));
       out.push(inner.join('').trim().split('\n').map((l) => `> ${l}`).join('\n'), '\n\n');
       break;
     }
@@ -41,7 +59,7 @@ function walk(node, out, ctx) {
       let i = node.attrs?.order || 1;
       for (const item of node.content || []) {
         const inner = [];
-        (item.content || []).forEach((k) => walk(k, inner, { listDepth: ctx.listDepth + 1 }));
+        (item.content || []).forEach((k) => walk(k, inner, { listDepth: ctx.listDepth + 1 }, d));
         const bullet = node.type === 'orderedList' ? `${i++}.` : '-';
         const text = inner.join('').trim().replace(/\n+/g, '\n' + '  '.repeat(ctx.listDepth + 1));
         out.push(`${'  '.repeat(ctx.listDepth)}${bullet} ${text}\n`);
@@ -53,7 +71,7 @@ function walk(node, out, ctx) {
       for (const row of node.content || []) {
         const cells = (row.content || []).map((cell) => {
           const inner = [];
-          (cell.content || []).forEach((k) => walk(k, inner, ctx));
+          (cell.content || []).forEach((k) => walk(k, inner, ctx, d));
           return inner.join('').trim().replace(/\s*\n+\s*/g, ' ');
         });
         out.push(`| ${cells.join(' | ')} |\n`);

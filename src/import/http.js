@@ -23,17 +23,44 @@ export class SourceError extends Error {
  * (tests, or a source system on the same host via its loopback address).
  */
 export function blockedAddress(ip) {
-  let a = String(ip || '').toLowerCase().replace(/^\[|\]$/g, '');
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
-  if (mapped) a = mapped[1];
-  if (net.isIPv4(a)) {
-    const [x, y] = a.split('.').map(Number);
-    return x === 127 || x === 0 || (x === 169 && y === 254) || x >= 224;
+  const a = String(ip || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (net.isIPv4(a)) return blockedV4(a);
+  if (net.isIPv6(a)) {
+    const w = ipv6Words(a);
+    const zero = (from, to) => w.slice(from, to).every((x) => x === 0);
+    // IPv4 embedded in IPv6 (any notation, e.g. ::ffff:7f00:1 = ::ffff:127.0.0.1): check the IPv4 address.
+    // ::ffff:0:0/96 mapped, ::/96 compatible (also :: and ::1), ::ffff:0:0:0/96 translated, 64:ff9b::/96 NAT64
+    const embedded = (zero(0, 5) && (w[5] === 0xffff || w[5] === 0))
+      || (zero(0, 4) && w[4] === 0xffff && w[5] === 0)
+      || (w[0] === 0x64 && w[1] === 0xff9b && zero(2, 6));
+    if (embedded) return blockedV4(`${w[6] >> 8}.${w[6] & 255}.${w[7] >> 8}.${w[7] & 255}`);
+    return (w[0] & 0xffc0) === 0xfe80 || (w[0] >> 8) === 0xff; // link-local fe80::/10, multicast ff00::/8
   }
-  if (net.isIPv6(a)) return a === '::' || a === '::1' || /^fe[89ab]/.test(a) || /^ff/.test(a);
   return false;
 }
+function blockedV4(a) {
+  const [x, y] = a.split('.').map(Number);
+  return x === 127 || x === 0 || (x === 169 && y === 254) || x >= 224;
+}
+/** Valid IPv6 text → its eight 16-bit words */
+function ipv6Words(addr) {
+  let s = addr.replace(/%.*$/, ''); // zone id
+  const v4 = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(s);
+  if (v4) {
+    const [p, q, r, t] = v4.slice(1).map(Number);
+    s = `${s.slice(0, v4.index)}${((p << 8) | q).toString(16)}:${((r << 8) | t).toString(16)}`;
+  }
+  const [head, tail] = s.split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail === undefined ? null : (tail ? tail.split(':') : []);
+  const words = t === null ? h : [...h, ...Array(8 - h.length - t.length).fill('0'), ...t];
+  return words.map((x) => parseInt(x, 16) || 0);
+}
 const allowLocal = () => process.env.HELFI_IMPORT_ALLOW_LOCAL === '1';
+
+/** Headers that may follow a redirect to another origin (everything else could carry credentials) */
+const NEUTRAL_HEADERS = new Set(['accept', 'accept-language', 'content-type']);
+const neutralHeaders = (h) => Object.fromEntries(Object.entries(h || {}).filter(([k]) => NEUTRAL_HEADERS.has(k.toLowerCase())));
 
 /** Error text from typical JSON error bodies (several ticket systems) */
 function errorText(text) {
@@ -92,9 +119,11 @@ export function createSourceHttp({ baseUrl, headers: authHeaders = () => ({}), v
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
           res.resume();
           const next = new URL(res.headers.location, url);
-          // Pass credentials only to the same host
+          // Pass credentials only to the same host: to another origin neither the auth headers nor the
+          // caller's own headers (e.g. a login with "Authorization"/"App-Token" and withAuth:false) go along
           const sameOrigin = next.origin === base.origin;
-          return resolve(raw(next.href, { method: res.statusCode === 303 ? 'GET' : method, body: res.statusCode === 303 ? undefined : body, headers, withAuth: withAuth && sameOrigin, redirects: redirects - 1, timeoutMs, maxBytes }));
+          const nextHeaders = sameOrigin ? headers : neutralHeaders(headers);
+          return resolve(raw(next.href, { method: res.statusCode === 303 ? 'GET' : method, body: res.statusCode === 303 ? undefined : body, headers: nextHeaders, withAuth: withAuth && sameOrigin, redirects: redirects - 1, timeoutMs, maxBytes }));
         }
         const chunks = [];
         let size = 0;

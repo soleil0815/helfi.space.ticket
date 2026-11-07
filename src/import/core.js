@@ -161,8 +161,8 @@ export function createImportCore({ db, tickets, users }) {
     const values = {
       title: String(it.title || it.extKey || '—').slice(0, 255),
       description: String(it.description || '').slice(0, 100000),
-      type: typeMap[typeName] || suggestType(typeName),
-      status: statusMap[statusName] || suggestStatus(statusName, it.statusCategory),
+      type: (Object.hasOwn(typeMap, typeName) && typeMap[typeName]) || suggestType(typeName),
+      status: (Object.hasOwn(statusMap, statusName) && statusMap[statusName]) || suggestStatus(statusName, it.statusCategory),
       priority: mapPriority(it.priorityName),
       labels: normalizeLabels(it.labels || []),
       due: it.due ? String(it.due).slice(0, 10) : null,
@@ -175,9 +175,11 @@ export function createImportCore({ db, tickets, users }) {
     if (values.status !== 'done') values.resolved = null;
 
     const created = !ticketId;
-    // Already imported and unchanged in the source since → do NOT overwrite local changes
+    // Already imported and unchanged in the source since → do NOT overwrite local changes.
+    // Without a change date from the source (e.g. a CSV without "updated" column) nothing shows a
+    // change either: an already imported ticket stays as it is.
     const srcUpdated = iso(it.updated);
-    const unchanged = ticketId && mapped?.imported_at && srcUpdated && srcUpdated <= mapped.imported_at;
+    const unchanged = !!ticketId && !!mapped?.imported_at && (!srcUpdated || srcUpdated <= mapped.imported_at);
     if (unchanged) job.counts.unchanged++;
     db.transaction(() => {
       if (unchanged) return;
@@ -193,7 +195,8 @@ export function createImportCore({ db, tickets, users }) {
           : col === 'component_id' ? (v ? db.prepare('SELECT name FROM components WHERE id=?').get(v)?.name ?? null : null) : v);
         for (const col of Object.keys(next)) {
           if (String(old[col] ?? '') === String(next[col] ?? '')) continue;
-          const [o, n] = col === 'description' ? [null, null] : [show(col, old[col]), show(col, next[col])];
+          // Description: old and new text in the history, like a manual edit (can be restored from there)
+          const [o, n] = col === 'description' ? [old[col] ?? '', next[col] ?? ''] : [show(col, old[col]), show(col, next[col])];
           db.prepare("INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value) VALUES(?,?,'changed',?,?,?)")
             .run(ticketId, cfg.userId, field[col] || col, o === null ? null : String(o), n === null ? null : String(n));
         }
@@ -284,6 +287,13 @@ export function createImportCore({ db, tickets, users }) {
         for await (const it of adapter.tickets(p.key, cfg.options)) {
           if (job.cancelRequested) break;
           job.current = String(it.extKey || it.extId);
+          // The adapter could not read this ticket (e.g. HTTP 500 for its articles): count it, go on
+          if (it.fetchError) {
+            job.counts.failed++;
+            addError(`${job.current}: ${it.fetchError.message}`);
+            entry.done++;
+            continue;
+          }
           try {
             await importTicket(it, project, cfg);
           } catch (e) {
@@ -298,6 +308,8 @@ export function createImportCore({ db, tickets, users }) {
       job.state = job.cancelRequested ? 'cancelled' : 'done';
     } catch (e) {
       job.state = 'failed';
+      // The project that was being imported must not stay "running"
+      for (const x of job.projects) if (x.state === 'running') x.state = 'failed';
       addError(e.message);
     } finally {
       job.current = null;

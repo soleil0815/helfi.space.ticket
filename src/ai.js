@@ -41,7 +41,7 @@ export function looksRemote(baseUrl, model) {
 
 /**
  * Text of a ticket for the model: newest comments are kept first when it has to be shortened.
- * Internal notes only if the setting allows it; attachments never.
+ * Internal notes only if the setting allows it (summaries only – never for replies or article drafts); attachments never.
  */
 export function ticketContext(tk, { includeInternal, maxChars }) {
   const head = [
@@ -312,7 +312,8 @@ export function createAi({ db, settings, tickets }) {
     const notes = str(draft, 4000).trim();
     const text = await timed('reply', tk.key, cfg, () => chat([
       { role: 'system', content: PROMPTS.reply(lang, user.display_name || user.username) },
-      { role: 'user', content: ticketContext(tk, cfg) + (notes ? `\n\nNotes from the agent for the reply (use them):\n${notes}` : '') },
+      // The reply goes to the requester: internal notes never go into it, whatever the setting says
+      { role: 'user', content: ticketContext(tk, { ...cfg, includeInternal: false }) + (notes ? `\n\nNotes from the agent for the reply (use them):\n${notes}` : '') },
     ], { maxTokens: 900, cfg }));
     return { text, model: cfg.model };
   }
@@ -362,7 +363,8 @@ export function createAi({ db, settings, tickets }) {
     const lang = langOf(user);
     const text = await timed('kb:draft', tk.key, cfg, () => chat([
       { role: 'system', content: PROMPTS.kb.draft(lang) },
-      { role: 'user', content: ticketContext(tk, cfg) },
+      // Knowledge articles can be public: never built from internal notes, whatever the setting says
+      { role: 'user', content: ticketContext(tk, { ...cfg, includeInternal: false }) },
     ], { maxTokens: 1500, cfg }));
     return { text, model: cfg.model };
   }

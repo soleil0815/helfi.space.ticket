@@ -122,8 +122,15 @@ export function freshdeskAdapter(c) {
     async *tickets(key, options = {}) {
       for (const meta of await allTickets()) {
         if (groupKey(meta) !== String(key)) continue;
-        const t = (await json(`${api}/tickets/${meta.id}`)) || meta; // with description and attachments
-        const conv = await conversations(t.id);
+        let t; let conv;
+        try {
+          t = (await json(`${api}/tickets/${meta.id}`)) || meta; // with description and attachments
+          conv = await conversations(t.id);
+        } catch (e) {
+          if (e.status === 401 || e.status === 403) throw e;
+          yield { extId: String(meta.id), extKey: `#${meta.id}`, fetchError: e }; // counted as failed, import goes on
+          continue;
+        }
         const [statusName, category] = statusOf(t);
         const reporter = await person(t.requester_id);
         yield {
