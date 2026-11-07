@@ -378,12 +378,12 @@ test('Tickets tab: full-text search, filter sheet, load more', { skip }, async (
   assert.equal(await user.p.locator('.m-ticket').count(), 0);
   assert.ok(await user.p.isVisible('.m-empty'));
   await user.close();
-  // More than one page: the list grows (limit 50 → the data set here is small, so check the request parameter)
+  // Pages of 50 (the data set here is small, so check the request parameters; paging itself: list-paging.test.js)
   const sizes = [];
-  p.on('request', (r) => { if (r.url().includes('/api/tickets?')) sizes.push(new URL(r.url()).searchParams.get('limit')); });
+  p.on('request', (r) => { if (r.url().includes('/api/tickets?')) { const sp = new URL(r.url()).searchParams; sizes.push(`${sp.get('page')}/${sp.get('pageSize')}`); } });
   await p.goto(`${S.base}/m/tickets`);
   await ready(p);
-  assert.deepEqual(sizes, ['50']);
+  assert.deepEqual(sizes, ['1/50']);
   assert.equal(await p.locator('.m-more button').count(), 0, 'no "load more" when everything is shown');
   assert.deepEqual(errors, []);
   await close();

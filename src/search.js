@@ -103,7 +103,7 @@ export function createSearch(db) {
       if (e?.code?.startsWith?.('SQLITE_') || e?.name === 'SqliteError') rows = [];
       else throw e;
     }
-    return { ids: rows.map((r) => r.id), terms: pos.map((x) => x.text) };
+    return { ids: rows.map((r) => r.id), terms: pos.map((x) => x.text), capped: rows.length >= MAX_HITS };
   }
 
   /** Where is the match? Excerpt from description, reply or attachment if the title does not explain it */
