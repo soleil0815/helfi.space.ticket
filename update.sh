@@ -134,10 +134,15 @@ cleanup_candidates() {
 }
 
 mounted_paths() {
-  # Host paths of all mounts of running containers (resolved)
-  for id in $(docker ps -q); do
-    docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$id"
-  done | while IFS= read -r m; do
+  # Host paths of all mounts of running containers (resolved). Collect first: in a pipeline a failing
+  # docker ps/inspect would be ignored and files could be deleted unprotected (audit).
+  ids="$(docker ps -q)" || return 1
+  raw=""
+  for id in $ids; do
+    one="$(docker inspect -f '{{range .Mounts}}{{println .Source}}{{end}}' "$id")" || return 1
+    raw="$raw$one$NL"
+  done
+  printf '%s' "$raw" | while IFS= read -r m; do
     [ -n "$m" ] || continue
     if [ -d "$m" ]; then (cd -P "$m" 2>/dev/null && pwd -P)
     elif [ -e "$m" ]; then printf '%s/%s\n' "$(cd -P "$(dirname "$m")" 2>/dev/null && pwd -P)" "$(basename "$m")"
@@ -190,14 +195,32 @@ env_get() {
 
 env_set() {
   # Set a value in .env (replace the existing line, otherwise append) – the rest of the file stays unchanged
+  # Returns non-zero if .env could not be written.
   if grep -q "^$1=" .env; then
     tmp=".env.tmp.$$"
-    sed "s|^$1=.*|$1=$2|" .env > "$tmp" && cat "$tmp" > .env && rm -f "$tmp"
+    rm -f "$tmp"
+    # The copy contains HELFI_SECRET: create it readable for the owner only (umask in a subshell),
+    # write back with cat so .env keeps its own mode and owner (audit)
+    if ! (umask 077 && sed "s|^$1=.*|$1=$2|" .env > "$tmp"); then rm -f "$tmp"; return 1; fi
+    # If writing back fails, .env may be incomplete: keep the complete copy for the user
+    cat "$tmp" > .env || { ENV_KEPT="$tmp"; return 1; }
+    rm -f "$tmp"
   else
     # Without a trailing newline the value would be glued to the last line
-    if [ -s .env ] && [ "$(tail -c 1 .env | od -An -c | tr -d ' ')" != '\n' ]; then printf '\n' >> .env; fi
+    if [ -s .env ] && [ "$(tail -c 1 .env | od -An -c | tr -d ' ')" != '\n' ]; then printf '\n' >> .env || return 1; fi
     printf '%s=%s\n' "$1" "$2" >> .env
   fi
+}
+ENV_KEPT=""
+env_kept_hint() {
+  [ -n "$ENV_KEPT" ] && err "Vollständige Kopie der .env (bitte prüfen und zurückkopieren): $ENV_KEPT" \
+      "Complete copy of .env (please check and copy it back): $ENV_KEPT"
+  return 0
+}
+env_set_failed() {
+  err "HELFI_VERSION konnte nicht in .env geschrieben werden (Rechte? Platz?) – bitte von Hand auf $1 setzen." \
+      "Could not write HELFI_VERSION to .env (permissions? disk space?) – please set it to $1 by hand."
+  env_kept_hint
 }
 
 compose_version_of() {
@@ -261,6 +284,16 @@ if [ -n "$OFFLINE" ]; then
       exit 1
     fi
     TAG="$VERSION"; TARGET="$IMAGE_REPO:$TAG"
+  else
+    # With a version argument: the loaded image must really be that version – otherwise e.g. a 1.3.0
+    # image would be tagged :1.2.0 and pinned in .env, and a later pull of the real 1.2.0 would meet
+    # a database already migrated by 1.3.0 (audit). Checked before any tag is set.
+    label="$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.version"}}' "$loaded" 2>/dev/null || true)"
+    if [ "$VERSION" != latest ] && [ "$label" != latest ] && valid_version "$label" && [ "$label" != "$VERSION" ]; then
+      err "Das Image in $OFFLINE ist Version $label, nicht $VERSION – nichts geändert." "The image in $OFFLINE is version $label, not $VERSION – nothing changed."
+      err "Bitte die passende Datei oder Version angeben, z. B.: ./update.sh --offline $(basename "$OFFLINE") $label" "Please give the matching file or version, e.g.: ./update.sh --offline $(basename "$OFFLINE") $label"
+      exit 1
+    fi
   fi
   if [ "$loaded" != "$TARGET" ]; then docker tag "$loaded" "$TARGET" || exit 1; fi
   say "Geladen: $loaded" "Loaded: $loaded"
@@ -272,7 +305,15 @@ else
   fi
 fi
 # Record only now: the image is available locally
-[ -n "$VERSION" ] && { env_set HELFI_VERSION "$VERSION"; say "Version in .env festgehalten: $VERSION" "Version recorded in .env: $VERSION"; }
+if [ -n "$VERSION" ]; then
+  if ! env_set HELFI_VERSION "$VERSION"; then
+    err "HELFI_VERSION konnte nicht in .env geschrieben werden (Rechte? Platz?) – nichts gestartet." \
+        "Could not write HELFI_VERSION to .env (permissions? disk space?) – nothing started."
+    env_kept_hint
+    exit 1
+  fi
+  say "Version in .env festgehalten: $VERSION" "Version recorded in .env: $VERSION"
+fi
 
 NEW_ID="$(docker image inspect -f '{{.Id}}' "$TARGET" 2>/dev/null || true)"
 if [ -n "$PREV_ID" ] && [ "$NEW_ID" = "$PREV_ID" ]; then
@@ -311,7 +352,8 @@ MARKER=".update-start.$$"
 : > "$MARKER"
 sleep 1 # busybox find only compares whole seconds
 UP_FAILED=0
-if ! dc up -d "$SERVICE"; then
+# Same version as the pull: an HELFI_VERSION exported by the caller must not start another one (audit)
+if ! HELFI_VERSION="$TAG" dc up -d "$SERVICE"; then
   # e.g. name in use or docker-compose.yml invalid: the old container may still be running –
   # do not report it as "new version running" then (audit)
   UP_FAILED=1
@@ -353,8 +395,11 @@ restore_files() {
       "Previous docker-compose.yml restored (the new one is saved as docker-compose.yml.neu)."
   fi
   if [ -n "$VERSION" ]; then
-    env_set HELFI_VERSION "$OLD_TAG"
-    say "Version in .env wieder auf $OLD_TAG." "Version in .env set back to $OLD_TAG."
+    if env_set HELFI_VERSION "$OLD_TAG"; then
+      say "Version in .env wieder auf $OLD_TAG." "Version in .env set back to $OLD_TAG."
+    else
+      env_set_failed "$OLD_TAG"
+    fi
   fi
 }
 
@@ -485,14 +530,17 @@ fi
 if [ -n "$PREV_VERSION" ]; then
   RUN_TAG="$PREV_VERSION"
   docker tag "$IMAGE_REPO:previous" "$IMAGE_REPO:$RUN_TAG" || exit 1
-  env_set HELFI_VERSION "$RUN_TAG"
-  say "Version in .env auf $RUN_TAG festgehalten." "Version pinned to $RUN_TAG in .env."
+  if env_set HELFI_VERSION "$RUN_TAG"; then
+    say "Version in .env auf $RUN_TAG festgehalten." "Version pinned to $RUN_TAG in .env."
+  else
+    env_set_failed "$RUN_TAG"
+  fi
 else
   # Old image without a version label: reset .env to the state before the update, do not leave it
   # on the broken new version (audit)
   RUN_TAG="$OLD_TAG"
   docker tag "$IMAGE_REPO:previous" "$IMAGE_REPO:$RUN_TAG" || exit 1
-  env_set HELFI_VERSION "$RUN_TAG"
+  env_set HELFI_VERSION "$RUN_TAG" || env_set_failed "$RUN_TAG"
   say "WARNUNG: Die vorherige Version hat keine Versionsangabe im Image. .env steht wieder auf $RUN_TAG." \
       "WARNING: The previous version has no version label in the image. .env is back on $RUN_TAG."
   if [ "$RUN_TAG" = latest ]; then

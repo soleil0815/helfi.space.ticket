@@ -17,6 +17,8 @@
 #   FAKE_NO_BACKUP=1                             neue Version legt keine Sicherung an
 #   FAKE_NEW_IMAGE                               Image-ID des neuen Containers (Standard sha256:neu; z. B. eigene Registry)
 #   FAKE_LOAD_REF                                Name, den "docker load" meldet (Standard: …:9.9.9)
+#   FAKE_LOAD_VERSION                            Versions-Label des geladenen Images (Standard: FAKE_NEW_VERSION)
+#   FAKE_INSPECT_MOUNTS_FAIL=1                   "docker inspect" der Mounts (--cleanup) schlägt fehl
 echo "$* [HELFI_VERSION=${HELFI_VERSION:-}]" >> "$FAKE_LOG"
 phase_file="$FAKE_DIR/.fake-phase"
 data="${FAKE_DATA_DIR:-$FAKE_DIR/data}"
@@ -57,7 +59,7 @@ case "$1" in
     fmt="$3"
     case "$fmt" in
       *'.Id'*) [ -n "${FAKE_NO_CONTAINER:-}" ] && exit 1; echo "cid1" ;;
-      *'println'*) echo "$data"; [ -n "${FAKE_MOUNTS:-}" ] && printf '%s\n' "$FAKE_MOUNTS" ;;
+      *'println'*) [ -n "${FAKE_INSPECT_MOUNTS_FAIL:-}" ] && { echo "Error: No such object: $4" >&2; exit 1; }; echo "$data"; [ -n "${FAKE_MOUNTS:-}" ] && printf '%s\n' "$FAKE_MOUNTS" ;;
       *'.Mounts'*) echo "$data" ;;
       *'.Image'*) if [ "$(cat "$phase_file" 2>/dev/null)" = "new" ]; then echo "${FAKE_NEW_IMAGE:-sha256:neu}"; else echo "sha256:alt"; fi ;;
       *'.State.Health'*)
@@ -74,7 +76,9 @@ case "$1" in
     # image inspect -f FMT REF
     case "$4" in
       *'.Id'*) echo "sha256:neu" ;;
-      *) if [ "$5" = "sha256:alt" ]; then echo "${FAKE_PREV_VERSION:-}"; else echo "${FAKE_NEW_VERSION:-}"; fi ;;
+      *) if [ "$5" = "sha256:alt" ]; then echo "${FAKE_PREV_VERSION:-}"
+         elif [ "$5" = "${FAKE_LOAD_REF:-ghcr.io/soleil0815/helfi.space.ticket:9.9.9}" ] && [ -n "${FAKE_LOAD_VERSION:-}" ]; then echo "$FAKE_LOAD_VERSION"
+         else echo "${FAKE_NEW_VERSION:-}"; fi ;;
     esac
     exit 0 ;;
   tag) exit 0 ;;
