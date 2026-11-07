@@ -1,4 +1,5 @@
 // UI entry point: state, router, base layout.
+import { THEMES, getTheme, setTheme, syncTheme } from './theme.js';
 import { installShortcuts, clearPageShortcuts, listKeys } from './shortcuts.js';
 import { api } from './api.js';
 import { h, mount, icon, avatar, dropdown, toast, loadSprite } from './dom.js';
@@ -79,6 +80,8 @@ function applyLanguage() {
   let stored = null;
   try { stored = localStorage.getItem('helfi.lang'); } catch { /* ignore */ }
   setLang(state.user?.language || stored || browserLang() || state.boot?.defaultLanguage || 'de');
+  // the account's colour theme (chosen on another device) applies here too
+  syncTheme(state.user);
 }
 
 export async function setLanguage(lang) {
@@ -227,6 +230,7 @@ function layout(content, path) {
     showAll: (q) => { search.blur(); navigate(`/${state.isAgent ? 'issues' : 'requests'}?q=${encodeURIComponent(q)}`); },
   });
 
+  const THEME_ICONS = { system: 'contrast', light: 'sun', dark: 'moon' };
   const userBtn = h('button.topbar-user', {
     type: 'button', 'aria-label': u.displayName,
     onclick: (e) => dropdown(e.currentTarget, [
@@ -236,6 +240,10 @@ function layout(content, path) {
       '-',
       { label: 'Deutsch', active: getLang() === 'de', onClick: () => setLanguage('de') },
       { label: 'English', active: getLang() === 'en', onClick: () => setLanguage('en') },
+      '-',
+      // Colour theme: System (follows the device) / Light / Dark
+      h('div.menu-group', t('theme.title')),
+      ...THEMES.map((th) => ({ label: t(`theme.${th}`), icon: icon(THEME_ICONS[th]), active: getTheme() === th, onClick: () => setTheme(th) })),
       '-',
       // Phone user who chose the desktop view: way back to the mobile UI
       ...(isPhone() ? [{

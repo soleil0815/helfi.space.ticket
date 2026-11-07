@@ -28,7 +28,17 @@ test('brand.css: empty by default, custom color and colored header', () => {
   assert.equal(brandCss(fake({ 'brand.color': '', 'brand.header': 'light' })).trim(), '');
   const css = brandCss(fake({ 'brand.color': '#7A1F5C', 'brand.header': 'color' }));
   assert.match(css, /--blue: #7A1F5C/);
-  assert.match(css, /\.topbar \{ background: var\(--blue\)/);
+  assert.match(css, /\.topbar \{ background: #7A1F5C/, 'header keeps the brand colour in dark mode too');
+  // dark mode: lighter brand colour with readable text on it
+  const dark = css.match(/:root\[data-theme="dark"\] \{([^}]*)\}/);
+  assert.ok(dark, 'dark mode variables');
+  const darkBlue = dark[1].match(/--blue: (#[0-9A-F]{6})/)[1];
+  const onBlue = dark[1].match(/--on-blue: (#[0-9A-F]{6})/)[1];
+  assert.ok(contrast(darkBlue, onBlue) >= 3, `contrast ${darkBlue} / ${onBlue}`);
+  for (const c of ['#0C2340', '#FFD700', '#22A06B']) {
+    const d = brandCss(fake({ 'brand.color': c, 'brand.header': 'light' })).match(/:root\[data-theme="dark"\] \{([^}]*)\}/)[1];
+    assert.ok(contrast(d.match(/--blue: (#[0-9A-F]{6})/)[1], d.match(/--on-blue: (#[0-9A-F]{6})/)[1]) >= 3, c);
+  }
   assert.match(css, /color: #FFFFFF/);
   // very light color → dark text in the header
   assert.match(brandCss(fake({ 'brand.color': '#FFD700', 'brand.header': 'color' })), /color: #172B4D/);

@@ -1,4 +1,5 @@
 // Mobile UI (/m): start, sign-in state, app shell with tab bar, routes.
+import { syncTheme } from '/js/theme.js';
 import { api } from '/js/api.js';
 import { initIdle } from '/js/idle.js';
 import { h, mount, icon, toast, loadSprite } from '/js/dom.js';
@@ -25,6 +26,8 @@ export function applyLanguage() {
   let stored = null;
   try { stored = localStorage.getItem('helfi.lang'); } catch { /* ignore */ }
   setLang(state.user?.language || stored || browserLang() || state.boot?.defaultLanguage || 'de');
+  // the account's colour theme (chosen on another device) applies here too
+  syncTheme(state.user);
 }
 
 export async function setLanguage(lang) {

@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 
 // Entry points of the mobile UI and the offline page, plus non-JS files of the shell
 const ENTRIES = ['/m/js/main.js', '/m/js/offline.js'];
-const STATIC = ['/m/index.html', '/m/offline.html', '/m/m.css', '/css/app.css', '/icons/sprite.svg', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
+const STATIC = ['/m/index.html', '/m/offline.html', '/m/m.css', '/css/app.css', '/js/theme-init.js', '/icons/sprite.svg', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
 const IMPORT_RE = /(?:^|[\s;])(?:import|export)\s[^'"`;]*?from\s*['"]([^'"]+)['"]|(?:^|[\s;(])import\s*\(\s*['"]([^'"]+)['"]\s*\)|^\s*import\s+['"]([^'"]+)['"]/gm;
 
 /** All JS modules reachable from the entries (static and literal dynamic imports), as URL paths */

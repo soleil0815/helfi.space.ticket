@@ -1,5 +1,6 @@
 // "Me" tab: account (name/email and password for local accounts), two-factor sign-in, language,
 // install as app, news, desktop view, sign out – plus the news and two-factor pages.
+import { THEMES, getTheme, setTheme } from '/js/theme.js';
 import { api } from '/js/api.js';
 import { h, icon, avatar, fmtDate, toast } from '/js/dom.js';
 import { t, getLang } from '/js/i18n.js';
@@ -53,6 +54,13 @@ export function renderMe(page) {
     group(t('app.language'),
       h('div.m-row.m-row-static',
         h('div.m-segmented', { role: 'radiogroup', 'aria-label': t('app.language') }, langBtn('de', 'Deutsch'), langBtn('en', 'English')))),
+    // Colour theme: system / light / dark (applied at once, remembered with the account)
+    group(t('theme.title'),
+      h('div.m-row.m-row-static',
+        h('div.m-segmented.m-theme', { role: 'radiogroup', 'aria-label': t('theme.title') }, ...THEMES.map((th) => h('button', {
+          type: 'button', role: 'radio', 'aria-checked': String(getTheme() === th), class: getTheme() === th ? 'active' : '', 'data-theme-choice': th,
+          onclick: async () => { await setTheme(th); renderMe(page); },
+        }, t(`theme.${th}`)))))),
     group(null,
       listRow({
         icon: 'smartphone', label: installed ? t('m.app.installedTitle') : t('m.app.install'), hint: installed ? t('m.app.installedHint') : t('m.app.installHint'),

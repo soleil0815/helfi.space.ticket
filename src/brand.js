@@ -35,6 +35,10 @@ export function brandCss(settings) {
   const lines = [];
   if (color !== DEFAULT_COLOR) {
     lines.push(`:root { --blue: ${color}; --blue-hover: ${mix(color, '#000000', 0.15)}; --blue-press: ${mix(color, '#000000', 0.45)}; --blue-subtle: ${mix(color, '#FFFFFF', 0.9)}; }`);
+    // Dark mode: lighter brand colour on dark backgrounds, dark tint instead of a light one
+    const darkBlue = mix(color, '#FFFFFF', 0.3);
+    const onDark = contrast(darkBlue, '#1D2125') >= contrast(darkBlue, '#FFFFFF') ? '#1D2125' : '#FFFFFF';
+    lines.push(`:root[data-theme="dark"] { --blue: ${darkBlue}; --on-blue: ${onDark}; --blue-hover: ${mix(color, '#FFFFFF', 0.5)}; --blue-press: ${mix(color, '#FFFFFF', 0.7)}; --blue-subtle: ${mix(color, '#1D2125', 0.78)}; --blue-subtlest: ${mix(color, '#1D2125', 0.78)}; --blue-text: ${mix(color, '#FFFFFF', 0.5)}; }`);
     lines.push(
       `input:focus, select:focus, textarea:focus { border-color: ${color}; }`,
       `.project-avatar { background: ${color}; }`,
@@ -47,11 +51,12 @@ export function brandCss(settings) {
     const fg = contrast(color, '#FFFFFF') >= 3 ? '#FFFFFF' : '#172B4D';
     const veil = fg === '#FFFFFF' ? '#FFFFFF26' : '#091E4224';
     lines.push(
-      `.topbar { background: var(--blue); border-bottom-color: transparent; }`,
+      // the header keeps the real brand colour in dark mode too (fg was computed for it)
+      `.topbar { background: ${color}; border-bottom-color: transparent; }`,
       `.topbar .brand, .topbar .topnav a, .topbar .topnav a:hover, .topbar .topnav a.active { color: ${fg}; }`,
       `.topbar .topnav a.active { border-bottom-color: ${fg}; }`,
       `.topbar .brand:hover, .topbar .topnav a:hover, .topbar .topbar-user:hover { background: ${veil}; }`,
-      `.topbar .btn-primary { background: ${fg}; color: ${fg === '#FFFFFF' ? 'var(--blue)' : '#FFFFFF'}; }`,
+      `.topbar .btn-primary { background: ${fg}; color: ${fg === '#FFFFFF' ? color : '#FFFFFF'}; }`,
       `.topbar .btn-primary:hover { background: ${fg}; opacity: .9; }`,
       `.topbar-search input { border-color: transparent; }`,
       // Logos are often in the primary color → on a light background so they stay visible

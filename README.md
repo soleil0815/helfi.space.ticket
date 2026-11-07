@@ -28,6 +28,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen.
 - **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht – einstellbar je Rolle.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
+- **Dunkelmodus:** Im Benutzermenü unter *Design* zwischen *System* (folgt dem Gerät), *Hell* und *Dunkel* wählen – am Handy unter *Ich → Design*. Die Wahl gilt für das Konto auf allen Geräten, auch mit eigener Firmenfarbe.
 - **Neuigkeiten:** Nach einem Update zeigt Helfi.Space jedem einmal, was sich für ihn geändert hat; alle Versionen stehen im Benutzermenü unter *Neuigkeiten*.
 - Automatische Sicherungen täglich und vor jedem Update
 
