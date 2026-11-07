@@ -181,15 +181,18 @@ export function createTickets(db, users) {
    * source, and – like the rules at creation – the lead gets the ticket if nobody is assigned yet.
    * userId: who accepted a suggestion (null = automatic). Returns the ticket (agent view).
    */
-  function applyComponent(ticketId, componentId, { kind = 'ai', detail = '', userId = null } = {}) {
+  function applyComponent(ticketId, componentId, { kind = 'ai', detail = '', userId = null, backfill = false } = {}) {
     const row = rawById(ticketId);
     if (!row) throw notFound();
     const component = components.forProject(row.project_id, componentId);
     let assigned = null;
     db.transaction(() => {
-      db.prepare("UPDATE tickets SET component_id=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(component.id, row.id);
+      // Sorting existing tickets afterwards: only the component and the history entry –
+      // the "updated" time stays (lists keep their order) and nobody gets the ticket assigned
+      if (backfill) db.prepare('UPDATE tickets SET component_id=? WHERE id=?').run(component.id, row.id);
+      else db.prepare("UPDATE tickets SET component_id=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(component.id, row.id);
       logActivity(row.id, userId, 'classified', kind, detail, component.name);
-      if (!row.assignee_id) {
+      if (!row.assignee_id && !backfill) {
         assigned = leadFor(component);
         if (assigned) {
           db.prepare('UPDATE tickets SET assignee_id=? WHERE id=?').run(assigned.id, row.id);

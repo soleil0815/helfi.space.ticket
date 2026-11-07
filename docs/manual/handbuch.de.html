@@ -590,6 +590,16 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <h3>Regeln testen</h3>
 <p>Unter der Liste gibst du Titel, Beschreibung und optional einen Absender ein. <em>Prüfen</em> zeigt, welche Komponente ein neues Ticket bekäme, warum, und an wen es ginge.</p>
 <figure class="medium"><img src="img/de/admin-components-test.jpg" alt=""><figcaption>Regeln testen</figcaption></figure>
+<h3>Bestehende Tickets einordnen</h3>
+<p>Nach dem Import oder wenn Komponenten neu dazukommen, haben viele Tickets noch keine Komponente. Unten auf der Seite ordnest du sie nachträglich zu:</p>
+<ol>
+  <li><strong>Vorschau</strong> zeigt, wie viele Tickets ohne Komponente es gibt, wie viele eine Regel trifft und wie viele an die KI gehen. Standardmäßig zählen alle Tickets, auch erledigte; ohne Haken bei <em>Auch erledigte Tickets</em> nur offene.</li>
+  <li><strong>Einordnen starten</strong> wendet zuerst die Regeln (Absender, Schlagwörter) an. Ist die KI-Funktion <em>Komponente erkennen</em> eingeschaltet, gehen alle übrigen Tickets danach nacheinander an die KI – im Hintergrund, mit Fortschrittsbalken und jederzeit abbrechbar. Vorher fragt Helfi.Space nach, denn an die KI gehen Titel und Beschreibung.</li>
+  <li><strong>KI-Vorschläge prüfen:</strong> Standardmäßig setzt die KI nichts selbst. In der Liste siehst du Ticket, Vorschlag und Begründung und übernimmst oder verwirfst einzelne oder mehrere auf einmal. Mit <em>Direkt setzen</em> trägt die KI die Komponente gleich ein („von KI“ im Verlauf).</li>
+</ol>
+<figure class="medium"><img src="img/de/backfill.jpg" alt=""><figcaption>Bestehende Tickets einordnen: Vorschau und Ergebnis</figcaption></figure>
+<figure class="medium"><img src="img/de/backfill-review.jpg" alt=""><figcaption>KI-Vorschläge prüfen und mehrere auf einmal übernehmen</figcaption></figure>
+<p>Beim nachträglichen Einordnen gehen <strong>keine Mails</strong> raus, niemand bekommt Tickets <strong>zugewiesen</strong>, und die Zeit „Aktualisiert“ bleibt – Listen behalten ihre Reihenfolge. Tickets, die die KI schon geprüft hat (Vorschlag offen, verworfen oder „passt zu keiner“), überspringt ein neuer Lauf; <em>erneut prüfen</em> fragt sie noch einmal, z. B. nachdem du die Beschreibungen der Komponenten verbessert hast.</p>
 <h3>Komponenten sinnvoll schneiden</h3>
 <ul>
   <li><strong>Nach Zuständigkeit, nicht nach Technik:</strong> Eine Komponente ist das, wofür eine Person (oder ein kleines Team) den Hut aufhat. Wer „Drucker“ und „Scanner“ betreut, braucht keine zwei Komponenten.</li>

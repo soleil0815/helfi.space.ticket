@@ -4,13 +4,19 @@
 //  - auto: the component is set directly, marked "by AI" in the history
 // Runs in the background (one at a time, small queue) and never blocks creating a ticket.
 // The hit rate counts accepted against corrected suggestions.
-import { HttpError, notFound, str } from './lib/http.js';
+import { HttpError, notFound, str, int } from './lib/http.js';
+import { matchComponent, reasonDetail } from './components.js';
 import { isAgent } from './auth/session.js';
 import { log } from './lib/log.js';
 
 export const CLASSIFY_MODES = ['suggest', 'auto'];
 const MAX_QUEUE = 30;
 const TEXT_LIMIT = 4000;
+// Sorting existing tickets afterwards: at most this many go to the AI per run (start again for more);
+// high on purpose – the run is sequential, in the background and can be cancelled
+export const BACKFILL_MAX_AI = 20000;
+const BACKFILL_SCAN = 20000;
+const SKIP_STATES = ['pending', 'none', 'rejected', 'corrected']; // already asked: only again with "retry"
 
 /** Prompt: list of components with description and keywords; the ticket is data */
 export function classifyMessages(components, ticket) {
@@ -50,13 +56,15 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
   let queue = Promise.resolve();
   let waiting = 0;
 
-  const save = db.prepare(`INSERT INTO component_suggestions(ticket_id, component_id, component_name, reason, model, state) VALUES (?,?,?,?,?,?)
+  const saveStmt = db.prepare(`INSERT INTO component_suggestions(ticket_id, component_id, component_name, reason, model, state, backfill) VALUES (?,?,?,?,?,?,?)
     ON CONFLICT(ticket_id) DO UPDATE SET component_id=excluded.component_id, component_name=excluded.component_name, reason=excluded.reason,
-      model=excluded.model, state=excluded.state, created_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), decided_at=NULL, decided_by=NULL`);
+      model=excluded.model, state=excluded.state, backfill=excluded.backfill, created_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), decided_at=NULL, decided_by=NULL`);
   const decide = (ticketId, state, userId) => db.prepare("UPDATE component_suggestions SET state=?, decided_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), decided_by=? WHERE ticket_id=?")
     .run(state, userId, ticketId);
 
-  async function classify(ticketId) {
+  /** backfill: sorting an existing ticket afterwards (see applyComponent); modeOverride: suggest | auto */
+  async function classify(ticketId, { backfill = false, modeOverride = null } = {}) {
+    const save = { run: (...a) => saveStmt.run(...a, backfill ? 1 : 0) };
     const row = tickets.rawById(ticketId);
     if (!row || row.component_id || !on()) return null; // set meanwhile (by hand) or switched off
     const comps = tickets.components.active(row.project_id);
@@ -67,9 +75,9 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     // The ticket may have got a component while the model was thinking
     if (tickets.rawById(ticketId)?.component_id) return null;
     if (!component) { save.run(ticketId, null, '', reason, cfg.model, 'none'); return { state: 'none' }; }
-    if (mode() === 'auto') {
+    if ((modeOverride || mode()) === 'auto') {
       save.run(ticketId, component.id, component.name, reason, cfg.model, 'auto');
-      tickets.applyComponent(ticketId, component.id, { kind: 'ai', detail: cfg.model });
+      tickets.applyComponent(ticketId, component.id, { kind: 'ai', detail: cfg.model, backfill });
       return { state: 'auto', component: component.name };
     }
     save.run(ticketId, component.id, component.name, reason, cfg.model, 'pending');
@@ -118,7 +126,7 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
   function accept(user, key) {
     const { row, s } = pending(user, key);
     decide(row.id, 'accepted', user.id);
-    return tickets.applyComponent(row.id, s.component_id, { kind: 'aiAccepted', detail: s.model, userId: user.id });
+    return tickets.applyComponent(row.id, s.component_id, { kind: 'aiAccepted', detail: s.model, userId: user.id, backfill: !!s.backfill });
   }
 
   /** Dismiss: no component; counts as not fitting in the hit rate */
@@ -139,5 +147,128 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     };
   }
 
-  return { enqueue, classify, accept, dismiss, stats, mode, idle: () => queue };
+  // ---------- Sorting existing tickets afterwards (admins) ----------
+  // First the component rules (sender, keywords) – free and exact –, then the AI for the rest.
+  // One run at a time, in the background; it can be cancelled. No mails, no assignment, the
+  // "updated" time stays. The run state lives in memory: after a restart simply start again.
+  let run = null;
+
+  function backfillPlan(projectId, { includeDone = false, retry = false } = {}) {
+    const comps = tickets.components.active(projectId);
+    const ids = db.prepare(`SELECT id FROM tickets WHERE project_id=? AND component_id IS NULL ${includeDone ? '' : "AND status<>'done'"} ORDER BY id DESC LIMIT ?`)
+      .all(projectId, BACKFILL_SCAN).map((r) => r.id);
+    const asked = new Map(db.prepare(`SELECT s.ticket_id, s.state FROM component_suggestions s JOIN tickets t ON t.id=s.ticket_id WHERE t.project_id=?`)
+      .all(projectId).map((r) => [r.ticket_id, r.state]));
+    const plan = { components: comps.length, total: ids.length, rules: [], ai: [], skipped: 0 };
+    if (!comps.length) return plan;
+    for (const id of ids) {
+      const row = tickets.rawById(id);
+      const sender = row.reporter_email || row.r_email || '';
+      const m = matchComponent(comps, { title: row.title, description: row.description, sender });
+      if (m) plan.rules.push({ id, match: m });
+      else if (!retry && SKIP_STATES.includes(asked.get(id))) plan.skipped++;
+      else plan.ai.push(id);
+    }
+    return plan;
+  }
+
+  const projectOf = (projectId) => {
+    const p = db.prepare('SELECT id, key, name FROM projects WHERE id=?').get(int(projectId) || 0);
+    if (!p) throw notFound();
+    return p;
+  };
+  const status = () => (run ? { ...run.state } : null);
+
+  function backfillPreview(projectId, opts = {}) {
+    const p = projectOf(projectId);
+    const plan = backfillPlan(p.id, opts);
+    const aiOn = on();
+    return {
+      project: p.key, components: plan.components, total: plan.total, rules: plan.rules.length,
+      ai: aiOn ? Math.min(plan.ai.length, BACKFILL_MAX_AI) : 0, aiMore: aiOn ? Math.max(0, plan.ai.length - BACKFILL_MAX_AI) : 0,
+      remaining: aiOn ? 0 : plan.ai.length, // without AI: what the rules do not catch stays without component
+      skipped: plan.skipped, aiOn, maxAi: BACKFILL_MAX_AI, run: status(),
+    };
+  }
+
+  function backfillStart(user, projectId, { includeDone = false, retry = false, mode: m = 'suggest' } = {}) {
+    if (run && run.state.running) throw new HttpError(409, 'err.backfillRunning');
+    if (!CLASSIFY_MODES.includes(m)) throw new HttpError(400, 'err.badRequest', 'mode');
+    const p = projectOf(projectId);
+    const plan = backfillPlan(p.id, { includeDone, retry });
+    if (!plan.components) throw new HttpError(400, 'err.backfillNoComponents');
+    const aiIds = on() ? plan.ai.slice(0, BACKFILL_MAX_AI) : [];
+    const state = {
+      running: true, project: p.key, mode: m, startedBy: user.display_name, startedAt: new Date().toISOString(), finishedAt: null,
+      cancelled: false, rules: 0, total: aiIds.length, done: 0, suggested: 0, auto: 0, none: 0, failed: 0,
+    };
+    run = { state, cancel: false };
+    const current = run;
+    // 1. rules – synchronous, exact
+    for (const { id, match } of plan.rules) {
+      try {
+        if (tickets.rawById(id)?.component_id) continue;
+        tickets.applyComponent(id, match.component.id, { kind: match.kind, detail: reasonDetail(match), backfill: true });
+        state.rules++;
+      } catch (e) { log.warn('Backfill: rule could not be applied', { ticket: id, error: e.message }); }
+    }
+    // 2. AI – one after the other in the background
+    (async () => {
+      for (const id of aiIds) {
+        if (current.cancel || !on()) { state.cancelled = true; break; }
+        try {
+          const r = await classify(id, { backfill: true, modeOverride: m });
+          if (r?.state === 'pending') state.suggested++;
+          else if (r?.state === 'auto') state.auto++;
+          else if (r?.state === 'none') state.none++;
+        } catch (e) {
+          state.failed++;
+          log.warn('Backfill: AI component detection failed', { ticket: id, error: e.detail || e.code || e.message });
+          if (state.failed >= 5 && state.failed > state.done / 2) { state.cancelled = true; state.error = 'aiFailing'; break; } // AI unreachable: stop instead of 1000 errors
+        }
+        state.done++;
+      }
+      state.running = false;
+      state.finishedAt = new Date().toISOString();
+      log.info('Backfill of components finished', { project: p.key, rules: state.rules, suggested: state.suggested, auto: state.auto, none: state.none, failed: state.failed, cancelled: state.cancelled });
+    })();
+    return status();
+  }
+
+  function backfillCancel() {
+    if (run && run.state.running) run.cancel = true;
+    return status();
+  }
+
+  /** Open suggestions (state pending) for the review list, newest first */
+  function pendingList(projectId) {
+    const rows = db.prepare(`SELECT s.ticket_id, s.component_id, s.component_name, s.reason, s.model, s.created_at, s.backfill
+      FROM component_suggestions s JOIN tickets t ON t.id=s.ticket_id
+      WHERE s.state='pending' AND s.component_id IS NOT NULL AND t.component_id IS NULL ${projectId ? 'AND t.project_id=?' : ''}
+      ORDER BY t.id DESC LIMIT 500`).all(...(projectId ? [int(projectId) || 0] : []));
+    return rows.map((r) => {
+      const t = tickets.rawById(r.ticket_id);
+      return {
+        key: `${t.project_key}-${t.number}`, title: t.title, status: t.status, type: t.type, priority: t.priority,
+        component: { id: r.component_id, name: r.component_name }, reason: r.reason, model: r.model, backfill: !!r.backfill, createdAt: r.created_at,
+      };
+    });
+  }
+
+  /** Accept or dismiss several suggestions at once; errors per ticket are reported, not thrown */
+  function decideMany(user, keys, action) {
+    if (!['accept', 'dismiss'].includes(action)) throw new HttpError(400, 'err.badRequest', 'action');
+    const list = (Array.isArray(keys) ? keys : []).slice(0, 500).map((k) => str(k, 40));
+    const out = { done: 0, failed: [] };
+    for (const key of list) {
+      try { if (action === 'accept') accept(user, key); else dismiss(user, key); out.done++; } catch (e) { out.failed.push({ key, error: e.code || e.message }); }
+    }
+    return out;
+  }
+
+  return {
+    enqueue, classify, accept, dismiss, stats, mode, idle: () => queue,
+    backfillPreview, backfillStart, backfillCancel, backfillStatus: status, backfillIdle: async () => { while (run?.state.running) await new Promise((r) => setTimeout(r, 20)); },
+    pendingList, decideMany,
+  };
 }

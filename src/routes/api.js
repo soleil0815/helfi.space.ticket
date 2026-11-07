@@ -642,6 +642,9 @@ export function createApi(ctx) {
   r.post('/tickets/:key/ai/summary', requireRole('agent'), wrap(async (req, res) => res.json({ summary: await ctx.ai.summarize(req.user, req.params.key) })));
   r.post('/tickets/:key/ai/reply', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.suggestReply(req.user, req.params.key, req.body.draft))));
   // AI component suggestion: accept or dismiss
+  // Review list of open AI suggestions (also from sorting existing tickets afterwards)
+  r.get('/component-suggestions', requireRole('agent'), (req, res) => res.json({ suggestions: ctx.aiClassifier.pendingList(req.query.project) }));
+  r.post('/component-suggestions/decide', requireRole('agent'), (req, res) => res.json(ctx.aiClassifier.decideMany(req.user, req.body.keys, req.body.action)));
   r.post('/tickets/:key/component-suggestion/accept', requireRole('agent'), (req, res) => res.json({ ticket: ctx.aiClassifier.accept(req.user, req.params.key) }));
   r.post('/tickets/:key/component-suggestion/dismiss', requireRole('agent'), (req, res) => res.json(ctx.aiClassifier.dismiss(req.user, req.params.key)));
   r.post('/ai/rewrite', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.rewrite(req.user, req.body.text, str(req.body.mode, 20)))));
@@ -875,6 +878,13 @@ export function createApi(ctx) {
   admin.post('/imap/test', wrap(async (req, res) => res.json(await testImap(mergedGroup('imap', req.body.settings)))));
 
   admin.get('/ai/stats', (req, res) => res.json({ classify: ctx.aiClassifier.stats() }));
+  // Sort existing tickets without component afterwards: preview, start, progress, cancel
+  // all tickets by default (also done ones); includeDone=0 limits it to open ones
+  const backfillOpts = (q) => ({ includeDone: !(q.includeDone === false || q.includeDone === '0'), retry: q.retry === true || q.retry === '1', mode: q.mode || 'suggest' });
+  admin.get('/components/backfill', (req, res) => res.json(ctx.aiClassifier.backfillPreview(req.query.project, backfillOpts(req.query))));
+  admin.post('/components/backfill', (req, res) => res.json({ run: ctx.aiClassifier.backfillStart(req.user, req.body.project, backfillOpts(req.body)) }));
+  admin.get('/components/backfill/status', (req, res) => res.json({ run: ctx.aiClassifier.backfillStatus() }));
+  admin.post('/components/backfill/cancel', (req, res) => res.json({ run: ctx.aiClassifier.backfillCancel() }));
   admin.post('/ai/test', wrap(async (req, res) => {
     const cfg = mergedGroup('ai', req.body.settings);
     try {

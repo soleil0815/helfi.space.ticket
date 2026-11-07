@@ -590,6 +590,16 @@ docker compose logs helfi # shows the setup code</code></pre>
 <h3>Testing the rules</h3>
 <p>Below the list, enter a title, a description and optionally a sender. <em>Check</em> shows which component a new ticket would get, why, and who it would go to.</p>
 <figure class="medium"><img src="img/en/admin-components-test.jpg" alt=""><figcaption>Testing the rules</figcaption></figure>
+<h3>Sorting existing tickets</h3>
+<p>After the import or when components are added, many tickets have no component yet. At the bottom of the page you assign one afterwards:</p>
+<ol>
+  <li><strong>Preview</strong> shows how many tickets have no component, how many a rule matches and how many go to the AI. By default all tickets count, done ones included; untick <em>Also done tickets</em> for open ones only.</li>
+  <li><strong>Start sorting</strong> applies the rules (sender, keywords) first. If the AI function <em>Detect component</em> is on, all remaining tickets then go to the AI one after the other – in the background, with a progress bar, can be cancelled at any time. Helfi.Space asks first, as the AI receives title and description.</li>
+  <li><strong>Review AI suggestions:</strong> by default the AI sets nothing itself. The list shows ticket, suggestion and reason; you accept or dismiss single ones or several at once. With <em>Set directly</em> the AI enters the component right away (“by AI” in the history).</li>
+</ol>
+<figure class="medium"><img src="img/en/backfill.jpg" alt=""><figcaption>Sorting existing tickets: preview and result</figcaption></figure>
+<figure class="medium"><img src="img/en/backfill-review.jpg" alt=""><figcaption>Reviewing AI suggestions and accepting several at once</figcaption></figure>
+<p>When sorting afterwards, <strong>no mails</strong> are sent, nobody gets tickets <strong>assigned</strong>, and the “Updated” time stays – lists keep their order. Tickets the AI already checked (suggestion open, dismissed or “none fits”) are skipped by a new run; <em>check again</em> asks once more, e.g. after you improved the component descriptions.</p>
 <h3>Cutting components sensibly</h3>
 <ul>
   <li><strong>By responsibility, not by technology:</strong> a component is what one person (or a small team) is in charge of. Whoever looks after printers and scanners does not need two components.</li>
