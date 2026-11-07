@@ -915,6 +915,45 @@ export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
 }
 
 /** Delete a specific backup (only files from the backup folder). */
+/** INFO.txt for a downloaded backup (German and English): what is in it and how to restore it. */
+export function backupInfoText({ name, created, version = config.version }) {
+  const when = created.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  return [
+    `Helfi.Space ${version}`,
+    `Sicherung / Backup: ${name}`,
+    `Erstellt / Created: ${when}`,
+    '',
+    '--- Deutsch ---',
+    'Inhalt: die Datenbank (helfi.sqlite). Nicht enthalten: Anhänge (data/attachments/) und secret.key.',
+    'secret.key fehlt mit Absicht: Damit ließen sich die verschlüsselt gespeicherten Kennwörter',
+    '(Postfach, Dienstkonto, SSO, KI-Schlüssel) und 2FA-Schlüssel entschlüsseln.',
+    '',
+    'Wiederherstellen (auf derselben Installation, secret.key bleibt dort liegen):',
+    '  docker compose down',
+    '  cp data/helfi.sqlite data/helfi.sqlite.alt',
+    '  unzip -o <diese Datei>.zip helfi.sqlite -d data/',
+    '  rm -f data/helfi.sqlite-wal data/helfi.sqlite-shm',
+    '  docker compose up -d',
+    'Auf einer neuen Installation zusätzlich die ursprüngliche secret.key (oder HELFI_SECRET) übernehmen,',
+    'sonst startet Helfi.Space nicht. Dafür den ganzen Ordner data/ vom Docker-Host sichern.',
+    '',
+    '--- English ---',
+    'Contents: the database (helfi.sqlite). Not included: attachments (data/attachments/) and secret.key.',
+    'secret.key is left out on purpose: it would decrypt the stored passwords',
+    '(mailbox, service account, SSO, AI key) and 2FA keys.',
+    '',
+    'Restore (on the same installation, secret.key stays in place):',
+    '  docker compose down',
+    '  cp data/helfi.sqlite data/helfi.sqlite.old',
+    '  unzip -o <this file>.zip helfi.sqlite -d data/',
+    '  rm -f data/helfi.sqlite-wal data/helfi.sqlite-shm',
+    '  docker compose up -d',
+    'On a new installation, also take over the original secret.key (or HELFI_SECRET),',
+    'otherwise Helfi.Space does not start. Back up the whole data/ folder on the Docker host for that.',
+    '',
+  ].join('\r\n');
+}
+
 export function deleteBackup(name, dir = paths.backups) {
   if (typeof name !== 'string' || !backupKind(name)) return false;
   const file = path.join(dir, name);

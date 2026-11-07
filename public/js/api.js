@@ -207,6 +207,7 @@ export const api = {
     system: () => request('GET', '/api/admin/system'),
     backup: () => request('POST', '/api/admin/backup'),
     deleteBackup: (name) => request('DELETE', `/api/admin/backups/${encodeURIComponent(name)}`),
+    backupDownloadUrl: (name) => `/api/admin/backups/${encodeURIComponent(name)}/download`,
     brandLogo: (data) => request('PUT', '/api/admin/brand/logo', { data }),
     brandLogoRemove: () => request('DELETE', '/api/admin/brand/logo'),
     importConnect: (source, connection) => request('POST', `/api/admin/import/${source}/connect`, { connection }),

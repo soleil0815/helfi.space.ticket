@@ -27,6 +27,11 @@ export async function startServer(name) {
       const ct = r.headers.get('content-type') || '';
       return { status: r.status, headers: r.headers, body: ct.includes('json') ? await r.json() : await r.text() };
     };
+    /** GET returning the raw bytes (downloads) */
+    call.raw = async (url) => {
+      const r = await fetch(base + url, { headers: { cookie } });
+      return { status: r.status, headers: r.headers, bytes: Buffer.from(await r.arrayBuffer()) };
+    };
     call.login = async (username, password = 'Sehrgeheim123') => {
       const r = await call('POST', '/api/auth/login', { username, password });
       if (r.status !== 200) throw new Error(`login ${username}: ${r.status} ${JSON.stringify(r.body)}`);

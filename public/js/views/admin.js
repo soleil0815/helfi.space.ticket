@@ -943,6 +943,15 @@ async function systemPage(body) {
     backupPanel(body, sys));
 }
 
+/** Starts a file download in the background (the server sends Content-Disposition: attachment). */
+function startDownload(url) {
+  const a = h('a', { href: url, download: '' });
+  a.style.display = 'none';
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+
 function backupPanel(body, sys) {
   const keep = h('input.num', { type: 'number', min: 1, max: 100, step: 1, value: sys.backupKeep, 'aria-label': t('system.backupKeep') });
   const saveKeep = h('button.btn', {
@@ -960,10 +969,21 @@ function backupPanel(body, sys) {
     try { await api.admin.deleteBackup(b.name); toast(t('system.backupDeleted'), 'success'); systemPage(body); }
     catch (e) { toast(e.message, 'error'); }
   };
+  const backupNow = async (download) => {
+    try {
+      const r = await api.admin.backup();
+      toast(t('system.backupDone', r), 'success');
+      if (download) startDownload(api.admin.backupDownloadUrl(r.file));
+      systemPage(body);
+    } catch (e) { toast(e.message, 'error'); }
+  };
   return h('section.panel',
     h('div.section-head', h('h2', t('system.backups')),
-      h('button.btn', { type: 'button', onclick: async () => { try { const r = await api.admin.backup(); toast(t('system.backupDone', r), 'success'); systemPage(body); } catch (e) { toast(e.message, 'error'); } } }, icon('download'), t('system.backupNow'))),
+      h('div.inline-row',
+        h('button.btn', { type: 'button', onclick: () => backupNow(false) }, icon('server'), t('system.backupNow')),
+        h('button.btn', { type: 'button', 'data-backup': 'now-download', onclick: () => backupNow(true) }, icon('download'), t('system.backupNowDownload')))),
     h('p.muted', t('system.backupHint')),
+    h('p.muted', t('system.backupDownloadHint')),
     h('div.field',
       h('label', { for: 'backup-keep' }, t('system.backupKeep')),
       h('div.inline-row', Object.assign(keep, { id: 'backup-keep' }), saveKeep),
@@ -973,7 +993,9 @@ function backupPanel(body, sys) {
         h('thead', h('tr', h('th', t('system.backupName')), h('th', t('system.backupKind')), h('th', t('system.backupDate')), h('th.num', t('system.backupSize')), h('th', ''))),
         h('tbody', sys.backups.map((b) => h('tr',
           h('td.mono', b.name), h('td', t(`system.kind.${b.kind}`)), h('td', fmtDate(b.time)), h('td.num', fmtSize(b.size)),
-          h('td', h('button.btn-icon.small', { type: 'button', title: t('system.backupDelete'), 'aria-label': t('system.backupDelete'), onclick: () => remove(b) }, icon('trash')))))),
+          h('td.row-actions',
+            h('a.btn-icon.small', { href: api.admin.backupDownloadUrl(b.name), download: b.name.replace(/\.sqlite$/, '.zip'), title: t('system.backupDownload'), 'aria-label': t('system.backupDownload'), 'data-backup-download': b.name }, icon('download')),
+            h('button.btn-icon.small', { type: 'button', title: t('system.backupDelete'), 'aria-label': t('system.backupDelete'), onclick: () => remove(b) }, icon('trash')))))),
         h('tfoot', h('tr', h('td', { colspan: 3 }, t('system.backupTotal', { n: sys.backups.length })), h('td.num', fmtSize(sys.backupsSize)), h('td', '')))))
       : h('p.muted', '—'));
 }
