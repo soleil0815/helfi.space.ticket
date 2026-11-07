@@ -90,10 +90,26 @@ function imageLabel(alt, lang) { const name = String(alt).split('|')[0].trim(); 
 
 const ESCAPED = /\\([\\`*[\]~+|#>\-.:!_()])/g;
 
+// Placeholders for kept parts: \u0001N\u0002. Marker characters from the input are removed first
+// (otherwise "\u00010\u0002" in a comment would repeat an earlier part).
+// eslint-disable-next-line no-control-regex
+const noMarks = (s) => String(s).replace(/[\u0001\u0002]/g, '');
+/** Insert kept parts; repeat because a part can contain earlier ones (e.g. `code` inside link text) */
+function restore(x, tokens) {
+  // A part only refers to earlier parts, so this ends after at most tokens.length rounds
+  for (let i = 0; i <= tokens.length; i++) {
+    // eslint-disable-next-line no-control-regex
+    const next = x.replace(/\u0001(\d+)\u0002/g, (m, n) => tokens[Number(n)] ?? '');
+    if (next === x) break;
+    x = next;
+  }
+  return x;
+}
+
 function inlineText(s, lang, baseUrl = '') {
   const tokens = [];
   const keep = (txt) => `\u0001${tokens.push(txt) - 1}\u0002`;
-  const x = String(s)
+  const x = noMarks(s)
     .replace(/`([^`\n]{1,2000})`/g, (m, c) => keep(c))
     .replace(ESCAPED, (m, c) => keep(c))
     .replace(MENTION_RE, (m, name) => `@${name}`)
@@ -103,15 +119,14 @@ function inlineText(s, lang, baseUrl = '') {
     .replace(/\+\+([^+\n]{1,2000})\+\+/g, '$1')
     .replace(/~~([^~\n]{1,2000})~~/g, '$1')
     .replace(/(^|[^*])\*([^*\s][^*\n]{0,2000}?)\*/g, '$1$2');
-  // eslint-disable-next-line no-control-regex
-  return x.replace(/\u0001(\d+)\u0002/g, (m, n) => tokens[Number(n)]);
+  return restore(x, tokens);
 }
 
 /** Inline → HTML: escape first, then turn the (escaped) markers into tags */
 function inlineHtml(s, o) {
   const tokens = [];
   const keep = (html) => `\u0001${tokens.push(html) - 1}\u0002`;
-  let x = String(s)
+  let x = noMarks(s)
     .replace(/`([^`\n]{1,2000})`/g, (m, c) => keep(`<code style="background:#f1f2f4;padding:0 3px;border-radius:3px">${esc(c)}</code>`))
     .replace(ESCAPED, (m, c) => keep(esc(c)))
     .replace(MENTION_RE, (m, name) => keep(`<strong>@${esc(name)}</strong>`))
@@ -127,8 +142,7 @@ function inlineHtml(s, o) {
     .replace(/~~([^~\n]{1,2000})~~/g, '<s>$1</s>')
     .replace(/(^|[^*])\*([^*\s][^*\n]{0,2000}?)\*/g, '$1<em>$2</em>')
     .replace(/\n/g, '<br>');
-  // eslint-disable-next-line no-control-regex
-  return x.replace(/\u0001(\d+)\u0002/g, (m, n) => tokens[Number(n)]);
+  return restore(x, tokens);
 }
 
 // ---------- Lists (nested by indentation) ----------

@@ -729,6 +729,20 @@ export const MIGRATIONS = [
     ALTER TABLE users ADD COLUMN theme TEXT;
     `,
   },
+  {
+    id: 35,
+    name: 'Suche: Umbenennung von Kommentierenden',
+    sql: `
+    -- The search columns people/people_public also contain the names of repliers:
+    -- a renamed account must also mark the tickets it commented on
+    DROP TRIGGER search_u_upd;
+    CREATE TRIGGER search_u_upd AFTER UPDATE OF display_name, email, username ON users
+      BEGIN INSERT OR IGNORE INTO search_dirty SELECT id FROM tickets WHERE reporter_id=NEW.id OR assignee_id=NEW.id
+        OR id IN (SELECT ticket_id FROM comments WHERE author_id=NEW.id); END;
+    -- renames before this version may have left stale names: rebuild tickets with replies from accounts once
+    INSERT OR IGNORE INTO search_dirty SELECT DISTINCT ticket_id FROM comments WHERE author_id IS NOT NULL;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

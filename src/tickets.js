@@ -238,7 +238,8 @@ export function createTickets(db, users) {
       args.push(user.id, user.id, user.id);
     }
     if (f.project) { where.push('(p.key=? OR p.id=?)'); args.push(String(f.project).toUpperCase(), Number(f.project) || 0); }
-    else where.push('p.archived=0');
+    // Archived projects are hidden from the agents' lists; a user's own requests stay visible
+    else if (isAgent(user)) where.push('p.archived=0');
     if (f.status) {
       const st = String(f.status).split(',').filter((s) => STATUSES.includes(s) || s === 'unresolved');
       if (st.includes('unresolved')) where.push("t.status<>'done'");
@@ -253,8 +254,10 @@ export function createTickets(db, users) {
     if (f.reporter === 'me') { where.push('t.reporter_id=?'); args.push(user.id); }
     if (f.mentioned === 'me') { where.push('t.id IN (SELECT ticket_id FROM comment_mentions WHERE user_id=?)'); args.push(user.id); }
     if (f.participant === 'me') { where.push('t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?)'); args.push(user.id); }
-    if (f.component === 'none') where.push('t.component_id IS NULL');
-    else if (f.component) { where.push('t.component_id=?'); args.push(int(f.component) || 0); }
+    // Components are only shown to agents (ticketOut): no filter for users, it would reveal them
+    const comp = isAgent(user) ? f.component : null;
+    if (comp === 'none') where.push('t.component_id IS NULL');
+    else if (comp) { where.push('t.component_id=?'); args.push(int(comp) || 0); }
     if (f.label) { where.push("(','||t.labels||',') LIKE ?"); args.push(`%,${String(f.label).toLowerCase()},%`); }
     if (f.overdue === '1' || f.overdue === 1 || f.overdue === true) where.push("t.status<>'done' AND t.due_date IS NOT NULL AND t.due_date < date('now')");
     const rd = int(f.resolvedDays);

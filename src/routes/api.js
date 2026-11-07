@@ -507,7 +507,7 @@ export function createApi(ctx) {
   r.get('/components/examples', requireRole('admin'), (req, res) => res.json({ examples: components.examples() }));
   r.patch('/components/:id', requireRole('admin'), (req, res) => res.json({ component: components.update(req.params.id, req.body || {}) }));
   r.delete('/components/:id', requireRole('admin'), (req, res) => {
-    const out = components.remove(req.params.id);
+    const out = components.remove(req.params.id, req.user.id);
     log.info(`Component "${out.name}" deleted by ${req.user.username}`, { tickets: out.tickets });
     res.json(out);
   });
