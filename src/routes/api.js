@@ -608,7 +608,7 @@ export function createApi(ctx) {
     if (!keys.length || keys.length > MAX_BULK) throw new HttpError(400, 'err.badRequest', 'keys');
     const changes = {};
     const c = req.body.changes || {};
-    for (const k of ['status', 'assigneeId', 'priority', 'projectId']) if (c[k] !== undefined) changes[k] = c[k];
+    for (const k of ['status', 'assigneeId', 'priority', 'projectId', 'componentId']) if (c[k] !== undefined) changes[k] = c[k];
     const comment = str(req.body.comment, 100000).trim();
     const internal = !!req.body.internal;
     // Tickets are never deleted (records) – not even via bulk action

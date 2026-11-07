@@ -343,6 +343,7 @@ In *Alle Tickets* (Bearbeiter):
   - **Kommentieren:** Antwort oder interne Notiz für alle ausgewählten Tickets, ohne den Status zu ändern.
   - **Verknüpfen …:** alle ausgewählten Tickets mit einem Ticket verknüpfen, z. B. „wird verursacht durch IT-42“; optional gleich mit Status und Kommentar. Bestehende Verknüpfungen bleiben, wie sie sind.
   - **Zuweisen**, **Priorität**
+  - **Komponente:** setzen oder entfernen (*Keine Komponente*), wenn alle ausgewählten Tickets aus einem Projekt stammen – wie eine Änderung im Ticket: Eintrag im Verlauf, keine Mail, niemand wird automatisch zugewiesen.
   - **In ein anderes Projekt verschieben**
 - Jede Änderung landet im Verlauf des Tickets. Klappt ein Ticket nicht, laufen die anderen trotzdem durch, und die Meldung nennt es.
 
