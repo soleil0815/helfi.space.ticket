@@ -18,6 +18,7 @@ import { section } from '../ui.js';
 import { replyBar } from '../reply.js';
 import {
   openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet, openLinkSheet, openChoiceSheet,
+  openReporterSheet,
 } from '../actions.js';
 import { projectComponents } from '/js/components.js';
 import { commentView } from '/js/commentfield.js';
@@ -326,7 +327,7 @@ export async function renderTicket(page, ctx) {
     else if (a.action === 'classified') detail = `${a.newValue} (${componentReason(a)})`;
     else if (a.action === 'autoAssigned') detail = `${a.newValue} (${t(`comp.role.${a.field}`, { name: a.oldValue })})`;
     else if (a.action === 'rated') detail = '★'.repeat(Number(a.newValue) || 0);
-    else if (['attached', 'detached', 'participantAdded', 'participantRemoved', 'ciLinked', 'ciUnlinked', 'approvalRequested', 'kbCreated'].includes(a.action)) detail = a.newValue || a.oldValue;
+    else if (['attached', 'detached', 'participantAdded', 'participantRemoved', 'createdFor', 'ciLinked', 'ciUnlinked', 'approvalRequested', 'kbCreated'].includes(a.action)) detail = a.newValue || a.oldValue;
     const what = t(`act.${a.action}`, { field: activityFieldLabel(a) });
     return h('div.m-event',
       h('span.m-event-text', h('strong', who), ' ', what, detail ? [what.endsWith(':') ? ' ' : ': ', h('span.m-event-detail', detail)] : null),
@@ -375,13 +376,38 @@ export async function renderTicket(page, ctx) {
         onPick: (v, o) => save({ componentId: v }, { component: v ? { id: v, name: o.label } : null }),
       });
     };
+    // Reporter (agents): choose, then confirm (with or without a mail to the new reporter)
+    const reporterSheet = () => openReporterSheet({
+      exclude: () => new Set([tk.reporter?.id]),
+      onPick: (choice, person) => {
+        const name = person?.displayName || choice.email;
+        const notify = h('input', { type: 'checkbox', checked: true });
+        const ok = h('button.m-btn.m-btn-primary.m-btn-block', { type: 'button', onclick: async () => {
+          ok.disabled = true;
+          try {
+            const r = await api.setReporter(tk.key, choice, notify.checked);
+            confirm.close();
+            toast(t('ticket.reporterChanged', { name: r.ticket.reporter?.displayName || name }), 'success');
+            await reloadAfterChange();
+          } catch (e) { toast(e.message, 'error'); ok.disabled = false; }
+        } }, t('ticket.changeReporter'));
+        const confirm = openSheet({
+          title: t('ticket.changeReporter'),
+          content: [h('div.m-form.m-reporter-confirm',
+            h('p', t('ticket.changeReporterText', { name, key: tk.key })),
+            h('p.m-muted', t('ticket.changeReporterKeep')),
+            h('label.m-check', notify, h('span.m-check-box', { 'aria-hidden': 'true' }, icon('check')), h('span.m-check-label', t('create.reporterNotify'))),
+            ok)],
+        });
+      },
+    });
     const content = h('dl.m-details',
       row(t('m.filter.status'), edit(lozenge(tk.status), statusSheet, t('m.filter.status'))),
       row(t('ticket.priority'), edit(withIcon(priorityIcon(tk.priority), t(`priority.${tk.priority}`)), () => openPrioritySheet(tk, save), t('ticket.priority'))),
       row(t('ticket.type'), edit(withIcon(typeIcon(tk.type), t(`type.${tk.type}`)), () => openTypeSheet(tk, save, typesFor(true)), t('ticket.type'))),
       row(agent ? t('ticket.assignee') : t('ticket.yourContact'), edit(withIcon(avatar(tk.assignee, 'xs'), tk.assignee?.displayName || t('app.unassigned')), () => openAssigneeSheet(tk, save), t('ticket.assignee'))),
-      row(t('ticket.reporter'), h('span.m-stack', withIcon(avatar(tk.reporter, 'xs'), tk.reporter?.displayName || '—'),
-        tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.m-muted', tk.reporter.email) : null)),
+      row(t('ticket.reporter'), edit(h('span.m-stack', withIcon(avatar(tk.reporter, 'xs'), tk.reporter?.displayName || '—'),
+        tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.m-muted', tk.reporter.email) : null), reporterSheet, t('ticket.reporter'))),
       row(t('ticket.participants'), people),
       tk.approval ? row(t('catalog.approval'), h(`span.m-approval-state.${tk.approval.state}`, t(`catalog.state.${tk.approval.state}`))) : null,
       tk.sla ? row(t('sla.kind.response'), slaChip(tk.sla.response)) : null,

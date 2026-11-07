@@ -888,3 +888,11 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-kb-cm-field .kb-editable { min-height: 64px; font-size: 16px; }
 [data-theme="dark"] .m-btn-success { color: var(--on-blue); }
 [data-theme="dark"] .m-segmented button.active { background: #454F59; color: #DEE4EA; box-shadow: none; }
+/* Reporter on the new-ticket form (agents) */
+.m-reporter { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; background: var(--m-card); border: 1.5px solid var(--border); border-radius: 12px; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.m-reporter-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.m-reporter-name { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-reporter-sub { font-size: 13px; color: var(--text-subtlest); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-field .m-link-small { align-self: flex-start; }
+.m-field .m-check[hidden], .m-field .m-link[hidden] { display: none; }
+.m-reporter-confirm > p { text-align: left; }

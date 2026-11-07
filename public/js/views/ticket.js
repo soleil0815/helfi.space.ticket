@@ -193,7 +193,7 @@ export async function renderTicket(content, key) {
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'changed' && a.field === 'description' && a.hasText ? h('button.link.small', { type: 'button', onclick: () => showDescriptionChange(a) }, t('ticket.showChange')) : null,
         a.action === 'attached' || a.action === 'detached' ? h('span.change', a.newValue || a.oldValue) : null,
-        a.action === 'participantAdded' || a.action === 'participantRemoved' ? h('span.change', a.newValue || a.oldValue) : null,
+        a.action === 'participantAdded' || a.action === 'participantRemoved' || a.action === 'createdFor' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'rated' ? h('span.change', a.oldValue ? h('span.old', '★'.repeat(Number(a.oldValue))) : null, a.oldValue ? ' → ' : null, h('span.new', '★'.repeat(Number(a.newValue)))) : null,
         a.action === 'ciLinked' || a.action === 'ciUnlinked' ? h('span.change', a.newValue || a.oldValue) : null,
         a.action === 'approvalRequested' ? h('span.change', a.newValue) : null,
@@ -334,6 +334,47 @@ export async function renderTicket(content, key) {
     return box;
   }
 
+  // Reporter: agents can change it (e.g. ticket entered for oneself by mistake)
+  function reporterRow() {
+    const show = () => h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—', tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.muted.block', tk.reporter.email) : null));
+    const box = h('div.reporter-row', { 'data-shortcut': 'reporter' }, show());
+    if (!agent) return box;
+    const change = h('button.link', { type: 'button', onclick: () => openSearch() }, t('ticket.changeReporter'));
+    box.append(change);
+    function openSearch() {
+      const input = h('input.input-inline', { type: 'search', placeholder: t('create.reporterSearch'), 'aria-label': t('ticket.changeReporter') });
+      box.replaceChildren(input);
+      peoplePicker(input, {
+        allowEmail: true,
+        ad: !!state.boot?.adPeople,
+        exclude: () => new Set([tk.reporter?.id]),
+        onPick: (choice, person) => confirmReporter(choice, person?.displayName || choice.email),
+        onClose: () => box.replaceChildren(show(), change),
+      });
+      input.focus();
+    }
+    function confirmReporter(choice, name) {
+      const notify = h('input', { type: 'checkbox', checked: true });
+      const ok = h('button.btn.btn-primary', { type: 'button', onclick: async () => {
+        ok.disabled = true;
+        try {
+          const r = await api.setReporter(tk.key, choice, notify.checked);
+          dlg.close();
+          toast(t('ticket.reporterChanged', { name: r.ticket.reporter?.displayName || name }), 'success');
+          await refresh();
+        } catch (e) { toast(e.message, 'error'); ok.disabled = false; }
+      } }, t('ticket.changeReporter'));
+      const dlg = modal(t('ticket.changeReporter'), h('div',
+        h('p', t('ticket.changeReporterText', { name, key: tk.key })),
+        h('p.muted', t('ticket.changeReporterKeep')),
+        h('label.check-inline', notify, t('create.reporterNotify'))), {
+        footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), ok],
+        onClose: () => box.replaceChildren(show(), change),
+      });
+    }
+    return box;
+  }
+
   let detailsOpen = false;
   function sidePanel() {
     const assignee = h('div', { 'data-shortcut': 'assignee' },
@@ -393,7 +434,7 @@ export async function renderTicket(content, key) {
         tk.sla ? detailRow(t('sla.kind.response'), slaChip(tk.sla.response)) : null,
         tk.sla ? detailRow(t('sla.kind.resolve'), slaChip(tk.sla.resolve)) : null,
         detailRow(agent ? t('ticket.assignee') : t('ticket.yourContact'), assignee),
-        detailRow(t('ticket.reporter'), h('span.person', avatar(tk.reporter, 'sm'), h('span', tk.reporter?.displayName || '—', tk.reporter?.email && tk.reporter.email !== tk.reporter.displayName ? h('span.muted.block', tk.reporter.email) : null))),
+        detailRow(t('ticket.reporter'), reporterRow()),
         detailRow(t('ticket.participants'), participantsEl()),
         agent ? detailRow(t('itil.impact'), pick(tk.impact, [[null, t('app.none')], ...['high', 'medium', 'low'].map((v) => [v, t(`level.${v}`)])], (v) => save({ impact: v }),
           (v) => h('span', v ? t(`level.${v}`) : h('span.muted', t('app.none'))))) : null,
@@ -490,6 +531,56 @@ export async function renderTicket(content, key) {
 }
 
 // ---------- Create ticket ----------
+/**
+ * Reporter in the create dialog (agents): "Me" by default; search accounts, AD people or enter an
+ * email address – e.g. to enter a request that came in by phone or another mailbox for that person.
+ * value(): {} (me) or { reporter: choice, notifyReporter }
+ */
+function reporterField() {
+  let choice = null; // null = me
+  let person = null;
+  const notify = h('input', { type: 'checkbox', checked: true });
+  const notifyRow = h('label.check-inline.reporter-notify', { hidden: true }, notify, t('create.reporterNotify'));
+  const box = h('div.reporter-field');
+  const label = h('label', t('ticket.reporter'));
+  function draw() {
+    notifyRow.hidden = !choice;
+    if (!choice) {
+      mount(box, h('span.person', avatar(state.user, 'sm'), h('span', t('create.reporterMe', { name: state.user.displayName }))),
+        h('button.link', { type: 'button', onclick: search }, t('create.reporterOther')));
+      return;
+    }
+    const name = person?.displayName || choice.email;
+    const sub = person?.email || (person?.source === 'ad' ? person.username : '') || '';
+    mount(box, h('span.person', avatar(person || { displayName: name }, 'sm'),
+      h('span', name, sub && sub !== name ? h('span.muted.block', sub) : null),
+      person?.source === 'ad' ? h('span.badge.badge-ad', { title: t('ticket.fromAd') }, 'AD') : null),
+    h('button.link', { type: 'button', onclick: search }, t('create.reporterChange')),
+    h('button.link', { type: 'button', onclick: () => { choice = null; person = null; draw(); } }, t('create.reporterReset')));
+  }
+  function search() {
+    const input = h('input', { type: 'search', placeholder: t('create.reporterSearch'), 'aria-label': t('ticket.reporter') });
+    mount(box, input);
+    // Enter without a match must not send the form (the ticket would be created for oneself)
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+    peoplePicker(input, {
+      allowEmail: true,
+      ad: !!state.boot?.adPeople,
+      onPick: (c, p) => {
+        if (c.userId && c.userId === state.user.id) { choice = null; person = null; } else { choice = c; person = p; }
+        draw();
+      },
+      onClose: () => draw(),
+    });
+    input.focus();
+  }
+  draw();
+  return {
+    el: h('div.field', label, box, notifyRow),
+    value: () => (choice ? { reporter: choice, notifyReporter: notify.checked } : {}),
+  };
+}
+
 export function openCreateDialog(defaults = {}) {
   if (!state.isAgent && !state.boot.allowSelfService) return;
   const agent = state.isAgent;
@@ -513,6 +604,7 @@ export function openCreateDialog(defaults = {}) {
     componentField.hidden = !list.length;
   };
   if (agent) { loadComponents(); project.addEventListener('change', loadComponents); }
+  const reporter = agent ? reporterField() : null;
   const files = h('input', { type: 'file', multiple: true });
   const another = h('input', { type: 'checkbox' });
   const err = h('div.form-error', { role: 'alert', hidden: true });
@@ -524,7 +616,7 @@ export function openCreateDialog(defaults = {}) {
       submitBtn.disabled = true;
       try {
         const body = { projectId: Number(project.value), type: type.value, title: summary.value.trim(), description: desc.value, priority: prio.value };
-        if (agent) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null, componentId: component.value ? Number(component.value) : null });
+        if (agent) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null, componentId: component.value ? Number(component.value) : null, ...reporter.value() });
         const pend = descPaste.takePending();
         if (pend.length) body.description = replacePending(body.description, new Map()); // replace placeholders only after uploading
         const r = await api.createTicket(body);
@@ -547,6 +639,7 @@ export function openCreateDialog(defaults = {}) {
     },
   },
   err,
+  agent ? reporter.el : null,
   state.projects.length > 1 ? h('div.grid-2', field(t('create.project'), project), field(t('create.type'), type)) : field(t('create.type'), type),
   field(t('create.summary'), summary),
   kbSuggestions(summary),

@@ -2,7 +2,7 @@
 // service catalog (tiles → form with the item's fields) and knowledge suggestions while typing.
 // Same API calls and choices as the desktop "Create" dialog and catalog; the server decides.
 import { api } from '/js/api.js';
-import { h, icon, toast, typeIcon, priorityIcon, fmtSize } from '/js/dom.js';
+import { h, icon, toast, typeIcon, priorityIcon, fmtSize, avatar } from '/js/dom.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { typesFor } from '/js/types.js';
@@ -10,7 +10,7 @@ import { renderDoc } from '/js/kbdoc.js';
 import { go, dataChanged } from '../router.js';
 import { openSheet } from '../sheet.js';
 import { emptyState } from '../ui.js';
-import { PRIOS } from '../actions.js';
+import { PRIOS, openReporterSheet } from '../actions.js';
 import { downscale, uploadDraft, isPicture, pickFiles, MAX_FILES } from '../files.js';
 
 // Unsent report: per account (never shown to another account, see /js/userdata.js)
@@ -177,6 +177,28 @@ export async function renderReport(page, ctx, { replaceTitle = false } = {}) {
     }));
   }
 
+  // ---------- Reporter (agents): enter the ticket for someone else ----------
+  let reporter = null; // null = me, otherwise { choice, person }
+  const notify = h('input', { type: 'checkbox', checked: true });
+  const notifyRow = h('label.m-check', { hidden: true }, notify, h('span.m-check-box', { 'aria-hidden': 'true' }, icon('check')), h('span.m-check-label', t('create.reporterNotify')));
+  const reporterBtn = h('button.m-reporter', { type: 'button', 'aria-label': t('ticket.reporter'), onclick: () => openReporterSheet({
+    intro: t('m.new.reporterIntro'),
+    onPick: (choice, person) => { reporter = choice.userId === state.user.id ? null : { choice, person }; drawReporter(); },
+  }) });
+  const resetBtn = h('button.m-link.m-link-small', { type: 'button', hidden: true, onclick: () => { reporter = null; drawReporter(); } }, t('create.reporterReset'));
+  function drawReporter() {
+    const p = reporter ? (reporter.person || { displayName: reporter.choice.email }) : state.user;
+    const sub = reporter ? (reporter.person?.email || reporter.person?.username || '') : '';
+    reporterBtn.replaceChildren(...[avatar(p, 'sm'),
+      h('span.m-reporter-text', h('span.m-reporter-name', reporter ? p.displayName : t('create.reporterMe', { name: state.user.displayName })), sub && sub !== p.displayName ? h('span.m-reporter-sub', sub) : null),
+      reporter?.person?.source === 'ad' ? h('span.m-badge-ad', 'AD') : null,
+      icon('chevron-right', 'm-row-chevron')].filter(Boolean));
+    notifyRow.hidden = !reporter;
+    resetBtn.hidden = !reporter;
+  }
+  drawReporter();
+  const reporterField = agent ? h('div.m-field', h('span.m-field-label', t('ticket.reporter')), reporterBtn, resetBtn, notifyRow) : null;
+
   // ---------- Send ----------
   const submit = h('button.m-btn.m-btn-primary.m-btn-block', { type: 'submit', form: 'm-new-form' }, icon('send'), t('m.new.submit'));
   function update() {
@@ -198,6 +220,7 @@ export async function renderReport(page, ctx, { replaceTitle = false } = {}) {
       let key = null;
       try {
         const body = { projectId: v.projectId || undefined, type: v.type, priority: v.priority, title: title.value.trim(), description: desc.value };
+        if (agent && reporter) Object.assign(body, { reporter: reporter.choice, notifyReporter: notify.checked });
         key = (await api.createTicket(body)).ticket.key;
       } catch (ex) {
         busy = false; update(); drawFiles();
@@ -229,6 +252,7 @@ export async function renderReport(page, ctx, { replaceTitle = false } = {}) {
     },
   },
   err,
+  reporterField,
   fieldEl(t('create.summary'), title, { required: true }),
   suggest,
   fieldEl(t('create.description'), desc),

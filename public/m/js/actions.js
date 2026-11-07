@@ -217,6 +217,107 @@ const looksLikeEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
  * (as peoplePicker: focus stays in the field, AD results for agents, email address for agents).
  * changed() reloads the ticket; left() when the user removed themselves and no longer sees the ticket.
  */
+/**
+ * People search in a sheet (port of the desktop peoplePicker): accounts, AD people (agents) and,
+ * if allowed, a free email address. onChoose(choice, person) – return false to keep the input.
+ */
+function peopleSearch({ input, results, current = null, adOn, allowEmail, exclude = () => new Set(), onChoose }) {
+  let options = []; let active = -1; let seq = 0; let timer = null; let picking = false;
+  function setActive(i) {
+    if (!options.length) { active = -1; input.removeAttribute('aria-activedescendant'); return; }
+    active = (i + options.length) % options.length;
+    options.forEach((o, n) => { o.el.classList.toggle('active', n === active); o.el.setAttribute('aria-selected', String(n === active)); });
+    input.setAttribute('aria-activedescendant', options[active].el.id);
+    options[active].el.scrollIntoView({ block: 'nearest' });
+  }
+  function render(q, people, adState) {
+    const taken = exclude();
+    const rows = [];
+    options = [];
+    const add = (choice, person, content, iconEl) => {
+      const el = h('button.m-person-row.m-person-hit', { type: 'button', id: `${results.id}-${options.length}`, role: 'option', 'aria-selected': 'false' }, iconEl, content);
+      const o = { el, choice, person };
+      // pointerdown: the field keeps the focus (and the keyboard stays open); the click picks
+      el.addEventListener('pointerdown', (e) => e.preventDefault());
+      el.addEventListener('mousedown', (e) => e.preventDefault());
+      el.addEventListener('click', () => choose(o));
+      options.push(o);
+      rows.push(el);
+    };
+    for (const p of people) {
+      if (p.id && taken.has(p.id)) continue;
+      const sub = p.email || (p.source === 'ad' ? p.username : '');
+      add(p.source === 'ad' ? { adId: p.adId } : { userId: p.id }, p,
+        h('span.m-choice-text', h('span.m-choice-label', p.displayName), sub ? h('span.m-choice-sub', sub) : null),
+        avatar(p, 'sm'));
+      if (p.source === 'ad') options[options.length - 1].el.append(h('span.m-badge-ad', { title: t('ticket.fromAd') }, 'AD'));
+    }
+    if (allowEmail && looksLikeEmail(q) && !people.some((p) => (p.email || '').toLowerCase() === q.toLowerCase())) {
+      add({ email: q }, null, h('span.m-choice-text', h('span.m-choice-label', t('ticket.addEmailParticipant', { email: q }))), h('span.m-row-icon', icon('mail')));
+    }
+    const note = (content) => rows.push(h('p.m-sheet-empty', { role: 'presentation' }, content));
+    if (!options.length && adState !== 'loading') note(t('ticket.noPeopleFound'));
+    if (adState === 'loading') note(h('span.m-inline', h('span.m-spinner.m-spinner-sm'), t('people.adSearching')));
+    if (adState === 'short') note(t('people.adMinChars'));
+    if (adState === 'error') note(h('span.m-inline', icon('warning'), t('ticket.adUnavailable')));
+    results.replaceChildren(...rows);
+    if (current) current.hidden = true;
+    input.setAttribute('aria-expanded', 'true');
+    if (options.length) setActive(Math.min(Math.max(active, 0), options.length - 1));
+    else setActive(-1);
+  }
+  function reset() {
+    seq++; clearTimeout(timer);
+    options = []; active = -1;
+    results.replaceChildren();
+    if (current) current.hidden = false;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
+  async function search(q) {
+    const my = ++seq;
+    const useAd = adOn && q.length >= 3;
+    let first;
+    try { first = await api.people(q, { ad: false }); } catch { first = { people: [] }; }
+    if (my !== seq) return;
+    active = -1;
+    render(q, first.people || [], useAd ? 'loading' : (adOn ? 'short' : null));
+    if (!useAd) return;
+    let full;
+    try { full = await api.people(q); } catch { full = { people: first.people || [], adError: true }; }
+    if (my !== seq) return; // typed on meanwhile
+    render(q, full.people || [], full.adError ? 'error' : null);
+  }
+  async function choose(o) {
+    if (!o || picking) return;
+    picking = true;
+    try {
+      if (await onChoose(o.choice, o.person) === false) return;
+      input.value = '';
+      reset();
+      if (input.isConnected) input.focus({ preventScroll: true });
+    } catch (e) { toast(e.message, 'error'); } finally { picking = false; }
+  }
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { reset(); return; }
+    timer = setTimeout(() => search(q), 200);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!options.length) return;
+      e.preventDefault();
+      setActive(active + (e.key === 'ArrowDown' ? 1 : -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (options.length) choose(options[active] || options[0]);
+    }
+  });
+
+  return { reset };
+}
+
 export function openParticipantsSheet(getTicket, { changed, left }) {
   const agent = state.isAgent;
   const adOn = agent && !!state.boot?.adPeople;
@@ -255,103 +356,15 @@ export function openParticipantsSheet(getTicket, { changed, left }) {
     } catch (e) { toast(e.message, 'error'); }
   }
 
-  // ---- search (port of peoplePicker) ----
-  let options = []; let active = -1; let seq = 0; let timer = null; let picking = false;
-  function setActive(i) {
-    if (!options.length) { active = -1; input.removeAttribute('aria-activedescendant'); return; }
-    active = (i + options.length) % options.length;
-    options.forEach((o, n) => { o.el.classList.toggle('active', n === active); o.el.setAttribute('aria-selected', String(n === active)); });
-    input.setAttribute('aria-activedescendant', options[active].el.id);
-    options[active].el.scrollIntoView({ block: 'nearest' });
-  }
-  function render(q, people, adState) {
-    const tk = getTicket();
-    const taken = new Set([tk.reporter?.id, ...(tk.participants || []).map((p) => p.id)]);
-    const rows = [];
-    options = [];
-    const add = (choice, person, content, iconEl) => {
-      const el = h('button.m-person-row.m-person-hit', { type: 'button', id: `${results.id}-${options.length}`, role: 'option', 'aria-selected': 'false' }, iconEl, content);
-      const o = { el, choice, person };
-      // pointerdown: the field keeps the focus (and the keyboard stays open); the click picks
-      el.addEventListener('pointerdown', (e) => e.preventDefault());
-      el.addEventListener('mousedown', (e) => e.preventDefault());
-      el.addEventListener('click', () => choose(o));
-      options.push(o);
-      rows.push(el);
-    };
-    for (const p of people) {
-      if (p.id && taken.has(p.id)) continue;
-      const sub = p.email || (p.source === 'ad' ? p.username : '');
-      add(p.source === 'ad' ? { adId: p.adId } : { userId: p.id }, p,
-        h('span.m-choice-text', h('span.m-choice-label', p.displayName), sub ? h('span.m-choice-sub', sub) : null),
-        avatar(p, 'sm'));
-      if (p.source === 'ad') options[options.length - 1].el.append(h('span.m-badge-ad', { title: t('ticket.fromAd') }, 'AD'));
-    }
-    if (agent && looksLikeEmail(q) && !people.some((p) => (p.email || '').toLowerCase() === q.toLowerCase())) {
-      add({ email: q }, null, h('span.m-choice-text', h('span.m-choice-label', t('ticket.addEmailParticipant', { email: q }))), h('span.m-row-icon', icon('mail')));
-    }
-    const note = (content) => rows.push(h('p.m-sheet-empty', { role: 'presentation' }, content));
-    if (!options.length && adState !== 'loading') note(t('ticket.noPeopleFound'));
-    if (adState === 'loading') note(h('span.m-inline', h('span.m-spinner.m-spinner-sm'), t('people.adSearching')));
-    if (adState === 'short') note(t('people.adMinChars'));
-    if (adState === 'error') note(h('span.m-inline', icon('warning'), t('ticket.adUnavailable')));
-    results.replaceChildren(...rows);
-    current.hidden = true;
-    input.setAttribute('aria-expanded', 'true');
-    if (options.length) setActive(Math.min(Math.max(active, 0), options.length - 1));
-    else setActive(-1);
-  }
-  function reset() {
-    seq++; clearTimeout(timer);
-    options = []; active = -1;
-    results.replaceChildren();
-    current.hidden = false;
-    input.setAttribute('aria-expanded', 'false');
-    input.removeAttribute('aria-activedescendant');
-  }
-  async function search(q) {
-    const my = ++seq;
-    const useAd = adOn && q.length >= 3;
-    let first;
-    try { first = await api.people(q, { ad: false }); } catch { first = { people: [] }; }
-    if (my !== seq) return;
-    active = -1;
-    render(q, first.people || [], useAd ? 'loading' : (adOn ? 'short' : null));
-    if (!useAd) return;
-    let full;
-    try { full = await api.people(q); } catch { full = { people: first.people || [], adError: true }; }
-    if (my !== seq) return; // typed on meanwhile
-    render(q, full.people || [], full.adError ? 'error' : null);
-  }
-  async function choose(o) {
-    if (!o || picking) return;
-    picking = true;
-    try {
-      await api.addParticipant(getTicket().key, o.choice);
-      const name = o.person?.displayName || o.choice.email || '';
-      toast(t('m.part.added', { name }), 'success');
-      input.value = '';
-      reset();
+  peopleSearch({
+    input, results, current, adOn, allowEmail: agent,
+    exclude: () => { const tk = getTicket(); return new Set([tk.reporter?.id, ...(tk.participants || []).map((p) => p.id)]); },
+    onChoose: async (choice, person) => {
+      await api.addParticipant(getTicket().key, choice);
+      toast(t('m.part.added', { name: person?.displayName || choice.email || '' }), 'success');
       await changed();
       drawCurrent();
-      input.focus({ preventScroll: true });
-    } catch (e) { toast(e.message, 'error'); } finally { picking = false; }
-  }
-  input.addEventListener('input', () => {
-    clearTimeout(timer);
-    const q = input.value.trim();
-    if (q.length < 2) { reset(); return; }
-    timer = setTimeout(() => search(q), 200);
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      if (!options.length) return;
-      e.preventDefault();
-      setActive(active + (e.key === 'ArrowDown' ? 1 : -1));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (options.length) choose(options[active] || options[0]);
-    }
+    },
   });
 
   drawCurrent();
@@ -363,6 +376,28 @@ export function openParticipantsSheet(getTicket, { changed, left }) {
       results, current],
   });
   if (canAdd()) setTimeout(() => input.focus({ preventScroll: true }), 320);
+  return sheet;
+}
+
+// ---------- Reporter (agents) ----------
+/** Choose the reporter: accounts, AD people or an email address. onPick(choice, person) after the choice. */
+export function openReporterSheet({ exclude = () => new Set(), onPick, intro = '' }) {
+  const input = h('input.m-sheet-search-input', {
+    type: 'search', autocomplete: 'off', enterkeyhint: 'search', role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false',
+    placeholder: t('create.reporterSearch'), 'aria-label': t('ticket.reporter'),
+  });
+  const results = h('div.m-people-results', { role: 'listbox', id: `rp-m-${Date.now()}`, 'aria-label': t('ticket.reporter') });
+  input.setAttribute('aria-controls', results.id);
+  peopleSearch({
+    input, results, adOn: !!state.boot?.adPeople, allowEmail: true, exclude,
+    onChoose: async (choice, person) => { sheet.close(); await onPick(choice, person); return false; },
+  });
+  const sheet = openSheet({
+    title: t('ticket.reporter'),
+    className: 'm-sheet-people m-sheet-tall',
+    content: [h('div.m-sheet-search', h('div.m-search', icon('search'), input), intro ? h('p.m-sheet-note.m-sheet-note-plain', intro) : null), results],
+  });
+  setTimeout(() => input.focus({ preventScroll: true }), 320);
   return sheet;
 }
 

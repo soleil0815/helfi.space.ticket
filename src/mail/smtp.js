@@ -139,6 +139,20 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     await mailer.send({ to, subject: t(lang, 'mail.created.subject', vars), text: t(lang, 'mail.created.body', vars), ticketId: ticket.id, inReplyTo: ticket.sourceMessageId, customer: true });
   }));
 
+  // Agent entered the ticket for someone else (or made them the reporter): tell that person,
+  // with a hint to the portal so they can use it themselves next time (accounts only)
+  async function toNewReporter(ticket, kind) {
+    const rep = ticket.reporter?.id ? users.byId(ticket.reporter.id) : null;
+    if (!rep || !rep.active || !rep.email) return;
+    const lang = recipientLang(rep.id);
+    const vars = { key: ticket.key, title: ticket.title, name: rep.display_name || t(lang, 'mail.greetingFallback'), link: link(ticket), app: appName() };
+    vars.reply = settings.get('imap.enabled') ? t(lang, 'mail.createdFor.reply', vars) : '';
+    vars.portal = rep.source !== 'email' && settings.get('general.allowSelfService') ? t(lang, 'mail.createdFor.portal', { ...vars, portalLink: `${config.baseUrl}/` }) : '';
+    await mailer.send({ to: rep.email, subject: t(lang, `mail.${kind}.subject`, vars), text: t(lang, `mail.${kind}.body`, vars), ticketId: ticket.id, customer: true });
+  }
+  tickets.events.on('created', safe(async ({ ticket, notifyReporter }) => { if (notifyReporter) await toNewReporter(ticket, 'createdFor'); }));
+  tickets.events.on('reporterChanged', safe(async ({ ticket }) => toNewReporter(ticket, 'reporterChanged')));
+
   /** One separate mail per recipient (reporter and request participants) in their language – no
    *  addresses of other parties in the headers. The person who triggered it gets nothing. */
   async function toCustomers(ticket, actorId, build) {
