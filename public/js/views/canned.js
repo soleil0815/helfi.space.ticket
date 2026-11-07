@@ -18,15 +18,19 @@ async function load(force = false) {
 }
 
 /** Dropdown list with search; onPick(template) on selection. */
-export async function openTemplatePicker(anchor, onPick) {
+/** footer: further entries below the list, e.g. [{ label, onClick }] for “Save as canned response” */
+export async function openTemplatePicker(anchor, onPick, { footer = [] } = {}) {
   document.querySelectorAll('.menu').forEach((m) => m.remove());
   const search = h('input.menu-search', { type: 'search', placeholder: t('canned.search'), autocomplete: 'off' });
   const listEl = h('div.menu-list');
-  const menu = h('div.menu.menu-templates', { role: 'menu' }, search, listEl);
+  const foot = footer.length ? h('div.menu-foot', footer.map((f) => h('button.menu-item', { type: 'button', role: 'menuitem', onclick: () => { close(); f.onClick(); } }, f.icon || null, f.label))) : null;
+  const menu = h('div.menu.menu-templates', { role: 'menu' }, search, listEl, foot);
   const r = anchor.getBoundingClientRect();
   menu.style.top = `${r.bottom + window.scrollY + 4}px`;
-  menu.style.left = `${r.left + window.scrollX}px`;
   document.body.append(menu);
+  // right-aligned buttons (toolbar end): open towards the left, stay in the window
+  const left = Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - menu.offsetWidth - 8);
+  menu.style.left = `${Math.max(8, left)}px`;
   const close = () => { menu.remove(); document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc); };
   const off = (e) => { if (!menu.contains(e.target) && !anchor.contains(e.target)) close(); };
   const esc = (e) => { if (e.key === 'Escape') { close(); anchor.focus(); } };

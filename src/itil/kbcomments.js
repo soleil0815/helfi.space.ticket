@@ -3,6 +3,7 @@
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
 import { isAgent } from '../auth/session.js';
 import { log } from '../lib/log.js';
+import { mdToText, mdToHtml, mailHtml, MAIL_BODY } from '../markdown.js';
 
 const MAX_PER_ARTICLE = 500;
 
@@ -10,7 +11,7 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
   const SELECT = `SELECT c.*, u.display_name a_name, u.username a_user, r.display_name r_name FROM kb_comments c
     LEFT JOIN users u ON u.id=c.author_id LEFT JOIN users r ON r.id=c.resolved_by`;
   const out = (c, user) => ({
-    id: c.id, body: c.body, createdAt: c.created_at,
+    id: c.id, body: c.body, format: c.format === 'md' ? 'md' : 'text', createdAt: c.created_at,
     author: c.author_id ? { id: c.author_id, displayName: c.a_name || c.a_user } : null,
     resolved: !!c.resolved, resolvedBy: c.r_name || null, resolvedAt: c.resolved_at,
     canDelete: c.author_id === user.id || user.role === 'admin',
@@ -21,13 +22,14 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
     return db.prepare(`${SELECT} WHERE c.article_id=? ORDER BY c.created_at, c.id`).all(a.id).map((c) => out(c, user));
   }
 
-  function add(user, articleId, body) {
+  function add(user, articleId, body, format = 'text') {
     const a = kb.get(user, articleId);
     const text = str(body, 5000).trim();
     if (!text) throw new HttpError(400, 'err.commentEmpty');
     if (db.prepare('SELECT COUNT(*) n FROM kb_comments WHERE article_id=?').get(a.id).n >= MAX_PER_ARTICLE) throw new HttpError(400, 'err.badRequest', 'limit');
-    const id = db.prepare('INSERT INTO kb_comments(article_id, author_id, body) VALUES(?,?,?)').run(a.id, user.id, text).lastInsertRowid;
-    notify(user, a, text);
+    const fmt = format === 'md' ? 'md' : 'text';
+    const id = db.prepare('INSERT INTO kb_comments(article_id, author_id, body, format) VALUES(?,?,?,?)').run(a.id, user.id, text, fmt).lastInsertRowid;
+    notify(user, a, text, fmt);
     return out(db.prepare(`${SELECT} WHERE c.id=?`).get(id), user);
   }
 
@@ -51,7 +53,7 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
   }
 
   // Mail to author and last editor (not to the commenter themselves)
-  function notify(user, article, text) {
+  function notify(user, article, text, format = 'text') {
     if (!mailer?.enabled?.() || !t || !users) return;
     const row = db.prepare('SELECT created_by, updated_by FROM kb_articles WHERE id=?').get(article.id);
     const ids = [...new Set([row.created_by, row.updated_by].filter((x) => x && x !== user.id))];
@@ -59,8 +61,9 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
       const to = users.byId(uid);
       if (!to?.active || !to.email || !['agent', 'admin'].includes(to.role)) continue;
       const lang = to.language || settings?.get('general.defaultLanguage') || 'de';
-      const vars = { title: article.title, author: user.display_name || user.username, body: text.slice(0, 2000), link: `${baseUrl}/kb/${article.id}#comments`, app: settings?.get('general.title') || 'Helfi.Space' };
-      mailer.send({ to: to.email, subject: t(lang, 'mail.kbComment.subject', vars), text: t(lang, 'mail.kbComment.body', vars) })
+      const vars = { title: article.title, author: user.display_name || user.username, body: (format === 'md' ? mdToText(text, lang, baseUrl) : text).slice(0, 2000), link: `${baseUrl}/kb/${article.id}#comments`, app: settings?.get('general.title') || 'Helfi.Space' };
+      const html = format === 'md' ? mailHtml(t(lang, 'mail.kbComment.body', { ...vars, body: MAIL_BODY }), mdToHtml(text, { lang, baseUrl })) : undefined;
+      mailer.send({ to: to.email, subject: t(lang, 'mail.kbComment.subject', vars), text: t(lang, 'mail.kbComment.body', vars), html })
         .catch((e) => log.warn('Comment mail failed', { error: e.message }));
     }
   }

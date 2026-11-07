@@ -20,6 +20,7 @@ import {
   openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet, openLinkSheet, openChoiceSheet,
 } from '../actions.js';
 import { projectComponents } from '/js/components.js';
+import { commentView } from '/js/commentfield.js';
 
 const isImage = (a) => /^image\/(png|jpeg|gif|webp)$/.test(a.mime);
 const desktopUrl = (tk) => `/browse/${encodeURIComponent(tk.key)}?ui=desktop`;
@@ -309,7 +310,7 @@ export async function renderTicket(page, ctx) {
           h('strong', mine ? t('m.ticket.you') : c.author.displayName),
           c.internal ? h('span.m-msg-internal', icon('lock'), t('ticket.internal')) : null,
           c.source === 'email' ? h('span.m-msg-src', { title: t('source.email') }, icon('mail')) : null),
-        richText(c.body),
+        commentView(c),
         c.hasHtml ? mailNote(desktopUrl(tk)) : null,
         files.length ? attachmentsEl(files) : null,
         h('time.m-msg-time', { datetime: c.createdAt, title: fmtDate(c.createdAt) }, relTime(c.createdAt))));

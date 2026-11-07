@@ -275,3 +275,85 @@ export function withEmoji(ta) {
   enableEmojiShortcodes(ta);
   return h('div.emoji-wrap', ta, emojiButton(ta));
 }
+
+/**
+ * Emojis in the formatted comment field (contenteditable), as in plain text fields:
+ * ":)" + space → 🙂, ":tada:" → 🎉, and ":dau" suggests 👍 (↑/↓ + Enter/Tab, Esc). Not inside code.
+ */
+export function enableEmojiShortcodesRich(area) {
+  let box = null;
+  let items = [];
+  let active = 0;
+  let range = null; // { node, start, end }
+  const close = () => { box?.remove(); box = null; items = []; range = null; };
+  const caretNode = () => {
+    const s = window.getSelection();
+    if (!s.rangeCount || !s.isCollapsed) return null;
+    const r = s.getRangeAt(0);
+    const node = r.startContainer;
+    if (node.nodeType !== 3 || !area.contains(node) || node.parentElement.closest('pre,code')) return null;
+    return { s, node, caret: r.startOffset };
+  };
+  const setCaret = (s, node, pos) => {
+    const rr = document.createRange();
+    rr.setStart(node, Math.min(pos, node.length));
+    rr.collapse(true);
+    s.removeAllRanges(); s.addRange(rr);
+  };
+  const choose = (e) => {
+    if (!range) return;
+    const { node, start, end } = range;
+    close();
+    node.replaceData(start, end - start, e.char);
+    setCaret(window.getSelection(), node, start + e.char.length);
+    remember(e);
+    area.dispatchEvent(new Event('input'));
+  };
+  const drawBox = () => {
+    if (!box) { box = h('div.menu.emoji-suggest', { role: 'listbox' }); document.body.append(box); }
+    const rr = document.createRange();
+    rr.setStart(range.node, range.start); rr.setEnd(range.node, range.end);
+    const r = rr.getBoundingClientRect();
+    box.style.left = `${r.left + window.scrollX}px`;
+    box.style.top = `${r.bottom + window.scrollY + 4}px`;
+    mount(box, items.map((e, i) => h('button.menu-item', {
+      type: 'button', role: 'option', class: i === active ? 'active' : '', tabindex: -1,
+      onmousedown: (ev) => { ev.preventDefault(); choose(e); },
+    }, h('span.emoji-big', e.char), h('span', `:${e.code}:`))));
+  };
+  area.addEventListener('input', (ev) => {
+    if (ev.inputType && !ev.inputType.startsWith('insert')) { close(); return; }
+    const c = caretNode();
+    if (!c) { close(); return; }
+    const { s, node, caret } = c;
+    const text = node.data;
+    const prev = text[caret - 1];
+    if (ev.inputType !== 'insertFromPaste' && caret > 0 && /\s/.test(prev)) {
+      const hit = emoticonBefore(text, caret - 1, prev);
+      if (hit) { close(); node.replaceData(hit.start, caret - 1 - hit.start, hit.char); setCaret(s, node, hit.start + hit.char.length + 1); return; }
+    }
+    const done = completedShortcode(text, caret);
+    if (done) { close(); node.replaceData(done.start, caret - done.start, done.emoji.char); setCaret(s, node, done.start + done.emoji.char.length); remember(done.emoji); return; }
+    const sc = shortcodeAt(text, caret);
+    items = sc ? searchEmojis(sc.query, 8) : [];
+    if (!items.length) { close(); return; }
+    range = { node, start: sc.start, end: caret };
+    active = 0;
+    drawBox();
+  });
+  area.addEventListener('keydown', (e) => {
+    if (!box) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      drawBox();
+    } else if ((e.key === 'Enter' && !e.ctrlKey && !e.metaKey) || e.key === 'Tab') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      choose(items[active]);
+    } else if (e.key === 'Escape') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      close();
+    }
+  }, true);
+  area.addEventListener('blur', () => setTimeout(close, 150));
+}

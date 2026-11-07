@@ -596,6 +596,11 @@ export function createApi(ctx) {
   r.post('/tickets/:key/component-suggestion/accept', requireRole('agent'), (req, res) => res.json({ ticket: ctx.aiClassifier.accept(req.user, req.params.key) }));
   r.post('/tickets/:key/component-suggestion/dismiss', requireRole('agent'), (req, res) => res.json(ctx.aiClassifier.dismiss(req.user, req.params.key)));
   r.post('/ai/rewrite', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.rewrite(req.user, req.body.text, str(req.body.mode, 20)))));
+  // Knowledge articles: help writing (keeps the markup) and a draft from a ticket
+  r.post('/ai/kb', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.kbAssist(req.user, {
+    mode: str(req.body?.mode, 20), text: req.body?.text, title: req.body?.title, categories: req.body?.categories,
+  }))));
+  r.post('/tickets/:key/ai/kb-draft', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.kbDraft(req.user, req.params.key))));
 
   // Formatted version of an HTML mail – only in the isolated frame: no script, no foreign content
   r.get('/tickets/:key/mail-html', (req, res) => {
@@ -662,7 +667,7 @@ export function createApi(ctx) {
   r.post('/tickets/:key/comments', wrap(async (req, res) => {
     // attachmentIds: own drafts of this ticket (uploaded with draft=file/1) that belong to this comment
     const ids = Array.isArray(req.body.attachmentIds) ? req.body.attachmentIds.slice(0, 20).map((x) => int(x)).filter(Boolean) : [];
-    const c = tickets.addComment(req.user, req.params.key, { body: req.body.body, internal: !!req.body.internal, attachmentIds: ids });
+    const c = tickets.addComment(req.user, req.params.key, { body: req.body.body, internal: !!req.body.internal, attachmentIds: ids, format: req.body.format === 'md' ? 'md' : 'text' });
     res.status(201).json({ comment: c });
   }));
 
@@ -759,7 +764,7 @@ export function createApi(ctx) {
     }
     if (incoming['ai.reasoning'] !== undefined && !REASONING.includes(incoming['ai.reasoning'])) throw new HttpError(400, 'err.badRequest', 'ai.reasoning');
     if (incoming['ai.classifyMode'] !== undefined && !CLASSIFY_MODES.includes(incoming['ai.classifyMode'])) throw new HttpError(400, 'err.badRequest', 'ai.classifyMode');
-    for (const k of ['ai.summary', 'ai.reply', 'ai.rewrite', 'ai.classify']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
+    for (const k of ['ai.summary', 'ai.reply', 'ai.rewrite', 'ai.classify', 'ai.kb']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
     if (incoming['ai.baseUrl'] !== undefined && String(incoming['ai.baseUrl']).trim()) {
       let u = null;
       try { u = new URL(String(incoming['ai.baseUrl']).trim()); } catch { /* checked below */ }

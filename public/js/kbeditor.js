@@ -4,13 +4,27 @@ import { api } from './api.js';
 import { h, mount, icon, toast, modal, field, dropdown } from './dom.js';
 import { t } from './i18n.js';
 import { openEmojiPicker } from './emoji.js';
-import { renderDoc, toMarkdown, linkTarget, safeImg, PANEL_KINDS, IMAGE_SIZES } from './kbdoc.js';
+import { renderDoc, toMarkdown, linkTarget, safeImg, PANEL_KINDS, IMAGE_SIZES, panelKind } from './kbdoc.js';
 
 const IMAGE_TYPES = /^image\/(png|jpeg|gif|webp)$/;
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const mod = isMac ? '⌘' : 'Strg+';
 
-export function createKbEditor({ value = '', placeholder = '', onChange = () => {} } = {}) {
+/**
+ * variant 'article' (knowledge articles, full toolbar) or 'comment' (comments: compact toolbar,
+ * Ctrl+Enter = onSubmit, slots left/right for AI and canned responses, images via uploadImage).
+ * uploadImage(file) → Promise<url>; null = no image button (pasted images are refused).
+ */
+// Markdown shortcuts typed at the start of a line
+const COMMENT_RULES = new Map([['-', 'ul'], ['*', 'ul'], ['1.', 'ol'], ['[]', 'check'], ['[ ]', 'check'], ['>', 'blockquote']]);
+const ARTICLE_RULES = new Map([['#', 'h1'], ['##', 'h2'], ['###', 'h3'], ...COMMENT_RULES]);
+
+export function createKbEditor({
+  value = '', placeholder = '', onChange = () => {}, variant = 'article', uploadImage = undefined,
+  left = [], right = [], onSubmit = null, mention = null, label = '',
+} = {}) {
+  const comment = variant === 'comment';
+  const upload = uploadImage === undefined ? (f) => api.kbImage(f).then((r) => r.url) : uploadImage;
   const area = renderDoc(value, { edit: true });
   area.classList.add('kb-editable');
   area.contentEditable = 'true';
@@ -18,6 +32,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   area.setAttribute('role', 'textbox');
   area.setAttribute('aria-multiline', 'true');
   area.dataset.placeholder = placeholder;
+  if (label) area.setAttribute('aria-label', label);
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch { /* ignore */ }
 
   // ---------- Remember selection (menus and dialogs take the focus) ----------
@@ -90,8 +105,11 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   const setValue = (md) => { mount(area, ...renderDoc(md, { edit: true }).childNodes); normalize(); updateState(); };
 
   // ---------- Block and inline formats ----------
+  const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'blockquote', 'pre'];
   const BLOCKS = [['p', 'kb.ed.normal'], ['h1', 'kb.ed.h1'], ['h2', 'kb.ed.h2'], ['h3', 'kb.ed.h3'], ['blockquote', 'kb.ed.quote'], ['pre', 'kb.ed.code']];
-  function setBlock(tag) {
+  function setBlock(wanted) {
+    // Only the known block tags – never a tag name taken from elsewhere
+    const tag = BLOCK_TAGS[Math.max(0, BLOCK_TAGS.indexOf(wanted))];
     restore();
     const quote = closest('blockquote');
     if (quote && tag !== 'blockquote') { quote.replaceWith(...(quote.querySelector('p,h1,h2,h3,pre') ? quote.childNodes : [h('p', ...quote.childNodes)])); }
@@ -174,7 +192,8 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     if (existing) { existing.dataset.kind = kind; existing.className = `kb-panel kb-panel-${kind}`; changed(); return; }
     let block = currentBlock();
     while (block && block.parentElement !== area) block = block.parentElement;
-    const box = h(`div.kb-panel.kb-panel-${kind}`, { 'data-kind': kind });
+    const k = panelKind(kind);
+    const box = h(`div.kb-panel.kb-panel-${k}`, { 'data-kind': k });
     if (block && block.tagName === 'P') { block.replaceWith(box); box.append(block); } else { insertBlock(box); box.append(h('p', h('br'))); }
     caretTo(box.querySelector('p') || box, true);
     changed();
@@ -232,6 +251,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     return h('figure.kb-figure', { contenteditable: 'false', 'data-size': size }, h('img', { src, alt: caption, draggable: 'false' }), caption ? h('figcaption', caption) : null);
   }
   async function uploadImages(files, at = null) {
+    if (!upload) return;
     for (const f of files) {
       if (!IMAGE_TYPES.test(f.type)) { toast(t('kb.ed.imageType'), 'error'); continue; }
       const blobUrl = URL.createObjectURL(f);
@@ -240,8 +260,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
       if (at) { at.after(fig); at = fig; } else { insertBlock(fig); at = fig; }
       normalize();
       try {
-        const r = await api.kbImage(f);
-        fig.querySelector('img').src = r.url;
+        fig.querySelector('img').src = await upload(f);
         fig.classList.remove('uploading');
       } catch (e) {
         fig.remove();
@@ -329,8 +348,8 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
       try {
         const bin = atob(m[2]); const buf = new Uint8Array(bin.length);
         for (let k = 0; k < bin.length; k++) buf[k] = bin.charCodeAt(k);
-        const r = await api.kbImage(new File([buf], `bild.${m[1].split('/')[1]}`, { type: m[1] }));
-        img.setAttribute('src', r.url);
+        if (!upload) { img.remove(); continue; }
+        img.setAttribute('src', await upload(new File([buf], `bild.${m[1].split('/')[1]}`, { type: m[1] })));
       } catch { img.remove(); }
     }
     return toMarkdown(doc.body, { styles: true });
@@ -388,6 +407,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   area.addEventListener('keydown', (e) => {
     const k = e.key;
     const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && k === 'Enter' && onSubmit) { e.preventDefault(); onSubmit(); return; }
     if (ctrl && !e.altKey) {
       const lk = k.toLowerCase();
       if (lk === 'k') { e.preventDefault(); linkDialog(); return; }
@@ -398,7 +418,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
       if (e.altKey === false && lk === 'z' && !e.shiftKey) { e.preventDefault(); exec('undo'); return; }
       if (lk === 'y' || (lk === 'z' && e.shiftKey)) { e.preventDefault(); exec('redo'); return; }
     }
-    if (ctrl && e.altKey && ['0', '1', '2', '3'].includes(k)) { e.preventDefault(); setBlock(k === '0' ? 'p' : `h${k}`); return; }
+    if (ctrl && e.altKey && ['0', '1', '2', '3'].includes(k) && !comment) { e.preventDefault(); setBlock(k === '0' ? 'p' : `h${k}`); return; }
     if (k === 'Tab') {
       if (closest('td,th')) { e.preventDefault(); moveCell(e.shiftKey); return; }
       if (closest('li')) { e.preventDefault(); exec(e.shiftKey ? 'outdent' : 'indent'); return; }
@@ -450,7 +470,8 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
       const pre = document.createRange(); pre.selectNodeContents(block); pre.setEnd(r.endContainer, r.endOffset);
       const before = pre.toString();
       if (before !== blockText(block)) return;
-      const rule = { '#': 'h1', '##': 'h2', '###': 'h3', '-': 'ul', '*': 'ul', '1.': 'ol', '[]': 'check', '[ ]': 'check', '>': 'blockquote' }[before];
+      // Map instead of an object lookup: typed text never reaches inherited keys ('constructor' …)
+      const rule = (comment ? COMMENT_RULES : ARTICLE_RULES).get(before);
       if (!rule) return;
       e.preventDefault();
       block.replaceChildren(h('br'));
@@ -508,7 +529,47 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     return b ? b.tagName.toLowerCase() : 'p';
   };
   const withSel = (fn) => (anchor) => { rememberSel(); fn(anchor); };
-  const toolbar = h('div.kb-toolbar', { role: 'toolbar', 'aria-label': t('kb.ed.toolbar') },
+  const blockToggle = (tag) => setBlock(currentTag() === tag ? 'p' : tag);
+  const emojiBtn = () => tb('emoji', h('span.kb-glyph', '🙂'), t('emoji.button'), withSel((a) => openEmojiPicker(a, {
+    insertEmoji: (ch) => { restore(); document.execCommand('insertText', false, ch); rememberSel(); changed(); },
+    focus: () => restore(),
+  })));
+  // "@" at the caret (with a space before it if needed) – the mention list opens by itself
+  const insertAt = () => {
+    restore();
+    const s = sel();
+    const r = s.rangeCount ? s.getRangeAt(0) : null;
+    const prev = r && r.startContainer.nodeType === 3 ? r.startContainer.data.slice(0, r.startOffset) : '';
+    document.execCommand('insertText', false, prev && !/\s$/.test(prev) ? ' @' : '@');
+    rememberSel();
+  };
+  // Slots for the caller (AI on the left, canned responses on the right), filled after creation as well
+  const slotLeft = h('span.cm-slot.cm-slot-left', left);
+  const slotRight = h('span.cm-slot.cm-slot-right', right);
+  const commentToolbar = () => h('div.kb-toolbar.cm-toolbar', { role: 'toolbar', 'aria-label': t('kb.ed.toolbar') },
+    slotLeft,
+    tb('bold', glyph('B', 'b'), t('kb.ed.bold'), () => exec('bold'), `${mod}B`),
+    tb('italic', glyph('I', 'i'), t('kb.ed.italic'), () => exec('italic'), `${mod}I`),
+    tb('more', 'ed-more', t('kb.ed.moreFormats'), withSel((a) => dropdown(a, [
+      { label: t('kb.ed.underline'), onClick: () => exec('underline') },
+      { label: t('kb.ed.strike'), onClick: () => exec('strikeThrough') },
+      { label: t('kb.ed.inlineCode'), onClick: () => inlineCode() },
+      '-',
+      { label: t('kb.ed.clear'), onClick: () => exec('removeFormat') },
+    ]))),
+    h('span.kb-tb-sep'),
+    tb('ul', 'list', t('kb.ed.bullets'), () => toggleList('ul')),
+    tb('ol', 'ed-ol', t('kb.ed.numbers'), () => toggleList('ol')),
+    tb('quote', 'ed-quote', t('kb.ed.quote'), () => blockToggle('blockquote')),
+    tb('code', 'ed-code', t('kb.ed.code'), () => blockToggle('pre')),
+    h('span.kb-tb-sep'),
+    tb('link', 'link', t('kb.ed.insertLink'), () => linkDialog(), `${mod}K`),
+    upload ? tb('image', 'ed-image', t('kb.ed.image'), () => pickImage()) : null,
+    emojiBtn(),
+    mention ? tb('mention', 'at', t('mention.button'), () => insertAt()) : null,
+    h('span.spacer'),
+    slotRight);
+  const toolbar = comment ? commentToolbar() : h('div.kb-toolbar', { role: 'toolbar', 'aria-label': t('kb.ed.toolbar') },
     blockBtn,
     h('span.kb-tb-sep'),
     tb('bold', glyph('B', 'b'), t('kb.ed.bold'), () => exec('bold'), `${mod}B`),
@@ -527,10 +588,7 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
     h('span.kb-tb-sep'),
     tb('link', 'link', t('kb.ed.insertLink'), () => linkDialog(), `${mod}K`),
     tb('image', 'ed-image', t('kb.ed.image'), () => pickImage()),
-    tb('emoji', h('span.kb-glyph', '🙂'), t('emoji.button'), withSel((a) => openEmojiPicker(a, {
-      insertEmoji: (ch) => { restore(); document.execCommand('insertText', false, ch); rememberSel(); changed(); },
-      focus: () => restore(),
-    }))),
+    emojiBtn(),
     tb('panel', 'ed-panel', t('kb.ed.panel'), withSel((a) => dropdown(a, [
       ...PANEL_KINDS.map((k) => ({ label: t(`kb.ed.panel.${k}`), icon: h(`span.kb-swatch.kb-panel-${k}`), active: closest('.kb-panel')?.dataset.kind === k, onClick: () => panel(k) })),
       ...(closest('.kb-panel') ? ['-', { label: t('kb.ed.panel.remove'), onClick: () => panel('remove') }] : []),
@@ -552,24 +610,41 @@ export function createKbEditor({ value = '', placeholder = '', onChange = () => 
   function updateState() {
     if (!inArea(sel().anchorNode) && !saved) return;
     const q = (c) => { try { return document.queryCommandState(c); } catch { return false; } };
-    btns.bold.classList.toggle('active', q('bold') && !closest('h1,h2,h3'));
-    btns.italic.classList.toggle('active', q('italic'));
-    btns.underline.classList.toggle('active', q('underline') && !closest('a'));
+    const on = (key, v) => btns[key]?.classList.toggle('active', !!v);
+    on('bold', q('bold') && !closest('h1,h2,h3'));
+    on('italic', q('italic'));
+    on('underline', q('underline') && !closest('a'));
     const list = closest('li')?.parentElement;
-    btns.ul.classList.toggle('active', list?.tagName === 'UL' && !list.classList.contains('checklist'));
-    btns.ol.classList.toggle('active', list?.tagName === 'OL');
-    btns.check.classList.toggle('active', !!list?.classList.contains('checklist'));
-    btns.link.classList.toggle('active', !!closest('a'));
-    btns.panel.classList.toggle('active', !!closest('.kb-panel'));
-    btns.table.classList.toggle('active', !!closest('td,th'));
+    on('ul', list?.tagName === 'UL' && !list.classList.contains('checklist'));
+    on('ol', list?.tagName === 'OL');
+    on('check', list?.classList.contains('checklist'));
+    on('link', closest('a'));
+    on('panel', closest('.kb-panel'));
+    on('table', closest('td,th'));
     const tag = currentTag();
-    blockBtn.querySelector('.kb-tb-label').textContent = t(BLOCKS.find(([x]) => x === tag)[1]);
+    on('quote', tag === 'blockquote');
+    on('code', tag === 'pre');
+    if (!comment) blockBtn.querySelector('.kb-tb-label').textContent = t(BLOCKS.find(([x]) => x === tag)[1]);
   }
 
-  const el = h('div.kb-editor-box', toolbar, area);
+  const el = h(`div.kb-editor-box${comment ? '.cm-editor' : ''}`, toolbar, area);
+  const isEmpty = () => !area.textContent.replace(/\u200b/g, '').trim() && !area.querySelector('img,hr,table,li,.mention');
   normalize();
   return {
-    el, area, getValue, setValue,
+    el, area, toolbar, getValue, setValue, isEmpty, insertMarkdown, slots: { left: slotLeft, right: slotRight },
+    /** plain text at the caret (canned responses without formatting, emoji) */
+    insertText: (text) => { restore(); document.execCommand('insertText', false, text); rememberSel(); changed(); },
+    clear: () => setValue(''),
+    remember: rememberSel,
+    insertNodes: (...nodes) => { insertNodes(...nodes); changed(); },
+    /** selected part as text (the AI works on it); '' = nothing selected */
+    selectedMarkdown: () => {
+      if (!saved || saved.collapsed || !inArea(saved.commonAncestorContainer)) return '';
+      const div = document.createElement('div');
+      div.append(saved.cloneContents());
+      return toMarkdown(div);
+    },
+    selectionRange: () => { const s = sel(); return s.rangeCount && inArea(s.anchorNode) ? s.getRangeAt(0) : null; },
     focus: () => { area.focus(); const last = area.lastElementChild; if (last) caretTo(last, true); },
     destroy: () => { document.removeEventListener('selectionchange', onSel); window.removeEventListener('scroll', onScroll, true); closeFigBar(); },
   };

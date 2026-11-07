@@ -6,6 +6,7 @@ import { t, normalizeLang } from '../i18n.js';
 import { log } from '../lib/log.js';
 import { parseRules, matchRule } from './rules.js';
 import { mentionsAsText } from '../mentions.js';
+import { mdToText, mdToHtml, mailHtml, MAIL_BODY } from '../markdown.js';
 
 export function transportOptions(cfg) {
   return {
@@ -53,7 +54,7 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
   /** customer: mail to reporter/participants. Otherwise (assignment, SLA, approval …) and if the recipient is an
    *  agent account, the mail is recorded as "agents only" (mail_messages.agent_only):
    *  replies to it become internal notes. The Message-ID does not reveal this. */
-  async function send({ to, subject, text, ticketId = null, inReplyTo = null, customer = false }) {
+  async function send({ to, subject, text, html = undefined, ticketId = null, inReplyTo = null, customer = false }) {
     const tr = getTransport();
     if (!tr) return false;
     const why = blocked(to);
@@ -67,6 +68,8 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
       to,
       subject,
       text,
+      // formatted comments additionally as HTML (the text part stays complete and readable)
+      ...(html ? { html } : {}),
       messageId,
       inReplyTo: inReplyTo || undefined,
       references: inReplyTo || undefined,
@@ -93,6 +96,17 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
 /** Embedded images in mails as a note instead of markup (the images are in the ticket). */
 export function inlineImagesAsText(text, lang) {
   return mentionsAsText(text || '').replace(/!\[([^\]]*)\]\(\/api\/attachments\/\d+\)/g, (m, name) => `[${lang === 'en' ? 'Image' : 'Bild'}: ${name || '…'}]`);
+}
+
+/** Comment text for a mail: formatted ones without markup, images as a note */
+export function commentAsText(comment, lang) {
+  return comment.format === 'md' ? mdToText(comment.body, lang, config.baseUrl) : inlineImagesAsText(comment.body, lang);
+}
+
+/** HTML part for a formatted comment: the mail template with the comment in its place (else undefined) */
+export function commentMailHtml(comment, lang, template, vars) {
+  if (comment.format !== 'md') return undefined;
+  return mailHtml(t(lang, template, { ...vars, body: MAIL_BODY }), mdToHtml(comment.body, { lang, baseUrl: config.baseUrl }));
 }
 
 /** Attaches the notifications to the ticket events. */
@@ -131,8 +145,8 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     for (const r of tickets.customerRecipients(ticket.id)) {
       if (actorId && r.id === actorId) continue;
       const lang = recipientLang(r.id);
-      const { subject, text } = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
-      await mailer.send({ to: r.email, subject, text, ticketId: ticket.id, customer: true });
+      const { subject, text, html } = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
+      await mailer.send({ to: r.email, subject, text, html, ticketId: ticket.id, customer: true });
     }
   }
 
@@ -142,12 +156,12 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     const assignee = ticket.assignee?.displayName && ticket.assignee.id !== user.id ? ticket.assignee.displayName : null;
     await toCustomers(ticket, user.id, (lang, name) => {
       const vars = {
-        key: ticket.key, title: ticket.title, name, author: user.display_name, body: inlineImagesAsText(comment.body, lang), link: link(ticket), app: appName(),
+        key: ticket.key, title: ticket.title, name, author: user.display_name, body: commentAsText(comment, lang), link: link(ticket), app: appName(),
         // The sender is always the ticket system – the agent's name only appears in the text
         contact: assignee ? `${t(lang, 'mail.contact', { name: assignee })}\n` : '',
         closing: t(lang, 'mail.closing', { author: user.display_name || user.username, app: appName() }),
       };
-      return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars) };
+      return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars), html: commentMailHtml(comment, lang, 'mail.comment.body', vars) };
     });
   }));
 
@@ -165,10 +179,10 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       const lang = recipientLang(u.id);
       const vars = {
         key: ticket.key, title: ticket.title, name: u.display_name || t(lang, 'mail.greetingFallback'),
-        author: user.display_name || user.username, body: inlineImagesAsText(comment.body, lang), link: link(ticket), app: appName(),
+        author: user.display_name || user.username, body: commentAsText(comment, lang), link: link(ticket), app: appName(),
         kind: t(lang, internal ? 'mail.mention.inNote' : 'mail.mention.inReply'),
       };
-      await mailer.send({ to: u.email, subject: t(lang, 'mail.mention.subject', vars), text: t(lang, 'mail.mention.body', vars), ticketId: ticket.id, customer: !agentRecipient });
+      await mailer.send({ to: u.email, subject: t(lang, 'mail.mention.subject', vars), text: t(lang, 'mail.mention.body', vars), html: commentMailHtml(comment, lang, 'mail.mention.body', vars), ticketId: ticket.id, customer: !agentRecipient });
     }
   }));
 

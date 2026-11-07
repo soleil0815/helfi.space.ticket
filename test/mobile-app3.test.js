@@ -283,7 +283,7 @@ test('Knowledge base: start page, search, folder drill-down, article with table,
   await ready(p);
   // Comment (users may comment, as in the desktop UI); users get no "edit" link
   assert.equal(await p.locator('.m-kb-edit').count(), 0);
-  await p.fill('.m-kb-cm-compose textarea', 'Bei mir half ein Neustart.');
+  await p.fill('.m-kb-cm-compose .kb-editable', 'Bei mir half ein Neustart.');
   await p.locator('.m-kb-cm-compose .m-btn-primary').tap();
   await p.waitForSelector('.m-kb-cm:has-text("Bei mir half ein Neustart.")');
   const cms = (await who.karl('GET', `/api/kb/${ids.vpn}/comments`)).body.comments;

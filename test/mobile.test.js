@@ -96,7 +96,7 @@ test('Menu, search and details on the smartphone', { skip: !chromium && 'Playwri
   // Order: title before the details
   const [title, details] = await p.evaluate(() => [document.querySelector('.ticket-title').getBoundingClientRect().top, document.querySelector('.details-box').getBoundingClientRect().top]);
   assert.ok(title < details);
-  const inputSize = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.composer textarea')).fontSize));
+  const inputSize = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.composer .kb-editable')).fontSize));
   assert.ok(inputSize >= 16, 'no zoom on tap (iPhone)');
   assert.deepEqual(errors, []);
 });

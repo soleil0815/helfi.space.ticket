@@ -70,6 +70,8 @@ test('Phone: saved filters as chips with count', { skip }, async () => {
   await p.tap('.m-chip >> text=Team: niedrig');
   await p.waitForURL(/priority=low/);
   await p.waitForSelector('.m-chip.active >> text=Team: niedrig');
+  // the list reloads after the chip turns active – wait for it instead of reading it right away
+  await p.waitForFunction(() => document.querySelectorAll('.m-list > *').length === 1);
   assert.equal(await p.locator('.m-list > *').count(), 1);
   assert.deepEqual(errors, []);
 });

@@ -1,6 +1,6 @@
 // Reply bar at the bottom of the ticket view: text, reply/internal note (agents), templates,
 // photos and files (uploaded as drafts, linked to the comment), draft text per ticket.
-import { attachMentions } from '/js/mention.js';
+import { createCommentField } from '/js/commentfield.js';
 import { api } from '/js/api.js';
 import { h, icon, toast, fmtSize } from '/js/dom.js';
 import { t } from '/js/i18n.js';
@@ -21,9 +21,11 @@ function readDraft(key) {
     return d && d.uid === uid ? d : null;
   } catch { return null; }
 }
-function writeDraft(key, d) {
+function writeDraft(key, d, owner) {
   const uid = state.user?.id;
-  if (!uid) return; // signed out meanwhile: keep nothing
+  // Signed out meanwhile, or another account signed in while this bar still existed
+  // (a late blur/timer of the old view): keep nothing
+  if (!uid || uid !== owner) return;
   try {
     if (d && d.text) sessionStorage.setItem(draftKey(uid, key), JSON.stringify({ ...d, uid }));
     else sessionStorage.removeItem(draftKey(uid, key));
@@ -38,33 +40,42 @@ const altText = (name) => String(name || '').replace(/[[\]\n\r]/g, ' ').slice(0,
  * Returns { el, focus(), setMode(internal) }.
  */
 export function replyBar({ getTicket, onSent }) {
+  const owner = state.user?.id; // drafts of this bar belong to the account it was opened for
   const agent = state.isAgent;
   const key = () => getTicket().key;
   let internal = false;
   let busy = false;
   let files = []; // { id, file, url, resized, state: 'processing'|'ready'|'uploading'|'error', progress, attId, el }
 
-  const ta = h('textarea.m-reply-input', {
-    rows: 1, enterkeyhint: 'enter', autocomplete: 'off', 'aria-label': t('m.reply.placeholder'), placeholder: t('m.reply.placeholder'),
+  // Formatted field with a small, swipeable format bar (bold, italic, lists, quote, code, link, emoji, @).
+  // Pictures come in through "+" (downscaled, uploaded on sending) – not through the field.
+  const field = createCommentField({
+    placeholder: t('m.reply.placeholder'), label: t('m.reply.placeholder'),
+    onSubmit: () => send(),
+    onChange: () => changed(),
+    uploadImage: null,
+    mention: agent ? { getKey: key, isInternal: () => internal } : null,
   });
-  // @-mentions (agents): "@" + letters shows people who may be mentioned here
-  const mentions = agent ? attachMentions(ta, { getKey: key, isInternal: () => internal }) : null;
-  const sendBtn = h('button.m-reply-send', { type: 'button', 'aria-label': t('m.reply.send'), title: t('m.reply.send'), onclick: () => send() }, icon('send'));
-  const attachBtn = h('button.m-reply-attach', { type: 'button', 'aria-label': t('m.reply.attach'), title: t('m.reply.attach'), onclick: () => openAttachSheet() }, icon('plus'));
+  field.el.classList.add('m-reply-editor');
+  field.area.classList.add('m-reply-input');
+  const text = () => field.getValue();
+  // Buttons next to the field keep the focus in it (keyboard and format bar stay, nothing jumps under the finger)
+  const keep = (e) => e.preventDefault();
+  const sendBtn = h('button.m-reply-send', { type: 'button', 'aria-label': t('m.reply.send'), title: t('m.reply.send'), onmousedown: keep, onclick: () => send() }, icon('send'));
+  const attachBtn = h('button.m-reply-attach', { type: 'button', 'aria-label': t('m.reply.attach'), title: t('m.reply.attach'), onmousedown: keep, onclick: () => openAttachSheet() }, icon('plus'));
   const filesEl = h('div.m-reply-files', { role: 'list', 'aria-label': t('m.reply.attachments'), hidden: true });
   const hint = h('div.m-reply-hint', { hidden: true }, icon('lock'), h('span', t('m.reply.internalHint')));
 
   const modeReply = agent ? h('button.m-reply-mode', { type: 'button', 'aria-pressed': 'true', onclick: () => setMode(false) }, t('m.reply.reply')) : null;
   const modeNote = agent ? h('button.m-reply-mode.m-reply-mode-note', { type: 'button', 'aria-pressed': 'false', onclick: () => setMode(true) }, icon('lock'), t('m.reply.internal')) : null;
   const tplBtn = agent ? h('button.m-reply-tpl', {
-    type: 'button',
+    type: 'button', onmousedown: keep,
     onclick: () => {
-      const sel = [ta.selectionStart, ta.selectionEnd];
+      field.remember();
       let picked = null;
-      openCannedSheet(getTicket(), (text) => { picked = text; }, () => {
+      openCannedSheet(getTicket(), (txt) => { picked = txt; }, () => {
         if (picked === null) return;
-        ta.focus({ preventScroll: true });
-        ta.setRangeText(picked, sel[0], sel[1], 'end');
+        field.insertMarkdown(picked);
         changed();
       });
     },
@@ -72,20 +83,20 @@ export function replyBar({ getTicket, onSent }) {
   // AI suggestions (agents, only if set up): reply from the ticket/notes, polish, shorten, translate
   const aiNote = h('div.m-reply-ai', { hidden: true });
   let aiBefore = null;
-  const aiBtn = agent && (state.boot.aiFeatures?.reply || state.boot.aiFeatures?.rewrite) ? h('button.m-reply-tpl.m-reply-ai-btn', { type: 'button', 'aria-label': t('ai.menuHint'), title: t('ai.menuHint'), onclick: () => openAiSheet() }, icon('sparkle')) : null;
+  const aiBtn = agent && (state.boot.aiFeatures?.reply || state.boot.aiFeatures?.rewrite) ? h('button.m-reply-tpl.m-reply-ai-btn', { type: 'button', onmousedown: keep, 'aria-label': t('ai.menuHint'), title: t('ai.menuHint'), onclick: () => openAiSheet() }, icon('sparkle')) : null;
   function openAiSheet() {
-    const has = !!ta.value.trim();
+    const has = !field.isEmpty();
     const opt = (label, ic, call) => h('button.m-canned-item', { type: 'button', onclick: () => { sheet.close(); runAi(call); } },
       h('span.m-canned-title', icon(ic), ' ', label));
     const sheet = openSheet({
       title: t('ai.title'),
       content: h('div.m-canned',
-        internal || !state.boot.aiFeatures?.reply ? null : opt(has ? t('ai.replyFromNotes') : t('ai.reply'), 'sparkle', () => api.aiReply(key(), ta.value)),
+        internal || !state.boot.aiFeatures?.reply ? null : opt(has ? t('ai.replyFromNotes') : t('ai.reply'), 'sparkle', () => api.aiReply(key(), text())),
         has && state.boot.aiFeatures?.rewrite ? [
-          opt(t('ai.polish'), 'pencil', () => api.aiRewrite(ta.value, 'polish')),
-          opt(t('ai.shorter'), 'list', () => api.aiRewrite(ta.value, 'shorter')),
-          opt(t('ai.toGerman'), 'globe', () => api.aiRewrite(ta.value, 'de')),
-          opt(t('ai.toEnglish'), 'globe', () => api.aiRewrite(ta.value, 'en')),
+          opt(t('ai.polish'), 'pencil', () => api.aiRewrite(text(), 'polish')),
+          opt(t('ai.shorter'), 'list', () => api.aiRewrite(text(), 'shorter')),
+          opt(t('ai.toGerman'), 'globe', () => api.aiRewrite(text(), 'de')),
+          opt(t('ai.toEnglish'), 'globe', () => api.aiRewrite(text(), 'en')),
         ] : null,
         (internal || !state.boot.aiFeatures?.reply) && !has ? h('p.m-sheet-empty', t('ai.noText')) : null),
     });
@@ -98,10 +109,10 @@ export function replyBar({ getTicket, onSent }) {
     aiNote.replaceChildren(h('span.m-spinner-inline'), h('span', t('ai.working')));
     try {
       const r = await call();
-      aiBefore = ta.value;
-      ta.value = r.text;
+      aiBefore = text();
+      field.setValue(r.text);
       aiNote.replaceChildren(icon('sparkle'), h('span', { title: r.model }, t('ai.insertedShort')),
-        h('button.m-link.m-link-small', { type: 'button', onclick: () => { ta.value = aiBefore ?? ''; aiBefore = null; aiNote.hidden = true; changed(); } }, t('ai.undo')));
+        h('button.m-link.m-link-small', { type: 'button', onclick: () => { field.setValue(aiBefore ?? ''); aiBefore = null; aiNote.hidden = true; changed(); } }, t('ai.undo')));
     } catch (e) {
       aiNote.hidden = true;
       toast(e.message, 'error');
@@ -117,31 +128,19 @@ export function replyBar({ getTicket, onSent }) {
 
   const el = h('div.m-reply', { role: 'region', 'aria-label': t('m.reply.placeholder') },
     tools, aiNote, filesEl,
-    h('div.m-reply-row', attachBtn, h('div.m-reply-field', ta), sendBtn),
+    h('div.m-reply-row', attachBtn, h('div.m-reply-field', field.el), sendBtn),
     hint);
 
-  // ---------- Text: auto-grow, draft, keyboard ----------
-  const maxHeight = () => Math.round((window.visualViewport?.height || window.innerHeight) * 0.4);
-  function grow() {
-    ta.style.height = 'auto';
-    const max = maxHeight();
-    ta.style.height = `${Math.min(ta.scrollHeight + 2, max)}px`;
-    ta.style.overflowY = ta.scrollHeight + 2 > max ? 'auto' : 'hidden';
-  }
+  // ---------- Text: draft (the field grows by itself up to 40 % of the screen) ----------
   let saveTimer = null;
   function changed() {
-    grow();
     update();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraft, 250);
   }
-  const saveDraft = () => writeDraft(key(), { text: mentions ? mentions.encode(ta.value) : ta.value, internal });
-  ta.addEventListener('input', changed);
-  ta.addEventListener('blur', saveDraft);
-  ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
-  });
-  window.visualViewport?.addEventListener('resize', () => { if (el.isConnected) grow(); });
+  const saveDraft = () => writeDraft(key(), { text: field.isEmpty() ? '' : text(), internal, format: 'md' }, owner);
+  field.area.addEventListener('input', () => { update(); });
+  field.area.addEventListener('blur', saveDraft);
 
   function setMode(isInternal) {
     if (!agent) return;
@@ -150,18 +149,19 @@ export function replyBar({ getTicket, onSent }) {
     modeReply.setAttribute('aria-pressed', String(!internal));
     modeNote.setAttribute('aria-pressed', String(internal));
     hint.hidden = !internal;
-    ta.placeholder = internal ? t('m.reply.placeholderInternal') : t('m.reply.placeholder');
-    ta.setAttribute('aria-label', ta.placeholder);
-    if (ta.value) saveDraft();
+    const ph = internal ? t('m.reply.placeholderInternal') : t('m.reply.placeholder');
+    field.area.dataset.placeholder = ph;
+    field.area.setAttribute('aria-label', ph);
+    if (!field.isEmpty()) saveDraft();
   }
 
   const ready = () => files.filter((f) => f.state !== 'error');
   function update() {
     const pending = files.some((f) => f.state === 'processing');
-    sendBtn.disabled = busy || pending || (!ta.value.trim() && !ready().length);
+    sendBtn.disabled = busy || pending || (field.isEmpty() && !ready().length);
     attachBtn.disabled = busy;
     el.classList.toggle('busy', busy);
-    ta.readOnly = busy;
+    field.area.contentEditable = busy ? 'false' : 'true';
   }
 
   // ---------- Attachments ----------
@@ -201,7 +201,7 @@ export function replyBar({ getTicket, onSent }) {
     if (f.attId) api.discardDraft(f.attId).catch(() => { /* removed after a day anyway */ });
     if (f.url) URL.revokeObjectURL(f.url);
     drawFiles(); update();
-    ta.focus({ preventScroll: true });
+    field.area.focus({ preventScroll: true });
   }
 
   function drawFiles() {
@@ -257,18 +257,19 @@ export function replyBar({ getTicket, onSent }) {
       // Pictures appear in the text (as in the desktop UI), other files are linked to the comment
       const pics = list.filter((f) => isPicture(f.file.type));
       const others = list.filter((f) => !isPicture(f.file.type));
-      let text = (mentions ? mentions.encode(ta.value) : ta.value).trim();
-      if (!text && !pics.length) text = others.map((f) => `📎 ${f.file.name}`).join('\n');
-      const body = [text, ...pics.map((f) => `![${altText(f.file.name)}](/api/attachments/${f.attId})`)].filter(Boolean).join('\n');
-      const r = await api.comment(k, body, agent && internal, others.map((f) => f.attId));
+      let txt = field.isEmpty() ? '' : text().trim();
+      if (!txt && !pics.length) txt = others.map((f) => `📎 ${f.file.name}`).join('\n\n');
+      // each picture as its own block (shown below the text)
+      const body = [txt, ...pics.map((f) => `![${altText(f.file.name)}](/api/attachments/${f.attId})`)].filter(Boolean).join('\n\n');
+      const r = await api.comment(k, body, agent && internal, others.map((f) => f.attId), 'md');
       // Sent: empty the bar
       for (const f of files) if (f.url) URL.revokeObjectURL(f.url);
       files = [];
-      ta.value = '';
-      mentions?.close();
-      writeDraft(k, null);
+      field.clear();
+      field.mentions?.close();
+      writeDraft(k, null, owner);
       busy = false;
-      drawFiles(); grow(); update();
+      drawFiles(); update();
       await onSent?.(r.comment);
     } catch (e) {
       busy = false;
@@ -286,17 +287,17 @@ export function replyBar({ getTicket, onSent }) {
 
   // ---------- Start: restore the draft of this ticket ----------
   const d = readDraft(key());
-  if (d?.text) ta.value = mentions ? mentions.decode(d.text) : d.text;
+  // Drafts of the earlier plain field are taken over as they are (mention tokens included)
+  if (d?.text) field.setValue(d.text);
   if (agent && d?.internal) setMode(true);
   else if (agent) setMode(false);
-  requestAnimationFrame(grow);
   update();
 
   return {
     el,
-    focus: () => ta.focus(),
+    focus: () => field.area.focus(),
     setMode,
     /** After a project move the key changes: keep the draft under the new key */
-    rekey(oldKey, newKey) { if (oldKey !== newKey && ta.value) { writeDraft(oldKey, null); writeDraft(newKey, { text: mentions ? mentions.encode(ta.value) : ta.value, internal }); } },
+    rekey(oldKey, newKey) { if (oldKey !== newKey && !field.isEmpty()) { writeDraft(oldKey, null, owner); writeDraft(newKey, { text: text(), internal, format: 'md' }, owner); } },
   };
 }

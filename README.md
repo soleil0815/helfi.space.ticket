@@ -13,13 +13,14 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
 - **Übersichtlich:** Seitenleiste mit Warteschlangen (offen, mir zugewiesen, nicht zugewiesen, wartet, kürzlich erledigt, alle) samt Live-Zahlen, Zusammenfassung je Projekt, Board mit Drag & Drop, Ticketliste mit Filtern, Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
 - **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, **Jira** (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
+- **Formatierte Antworten:** eine Werkzeugleiste über dem Kommentarfeld (Ticket, Wissensartikel, Handy) mit KI, fett/kursiv, Listen, Zitat, Code, Link, Bild, Emoji, @-Erwähnung und vorformulierten Antworten – formatiert beim Schreiben, formatiert in der Mail
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
 - **IT-Service-Management nach ITIL** (alles optional): Verknüpfungen und Unteraufgaben, Auswirkung/Dringlichkeit und Major Incidents, Service Level, Probleme und bekannte Fehler, Change-Management mit Genehmigung und Kalender, Wissensdatenbank, Servicekatalog mit Formularen und Genehmigung, Geräte & Dienste, Zufriedenheitsumfrage und Kennzahlen
 - **Suche mit Treffern beim Tippen** – mit Fundstelle, Tastatursteuerung und den zuletzt geöffneten Tickets, am PC und auf dem Handy
 - **Gespeicherte Filter und eigene Warteschlangen:** Filter der Ticketliste unter einem Namen speichern – persönlich oder vom Admin für alle Bearbeiter freigegeben, in der Seitenleiste mit Anzahl, auf dem Handy als Chip
 - **Komponenten mit Zuständigkeit:** Projekte in Bereiche wie „VPN & Fernzugriff“ oder „Drucker & Scanner“ aufteilen, je mit verantwortlicher Person und Vertretung. Neue Tickets werden über Schlagwörter oder den Absender zugeordnet und gehen automatisch an die richtige Person – mit fertigen Beispielen für IT, Haustechnik und Verwaltung
 - **Zusammenarbeit im Team:** **@-Erwähnungen** in Antworten und internen Notizen (mit Mail und Ansicht „Erwähnt mich“), Anfrage-Teilnehmer, Antwortvorlagen, **Mehrfachauswahl** (Status, Zuweisung, Kommentar oder Verknüpfung für viele Tickets auf einmal), **Verknüpfen mit Suche und Vorschlägen** (mögliche Ursachen, ähnliche Tickets)
-- **KI-Unterstützung (optional, jede Funktion einzeln schaltbar):** Zusammenfassung, Antwortvorschlag, Umformulieren und Erkennen der Komponente (mit Trefferquote) mit einem eigenen Modell (Ollama, LM Studio, vLLM …) oder einem beliebigen OpenAI-kompatiblen Dienst – nur Vorschläge, nichts wird automatisch verschickt
+- **KI-Unterstützung (optional, jede Funktion einzeln schaltbar):** Zusammenfassung, Antwortvorschlag, Umformulieren, Hilfe beim Schreiben von Wissensartikeln und Erkennen der Komponente (mit Trefferquote) mit einem eigenen Modell (Ollama, LM Studio, vLLM …) oder einem beliebigen OpenAI-kompatiblen Dienst – nur Vorschläge, nichts wird automatisch verschickt
 - **Handy-App:** eigene, app-artige Oberfläche unter `/m`, als App installierbar, mit Fotos, Vorlagen, Erwähnungen und 2FA-Einrichtung
 - **Selbstregistrierung und „Kennwort vergessen“** für lokale Konten (standardmäßig aus), optional nur für bestimmte Domänen und mit Freigabe
 - **Automatische Abmeldung bei Inaktivität,** für Admins und Zugriffe von außen strenger einstellbar, mit „Noch da?“-Hinweis
@@ -103,6 +104,7 @@ Bearbeiter lassen sich Tickets zusammenfassen und Antworten vorschlagen, glätte
 - **Was die KI bekommt:** Titel, Beschreibung und öffentliche Kommentare (neueste zuerst, gekürzt auf eine einstellbare Länge). Interne Notizen nur, wenn eingeschaltet; Anhänge nie. Das Protokoll enthält nur Ticketnummer, Aufgabe, Modell und Dauer – keine Inhalte.
 - **Reasoning-Modelle** (z. B. gpt-oss): Das „Nachdenken“ ist auf *niedrig* gestellt (schneller) und wird aus der Antwort entfernt.
 - Nur der Server spricht das Modell an; der Browser lädt weiterhin nichts von außen. Pro Bearbeiter sind die Aufrufe begrenzt.
+- **Wissensartikel** (Funktion standardmäßig an): Im Artikel-Editor ist *KI* der erste Knopf. Er wirkt auf die Markierung oder den ganzen Artikel und lässt die Formatierung stehen – glätten, kürzen, Schritt-für-Schritt-Anleitung aus Stichpunkten, übersetzen, Titel und Kategorie vorschlagen. Bei einem Artikel aus einem Ticket schreibt die KI auf Wunsch einen Entwurf (Problem – Ursache – Lösung) ohne persönliche Angaben. *Rückgängig* holt den vorherigen Text zurück.
 - **Funktionen einzeln schalten:** *Zusammenfassung*, *Antwortvorschlag* und *Umformulieren* (standardmäßig an) sowie *Komponente erkennen* (standardmäßig aus). Ausgeschaltete Funktionen erscheinen nirgends.
 - **Komponente erkennen:** Für neue Tickets, bei denen keine [Komponenten](#komponenten)-Regel passt, wählt die KI im Hintergrund aus der Liste der Komponenten (mit Beschreibung und Schlagwörtern) – oder meldet „passt nicht“. Zwei Arten:
   - *Vorschlagen* (Standard): Im Ticket steht „KI schlägt vor: VPN & Fernzugriff – Übernehmen / Verwerfen“ (Handy: unter *Alle Details*). Übernehmen setzt die Komponente und gibt das Ticket wie die Regeln an die verantwortliche Person.
@@ -250,6 +252,17 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 - **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
+
+## Antworten formatieren
+
+Über dem Kommentarfeld liegt eine Werkzeugleiste – im Ticket, bei Kommentaren zu Wissensartikeln und auf dem Handy (dort erscheint sie beim Schreiben und lässt sich seitlich wischen):
+
+- **KI** (wenn eingerichtet): Antwort vorschlagen, glätten, kürzen, übersetzen.
+- **Formatieren:** fett (Strg+B), kursiv (Strg+I), unterstrichen, durchgestrichen, Code; Aufzählung, nummerierte Liste, Zitat, Codeblock. Die Formatierung ist beim Schreiben sichtbar; „- “, „1. “ oder „> “ am Zeilenanfang gehen auch.
+- **Link** (Strg+K, auch Ticketnummern wie IT-42), **Bild** (oder Strg+V), **Emoji** (auch „:)“) und **@** zum Erwähnen.
+- **Vorformulierte Antworten** rechts in der Leiste, im selben Menü *Als Vorlage speichern*. Strg+Enter speichert.
+
+Gespeichert wird Text im Format der Wissensartikel. Melder und Teilnehmer bekommen die Antwort formatiert per Mail (HTML) mit einem lesbaren Textteil ohne Sternchen. Ältere Kommentare und Mails werden unverändert angezeigt.
 
 ## @-Erwähnungen
 
@@ -411,7 +424,7 @@ Die Desktop-Ansicht bleibt auch auf schmalen Bildschirmen benutzbar (Menü als S
 
 In Kommentaren, Beschreibungen und Antwortvorlagen:
 
-- **🙂-Knopf** unten rechts im Textfeld: Auswahl mit Suche (deutsch und englisch, z. B. „daumen“ oder „drucker“), Gruppen und „Zuletzt verwendet“.
+- **🙂-Knopf** in der Werkzeugleiste des Kommentarfelds (in anderen Textfeldern unten rechts): Auswahl mit Suche (deutsch und englisch, z. B. „daumen“ oder „drucker“), Gruppen und „Zuletzt verwendet“.
 - **Beim Tippen:** `:dau` schlägt 👍 vor (Pfeiltasten, Enter oder Tab übernimmt, Esc schließt). Ein fertiger Kurzname wie `:tada:` wird sofort zu 🎉. Uhrzeiten wie `12:30` und Adressen bleiben unberührt.
 - **Klassische Smileys** werden beim Tippen umgewandelt, sobald danach ein Leerzeichen kommt (oder beim Absenden): `:)` → 🙂, `;)` → 😉, `:D` → 😄, `:(` → 🙁, `:P` → 😛, `:O` → 😮, `<3` → ❤️, `(y)` → 👍. Nur wenn sie allein stehen, `C:)` bleibt also unverändert. **Strg+Z** macht die Umwandlung sofort rückgängig.
 - Angezeigt wird mit der Emoji-Schrift des Betriebssystems; es wird nichts aus dem Internet geladen. In E-Mails kommen die Emojis ganz normal an.

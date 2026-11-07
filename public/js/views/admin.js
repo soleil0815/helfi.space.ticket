@@ -817,6 +817,7 @@ function aiPage(body, s) {
         field(t('ai.fn.summary'), bindCheck(s, 'ai.summary'), t('ai.fn.summaryHint')),
         field(t('ai.fn.reply'), bindCheck(s, 'ai.reply'), t('ai.fn.replyHint')),
         field(t('ai.fn.rewrite'), bindCheck(s, 'ai.rewrite'), t('ai.fn.rewriteHint')),
+        field(t('ai.fn.kb'), bindCheck(s, 'ai.kb'), t('ai.fn.kbHint')),
         field(t('ai.fn.classify'), bindCheck(s, 'ai.classify', () => { syncMode(); updateHint(); }), t('ai.fn.classifyHint'))),
       modeField,
       classifyHint,

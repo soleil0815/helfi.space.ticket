@@ -219,10 +219,10 @@ export function modal(title, body, { footer = null, wide = false, onClose } = {}
   return { el: overlay, close };
 }
 
-/** Simple dropdown menu on an element. items: [{label, onClick, icon, active}] */
+/** Simple dropdown menu on an element. items: [{label, onClick, icon, active}], '-' (separator) or an element (e.g. a group heading) */
 export function dropdown(anchor, items, { align = 'left' } = {}) {
   document.querySelectorAll('.menu').forEach((m) => m.remove());
-  const menu = h('div.menu', { role: 'menu' }, items.map((it) => it === '-' ? h('div.menu-sep') : h('button.menu-item', {
+  const menu = h('div.menu', { role: 'menu' }, items.map((it) => it === '-' ? h('div.menu-sep') : it instanceof Node ? it : h('button.menu-item', {
     type: 'button', role: 'menuitem', class: it.active ? 'active' : '',
     onclick: () => { menu.remove(); it.onClick(); },
   }, it.icon || null, h('span', it.label))));

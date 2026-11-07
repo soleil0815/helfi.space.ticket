@@ -105,7 +105,7 @@ export const api = {
   kbFeedbackAdd: (id, body) => request('POST', `/api/kb/${id}/feedback`, { body }),
   kbFeedback: (id) => request('GET', `/api/kb/${id}/feedback`),
   kbRatingReset: (id) => request('POST', `/api/kb/${id}/rating/reset`),
-  kbCommentAdd: (id, body) => request('POST', `/api/kb/${id}/comments`, { body }),
+  kbCommentAdd: (id, body, format = 'text') => request('POST', `/api/kb/${id}/comments`, { body, format }),
   kbCommentResolve: (cid, resolved) => request('PATCH', `/api/kb/comments/${cid}`, { resolved }),
   kbCommentDelete: (cid) => request('DELETE', `/api/kb/comments/${cid}`),
   kbMove: (id, parentId) => request('PATCH', `/api/kb/${id}/parent`, { parentId }),
@@ -146,7 +146,8 @@ export const api = {
   updateTicket: (key, d) => request('PATCH', `/api/tickets/${encodeURIComponent(key)}`, d),
   bulk: (d) => request('POST', '/api/tickets/bulk', d),
   // attachmentIds: draft uploads (draft=file) that belong to this comment (mobile UI)
-  comment: (key, body, internal, attachmentIds) => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, attachmentIds?.length ? { body, internal, attachmentIds } : { body, internal }),
+  // format 'md': written with the formatting toolbar
+  comment: (key, body, internal, attachmentIds, format = 'text') => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal, format, ...(attachmentIds?.length ? { attachmentIds } : {}) }),
   upload: (key, files, { draft = false } = {}) => {
     const fd = new FormData();
     if (draft) fd.append('draft', '1');
@@ -171,6 +172,8 @@ export const api = {
   aiSummarize: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/ai/summary`),
   aiReply: (key, draft) => request('POST', `/api/tickets/${encodeURIComponent(key)}/ai/reply`, { draft }),
   aiRewrite: (text, mode) => request('POST', '/api/ai/rewrite', { text, mode }),
+  aiKb: (d) => request('POST', '/api/ai/kb', d),
+  aiKbDraft: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/ai/kb-draft`),
   descriptionVersion: (key, id) => request('GET', `/api/tickets/${encodeURIComponent(key)}/description-versions/${id}`),
   addParticipant: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/participants`, d),
   removeParticipant: (key, userId) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/participants/${userId}`),

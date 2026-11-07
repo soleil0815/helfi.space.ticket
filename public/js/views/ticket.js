@@ -1,5 +1,4 @@
 // Ticket view (two columns) and "Create ticket" dialog
-import { attachMentions } from '../mention.js';
 import { rememberTicket } from '../userdata.js';
 import { api } from '../api.js';
 import {
@@ -25,7 +24,8 @@ import { kbSuggestions, kbFromTicketButton } from './kb.js';
 import { catalogApprovalBox } from './catalog.js';
 import { ciSection } from './cmdb.js';
 import { ratingBox } from './survey.js';
-import { aiSummarySection, aiComposerTools } from '../aiassist.js';
+import { aiSummarySection, aiComposerTools, editorField } from '../aiassist.js';
+import { createCommentField, commentView } from '../commentfield.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
@@ -169,7 +169,7 @@ export async function renderTicket(content, key) {
           c.internal ? h('span.badge.badge-internal', icon('lock'), t('ticket.internal')) : null,
           c.source === 'email' ? h('span.badge', icon('mail'), t('source.email')) : null,
           h('span.muted', { title: fmtDate(c.createdAt) }, relTime(c.createdAt))),
-        c.hasHtml ? mailView(() => richText(c.body), `/api/tickets/${encodeURIComponent(tk.key)}/mail-html?comment=${c.id}`) : richText(c.body)));
+        c.hasHtml ? mailView(() => richText(c.body), `/api/tickets/${encodeURIComponent(tk.key)}/mail-html?comment=${c.id}`) : commentView(c)));
   }
 
   async function showDescriptionChange(a) {
@@ -209,51 +209,56 @@ export async function renderTicket(content, key) {
 
   function composer() {
     let internal = false;
-    const ta = h('textarea', { rows: 3, placeholder: t('ticket.addComment') });
-    enableImagePaste(ta, { upload: (files) => api.upload(tk.key, files, { draft: true }) });
-    // @-mentions (agents): "@" + letters shows people who may be mentioned here
-    const mentions = agent ? attachMentions(ta, { getKey: () => tk.key, isInternal: () => internal }) : null;
+    // Formatted field with one toolbar: AI · formatting · link · image · emoji · @ · canned responses
+    const field = createCommentField({
+      placeholder: t('ticket.addComment'), label: t('ticket.addComment'),
+      onSubmit: () => submit(),
+      // pasted/picked images: draft upload of this ticket, visible once the comment is saved
+      uploadImage: (f) => api.upload(tk.key, [f], { draft: true }).then((r) => `/api/attachments/${r.ids[0]}`),
+      mention: agent ? { getKey: () => tk.key, isInternal: () => internal } : null,
+    });
     const hint = h('div.hint');
     const modeBtns = agent ? h('div.composer-modes',
       h('button.mode.active', { type: 'button', onclick: (e) => setMode(false, e.currentTarget) }, t('ticket.reply')),
       h('button.mode', { type: 'button', onclick: (e) => setMode(true, e.currentTarget) }, icon('lock'), t('ticket.internalNote'))) : null;
     // Canned responses (agents only): insert at the cursor position, replace placeholders
-    const insertTemplate = (x) => {
-      const text = fillPlaceholders(x.body, tk);
-      ta.focus();
-      ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end');
-      ta.dispatchEvent(new Event('input'));
-    };
-    const templateBtn = agent ? h('button.btn.btn-subtle.small', {
+    const insertTemplate = (x) => field.insertMarkdown(fillPlaceholders(x.body, tk));
+    const templateBtn = agent ? h('button.kb-tb-btn.cm-tb-text', {
       type: 'button', title: t('canned.insertHint'), 'data-shortcut': 'template',
-      onclick: (e) => openTemplatePicker(e.currentTarget, insertTemplate),
-    }, icon('comment'), t('canned.insert'), icon('chevron-down')) : null;
+      onmousedown: (e) => e.preventDefault(),
+      onclick: (e) => {
+        field.remember();
+        openTemplatePicker(e.currentTarget, insertTemplate, {
+          footer: [{
+            label: t('canned.saveAs'), icon: icon('plus'),
+            onClick: () => { if (field.isEmpty()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: field.getValue() }); },
+          }],
+        });
+      },
+    }, icon('comment'), h('span.cm-tb-label', t('canned.toolbar')), icon('chevron-down')) : null;
     // AI suggestions (agents, only if set up in the administration)
-    const ai = agent && (state.boot.aiFeatures?.reply || state.boot.aiFeatures?.rewrite) ? aiComposerTools(ta, tk, { isInternal: () => internal }) : null;
-    const saveAsBtn = agent ? h('button.link.small', {
-      type: 'button',
-      onclick: () => { if (!ta.value.trim()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: ta.value }); },
-    }, t('canned.saveAs')) : null;
-    const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, withEmoji(ta), hint, ai?.note,
+    const ai = agent && (state.boot.aiFeatures?.reply || state.boot.aiFeatures?.rewrite)
+      ? aiComposerTools(editorField(field), tk, { isInternal: () => internal, className: 'kb-tb-btn.cm-tb-text' }) : null;
+    if (ai) field.slots.left.append(ai.button, h('span.kb-tb-sep'));
+    if (templateBtn) field.slots.right.append(templateBtn);
+    const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, field.el, hint, ai?.note,
       h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: submit }, t('app.save')),
-        templateBtn,
-        ai?.button,
-        h('span.muted.small', `Ctrl+Enter · ${t('paste.hint')}${agent ? ` · ${t('mention.hint')}` : ''}`),
-        saveAsBtn ? h('span.spacer') : null,
-        saveAsBtn)));
+        h('span.muted.small', `${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'}+Enter · ${t('paste.hint')}${agent ? ` · ${t('mention.hint')}` : ''}`))));
     function setMode(isInternal, btn) {
       internal = isInternal;
       modeBtns.querySelectorAll('.mode').forEach((b) => b.classList.toggle('active', b === btn));
       box.classList.toggle('internal', internal);
       hint.textContent = internal ? t('ticket.internalHint') : (tk.reporter?.email && tk.reporter.id !== state.user.id ? t('ticket.replyHint') : '');
     }
+    let sending = false;
     async function submit() {
-      if (!ta.value.trim()) return;
-      try { await api.comment(tk.key, mentions ? mentions.encode(ta.value) : ta.value, internal); mentions?.close(); await refresh(); }
+      if (field.isEmpty() || sending) return;
+      sending = true;
+      try { await api.comment(tk.key, field.getValue(), internal, [], 'md'); field.mentions?.close(); field.destroy(); await refresh(); }
       catch (e) { toast(e.message, 'error'); }
+      finally { sending = false; }
     }
-    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); });
     if (agent) setTimeout(() => setMode(false, modeBtns.querySelector('.mode')), 0);
     return box;
   }

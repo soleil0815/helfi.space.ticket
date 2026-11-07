@@ -3,7 +3,8 @@
 // sheet and comments. Users only get public articles – the API decides.
 import { ratingBox } from '/js/kbrating.js';
 import { api } from '/js/api.js';
-import { h, icon, toast, avatar, fmtDate, relTime, richText } from '/js/dom.js';
+import { h, icon, toast, avatar, fmtDate, relTime } from '/js/dom.js';
+import { createCommentField, commentView } from '/js/commentfield.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { renderDoc, headings } from '/js/kbdoc.js';
@@ -182,17 +183,19 @@ function openToc(page, doc) {
 /** Comments: read, write (everybody who can read the article, as in the desktop UI), delete own */
 function commentsSection(a) {
   const list = h('div.m-kb-comments', skeletonList(1));
-  const ta = h('textarea.m-textarea', { rows: 2, maxLength: 5000, placeholder: t('kb.cm.placeholder'), 'aria-label': t('kb.cm.placeholder') });
+  // Same formatted field as for replies (format bar: bold, italic, lists, quote, code, link, emoji)
+  const cm = createCommentField({ placeholder: t('kb.cm.placeholder'), label: t('kb.cm.placeholder'), onSubmit: () => send.click(), uploadImage: null });
+  cm.el.classList.add('m-kb-cm-field');
   const send = h('button.m-btn.m-btn-primary', { type: 'button' }, icon('send'), t('kb.cm.send'));
   let showDone = false;
-  const grow = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight + 2, 240)}px`; };
-  ta.addEventListener('input', grow);
   send.addEventListener('click', async () => {
-    if (!ta.value.trim()) { ta.focus(); return; }
+    if (cm.isEmpty()) { cm.area.focus(); return; }
+    const body = cm.getValue();
+    if (body.length > 5000) { toast(t('kb.cm.tooLong'), 'error'); return; }
     send.disabled = true;
     try {
-      await api.kbCommentAdd(a.id, ta.value);
-      ta.value = ''; grow();
+      await api.kbCommentAdd(a.id, body, 'md');
+      cm.clear();
       toast(t('m.kb.commentSent'), 'success');
       await load();
     } catch (e) { toast(e.message, 'error'); }
@@ -211,7 +214,7 @@ function commentsSection(a) {
             try { await api.kbCommentDelete(c.id); await load(); } catch (e) { toast(e.message, 'error'); }
           },
         }, icon('trash')) : null),
-      richText(c.body)));
+      commentView(c)));
   async function load() {
     const { comments } = await api.kbComments(a.id);
     const open = comments.filter((c) => !c.resolved);
@@ -223,5 +226,5 @@ function commentsSection(a) {
   }
   load().catch((e) => list.replaceChildren(h('p.m-muted', e.message)));
   return section(t('kb.cm.title'), h('div.m-card.m-kb-cm-card', list,
-    h('div.m-kb-cm-compose', ta, h('div.m-kb-cm-actions', h('span.m-muted', t(state.isAgent ? 'm.kb.cmHint' : 'm.kb.cmHintUser')), send))));
+    h('div.m-kb-cm-compose', cm.el, h('div.m-kb-cm-actions', h('span.m-muted', t(state.isAgent ? 'm.kb.cmHint' : 'm.kb.cmHintUser')), send))));
 }
