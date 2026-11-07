@@ -1514,3 +1514,6 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .backfill-review { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-weight: 600; }
 .backfill-bulk { display: flex; gap: 8px; margin-bottom: 12px; }
 .backfill-table td:first-child, .backfill-table th:first-child { width: 32px; }
+.examples-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
+.examples-list { max-height: 55vh; overflow: auto; }
+.page-head .actions, .section-head .actions { display: flex; gap: 8px; align-items: center; }

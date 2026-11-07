@@ -299,6 +299,7 @@
 <ul>
   <li><strong>Placeholders</strong> are replaced on insertion: <code>{reporter}</code>, <code>{ticket}</code>, <code>{title}</code>, <code>{agent}</code>.</li>
   <li><strong>New template:</strong> write the text in the comment field and choose <em>Save as template</em>. Personal templates are managed in your <em>Profile</em>; templates for everyone are maintained by admins under <em>Administration → Reply templates</em>.</li>
+  <li><strong>Take over examples</strong> <span class="role role-admin">admin</span>: under <em>Administration → Reply templates</em>, <em>Examples</em> creates ten frequent replies for everyone – from “Confirm receipt” to “Solved – please confirm” –, in German or English and with placeholders. Adapt them as you like afterwards.</li>
 </ul>
 
 <h2 id="ai">AI assistance</h2>
@@ -395,6 +396,8 @@
 <h2 id="knowledge">Knowledge base</h2>
 <p><em>Knowledge</em> collects guides and solutions. Articles are <strong>internal</strong> (agents only) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing. From three headings on, the article view shows a table of contents on the right.</p>
 <figure><img src="img/en/itil-kb.jpg" alt=""><figcaption>Knowledge base with categories</figcaption></figure>
+<p><strong>Example articles:</strong> if the knowledge base is still empty, <em>Examples</em> takes over ready sample articles – such as “How to report a problem well”, “Setting up VPN” or “Changing or forgetting your password”. They show how a good article is built and are created <strong>internal</strong>: replace the details in square brackets with your own and then make them public.</p>
+<figure class="medium"><img src="img/en/examples-kb.jpg" alt=""><figcaption>A taken-over example article</figcaption></figure>
 <h3>Rating and feedback</h3>
 <p>Below every article there is “Was this article helpful?” with 👍 and 👎. The article list shows the rating per article; the <em>Needs rework</em> filter lists articles with 👎 votes, most first. On the article, <em>Feedback</em> opens the notes on what was missing. Once you have reworked the article, <em>Reset rating</em> sets the votes back to zero – the notes stay under “Earlier feedback”.</p>
 <figure class="medium"><img src="img/en/kb-feedback.jpg" alt=""><figcaption>Feedback on an article</figcaption></figure>
@@ -443,6 +446,8 @@
 <h2 id="servicecatalog">Setting up the service catalog <span class="role role-admin">admin</span></h2>
 <p>Under <em>Administration → Service catalog</em> you create offers: name, emoji, description, project and form fields (text, multi-line, choice, check box, date; each optionally required). Optionally choose approvers, also without the agent role, and whether one or all approvals are needed. Requests become tickets of type <em>Request</em>; the answers appear in the description. How users see the catalog is described in <a href="#catalog">2.9</a>.</p>
 <figure><img src="img/en/admin-catalog.jpg" alt=""><figcaption>Administration → Service catalog</figcaption></figure>
+<p><strong>Take over examples:</strong> <em>Examples</em> creates typical offers with a ready form, e.g. “New employee”, “Install software” or “Wi-Fi access for guests” – in German or English. They start <strong>switched off</strong>, so users only see them once you have checked fields, project and approvers and switched them on.</p>
+<figure class="medium"><img src="img/en/examples-catalog.jpg" alt=""><figcaption>Choosing example offers</figcaption></figure>
 
 <h2 id="devices">Devices &amp; services</h2>
 <p>A lean register of IT equipment and services (CI register). Each entry has a kind, status (in operation, in maintenance, retired), location, user, IP address, serial number, vendor and model. In a ticket you link affected devices and services in the <em>Devices &amp; services</em> section. For changes these are the affected services. An entry’s detail page lists all its tickets, so recurring faults stand out.</p>

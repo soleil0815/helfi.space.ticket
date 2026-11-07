@@ -514,6 +514,17 @@ export function createApi(ctx) {
     res.status(201).json(out);
   });
   r.post('/projects/:id/components/test', requireRole('admin'), (req, res) => res.json(components.test(req.params.id, req.body || {})));
+  // Examples to take over: shared canned responses, catalog offerings (admins), knowledge articles (agents)
+  const examplesAllowed = (user, kind) => (kind === 'kb' ? isAgent(user) : user.role === 'admin');
+  r.get('/examples/:kind', requireRole('agent'), (req, res) => {
+    if (!examplesAllowed(req.user, req.params.kind)) throw forbidden();
+    res.json({ examples: ctx.examples.list(req.params.kind) });
+  });
+  r.post('/examples/:kind', requireRole('agent'), (req, res) => {
+    const out = ctx.examples.take(req.user, req.params.kind, req.body?.keys, req.body?.lang);
+    log.info(`Examples (${req.params.kind}) taken over by ${req.user.username}`, { added: out.added.length, skipped: out.skipped.length });
+    res.status(201).json(out);
+  });
   r.get('/components/examples', requireRole('admin'), (req, res) => res.json({ examples: components.examples() }));
   r.patch('/components/:id', requireRole('admin'), (req, res) => res.json({ component: components.update(req.params.id, req.body || {}) }));
   r.delete('/components/:id', requireRole('admin'), (req, res) => {

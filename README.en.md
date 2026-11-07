@@ -397,6 +397,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 - **Suggestions when reporting:** as a user types the summary in the “Create ticket” dialog, matching public articles appear (“Maybe this already helps”). They open without losing the report.
 - **From a ticket:** *Knowledge article* in a ticket creates a draft with description, last reply and, for problems, root cause and workaround. Remove personal details before publishing. The ticket history links to the article.
 - **Known errors:** tab with all problems marked as known error, including the workaround.
+- **Example articles:** *Examples* (agents) takes over ready sample articles – “How to report a problem well”, “Setting up VPN”, “Adding a printer”, “Changing or forgetting your password”, “Setting up an out-of-office reply” – in German or English. They are created **internal**: adapt the details in square brackets, then make them public.
 
 ## Service catalog
 
@@ -406,6 +407,7 @@ Standard requests with their own form, e.g. “New employee”, “Software requ
 - **Request a service** in the sidebar shows all offers as tiles to users and agents.
 - **Approval (optional):** per offer you decide who has to agree and whether one approval is enough or everybody has to agree. Approvers can be people without the agent role, such as managers; they then only see the requests they decide on. They get an email and find open decisions under **My approvals**.
 - **Result:** the decision is added to the ticket as a reply, so the reporter also gets it by email. A rejection closes the request.
+- **Take over examples:** *Examples* creates typical offers with a ready form – new employee, employee leaving, install software, access to a drive or folder, order hardware, Wi-Fi for guests, distribution list or shared mailbox – in German or English. They start **switched off**: check fields, project and approvers, then switch them on.
 
 ## Devices & services
 
@@ -460,6 +462,7 @@ For replies that are always the same (e.g. "Please restart your computer"):
   - Write a text in the comment box and choose **Save as template**.
   - Admins manage templates for everyone under *Administration → Reply templates*.
   - Every agent manages personal templates in their *profile*; only they can see them.
+- **Take over examples:** under *Administration → Reply templates*, *Examples* creates ten frequent replies for everyone (confirm receipt, more details needed, please restart, password reset, arrange remote session, waiting for vendor, hardware ordered, known outage, solved – please confirm, closing without reply) with placeholders, in German (formal) or English. Existing ones with the same title are skipped.
 
 ## Reports
 

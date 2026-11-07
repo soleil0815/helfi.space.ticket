@@ -5,6 +5,7 @@ import { t } from '../i18n.js';
 import { state } from '../app.js';
 import { fillPlaceholders as fill } from '../placeholders.js';
 import { withEmoji } from '../emoji.js';
+import { examplesButton } from './examples.js';
 
 /** Replace placeholders on insert; agent = logged-in person. */
 export function fillPlaceholders(text, tk, user = state.user) {
@@ -111,7 +112,9 @@ export function templatesPanel({ shared }) {
     catch (e) { return mount(panel, h('p.error-text', e.message)); }
     mount(panel,
       h('div.section-head', h('h2', shared ? t('canned.sharedTitle') : t('canned.personalTitle')),
-        h('button.btn.btn-primary', { type: 'button', onclick: () => templateDialog({ shared, onSaved: draw }) }, icon('plus'), t('canned.new'))),
+        h('div.actions',
+          shared && state.user?.role === 'admin' ? examplesButton('canned', () => { cache = null; draw(); }) : null,
+          h('button.btn.btn-primary', { type: 'button', onclick: () => templateDialog({ shared, onSaved: draw }) }, icon('plus'), t('canned.new')))),
       h('p.muted', shared ? t('canned.sharedIntro') : t('canned.personalIntro')),
       items.length
         ? h('div.template-list', items.map((x) => h('div.template-row',

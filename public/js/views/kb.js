@@ -10,6 +10,7 @@ import { createKbEditor } from '../kbeditor.js';
 import { builtinTemplates } from '../kbtemplates.js';
 import { diffView, diffLegend } from '../diffview.js';
 import { ratingBox } from '../kbrating.js';
+import { examplesButton } from './examples.js';
 
 const visBadge = (v) => h(`span.badge.kb-${v}`, t(`kb.vis.${v}`));
 
@@ -51,7 +52,9 @@ async function list(content, params) {
   search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => go({ q: search.value.trim() }), 300); });
   mount(content,
     h('div.page-head', h('h1', t('kb.title')),
-      agent ? h('a.btn.btn-primary', { href: '/kb/new', 'data-link': '' }, icon('plus'), t('kb.new')) : null),
+      agent ? h('div.actions',
+        examplesButton('kb', () => navigate(location.pathname + location.search, { replace: true })),
+        h('a.btn.btn-primary', { href: '/kb/new', 'data-link': '' }, icon('plus'), t('kb.new'))) : null),
     agent ? h('div.tabs.kb-tabs',
       h('a.tab', { href: '/kb', 'data-link': '', class: tab === 'articles' ? 'active' : '' }, t('kb.articles')),
       h('a.tab', { href: '/kb?tab=known', 'data-link': '', class: tab === 'known' ? 'active' : '' }, t('kb.knownErrors')),

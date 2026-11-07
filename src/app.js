@@ -39,6 +39,7 @@ import { createApi } from './routes/api.js';
 import { createSelfService } from './auth/selfservice.js';
 import { createAi } from './ai.js';
 import { createAiClassifier } from './ai-classify.js';
+import { createExamples } from './examples.js';
 import { createOidcRoutes } from './routes/oidc.js';
 import { HttpError } from './lib/http.js';
 import { t, langFromHeader, normalizeLang, hasKey } from './i18n.js';
@@ -112,7 +113,8 @@ export function createApp(db) {
   const selfService = createSelfService({ db, settings, users, sessions, mailer, baseUrl: config.baseUrl });
   const ai = createAi({ db, settings, tickets });
   const aiClassifier = createAiClassifier({ db, settings, tickets, ai });
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, ldapCertWarning: null,
+  const examples = createExamples({ db, canned, catalog, kb });
+  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, examples, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 

@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, mount, icon, toast, field, select, avatar } from '../dom.js';
 import { t } from '../i18n.js';
 import { state, navigate } from '../app.js';
+import { examplesButton } from './examples.js';
 import { withEmoji } from '../emoji.js';
 
 export async function renderCatalog(content, path) {
@@ -81,6 +82,7 @@ export async function catalogAdminPage(body) {
     if (edit) return mount(body, editor(edit));
     mount(body, h('section.panel',
       h('div.section-head', h('h2', t('catalog.adminTitle')), h('span.spacer'),
+        examplesButton('catalog', () => catalogAdminPage(body)),
         h('button.btn.btn-primary', { type: 'button', onclick: () => draw({ title: '', description: '', emoji: '', fields: [], approverIds: [], approvalMode: 'any', active: true, projectKey: '' }) }, icon('plus'), t('catalog.newItem'))),
       h('p.muted', t('catalog.adminIntro')),
       items.length ? h('table.data', h('tbody', items.map((x) => h('tr',
