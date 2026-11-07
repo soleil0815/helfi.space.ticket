@@ -343,6 +343,7 @@ In *All tickets* (agents):
   - **Comment:** reply or internal note for all selected tickets without changing the status.
   - **Link …:** link all selected tickets with one ticket, e.g. "is caused by IT-42"; optionally with status and comment right away. Existing links stay as they are.
   - **Assign**, **Priority**
+  - **Component:** set or remove (*No component*) when all selected tickets belong to one project – like a change in the ticket: history entry, no mail, nobody is assigned automatically.
   - **Move to another project**
 - Every change goes into the ticket history. If one ticket fails, the others still go through and the message names it.
 

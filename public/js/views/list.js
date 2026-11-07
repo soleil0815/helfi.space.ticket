@@ -224,6 +224,27 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
     });
     setTimeout(() => (picker ? picker.input : ta).focus(), 0);
   }
+  // Component for the selection: components belong to a project – only when all selected tickets are in one
+  function componentMenu() {
+    const projects = new Set(tickets.filter((tk) => sel.has(tk.key)).map((tk) => tk.projectId));
+    const pid = projects.size === 1 ? [...projects][0] : null;
+    return h('button.btn.btn-subtle', {
+      type: 'button',
+      disabled: !pid,
+      title: pid ? null : t('bulk.componentOneProject'),
+      'data-bulk': 'component',
+      onclick: async (e) => {
+        const anchor = e.currentTarget;
+        const comps = await projectComponents(pid);
+        dropdown(anchor, [
+          { label: t('filter.noComponent'), onClick: () => run({ changes: { componentId: null } }) },
+          ...(comps.length ? ['-'] : []),
+          ...comps.map((c) => ({ label: c.name, onClick: () => run({ changes: { componentId: c.id } }) })),
+        ]);
+      },
+    }, t('ticket.component'), icon('chevron-down'));
+  }
+
   function drawBar() {
     const menu = (label, items) => h('button.btn.btn-subtle', { type: 'button', onclick: (e) => dropdown(e.currentTarget, items) }, label, icon('chevron-down'));
     mount(bar,
@@ -244,6 +265,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
         ...state.agents.filter((a) => a.id !== state.user.id).map((a) => ({ label: a.displayName, icon: avatar(a, 'sm'), onClick: () => run({ changes: { assigneeId: a.id } }) })),
       ]),
       menu(t('list.priority'), PRIOS.map((x) => ({ label: t(`priority.${x}`), icon: priorityIcon(x), onClick: () => run({ changes: { priority: x } }) }))),
+      componentMenu(),
       state.projects.length > 1 ? menu(t('bulk.move'), state.projects.map((p) => ({ label: `${p.name} (${p.key})`, onClick: () => run({ changes: { projectId: p.id } }, t('bulk.moveConfirm', { n: sel.size, key: p.key })) }))) : null,
       h('span.spacer'),
       h('button.btn.btn-subtle', { type: 'button', onclick: () => { sel.clear(); sync(); } }, t('bulk.clear')));
