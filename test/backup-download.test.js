@@ -91,12 +91,13 @@ test('Download: ZIP with the database and INFO.txt, without secret.key', async (
   const r = await S.admin.raw(`/api/admin/backups/${encodeURIComponent(name)}/download`);
   assert.equal(r.status, 200);
   assert.equal(r.headers.get('content-type'), 'application/zip');
-  assert.equal(r.headers.get('content-disposition'), `attachment; filename="${name.replace(/\.sqlite$/, '.zip')}"`);
+  assert.equal(r.headers.get('content-disposition'), `attachment; filename="${name.replace(/\.sqlite\.gz$/, '.zip')}"`);
   assert.match(r.headers.get('cache-control'), /no-store/);
   const z = readZip(r.bytes);
   assert.deepEqual(Object.keys(z).sort(), ['INFO.txt', 'helfi.sqlite']);
   assert.ok(!Object.keys(z).some((n) => /secret/i.test(n)), 'never the key');
-  const original = fs.readFileSync(path.join(paths.backups, name));
+  assert.match(name, /\.sqlite\.gz$/, 'stored packed');
+  const original = zlib.gunzipSync(fs.readFileSync(path.join(paths.backups, name)));
   assert.ok(z['helfi.sqlite'].equals(original), 'identical to the backup on the host');
   assert.ok(r.bytes.length < original.length, 'packed');
   const key = fs.existsSync(paths.secretKey) ? fs.readFileSync(paths.secretKey) : null;

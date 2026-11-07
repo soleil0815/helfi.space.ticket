@@ -1,6 +1,7 @@
 /**
  * Minimal streaming ZIP writer (deflate, no ZIP64) based on Node's own zlib – no extra dependency.
- * Entries are either in-memory buffers ({ name, data }) or files read as a stream ({ name, file }).
+ * Entries are either in-memory buffers ({ name, data }) or files read as a stream ({ name, file },
+ * with gunzip: true for a gzip-packed file whose unpacked content goes into the archive).
  * Sizes and checksums of file entries follow in a data descriptor (general purpose bit 3),
  * so even large files never have to be held in memory.
  */
@@ -94,10 +95,13 @@ export async function* zipStream(entries, { level = 6 } = {}) {
     offset += head.length;
     const deflate = zlib.createDeflateRaw({ level });
     if (entry.file) {
-      const src = fs.createReadStream(entry.file);
+      // gunzip: the file is stored packed (e.g. a backup .sqlite.gz) – the entry holds the unpacked content
+      const read = fs.createReadStream(entry.file);
+      const src = entry.gunzip ? zlib.createGunzip() : read;
       src.on('data', (chunk) => { e.crc = crc32(chunk, e.crc); e.size += chunk.length; });
-      // An error while reading destroys the deflate stream, so the loop below throws
-      pipeline(src, deflate, () => {});
+      // An error while reading/unpacking destroys the deflate stream, so the loop below throws
+      if (entry.gunzip) pipeline(read, src, deflate, () => {});
+      else pipeline(src, deflate, () => {});
     } else {
       const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(String(entry.data ?? ''), 'utf8');
       e.crc = crc32(data);

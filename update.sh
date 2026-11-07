@@ -469,7 +469,8 @@ if [ -n "$NEW_VERSION" ]; then
     # Take the OLDEST complete backup since this update started (in restart loops, later ones may
     # already be partly migrated). .part or an accompanying -journal/-wal = not finished.
     backup=""; partial=""
-    found="$(find "$bdir" -maxdepth 1 \( -name "helfi-vor-$NEW_VERSION-*.sqlite" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.part" \) -newer "$MARKER" 2>/dev/null | sort)"
+    # Helfi.Space keeps this backup unpacked for a day; packed (.sqlite.gz) it is accepted too
+    found="$(find "$bdir" -maxdepth 1 \( -name "helfi-vor-$NEW_VERSION-*.sqlite" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.gz" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.part" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.gz.part" \) -newer "$MARKER" 2>/dev/null | sort)"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       if [ "${f%.part}" != "$f" ] || [ -e "$f-journal" ] || [ -e "$f-wal" ]; then
@@ -500,7 +501,12 @@ EOF_BACKUPS
     else
       stamp="$(date +%Y%m%d-%H%M%S)"
       # Copy completely first, then swap – never be left without a database
-      if cp "$backup" "$DATA_DIR/helfi.sqlite.zurueck" && sync; then
+      case "$backup" in
+        *.gz) if command -v gzip >/dev/null 2>&1; then restore() { gzip -dc "$backup" > "$DATA_DIR/helfi.sqlite.zurueck"; }
+              else restore() { err "gzip fehlt – die gepackte Sicherung lässt sich nicht entpacken." "gzip is missing – the packed backup cannot be unpacked."; return 1; }; fi ;;
+        *) restore() { cp "$backup" "$DATA_DIR/helfi.sqlite.zurueck"; } ;;
+      esac
+      if restore && sync; then
         for ext in "" -wal -shm; do
           [ -f "$DATA_DIR/helfi.sqlite$ext" ] && mv "$DATA_DIR/helfi.sqlite$ext" "$DATA_DIR/helfi.sqlite.fehlgeschlagen-$stamp$ext"
         done

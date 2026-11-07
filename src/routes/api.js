@@ -1023,7 +1023,7 @@ export function createApi(ctx) {
     backupDownloads++;
     res.once('close', () => { backupDownloads--; });
     const { name, file } = b;
-    const zipName = name.replace(/\.sqlite$/, '.zip');
+    const zipName = name.replace(/\.sqlite(\.gz)?$/, '.zip');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1031,7 +1031,7 @@ export function createApi(ctx) {
     log.info(`Backup ${name} downloaded by ${req.user.username}`);
     const created = new Date(b.time);
     Readable.from(zipStream([
-      { name: 'helfi.sqlite', file, mtime: created },
+      { name: 'helfi.sqlite', file, gunzip: name.endsWith('.gz'), mtime: created },
       { name: 'INFO.txt', data: backupInfoText({ name, created }), mtime: new Date() },
     ])).on('error', (e) => {
       log.warn('Backup download aborted', { name, error: e.message });

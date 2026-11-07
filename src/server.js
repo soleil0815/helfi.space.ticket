@@ -1,7 +1,7 @@
 // Entry point: open the database, start background tasks, HTTP server.
 import fs from 'node:fs';
 import { config, paths } from './config.js';
-import { openDatabase, backupDatabase, pruneBackups, DatabaseTooNewError, verifyKey, WrongKeyError } from './db.js';
+import { openDatabase, backupDatabase, pruneBackups, packPendingBackups, DatabaseTooNewError, verifyKey, WrongKeyError } from './db.js';
 import { initMasterKey } from './lib/crypto.js';
 import { createApp } from './app.js';
 import * as ldap from './auth/ldap.js';
@@ -51,11 +51,15 @@ async function main() {
       await backupDatabase(db, 'taeglich');
       pruneBackups(ctx.settings.get('backup.keep'));
     } catch (e) { log.error('Daily backup failed', { error: e.message }); }
+    // Pack older unpacked backups (also the one before the last version change once it is a day old)
+    await packPendingBackups().catch((e) => log.warn('Packing backups failed', { error: e.message }));
     await checkLdapCertificate(ctx).catch(() => {});
   };
   setTimeout(() => checkLdapCertificate(ctx).catch(() => {}), 10_000).unref();
   setInterval(daily, 24 * 3600 * 1000).unref();
   setTimeout(daily, 60 * 60 * 1000).unref(); // first backup one hour after start
+  // Unpacked backups from earlier versions: pack them in the background shortly after start
+  setTimeout(() => packPendingBackups().catch((e) => log.warn('Packing backups failed', { error: e.message })), 2 * 60 * 1000).unref();
 
   const shutdown = (sig) => {
     log.info(`${sig} received, shutting down ...`);

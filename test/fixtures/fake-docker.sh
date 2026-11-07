@@ -46,7 +46,7 @@ case "$1" in
             [ -n "${FAKE_BACKUP_OLDER:-}" ] && printf sicherung-alt > "$data/backups/helfi-vor-$FAKE_NEW_VERSION-2026-10-31T11-00-00.sqlite"
             b="$data/backups/helfi-vor-$FAKE_NEW_VERSION-2026-10-31T12-00-00.sqlite"
             [ -n "${FAKE_BACKUP_PART:-}" ] && b="$b.part"
-            printf sicherung-neu > "$b"
+            if [ -n "${FAKE_BACKUP_GZ:-}" ]; then printf sicherung-neu | gzip -c > "$b.gz"; else printf sicherung-neu > "$b"; fi
             [ -n "${FAKE_BACKUP_JOURNAL:-}" ] && printf halb > "$data/backups/helfi-vor-$FAKE_NEW_VERSION-2026-10-31T12-00-00.sqlite-journal"
           fi
           [ -f "$data/helfi.sqlite" ] && printf migriert > "$data/helfi.sqlite"
