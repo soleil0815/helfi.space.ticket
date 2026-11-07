@@ -175,6 +175,7 @@ export const api = {
   aiKb: (d) => request('POST', '/api/ai/kb', d),
   aiKbDraft: (key) => request('POST', `/api/tickets/${encodeURIComponent(key)}/ai/kb-draft`),
   descriptionVersion: (key, id) => request('GET', `/api/tickets/${encodeURIComponent(key)}/description-versions/${id}`),
+  setReporter: (key, reporter, notify = true) => request('PUT', `/api/tickets/${encodeURIComponent(key)}/reporter`, { reporter, notify }),
   addParticipant: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/participants`, d),
   removeParticipant: (key, userId) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/participants/${userId}`),
 

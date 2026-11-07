@@ -308,7 +308,9 @@ export function createTickets(db, users) {
       .run(ticketId, userId, action, field, oldV === null ? null : String(oldV), newV === null ? null : String(newV));
   }
 
-  function create(user, data, { source = 'web', reporterEmail = null, reporterName = null, reporterId, messageId = null } = {}) {
+  function create(user, data, { source = 'web', reporterEmail = null, reporterName = null, reporterId, messageId = null, notifyReporter = false } = {}) {
+    // An agent creates the ticket for someone else (e.g. a request that came in by phone or another mailbox)
+    const onBehalf = !!user && reporterId !== undefined && reporterId !== null && reporterId !== user.id;
     const title = str(data.title, 255).trim();
     if (!title) throw new HttpError(400, 'err.titleRequired');
     let project = data.projectId ? projects.get(data.projectId) : null;
@@ -343,13 +345,14 @@ export function createTickets(db, users) {
         source, minRank - 1, component ? component.id : null,
       );
       logActivity(info.lastInsertRowid, user ? user.id : null, 'created');
+      if (onBehalf) logActivity(info.lastInsertRowid, user.id, 'createdFor', null, null, users.byId(reporterId)?.display_name || '');
       // History: which rule decided (kind = keywords/sender, detail = words or pattern)
       if (match) logActivity(info.lastInsertRowid, null, 'classified', match.kind, reasonDetail(match), component.name);
       if (autoAssigned) logActivity(info.lastInsertRowid, null, 'autoAssigned', autoAssigned.role, component.name, users.byId(autoAssigned.id)?.display_name || '');
       return info.lastInsertRowid;
     })();
     const t = ticketOut(rawById(id));
-    emitLater('created', { ticket: messageId ? { ...t, sourceMessageId: messageId } : t, user });
+    emitLater('created', { ticket: messageId ? { ...t, sourceMessageId: messageId } : t, user, onBehalf, notifyReporter: onBehalf && notifyReporter });
     if (t.assignee) emitLater('assigned', { ticket: t, user });
     return t;
   }
@@ -447,6 +450,32 @@ export function createTickets(db, users) {
     if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
     if (changes.component_id) events.emit('componentChanged', { ticketId: row.id, componentId: changes.component_id.new, userId: user.id });
     return result;
+  }
+
+  /**
+   * Change the reporter (agents): e.g. when the ticket was created for oneself by mistake.
+   * A previous reporter with an account keeps access as a request participant; the new
+   * reporter is no longer listed as a participant.
+   */
+  function setReporter(user, idOrKey, target, { notify = false } = {}) {
+    const row = load(user, idOrKey);
+    if (!isAgent(user)) throw forbidden();
+    if (!target || !target.active) throw new HttpError(400, 'err.badRequest', 'reporter');
+    if (row.reporter_id === target.id) return ticketOut(row);
+    const old = row.reporter_id ? users.byId(row.reporter_id) : null;
+    const oldName = old ? old.display_name : (row.reporter_name || row.reporter_email || null);
+    db.transaction(() => {
+      db.prepare("UPDATE tickets SET reporter_id=?, reporter_email=NULL, reporter_name=NULL, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(target.id, row.id);
+      db.prepare('DELETE FROM ticket_participants WHERE ticket_id=? AND user_id=?').run(row.id, target.id);
+      logActivity(row.id, user.id, 'changed', 'reporter', oldName, target.display_name);
+      if (old && old.active && old.source !== 'email' && !isAgent(old) && !isParticipant(row.id, old.id)) {
+        db.prepare('INSERT INTO ticket_participants(ticket_id,user_id,added_by) VALUES(?,?,?)').run(row.id, old.id, user.id);
+        logActivity(row.id, user.id, 'participantAdded', null, null, old.display_name);
+      }
+    })();
+    const t = ticketOut(rawById(row.id));
+    if (notify) emitLater('reporterChanged', { ticket: t, user });
+    return t;
   }
 
   /** Move a ticket to another project: new number there, old number in the history (call within a transaction). */
@@ -852,6 +881,6 @@ export function createTickets(db, users) {
     search,
     events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
-    applyComponent, descriptionVersion, participants, addParticipant, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
+    applyComponent, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
 }

@@ -254,6 +254,20 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
+## Entering tickets for others
+
+When a request comes in by phone, in passing or to another mailbox, agents enter the ticket right away on behalf of that person. It then shows up under their *My requests*, and they get used to the ticket system.
+
+- **When creating:** the *Create ticket* dialog shows the **reporter** at the top, “Me” by default. *Enter for someone else* opens the search:
+  - existing accounts by name, user name or email address
+  - from 3 characters also people from AD (as for participants; they are created as AD users when saving)
+  - or any email address; without an account, an email contact is created as for tickets by email
+- **Notify** (on by default): the person gets an email with the ticket key and link. People with an account also get a hint that they can report new requests in Helfi.Space themselves. If mail fetching is set up, they can reply to the email.
+- **Traceable:** the history shows which agent created the ticket for whom.
+- **Change later:** in the details *Reporter → Change reporter* (phone: *All details → Reporter*). The previous reporter keeps access as a request participant; agents and pure email contacts do not. The change is recorded in the history.
+- **Agents only:** users cannot enter another reporter (the server refuses). Disabled accounts cannot be chosen.
+- **On phones:** *+ → Report a problem* shows agents the *Reporter* field at the top.
+
 ## Formatting replies
 
 Above the comment field there is a toolbar – in tickets, in comments on knowledge articles and on phones (there it appears while writing and can be swiped sideways):

@@ -254,6 +254,20 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
+## Tickets für andere erfassen
+
+Kommt ein Anliegen per Telefon, im Flur oder an ein anderes Postfach, erfassen Bearbeiter das Ticket gleich im Namen der Person. So landet es bei ihr unter *Meine Anfragen*, und sie gewöhnt sich ans Ticketsystem.
+
+- **Beim Erstellen:** Im Dialog *Ticket erstellen* steht oben der **Melder**, voreingestellt „Ich“. *Für jemand anderen erfassen* öffnet die Suche:
+  - vorhandene Konten nach Name, Anmeldename oder Mailadresse
+  - ab 3 Zeichen auch Personen aus dem AD (wie bei den Teilnehmern; sie werden beim Speichern als AD-Benutzer angelegt)
+  - oder eine beliebige Mailadresse; ohne Konto entsteht ein E-Mail-Kontakt wie bei Tickets per Mail
+- **Benachrichtigen** (standardmäßig an): Die Person bekommt eine Mail mit Ticketnummer und Link. Personen mit Konto erhalten dazu den Hinweis, dass sie neue Anliegen künftig selbst in Helfi.Space melden können. Ist der Mailabruf eingerichtet, können sie auf die Mail antworten.
+- **Nachvollziehbar:** Der Verlauf zeigt, welcher Bearbeiter das Ticket für wen angelegt hat.
+- **Nachträglich ändern:** in den Details *Melder → Melder ändern* (Handy: *Alle Details → Melder*). Der bisherige Melder behält als Anfrage-Teilnehmer Zugriff; Bearbeiter und reine E-Mail-Kontakte nicht. Die Änderung steht im Verlauf.
+- **Nur Bearbeiter:** Benutzer können keinen anderen Melder eintragen (der Server lehnt das ab). Deaktivierte Konten lassen sich nicht wählen.
+- **Auf dem Handy:** *+ → Problem melden* zeigt Bearbeitern oben das Feld *Melder*.
+
 ## Antworten formatieren
 
 Über dem Kommentarfeld liegt eine Werkzeugleiste – im Ticket, bei Kommentaren zu Wissensartikeln und auf dem Handy (dort erscheint sie beim Schreiben und lässt sich seitlich wischen):

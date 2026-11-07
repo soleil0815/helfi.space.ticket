@@ -1497,3 +1497,9 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 [data-theme="dark"] .qr { background: #fff; }
 [data-theme="dark"] .auth-page { background: linear-gradient(180deg, var(--bg-sunken) 0%, var(--blue-subtle) 100%); }
 [data-theme="dark"] .auth-brand { color: var(--blue-hover); }
+/* Reporter in the create dialog / ticket details (agents) */
+.reporter-field { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 36px; }
+.reporter-field input { flex: 1; min-width: 240px; }
+.reporter-field .person .badge-ad { margin-left: 6px; }
+.field .reporter-notify { display: inline-flex; margin: 8px 0 0; font-size: 14px; font-weight: 400; color: var(--text); }
+.reporter-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }

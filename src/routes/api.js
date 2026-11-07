@@ -357,6 +357,33 @@ export function createApi(ctx) {
     return u;
   }
 
+  /**
+   * Person for the reporter field (agents): { userId } | { adId } (from AD, created as a user
+   * on first use) | { email, name? } (existing account, AD match by address or an email contact).
+   */
+  async function reporterFrom(choice) {
+    if (!choice || typeof choice !== 'object') throw new HttpError(400, 'err.badRequest', 'reporter');
+    let u = null;
+    if (choice.userId !== undefined) {
+      u = users.byId(int(choice.userId) || 0);
+    } else if (typeof choice.adId === 'string' && choice.adId) {
+      if (!adPeopleOn()) throw forbidden();
+      if (!/^[0-9a-f]{32}$/i.test(choice.adId)) throw new HttpError(400, 'err.badRequest', 'adId');
+      u = await personFromAd({ adId: choice.adId });
+    } else if (typeof choice.email === 'string') {
+      const e = normalizeEmail(str(choice.email, 254));
+      if (!e) throw new HttpError(400, 'err.badRequest', 'email');
+      const existing = users.byEmail(e);
+      if (existing && existing.source !== 'email') u = existing;
+      else {
+        if (adPeopleOn()) u = await personFromAd({ email: e });
+        if (!u) u = existing || users.contactForEmail(e, str(choice.name, 120).trim());
+      }
+    }
+    if (!u || !u.active) throw new HttpError(400, 'err.reporterInvalid');
+    return u;
+  }
+
   r.post('/users', requireRole('admin'), wrap(async (req, res) => {
     const username = str(req.body.username, 64).trim();
     if (!/^[\p{L}\p{N}._@-]{2,64}$/u.test(username)) throw new HttpError(400, 'err.badRequest', 'username');
@@ -523,7 +550,14 @@ export function createApi(ctx) {
   r.post('/tickets', wrap(async (req, res) => {
     if (!isAgent(req.user) && !settings.get('general.allowSelfService')) throw new HttpError(403, 'err.selfServiceOff');
     const projectId = req.body.projectId || settings.get('general.defaultProject') || undefined;
-    const t = tickets.create(req.user, { ...req.body, projectId });
+    // Agents may enter the ticket for someone else (reporter); users only for themselves
+    let opts = {};
+    if (req.body.reporter !== undefined && req.body.reporter !== null) {
+      if (!isAgent(req.user)) throw forbidden();
+      const rep = await reporterFrom(req.body.reporter);
+      if (rep.id !== req.user.id) opts = { reporterId: rep.id, notifyReporter: req.body.notifyReporter !== false };
+    }
+    const t = tickets.create(req.user, { ...req.body, projectId }, opts);
     // Users get their own view (no internal fields such as the component or agents' addresses)
     res.status(201).json({ ticket: isAgent(req.user) ? t : tickets.ticketOut(tickets.rawById(t.id), false, req.user.id) });
   }));
@@ -617,6 +651,12 @@ export function createApi(ctx) {
     res.setHeader('Cache-Control', 'private, no-store');
     res.type('html').send(viewerDocument(m.html, { blocked: m.blocked, blockedText: t(lang, 'mail.blockedImages', { n: m.blocked }), quoteText: t(lang, 'mail.showQuoted'), lang }));
   });
+
+  r.put('/tickets/:key/reporter', requireRole('agent'), wrap(async (req, res) => {
+    tickets.load(req.user, req.params.key); // check access before any AD lookup
+    const target = await reporterFrom(req.body.reporter);
+    res.json({ ticket: tickets.setReporter(req.user, req.params.key, target, { notify: req.body.notify !== false }) });
+  }));
 
   r.patch('/tickets/:key', wrap(async (req, res) => {
     res.json({ ticket: tickets.update(req.user, req.params.key, req.body) });
