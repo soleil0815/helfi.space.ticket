@@ -22,7 +22,7 @@ function draw(host) {
       h('button.btn-icon.small', { type: 'button', title: t('filters.manage'), 'aria-label': t('filters.manage'), onclick: () => openManageFilters() }, icon('sliders'))),
     ...list.map((f) => h('a.nav-item.nav-sub.saved-filter', {
       href: href(f), 'data-link': '', class: active?.id === f.id ? 'active' : '', title: f.shared ? t('filters.sharedHint') : f.name,
-    }, f.shared ? icon('users', 'saved-shared') : null, h('span.saved-name', f.name), h('span.nav-count', f.count === null || f.count === undefined ? '' : String(f.count)))));
+    }, f.shared ? icon('users', 'saved-shared') : null, h('span.saved-name', { title: f.name }, f.name), h('span.nav-count', f.count === null || f.count === undefined ? '' : String(f.count)))));
 }
 
 /** Sidebar group (agents); filled from state.savedFilters and updated by refreshSavedFilters() */
