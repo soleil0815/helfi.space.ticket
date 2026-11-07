@@ -202,7 +202,9 @@
 
 <h2 id="list">Ticket list and filters</h2>
 <p><em>All tickets</em> shows a sortable list. Filters for project, status, type, priority, assignee and – with a project selected – <a href="#components">component</a> can be combined; clicking a column header sorts. The page address contains the filters – bookmark or share it.</p>
+<p><strong>Pages:</strong> long lists (search results too) are shown page by page. Above the table you see e.g. “Tickets 101–200 of 7956”, below it you turn pages with <code>« ‹ 1 … 5 6 7 … 80 › »</code>. Next to it you choose 50, 100 (default), 250 or 500 tickets per page – the browser remembers the choice. The page is part of the address (<code>?page=3</code>), so the back button and bookmarks work; another filter, a new search or sorting starts on page 1 again. <em>Select all</em> in the multiple selection takes the tickets of the current page. A search with more than 5000 matches shows the best 5000 – narrow it down then. On phones the list loads the next page while scrolling, with no upper limit.</p>
 <figure><img src="img/en/list.jpg" alt=""><figcaption>Ticket list with filters</figcaption></figure>
+<figure><img src="img/en/list-pager.jpg" alt=""><figcaption>Pages below the list with the number per page</figcaption></figure>
 <h3>Search</h3>
 <p>The search box at the top searches the full text of all tickets: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (also by email address and logon name). Users without the agent role find tickets by title, description, public replies, attachment names, labels and the names visible in the ticket – not by email addresses or logon names.</p>
 <figure class="medium"><img src="img/en/quick-search.jpg" alt=""><figcaption>Results while typing – with where they matched; ↑/↓ and Enter open the ticket</figcaption></figure>

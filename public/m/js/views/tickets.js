@@ -30,7 +30,8 @@ export async function renderTickets(page, ctx) {
   page.title(t('m.tab.tickets'));
   const f = {};
   for (const k of ALLOWED) { const v = ctx.params.get(k); if (v) f[k] = v; }
-  let limit = PAGE;
+  let nextPage = 2; // page that "load more" fetches
+  let shown = 0;
   let counts = null;
   let saved = null; // saved filters and shared queues (agents), as chips after the queues
 
@@ -49,7 +50,6 @@ export async function renderTickets(page, ctx) {
     if ((f.q || '') === q) return;
     if (q) f.q = q; else delete f.q;
     delete f.sort;
-    limit = PAGE;
     writeUrl();
     load();
   };
@@ -76,8 +76,7 @@ export async function renderTickets(page, ctx) {
           onClick: () => {
             for (const k of QUEUE_KEYS) delete f[k];
             Object.assign(f, q.params);
-            limit = PAGE;
-            writeUrl(); drawChips(); load();
+                    writeUrl(); drawChips(); load();
           },
         })),
         // A saved filter replaces all filters (including search, project and sorting)
@@ -88,8 +87,7 @@ export async function renderTickets(page, ctx) {
             for (const k of Object.keys(f)) delete f[k];
             for (const [k, v] of new URLSearchParams(sf.query)) if (ALLOWED.includes(k)) f[k] = v;
             input.value = f.q || '';
-            limit = PAGE;
-            writeUrl(); drawChips(); drawFilterBtn(); load();
+                    writeUrl(); drawChips(); drawFilterBtn(); load();
           },
         })),
       ], t('nav.queues')));
@@ -99,7 +97,7 @@ export async function renderTickets(page, ctx) {
       const curId = f.status === 'done' ? 'done' : (f.status === 'unresolved' ? 'open' : 'all');
       chipsHost.replaceChildren(chipRow(USER_CHIPS.map((c) => chip(t(c.label), {
         active: c.id === curId,
-        onClick: () => { delete f.status; Object.assign(f, c.params); limit = PAGE; writeUrl(); drawChips(); load(); },
+        onClick: () => { delete f.status; Object.assign(f, c.params); writeUrl(); drawChips(); load(); },
       })), t('m.filter.status')));
     }
   }
@@ -148,8 +146,7 @@ export async function renderTickets(page, ctx) {
         if (!apply) return;
         for (const k of QUEUE_KEYS.concat('project')) delete f[k];
         Object.assign(f, apply);
-        limit = PAGE;
-        writeUrl(); drawChips(); drawFilterBtn(); load();
+            writeUrl(); drawChips(); drawFilterBtn(); load();
       },
     });
   }
@@ -162,44 +159,68 @@ export async function renderTickets(page, ctx) {
 
   let seq = 0;
   let loadingMore = false;
-  async function load({ keepScroll = false } = {}) {
+  let total = 0;
+  let terms = [];
+  const sortNow = () => f.sort || (f.q ? 'relevance' : 'updated');
+  function drawInfo() {
+    info.textContent = total ? t(shown < total ? 'm.tickets.countOf' : 'm.tickets.count', { n: shown, total }) : '';
+  }
+  /** "Load more" button at the end; loads automatically when it comes into view */
+  function drawMore() {
+    more.replaceChildren();
+    if (shown >= total) return;
+    const btn = h('button.m-btn.m-btn-block', { type: 'button', onclick: () => loadMore() }, t('m.tickets.loadMore'));
+    more.append(btn);
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting) && page.isActive()) { io.disconnect(); loadMore(); } }, { root: page.scroll, rootMargin: '200px' });
+      io.observe(btn);
+    }
+  }
+  async function load() {
     const my = ++seq;
-    if (!keepScroll) { listHost.replaceChildren(skeletonList(4)); more.replaceChildren(); info.textContent = ''; }
-    const sort = f.sort || (f.q ? 'relevance' : 'updated');
-    const [{ tickets, searchTerms }, q, sf] = await Promise.all([
-      api.tickets({ ...f, sort, limit }),
+    listHost.replaceChildren(skeletonList(4)); more.replaceChildren(); info.textContent = '';
+    const [r, q, sf] = await Promise.all([
+      api.tickets({ ...f, sort: sortNow(), page: 1, pageSize: PAGE }),
       state.isAgent && !counts ? api.queues().catch(() => null) : Promise.resolve(null),
       state.isAgent && !counts ? api.filters().catch(() => null) : Promise.resolve(null),
     ]);
     if (my !== seq) return;
     if (sf) saved = sf.filters;
     if (q || sf) { if (q) counts = q.counts; drawChips(); }
-    const terms = searchTerms || [];
-    info.textContent = tickets.length ? t(tickets.length >= limit ? 'm.tickets.countMore' : 'm.tickets.count', { n: tickets.length }) : '';
-    listHost.replaceChildren(tickets.length
-      ? h('div.m-list', tickets.map((tk) => ticketCard(tk, { terms })))
+    terms = r.searchTerms || [];
+    total = r.total || 0;
+    shown = r.tickets.length;
+    nextPage = 2;
+    drawInfo();
+    listHost.replaceChildren(r.tickets.length
+      ? h('div.m-list', r.tickets.map((tk) => ticketCard(tk, { terms })))
       : emptyState('search', t('list.empty'), f.q ? t('m.tickets.emptySearch') : null));
-    more.replaceChildren();
-    if (tickets.length >= limit) {
-      const btn = h('button.m-btn.m-btn-block', { type: 'button', onclick: () => loadMore() }, t('m.tickets.loadMore'));
-      more.append(btn);
-      // Load automatically when the end of the list comes into view
-      if ('IntersectionObserver' in window) {
-        const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting) && page.isActive()) { io.disconnect(); loadMore(); } }, { root: page.scroll, rootMargin: '200px' });
-        io.observe(btn);
-      }
-    }
+    drawMore();
   }
+  /** Next page appended to the list (no upper limit) */
   async function loadMore() {
     if (loadingMore) return;
     loadingMore = true;
-    limit += PAGE;
+    const my = seq;
     more.replaceChildren(h('div.m-spinner', { role: 'status', 'aria-label': t('app.loading') }));
-    try { await load({ keepScroll: true }); } finally { loadingMore = false; }
+    try {
+      const r = await api.tickets({ ...f, sort: sortNow(), page: nextPage, pageSize: PAGE });
+      if (my !== seq) return;
+      // the server answers a page past the end with the last one: only append when it is really the next page
+      if (r.page === nextPage && r.tickets.length) {
+        listHost.querySelector('.m-list')?.append(...r.tickets.map((tk) => ticketCard(tk, { terms })));
+        shown += r.tickets.length;
+        nextPage += 1;
+      }
+      total = r.total || 0;
+      if (r.page !== nextPage - 1) shown = total; // nothing more to fetch
+      drawInfo();
+      drawMore();
+    } catch { drawMore(); } finally { loadingMore = false; }
   }
 
   drawChips();
   drawFilterBtn();
   await load();
-  pullToRefresh(page, async () => { counts = null; await load({ keepScroll: true }); });
+  pullToRefresh(page, async () => { counts = null; await load(); });
 }

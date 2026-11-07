@@ -550,24 +550,48 @@ export function createApi(ctx) {
   r.get('/summary', requireRole('agent'), (req, res) => res.json(tickets.summary(req.user, req.query.project ? str(req.query.project, 20) : null)));
 
   r.get('/tickets', (req, res) => {
-    let list = tickets.list(req.user, req.query);
-    const searchTerms = list.searchTerms;
-    // SLA state for agents; filter "SLA at risk"
-    if (isAgent(req.user) && ctx.sla.enabled()) {
-      list = list.map((tk) => ({ ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) }));
-      if (req.query.sla === 'risk') list = list.filter((tk) => ['warning', 'breached'].includes(tk.sla?.state));
+    const q = req.query;
+    // Pages: ?page=N&pageSize=M (max 500) → { tickets, total, page, pageSize }; without page as before (limit)
+    const paged = q.page !== undefined;
+    const pageSize = Math.min(500, Math.max(1, int(q.pageSize) || 100));
+    let page = Math.max(1, int(q.page) || 1);
+    // "My open approvals" is part of the query, so counts and pages are right
+    const opts = q.approval === 'mine' ? { ids: ctx.approvals.pendingFor(req.user.id) } : {};
+    const slaOn = isAgent(req.user) && ctx.sla.enabled();
+    // "SLA at risk" is computed per ticket: filter all matches first, then cut the page
+    const slaRisk = slaOn && q.sla === 'risk';
+    let total = null;
+    if (paged && !slaRisk) {
+      total = tickets.count(req.user, q, opts);
+      page = Math.min(page, Math.max(1, Math.ceil(total / pageSize))); // past the end → last page
     }
-    // My open approvals
-    if (req.query.approval === 'mine') {
-      const ids = new Set(ctx.approvals.pendingFor(req.user.id));
-      list = list.filter((tk) => ids.has(tk.id));
+    const f = paged ? { ...q, limit: pageSize, offset: (page - 1) * pageSize } : q;
+    let list = tickets.list(req.user, f, slaRisk ? { ...opts, all: true } : opts);
+    const searchTerms = list.searchTerms;
+    const searchCapped = list.searchCapped;
+    if (slaOn) list = list.map((tk) => ({ ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) }));
+    if (slaRisk) {
+      list = list.filter((tk) => ['warning', 'breached'].includes(tk.sla?.state));
+      total = list.length;
+      if (paged) {
+        page = Math.min(page, Math.max(1, Math.ceil(total / pageSize)));
+        list = list.slice((page - 1) * pageSize, page * pageSize);
+      } else {
+        const lim = int(q.limit);
+        list = list.slice(0, lim && lim > 0 ? Math.min(lim, 2000) : 500);
+      }
     }
     // Tickets with mentions of me that I have not opened since
     if (isAgent(req.user) && list.length) {
       const unseen = tickets.unseenMentionTickets(req.user, list.map((tk) => tk.id));
       if (unseen.size) list = list.map((tk) => (unseen.has(tk.id) ? { ...tk, mentionUnseen: true } : tk));
     }
-    res.json({ tickets: list, ...(searchTerms ? { searchTerms } : {}) });
+    res.json({
+      tickets: list,
+      ...(searchTerms ? { searchTerms } : {}),
+      ...(searchCapped ? { searchCapped: true } : {}),
+      ...(paged ? { total, page, pageSize } : {}),
+    });
   });
 
   r.post('/tickets', wrap(async (req, res) => {
