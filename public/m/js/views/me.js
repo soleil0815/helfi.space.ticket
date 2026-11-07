@@ -70,7 +70,7 @@ export function renderMe(page) {
       listRow({ icon: 'monitor', label: t('m.me.desktop'), hint: t('m.me.desktopHint'), onClick: () => switchToDesktop('/m/me') })),
     group(null,
       listRow({ icon: 'logout', label: t('app.logout'), danger: true, onClick: () => signOut() })),
-    h('p.m-version', `Helfi.Space ${state.boot.app.version}`),
+    h('p.m-version', `Helfi.Space ${state.boot.app.version} · `, h('a', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer', title: t('app.sourceTitle') }, t('app.source'))),
     // Support link for the developer – admins only
     u.role === 'admin' ? h('div.m-coffee', h('a.coffee-btn', { href: 'https://buymeacoffee.com/soleil0815', target: '_blank', rel: 'noopener noreferrer', title: t('app.coffeeTitle') }, icon('coffee'), h('span', 'Buy me a coffee'))) : null);
   // Shown again after a change (e.g. two-factor switched on): draw anew

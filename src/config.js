@@ -19,7 +19,13 @@ function bool(v, def = false) {
 
 const baseUrl = (process.env.HELFI_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 
+// Where users get the source code of exactly this program (AGPL-3.0, section 13). Whoever runs a
+// modified version must point this to their own source code. Only http(s) URLs.
+const DEFAULT_SOURCE = 'https://github.com/soleil0815/helfi.space.ticket';
+const sourceUrl = /^https?:\/\/[^\s"'<>]+$/i.test(process.env.HELFI_SOURCE_URL || '') ? process.env.HELFI_SOURCE_URL : DEFAULT_SOURCE;
+
 export const config = {
+  sourceUrl,
   version: pkg.version,
   port: Number(process.env.HELFI_PORT || process.env.PORT || 8080),
   dataDir: path.resolve(process.env.HELFI_DATA_DIR || '/data'),

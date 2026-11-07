@@ -25,6 +25,9 @@ const de = {
   'app.ok': 'OK',
   'app.test': 'Testen',
   'app.version': 'Version',
+  'app.license': 'Lizenz',
+  'app.source': 'Quellcode',
+  'app.sourceTitle': 'Quellcode dieses Programms (Lizenz GNU AGPL-3.0)',
 
   'nav.board': 'Board',
   'nav.list': 'Alle Tickets',
@@ -1919,6 +1922,9 @@ const en = {
   'app.ok': 'OK',
   'app.test': 'Test',
   'app.version': 'Version',
+  'app.license': 'License',
+  'app.source': 'Source code',
+  'app.sourceTitle': 'Source code of this program (license GNU AGPL-3.0)',
 
   'nav.board': 'Board',
   'nav.list': 'All tickets',

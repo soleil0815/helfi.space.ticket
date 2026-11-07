@@ -674,5 +674,16 @@ CI sparsam: Pull Requests laufen immer durch die Tests; der AD-Integrationstest 
 
 ## Lizenz
 
-MIT – siehe [LICENSE](LICENSE).
+Copyright (C) 2026 soleil0815
+
+Helfi.Space steht unter der **GNU Affero General Public License v3.0 oder später** (AGPL-3.0-or-later) – siehe [LICENSE](LICENSE).
+
+Kurz gesagt (verbindlich ist nur der Lizenztext):
+
+- Du darfst Helfi.Space kostenlos nutzen, auch im Unternehmen, und es anpassen.
+- Wer Helfi.Space **verändert und anderen zur Verfügung stellt** – als Download oder **auch nur als Dienst über das Netz** (z. B. gehostet für Kunden) –, muss den vollständigen Quellcode seiner Fassung unter derselben Lizenz offenlegen. Eine geschlossene, kostenpflichtige Variante darf daraus nicht entstehen.
+- Jede laufende Instanz zeigt deshalb einen Link **Quellcode** (Seitenleiste, Anmeldeseite, Handy unter *Ich*). Wer eine veränderte Fassung betreibt, setzt `HELFI_SOURCE_URL` in der `.env` auf den eigenen Quellcode.
+- Hinweise auf den Urheber und die Lizenz dürfen nicht entfernt werden.
+
+Versionen bis einschließlich 1.29.2 wurden unter der MIT-Lizenz veröffentlicht; für sie gilt diese weiter.
 
