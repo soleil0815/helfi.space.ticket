@@ -1273,6 +1273,8 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
 .backup-table th.num, .backup-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .backup-table td.mono { word-break: break-all; }
 .backup-table tfoot td { font-weight: 600; border-top: 1px solid var(--border, #dfe1e6); }
+.backup-table td.row-actions { white-space: nowrap; text-align: right; }
+.backup-table td.row-actions .btn-icon { display: inline-flex; }
 @media (min-width: 801px) { .admin-body table.backup-table { display: table; width: 100%; } }
 @media (max-width: 800px) {
   .backup-table thead { display: none; }
