@@ -263,7 +263,7 @@ async function securityPage(body, s) {
   const ownStatus = h('div.muted.small',
     h('p', o.ips.length ? t('mfa.ownResolved', { ips: o.ips.join(', ') }) : t('mfa.ownNone')),
     Object.entries(o.errors || {}).map(([name, error]) => h('p', t('mfa.ownError', { name, error }))));
-  const reason = { untrustedProxy: 'mfa.reason.untrustedProxy', dockerGateway: 'mfa.reason.dockerGateway', ownAddress: 'mfa.reason.ownAddress' }[st.network.reason];
+  const reason = { untrustedProxy: 'mfa.reason.untrustedProxy', proxyWithoutClient: 'mfa.reason.proxyWithoutClient', dockerGateway: 'mfa.reason.dockerGateway', ownAddress: 'mfa.reason.ownAddress' }[st.network.reason];
   mount(body,
     h('section.panel',
       h('h2', t('mfa.adminTitle')),

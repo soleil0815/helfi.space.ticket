@@ -248,7 +248,7 @@
 </ol>
 <figure class="medium"><img src="img/en/reporter-create.jpg" alt=""><figcaption>Entering a ticket for a colleague</figcaption></figure>
 <p>The history shows who created the ticket for whom. <em>Back to me</em> undoes the choice.</p>
-<p><strong>Change later:</strong> in the details under <em>Reporter</em> click <em>Change reporter</em>, pick the person and confirm. The previous reporter keeps access as a request participant (except agents and pure email contacts). If a former reporter later replies to an old email, it only becomes an internal note. On phones: <em>All details → Reporter</em>.</p>
+<p><strong>Change later:</strong> in the details under <em>Reporter</em> click <em>Change reporter</em>, pick the person and confirm. The previous reporter keeps access as a request participant (except agents and pure email contacts). If a former reporter later replies to an old email, it only becomes an internal note. The same applies to mails from agent addresses matched only via the ticket number in the subject – reply to the reporter in the ticket. On phones: <em>All details → Reporter</em>.</p>
 <figure class="small"><img src="img/en/m-reporter.jpg" alt=""><figcaption>On phones: choosing the reporter when creating</figcaption></figure>
 
 <h2 id="formatting">Formatting replies</h2>
@@ -499,7 +499,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <pre><code>helfi.firma.local {
     reverse_proxy 10.0.10.20:8080
 }</code></pre>
-<div class="warn"><p>Enter the proxy’s address in <code>HELFI_TRUST_PROXY</code>, e.g. <code>10.0.10.5</code> (several separated by commas: <code>loopback, 10.0.10.5</code>). Without it Helfi.Space only trusts <code>X-Forwarded-For</code> from its own host (<code>loopback</code>); values such as <code>true</code> or a number are ignored with a warning in the log. If the proxy runs on another host, Helfi.Space then only sees the proxy: the brake against password guessing then hits everyone together, and every request counts as “from outside” to be safe.</p></div>
+<div class="warn"><p>Enter the proxy’s address in <code>HELFI_TRUST_PROXY</code>, e.g. <code>10.0.10.5</code> (several separated by commas: <code>loopback, 10.0.10.5</code>). Without it Helfi.Space only trusts <code>X-Forwarded-For</code> from its own host (<code>loopback</code>); values such as <code>true</code> or a number are ignored with a warning in the log. If a proxy listed by its address (not a range) forwards a request without <code>X-Forwarded-For</code>, it counts as from outside. If the proxy runs on another host, Helfi.Space then only sees the proxy: the brake against password guessing then hits everyone together, and every request counts as “from outside” to be safe.</p></div>
 
 <h2 id="initial">Initial setup</h2>
 <p>On the first visit to <code>HELFI_BASE_URL</code> the setup wizard starts. It asks for the <strong>setup code</strong> from the container log (<code>docker compose logs helfi</code>) and creates the <strong>local administrator</strong> and the first project. It then continues straight to the AD setup.</p>

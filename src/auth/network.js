@@ -145,6 +145,16 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
       if (!warnedProxy) { warnedProxy = true; log.warn('X-Forwarded-For received, but the proxy is not listed in HELFI_TRUST_PROXY – requests are treated as external (2FA).'); }
       return { ip, internal: false, reason: 'untrustedProxy' };
     }
+    // A trusted proxy (HELFI_TRUST_PROXY) that forwards a request WITHOUT X-Forwarded-For: the real
+    // client is unknown and req.ip is the proxy itself, which may sit in an internal network →
+    // treat as external (otherwise every request through such a proxy would skip 2FA).
+    // Loopback is exempt: it never counts as internal unless listed explicitly (see below), and
+    // without X-Forwarded-For it is the server itself (health check, local tools).
+    // Only proxies listed as a single address: with a range (e.g. "uniquelocal" or 10.0.10.0/24) every
+    // device in it that connects directly would otherwise count as external.
+    if (!req.headers['x-forwarded-for'] && !/^(127\.|::1$)/.test(peer) && listedProxies(req).has(peer)) {
+      return { ip, internal: false, reason: 'proxyWithoutClient' };
+    }
     // Loopback does NOT automatically count as internal: a reverse proxy on the same host without
     // X-Forwarded-For would otherwise make every external request look internal.
     const type = net.isIPv4(ip) ? 'ipv4' : (net.isIPv6(ip) ? 'ipv6' : null);
@@ -156,6 +166,13 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
     // them with its own public IP (hairpin NAT) → counts as internal
     if (ownSync().has(ip)) return { ip, internal: true, reason: 'ownAddress' };
     return { ip, internal: networks().check(ip, type), reason: 'networks' };
+  }
+
+  /** Single proxy addresses from HELFI_TRUST_PROXY (express setting 'trust proxy'; ranges and keywords not) */
+  function listedProxies(req) {
+    const v = req.app?.get?.('trust proxy');
+    const list = Array.isArray(v) ? v : String(typeof v === 'string' ? v : '').split(',');
+    return new Set(list.map((x) => normalizeIp(String(x).trim())).filter((x) => net.isIP(x)));
   }
 
   function explicitlyListed(ip) {
