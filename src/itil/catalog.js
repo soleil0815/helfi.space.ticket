@@ -103,7 +103,7 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
       const text = `${t ? t(lang, msgKey) : result}${comment ? `\n\n„${str(comment, 2000)}“` : ''}`;
       // Reply to the reporter (mail like any reply); resolved if rejected
       tickets.addComment(user, row.id, { body: text }, { skipPermission: true });
-      if (result === 'rejected') tickets.update({ ...user, role: 'agent' }, row.id, { status: 'done' }, { quietResolved: true });
+      if (result === 'rejected') tickets.update({ ...user, role: 'agent' }, row.id, { status: 'done' }, { quietResolved: true, resolution: 'rejected' });
     }
     return tickets.detail(user, row.id);
   }

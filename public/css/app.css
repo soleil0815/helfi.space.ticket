@@ -224,6 +224,9 @@ select { height: 36px; padding: 0 8px; }
 .lozenge-in_progress { background: var(--blue-subtler); color: var(--blue-text); }
 .lozenge-waiting { background: var(--yellow-bold); color: var(--warn-text); }
 .lozenge-done { background: var(--green-bold); color: var(--success-text); }
+/* resolutions of done tickets */
+.lozenge-rejected { background: var(--red-bold); color: var(--danger-text); }
+.lozenge-duplicate { background: var(--neutral-bold); color: var(--text-subtle); }
 .type-icon, .prio { display: inline-flex; }
 .type-icon .icon, .prio .icon { width: 16px; height: 16px; vertical-align: 0; }
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 3px; background: var(--bg-neutral); color: var(--text-subtle); font-size: 11px; font-weight: 600; line-height: 18px; }
@@ -347,6 +350,12 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .status-waiting { background: #F5CD47; color: #533F04; }
 .status-done { background: #22A06B; color: #fff; }
 .status-done:hover { background: #1F845A; }
+.status-rejected { background: var(--red); color: #fff; }
+.status-rejected:hover { background: var(--danger-text); }
+.status-duplicate { background: var(--bg-neutral); color: var(--text); }
+.status-duplicate:hover { background: var(--bg-neutral-hover); }
+.resolve-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.resolve-label-row label { margin: 0; }
 .details-box { border: 1px solid var(--border); border-radius: 4px; }
 .details-head { font-weight: 600; padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .detail-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; padding: 6px 16px; align-items: center; min-height: 40px; }
@@ -1517,3 +1526,4 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .examples-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
 .examples-list { max-height: 55vh; overflow: auto; }
 .page-head .actions, .section-head .actions { display: flex; gap: 8px; align-items: center; }
+.dup-of { font-size: 13px; font-weight: 600; white-space: nowrap; }

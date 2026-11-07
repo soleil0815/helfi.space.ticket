@@ -591,6 +591,18 @@ export function createApi(ctx) {
    * e.g. "is caused by IT-42"; an existing link counts as done). Order per ticket: link, comment,
    * changes. Tickets are never deleted. Errors on single tickets do not abort the rest.
    */
+  // Close as rejected (reason required) or as duplicate of another ticket
+  const resolveNote = (key) => t(normalizeLang(settings.get('general.defaultLanguage')), 'resolution.duplicateNote', { key });
+  r.post('/tickets/:key/resolve', requireRole('agent'), (req, res) => {
+    const b = req.body || {};
+    // Placeholders ({melder}, {ticket} …) like in replies from templates
+    const tk = tickets.ticketOut(tickets.load(req.user, req.params.key));
+    const reason = fillPlaceholders(str(b.reason, 100000), tk, { displayName: req.user.display_name });
+    res.json({ ticket: tickets.resolveAs(req.user, req.params.key, {
+      resolution: b.resolution, reason, duplicateOf: b.duplicateOf, addToOriginal: !!b.addToOriginal, note: resolveNote,
+    }) });
+  });
+
   r.post('/tickets/bulk', requireRole('agent'), wrap(async (req, res) => {
     const keys = [...new Set((Array.isArray(req.body.keys) ? req.body.keys : []).map((k) => str(k, 30)).filter(Boolean))];
     if (!keys.length || keys.length > MAX_BULK) throw new HttpError(400, 'err.badRequest', 'keys');
@@ -610,7 +622,15 @@ export function createApi(ctx) {
       try { target = tickets.ticketOut(tickets.load(req.user, str(req.body.link.target, 30).trim().toUpperCase())); } catch { throw new HttpError(400, 'err.linkTarget'); }
       link = { kind, reverse: !!req.body.link.reverse, target: target.key };
     }
-    if (!comment && !link && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
+    // Close several as rejected / duplicate: the comment is the reason
+    let resolve = null;
+    if (req.body.resolve) {
+      resolve = { resolution: str(req.body.resolve.resolution, 20), duplicateOf: str(req.body.resolve.duplicateOf, 30), addToOriginal: !!req.body.resolve.addToOriginal };
+      if (!['rejected', 'duplicate'].includes(resolve.resolution)) throw new HttpError(400, 'err.badRequest', 'resolve');
+      if (resolve.resolution === 'rejected' && !comment) throw new HttpError(400, 'err.rejectReasonRequired');
+      if (internal) throw new HttpError(400, 'err.badRequest', 'internal');
+    }
+    if (!comment && !link && !resolve && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
     const lang = normalizeLang(req.user?.language || langFromHeader(req.get('accept-language')));
     const ok = [];
     const failed = [];
@@ -625,6 +645,12 @@ export function createApi(ctx) {
             // Already linked (in either direction): nothing to do, the rest still applies
             if (!(e instanceof HttpError && e.code === 'err.linkExists')) throw e;
           }
+        }
+        if (resolve) {
+          const tk = tickets.ticketOut(tickets.load(req.user, key));
+          current = tickets.resolveAs(req.user, key, { ...resolve, reason: comment ? fillPlaceholders(comment, tk, { displayName: req.user.display_name }) : '', note: resolveNote }).key;
+          ok.push(current);
+          continue;
         }
         if (comment) {
           const row = tickets.load(req.user, key);

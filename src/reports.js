@@ -35,14 +35,15 @@ export function createReports(db) {
    * - openAssigned: currently assigned and not resolved (independent of the period)
    * - touched: tickets they did something on in the period (change or comment)
    * - replies / notes: public replies and internal notes
-   * - avgResolutionHours: avg. time from "created" to their "Resolved"
+   * - avgResolutionHours: avg. time from "created" to their "Resolved" (only really solved ones,
+   *   not rejected or duplicates)
    */
   function agents(range, projectId = null) {
     const p = projectId ? 'AND t.project_id=?' : '';
     const pa = projectId ? [projectId] : [];
     const r = [range.fromIso, range.toIso, ...pa];
     const resolved = db.prepare(`SELECT a.user_id id, COUNT(DISTINCT a.ticket_id) n,
-        AVG((julianday(a.created_at) - julianday(t.created_at)) * 24) hours
+        AVG(CASE WHEN COALESCE(t.resolution,'done')='done' THEN (julianday(a.created_at) - julianday(t.created_at)) * 24 END) hours
       FROM activity a JOIN tickets t ON t.id=a.ticket_id
       WHERE a.action='changed' AND a.field='status' AND a.new_value='done' AND a.user_id IS NOT NULL
         AND a.created_at>=? AND a.created_at<? ${p} GROUP BY a.user_id`).all(...r);
@@ -114,11 +115,13 @@ export function createReports(db) {
   function byComponent(range, projectId) {
     return db.prepare(`SELECT t.component_id id, c.name, pr.key project_key,
         COUNT(*) total, SUM(t.status<>'done') open, SUM(t.status='done') resolved,
-        AVG(CASE WHEN t.status='done' AND t.resolved_at IS NOT NULL THEN (julianday(t.resolved_at)-julianday(t.created_at))*24 END) avg_hours
+        SUM(t.status='done' AND t.resolution IN ('rejected','duplicate')) rejected,
+        -- rejected and duplicates would distort the resolution time: only really solved ones
+        AVG(CASE WHEN t.status='done' AND COALESCE(t.resolution,'done')='done' AND t.resolved_at IS NOT NULL THEN (julianday(t.resolved_at)-julianday(t.created_at))*24 END) avg_hours
       FROM tickets t JOIN projects pr ON pr.id=t.project_id LEFT JOIN components c ON c.id=t.component_id
       WHERE t.created_at >= ? AND t.created_at < ? ${projectId ? 'AND t.project_id=?' : 'AND pr.archived=0'}
       GROUP BY t.component_id, pr.key ORDER BY total DESC, c.name`).all(range.fromIso, range.toIso, ...(projectId ? [projectId] : [])).map((r) => ({
-      componentId: r.id, name: r.name, projectKey: r.project_key, total: r.total, open: r.open, resolved: r.resolved,
+      componentId: r.id, name: r.name, projectKey: r.project_key, total: r.total, open: r.open, resolved: r.resolved, rejected: r.rejected || 0,
       avgResolutionHours: r.avg_hours === null ? null : Math.round(r.avg_hours * 10) / 10,
     }));
   }

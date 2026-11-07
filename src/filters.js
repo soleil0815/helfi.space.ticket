@@ -3,7 +3,7 @@
 import { HttpError, notFound, forbidden, str, int } from './lib/http.js';
 
 // Only filters of the ticket list – nothing else gets stored or replayed
-export const FILTER_KEYS = ['project', 'status', 'type', 'priority', 'assignee', 'reporter', 'participant', 'mentioned', 'label', 'overdue', 'resolvedDays', 'component', 'q', 'sort'];
+export const FILTER_KEYS = ['project', 'status', 'type', 'priority', 'assignee', 'reporter', 'participant', 'mentioned', 'label', 'overdue', 'resolvedDays', 'resolution', 'component', 'q', 'sort'];
 export const MAX_PER_OWNER = 50;
 
 /** "?status=open&x=1" or object → canonical query string with allowed keys only (sorted) */

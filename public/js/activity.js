@@ -7,6 +7,11 @@ export function activityFieldLabel(a) {
   return a.field && !a.field.includes(':') && a.action === 'changed' ? t(`field.${a.field}`) : '';
 }
 
+/** "Rejected" / "Duplicate of IT-5" for the history entry of a resolution */
+export function resolutionDetail(a) {
+  return a.field === 'duplicate' && a.newValue ? t('resolution.duplicateOf', { key: a.newValue }) : t(`resolution.${a.field}`);
+}
+
 /** Why a ticket got its component: "keywords: vpn" / "sender: *@…" / "by AI · model" / "AI suggestion · model" */
 export function componentReason(a) {
   const label = t(`comp.reason.${a.field}`);
@@ -18,6 +23,7 @@ export function componentReason(a) {
 export function activityValue(a, v) {
   if (v === null || v === undefined || v === '') return t('app.none');
   if (a.field === 'status') return t(`status.${v}`);
+  if (a.field === 'resolution') return t(`resolution.${v}`);
   if (a.field === 'priority') return t(`priority.${v}`);
   if (a.field === 'type') return t(`type.${v}`);
   if (a.field === 'impact' || a.field === 'urgency') return t(`level.${v}`);

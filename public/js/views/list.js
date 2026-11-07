@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { h, mount, icon, avatar, lozenge, typeIcon, priorityIcon, relTime, fmtDate, select, dropdown, modal, toast, field, highlight } from '../dom.js';
 import { openTemplatePicker } from './canned.js';
+import { openResolveDialog } from './resolve.js';
 import { t } from '../i18n.js';
 import { state, navigate } from '../app.js';
 import { openCreateDialog } from './ticket.js';
@@ -52,6 +53,8 @@ export async function renderList(content, params, { requests = false } = {}) {
       }) : null,
     !requests && state.projects.length > 1 ? select([['', t('nav.allProjects')], ...state.projects.map((p) => [p.key, p.name])], f.project || '', { class: 'select-sm', onchange: (e) => set('project', e.target.value) }) : null,
     select([['', t('filter.allStatus')], ['unresolved', t('status.unresolved')], ...STATUSES.map((s) => [s, t(`status.${s}`)])], f.status || '', { class: 'select-sm', onchange: (e) => set('status', e.target.value) }),
+    // Resolution: only meaningful for done tickets
+    f.status === 'done' || f.resolution ? select([['', t('filter.allResolutions')], ...['done', 'rejected', 'duplicate'].map((r) => [r, t(`resolution.${r}`)])], f.resolution || '', { class: 'select-sm', 'aria-label': t('field.resolution'), onchange: (e) => set('resolution', e.target.value) }) : null,
     !requests ? select([['', t('filter.allTypes')], ...TYPES.map((s) => [s, t(`type.${s}`)])], f.type || '', { class: 'select-sm', onchange: (e) => set('type', e.target.value) }) : null,
     !requests ? select([['', t('filter.allPriorities')], ...PRIOS.map((s) => [s, t(`priority.${s}`)])], f.priority || '', { class: 'select-sm', onchange: (e) => set('priority', e.target.value) }) : null,
     comps.length || f.component ? select([['', t('filter.allComponents')], ['none', t('filter.noComponent')], ...comps.map((c) => [c.id, c.name])], f.component || '', { class: 'select-sm', 'aria-label': t('ticket.component'), onchange: (e) => set('component', e.target.value) }) : null,
@@ -226,7 +229,12 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
     mount(bar,
       h('strong', t('bulk.selected', { n: sel.size })),
       h('button.btn.btn-primary', { type: 'button', onclick: () => bulkDialog('status', 'done') }, icon('check'), t('bulk.resolve')),
-      menu(t('list.status'), STATUSES.map((st) => ({ label: t(`status.${st}`), onClick: () => bulkDialog('status', st) }))),
+      menu(t('list.status'), [
+        ...STATUSES.map((st) => ({ label: t(`status.${st}`), onClick: () => bulkDialog('status', st) })),
+        '-',
+        { label: t('resolve.rejectMenu'), icon: icon('close'), onClick: () => openResolveDialog({ kind: 'rejected', keys: [...sel], onDone: () => { sel.clear(); onChanged?.(); } }) },
+        { label: t('resolve.duplicateMenu'), icon: icon('copy'), onClick: () => openResolveDialog({ kind: 'duplicate', keys: [...sel], onDone: () => { sel.clear(); onChanged?.(); } }) },
+      ]),
       h('button.btn.btn-subtle', { type: 'button', onclick: () => bulkDialog('comment') }, icon('comment'), t('bulk.comment.action')),
       h('button.btn.btn-subtle', { type: 'button', onclick: () => bulkDialog('link') }, icon('link'), t('bulk.link')),
       menu(t('bulk.assign'), [
@@ -282,7 +290,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
           tk.match ? h(`div.match-snippet${tk.match.source === 'internal' ? '.internal' : ''}`,
             h('span.match-src', tk.match.source === 'comment' || tk.match.source === 'internal' ? t(`search.src.${tk.match.source}`, { who: tk.match.author || '—' }) : t(`search.src.${tk.match.source}`)),
             ' ', highlight(tk.match.text, terms)) : null),
-        h('td.col-status', lozenge(tk.status)),
+        h('td.col-status', lozenge(tk.status, tk.resolution)),
         showComponent ? h('td.col-component', tk.component?.name || '') : null,
         showSla ? h('td.col-sla', slaBadge(tk.sla)) : null,
         requests ? null : h('td.col-person.col-assignee', h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),

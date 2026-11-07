@@ -10,7 +10,7 @@ import { state } from '/js/state.js';
 import { typesFor } from '/js/types.js';
 import { slaChip } from '/js/views/sla.js';
 import { linkLabel } from '/js/views/links.js';
-import { activityFieldLabel, activityValue, componentReason } from '/js/activity.js';
+import { activityFieldLabel, activityValue, componentReason, resolutionDetail } from '/js/activity.js';
 import { replaceUrl, go, dataChanged } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
 import { openSheet } from '../sheet.js';
@@ -156,8 +156,8 @@ export async function renderTicket(page, ctx) {
   }
   function header() {
     const statusEl = agent
-      ? h('button.m-status-btn', { type: 'button', onclick: statusSheet, 'aria-label': t('m.act.changeStatus', { status: t(`status.${tk.status}`) }) }, lozenge(tk.status), icon('chevron-down'))
-      : lozenge(tk.status);
+      ? h('button.m-status-btn', { type: 'button', onclick: statusSheet, 'aria-label': t('m.act.changeStatus', { status: t(`status.${tk.status}`) }) }, lozenge(tk.status, tk.resolution), icon('chevron-down'))
+      : lozenge(tk.status, tk.resolution);
     const prioEl = agent
       ? h('button.m-pill.m-pill-btn', { type: 'button', onclick: () => openPrioritySheet(tk, save), 'aria-label': `${t('ticket.priority')}: ${t(`priority.${tk.priority}`)} – ${t('m.act.priority')}` },
         priorityIcon(tk.priority), t(`priority.${tk.priority}`), icon('chevron-down'))
@@ -170,6 +170,7 @@ export async function renderTicket(page, ctx) {
       h('div.m-ticket-badges',
         statusEl,
         prioEl,
+        tk.duplicateOf ? h('a.m-pill', { href: `/m/t/${tk.duplicateOf}`, 'data-link': '' }, t('resolution.duplicateOf', { key: tk.duplicateOf })) : null,
         tk.sla ? slaPill(tk.sla) : null,
         tk.dueDate ? h('span.m-pill', `${t('ticket.dueDate')} ${fmtDate(tk.dueDate, false)}`) : null),
       h('div.m-people',
@@ -325,6 +326,7 @@ export async function renderTicket(page, ctx) {
     else if (a.action === 'approval') detail = t(`change.decision.${a.field}`);
     else if ((a.action === 'linked' || a.action === 'unlinked') && a.field) detail = `${linkLabel(...a.field.split(':'))} ${a.newValue || a.oldValue || ''}`;
     else if (a.action === 'classified') detail = `${a.newValue} (${componentReason(a)})`;
+    else if (a.action === 'resolution') detail = resolutionDetail(a);
     else if (a.action === 'autoAssigned') detail = `${a.newValue} (${t(`comp.role.${a.field}`, { name: a.oldValue })})`;
     else if (a.action === 'rated') detail = '★'.repeat(Number(a.newValue) || 0);
     else if (['attached', 'detached', 'participantAdded', 'participantRemoved', 'createdFor', 'ciLinked', 'ciUnlinked', 'approvalRequested', 'kbCreated'].includes(a.action)) detail = a.newValue || a.oldValue;
@@ -402,7 +404,7 @@ export async function renderTicket(page, ctx) {
       },
     });
     const content = h('dl.m-details',
-      row(t('m.filter.status'), edit(lozenge(tk.status), statusSheet, t('m.filter.status'))),
+      row(t('m.filter.status'), edit(lozenge(tk.status, tk.resolution), statusSheet, t('m.filter.status'))),
       row(t('ticket.priority'), edit(withIcon(priorityIcon(tk.priority), t(`priority.${tk.priority}`)), () => openPrioritySheet(tk, save), t('ticket.priority'))),
       row(t('ticket.type'), edit(withIcon(typeIcon(tk.type), t(`type.${tk.type}`)), () => openTypeSheet(tk, save, typesFor(true)), t('ticket.type'))),
       row(agent ? t('ticket.assignee') : t('ticket.yourContact'), edit(withIcon(avatar(tk.assignee, 'xs'), tk.assignee?.displayName || t('app.unassigned')), () => openAssigneeSheet(tk, save), t('ticket.assignee'))),
@@ -431,7 +433,7 @@ export async function renderTicket(page, ctx) {
       agent ? row(t('m.ticket.links'), h('div.m-stack', links.length ? h('div.m-linked', links.map((l) => h('a.m-linked-item', { href: `/m/t/${encodeURIComponent(l.ticket.key)}`, 'data-link': '' },
         h('span.m-muted.m-linked-kind', linkLabel(l.kind, l.direction)),
         h('span.m-linked-main', typeIcon(l.ticket.type), h('strong', l.ticket.key), h('span.m-linked-title', l.ticket.title)),
-        lozenge(l.ticket.status)))) : none(),
+        lozenge(l.ticket.status, l.ticket.resolution)))) : none(),
       h('button.m-link.m-add-link', { type: 'button', onclick: () => { after = () => openLinkSheet(tk, { onDone: reloadAfterChange }); sheet.close(); } }, icon('plus'), t('link.addLink')))) : null,
       agent && cis.length ? row(t('m.ticket.cis'), String(cis.length)) : null,
       row(t('ticket.created'), fmtDate(tk.createdAt)),

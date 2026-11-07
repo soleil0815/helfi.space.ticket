@@ -12,6 +12,8 @@ import { normalizeMentions } from './mentions.js';
 import { createComponents, matchComponent, reasonDetail } from './components.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
+// How a done ticket ended: solved, rejected (with a reason) or a duplicate of another ticket
+export const RESOLUTIONS = ['done', 'rejected', 'duplicate'];
 export const TYPES = ['incident', 'request', 'task', 'question', 'problem', 'change'];
 // Only agents create problems and changes
 export const AGENT_TYPES = ['problem', 'change'];
@@ -125,7 +127,8 @@ export function createTickets(db, users) {
       a.display_name a_name, a.username a_username, a.email a_email, cmp.name c_name,
       r.display_name r_name, r.username r_username, r.email r_email,
       (SELECT COUNT(*) FROM comments c WHERE c.ticket_id=t.id) comment_count,
-      (SELECT COUNT(*) FROM comments c WHERE c.ticket_id=t.id AND c.internal=0) public_comment_count
+      (SELECT COUNT(*) FROM comments c WHERE c.ticket_id=t.id AND c.internal=0) public_comment_count,
+      (SELECT dp.key || '-' || d.number FROM tickets d JOIN projects dp ON dp.id=d.project_id WHERE d.id=t.duplicate_of) d_key
     FROM tickets t JOIN projects p ON p.id=t.project_id
     LEFT JOIN users a ON a.id=t.assignee_id
     LEFT JOIN users r ON r.id=t.reporter_id
@@ -164,6 +167,8 @@ export function createTickets(db, users) {
       createdAt: t.created_at,
       updatedAt: t.updated_at,
       resolvedAt: t.resolved_at,
+      resolution: t.status === 'done' ? (t.resolution || 'done') : null,
+      duplicateOf: t.status === 'done' && t.resolution === 'duplicate' && t.d_key ? t.d_key : null,
     };
   }
 
@@ -257,6 +262,7 @@ export function createTickets(db, users) {
       const real = st.filter((s) => s !== 'unresolved');
       if (real.length) { where.push(`t.status IN (${real.map(() => '?').join(',')})`); args.push(...real); }
     }
+    if (f.resolution && RESOLUTIONS.includes(f.resolution)) { where.push("t.status='done' AND COALESCE(t.resolution,'done')=?"); args.push(f.resolution); }
     if (f.type && TYPES.includes(f.type)) { where.push('t.type=?'); args.push(f.type); }
     if (f.priority && PRIORITIES.includes(f.priority)) { where.push('t.priority=?'); args.push(f.priority); }
     if (f.assignee === 'me') { where.push('t.assignee_id=?'); args.push(user.id); }
@@ -448,6 +454,11 @@ export function createTickets(db, users) {
       }
       if (changes.status) {
         db.prepare('UPDATE tickets SET resolved_at=? WHERE id=?').run(changes.status.new === 'done' ? new Date().toISOString() : null, row.id);
+        // Resolution: set when done (default "done"), cleared when reopened
+        if (changes.status.new === 'done') {
+          db.prepare('UPDATE tickets SET resolution=?, duplicate_of=? WHERE id=?').run(opts.resolution || 'done', opts.duplicateOf || null, row.id);
+          if (opts.resolution && opts.resolution !== 'done') logActivity(row.id, user.id, 'resolution', opts.resolution, null, opts.duplicateKey || null);
+        } else db.prepare('UPDATE tickets SET resolution=NULL, duplicate_of=NULL WHERE id=?').run(row.id);
       }
       if (rankChanged) db.prepare('UPDATE tickets SET rank=? WHERE id=?').run(Number(data.rank), row.id);
       if (changes.description) {
@@ -462,10 +473,62 @@ export function createTickets(db, users) {
     const result = agent ? t : ticketOut(rawById(row.id), false, user.id);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
     // Always emit (e.g. satisfaction survey); quiet only suppresses the separate "Resolved" mail
-    if (changes.status && changes.status.new === 'done') emitLater('resolved', { ticket: t, user, quiet: !!opts.quietResolved });
+    if (changes.status && changes.status.new === 'done') emitLater('resolved', { ticket: t, user, quiet: !!opts.quietResolved, resolution: opts.resolution || 'done' });
     if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
     if (changes.component_id) events.emit('componentChanged', { ticketId: row.id, componentId: changes.component_id.new, userId: user.id });
     return result;
+  }
+
+  /**
+   * Close a ticket as rejected (reason required) or as a duplicate of another ticket (reason
+   * optional, a standard note otherwise). The reason goes out as a reply to reporter and
+   * participants – instead of the "Resolved" mail; no satisfaction survey. A duplicate is linked
+   * with its original ("duplicates"); optionally reporter and participants join the original.
+   * Also possible for tickets that are done already (changes the resolution).
+   */
+  function resolveAs(user, idOrKey, { resolution, reason = '', duplicateOf = null, addToOriginal = false, lang = 'de', note = null } = {}) {
+    if (!isAgent(user)) throw forbidden();
+    if (!['rejected', 'duplicate'].includes(resolution)) throw new HttpError(400, 'err.badRequest', 'resolution');
+    const row = load(user, idOrKey);
+    const text = str(reason, 100000).trim();
+    let original = null;
+    if (resolution === 'rejected' && !text) throw new HttpError(400, 'err.rejectReasonRequired');
+    if (resolution === 'duplicate') {
+      try { original = load(user, str(duplicateOf, 30).trim().toUpperCase()); } catch { throw new HttpError(400, 'err.duplicateTarget'); }
+      if (original.id === row.id) throw new HttpError(400, 'err.duplicateTarget');
+      if (original.duplicate_of === row.id) throw new HttpError(400, 'err.duplicateCycle');
+    }
+    const originalKey = original ? `${original.project_key}-${original.number}` : null;
+    const body = text || (note ? note(originalKey) : '');
+    db.transaction(() => {
+      if (original) {
+        if (!db.prepare("SELECT 1 FROM ticket_links WHERE kind='duplicates' AND ((from_id=? AND to_id=?) OR (from_id=? AND to_id=?))").get(row.id, original.id, original.id, row.id)) {
+          db.prepare("INSERT INTO ticket_links(from_id, to_id, kind, created_by) VALUES(?,?,'duplicates',?)").run(row.id, original.id, user.id);
+          logActivity(row.id, user.id, 'linked', 'duplicates:out', null, originalKey);
+          logActivity(original.id, user.id, 'linked', 'duplicates:in', null, `${row.project_key}-${row.number}`);
+        }
+        if (addToOriginal) {
+          // Reporter and participants (with an account) follow the original from now on
+          const people = [row.reporter_id, ...db.prepare('SELECT user_id FROM ticket_participants WHERE ticket_id=?').all(row.id).map((r) => r.user_id)]
+            .filter((id) => id && id !== original.reporter_id);
+          for (const id of [...new Set(people)]) {
+            const u = users.byId(id);
+            if (!u || !u.active || isParticipant(original.id, id) || db.prepare('SELECT COUNT(*) n FROM ticket_participants WHERE ticket_id=?').get(original.id).n >= MAX_PARTICIPANTS) continue;
+            db.prepare('INSERT INTO ticket_participants(ticket_id,user_id,added_by) VALUES(?,?,?)').run(original.id, id, user.id);
+            logActivity(original.id, user.id, 'participantAdded', null, null, u.display_name);
+          }
+        }
+      }
+    })();
+    if (body) addComment(user, row.id, { body, format: 'md' });
+    if (row.status === 'done') {
+      // already done: only the resolution changes
+      db.prepare('UPDATE tickets SET resolution=?, duplicate_of=? WHERE id=?').run(resolution, original?.id || null, row.id);
+      logActivity(row.id, user.id, 'resolution', resolution, row.resolution || 'done', originalKey);
+      db.prepare('DELETE FROM ticket_ratings WHERE ticket_id=? AND rating IS NULL').run(row.id);
+      return ticketOut(rawById(row.id));
+    }
+    return update(user, row.id, { status: 'done' }, { quietResolved: true, resolution, duplicateOf: original?.id || null, duplicateKey: originalKey });
   }
 
   /**
@@ -552,7 +615,7 @@ export function createTickets(db, users) {
       // Reply from the reporter to a waiting/resolved ticket → reopen
       const fromCustomer = !system && !agent && (user ? isCustomer(user, row) : true);
       if (fromCustomer && (row.status === 'waiting' || row.status === 'done')) {
-        db.prepare("UPDATE tickets SET status='open', resolved_at=NULL WHERE id=?").run(row.id);
+        db.prepare("UPDATE tickets SET status='open', resolved_at=NULL, resolution=NULL, duplicate_of=NULL WHERE id=?").run(row.id);
         logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'open');
       }
       return r;
@@ -900,6 +963,6 @@ export function createTickets(db, users) {
     search,
     events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
-    applyComponent, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
+    applyComponent, resolveAs, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
   };
 }

@@ -297,7 +297,7 @@ async function reviewPage(body, project) {
             h('td', h('a', { href: `/browse/${s.key}`, 'data-link': '' }, s.key)),
             h('td', s.title),
             h('td', h('strong', s.component.name), s.reason ? h('span.muted.block.small', s.reason) : null),
-            h('td', lozenge(s.status)));
+            h('td', lozenge(s.status, s.resolution)));
         }))))] : h('div.empty-state.small', t('backfill.reviewEmpty'))));
 }
 
