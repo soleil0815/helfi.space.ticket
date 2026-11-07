@@ -682,6 +682,7 @@ export function createApi(ctx) {
   // Review list of open AI suggestions (also from sorting existing tickets afterwards)
   r.get('/component-suggestions', requireRole('agent'), (req, res) => res.json({ suggestions: ctx.aiClassifier.pendingList(req.query.project) }));
   r.post('/component-suggestions/decide', requireRole('agent'), (req, res) => res.json(ctx.aiClassifier.decideMany(req.user, req.body.keys, req.body.action)));
+  r.post('/tickets/:key/duplicate-suggestion/dismiss', requireRole('agent'), (req, res) => res.json(ctx.aiDuplicates.dismiss(req.user, req.params.key)));
   r.post('/tickets/:key/component-suggestion/accept', requireRole('agent'), (req, res) => res.json({ ticket: ctx.aiClassifier.accept(req.user, req.params.key) }));
   r.post('/tickets/:key/component-suggestion/dismiss', requireRole('agent'), (req, res) => res.json(ctx.aiClassifier.dismiss(req.user, req.params.key)));
   r.post('/ai/rewrite', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.rewrite(req.user, req.body.text, str(req.body.mode, 20)))));
@@ -861,7 +862,7 @@ export function createApi(ctx) {
     }
     if (incoming['ai.reasoning'] !== undefined && !REASONING.includes(incoming['ai.reasoning'])) throw new HttpError(400, 'err.badRequest', 'ai.reasoning');
     if (incoming['ai.classifyMode'] !== undefined && !CLASSIFY_MODES.includes(incoming['ai.classifyMode'])) throw new HttpError(400, 'err.badRequest', 'ai.classifyMode');
-    for (const k of ['ai.summary', 'ai.reply', 'ai.rewrite', 'ai.classify', 'ai.kb']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
+    for (const k of ['ai.summary', 'ai.reply', 'ai.rewrite', 'ai.classify', 'ai.kb', 'ai.duplicates']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
     if (incoming['ai.baseUrl'] !== undefined && String(incoming['ai.baseUrl']).trim()) {
       let u = null;
       try { u = new URL(String(incoming['ai.baseUrl']).trim()); } catch { /* checked below */ }
@@ -914,7 +915,7 @@ export function createApi(ctx) {
 
   admin.post('/imap/test', wrap(async (req, res) => res.json(await testImap(mergedGroup('imap', req.body.settings)))));
 
-  admin.get('/ai/stats', (req, res) => res.json({ classify: ctx.aiClassifier.stats() }));
+  admin.get('/ai/stats', (req, res) => res.json({ classify: ctx.aiClassifier.stats(), duplicates: ctx.aiDuplicates.stats() }));
   // Sort existing tickets without component afterwards: preview, start, progress, cancel
   // all tickets by default (also done ones); includeDone=0 limits it to open ones
   const backfillOpts = (q) => ({ includeDone: !(q.includeDone === false || q.includeDone === '0'), retry: q.retry === true || q.retry === '1', mode: q.mode || 'suggest' });

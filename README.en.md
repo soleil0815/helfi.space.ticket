@@ -20,7 +20,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Components with ownership:** split projects into areas such as “VPN & remote access” or “Printers & scanners”, each with a responsible person and a deputy. New tickets are matched by keywords or the sender and go to the right person automatically – with ready-made examples for IT, facilities and administration
 - **Formatted replies:** one toolbar above the comment field (ticket, knowledge articles, phone) with AI, bold/italic, lists, quote, code, link, image, emoji, @-mention and canned responses – formatted while writing, formatted in the mail
 - **Teamwork:** **@-mentions** in replies and internal notes (with email and a "Mentions me" view), request participants, reply templates, **multi-select** (status, assignment, comment or link for many tickets at once), **linking with search and suggestions** (possible causes, similar tickets)
-- **AI assistance (optional, every function can be switched on its own):** summary, reply suggestion, rewriting, help writing knowledge articles and detecting the component (with hit rate) with your own model (Ollama, LM Studio, vLLM …) or any OpenAI-compatible service – suggestions only, nothing is sent automatically
+- **AI assistance (optional, every function can be switched on its own):** summary, reply suggestion, rewriting, help writing knowledge articles, detecting the component and duplicates (with hit rate) with your own model (Ollama, LM Studio, vLLM …) or any OpenAI-compatible service – suggestions only, nothing is sent automatically
 - **Phone app:** its own app-like interface under `/m`, installable as an app, with photos, templates, mentions and 2FA setup
 - **Self-registration and "forgot password"** for local accounts (self-registration off by default, "forgot password" on for user accounts by default), optionally only for certain domains and with approval
 - **Automatic sign-out when idle,** stricter for admins and access from outside if desired, with a "Still there?" prompt
@@ -106,12 +106,13 @@ Agents can have tickets summarized and replies suggested, polished, shortened or
 - **Reasoning models** (e.g. gpt-oss): reasoning is set to *low* (faster) and removed from the answer.
 - Only the server talks to the model; the browser still loads nothing from outside. Calls are limited per agent.
 - **Knowledge articles** (function on by default): in the article editor *AI* is the first button. It works on the selection or the whole article and keeps the formatting – polish, shorten, step-by-step guide from notes, translate, suggest title and category. For an article from a ticket the AI writes a draft on request (problem – cause – solution) without personal data. *Undo* brings back the previous text.
-- **Switch functions one by one:** *summary*, *reply suggestion* and *rewrite* and *knowledge articles* (on by default) and *detect component* (off by default). Functions that are off do not appear anywhere.
+- **Switch functions one by one:** *summary*, *reply suggestion* and *rewrite* and *knowledge articles* (on by default) and *detect component* and *detect duplicates* (off by default). Functions that are off do not appear anywhere.
 - **Detect component:** for new tickets that no [component](#components) rule matches, the AI picks from the list of components (with description and keywords) in the background – or reports “none fits”. Two modes:
   - *Suggest* (default): the ticket shows “AI suggests: VPN & remote access – Accept / Dismiss” (phone: under *All details*). Accepting sets the component and gives the ticket to the responsible person like the rules do.
   - *Assign automatically*: the component is set directly; the history says “by AI” with the model.
   - The **hit rate** is shown on the AI page, e.g. “87 % (52 of 60 accepted)”: accepted ones and automatic ones nobody changed, against corrected and dismissed ones.
   - With a cloud model, the title and description of every new ticket without a rule match go to the provider for this – the page points it out.
+- **Detect duplicates** (off by default): for a new ticket, Helfi.Space first searches similar **open** tickets of the same project from the last 30 days by full text, without AI (at most 8). Only if there are any does the AI check whether the new ticket reports the same problem. Agents then see “Possible duplicate of IT-12 – reason” in the ticket with **Close as duplicate** (opens the dialog with the original filled in) and **Not a duplicate** – also on phones. Nothing is ever closed automatically; reporters do not see the hint. The hit rate is shown on the AI page.
 
 ## Self-registration and forgotten passwords
 

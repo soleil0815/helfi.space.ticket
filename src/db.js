@@ -772,6 +772,26 @@ export const MIGRATIONS = [
     CREATE INDEX idx_tickets_resolution ON tickets(resolution);
     `,
   },
+  {
+    id: 39,
+    name: 'KI: mögliche Duplikate',
+    sql: `
+    -- One entry per new ticket the AI looked at: which open ticket it may duplicate, and what came of it
+    -- state: pending (hint shown to agents) | accepted (closed as duplicate of it) | corrected (duplicate
+    -- of another ticket) | rejected ("not a duplicate") | none (no duplicate among the candidates)
+    CREATE TABLE duplicate_suggestions (
+      ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
+      original_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      state TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      decided_at TEXT,
+      decided_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX idx_duplicate_suggestions_state ON duplicate_suggestions(state);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

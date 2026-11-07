@@ -213,6 +213,7 @@ export function createAi({ db, settings, tickets }) {
         rewrite: settings.get('ai.rewrite') !== false,
         classify: !!settings.get('ai.classify'),
         kb: settings.get('ai.kb') !== false,
+        duplicates: !!settings.get('ai.duplicates'),
       },
     };
   }

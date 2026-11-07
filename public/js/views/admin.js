@@ -775,17 +775,27 @@ function aiPage(body, s) {
   const updateHint = () => {
     const remote = aiLooksRemote(s['ai.baseUrl'], s['ai.model']);
     remoteHint.hidden = !remote;
-    classifyHint.hidden = !(remote && s['ai.classify']);
+    classifyHint.hidden = !(remote && (s['ai.classify'] || s['ai.duplicates']));
   };
   const modeSel = bindSelect(s, 'ai.classifyMode', [['suggest', t('ai.classifyMode.suggest')], ['auto', t('ai.classifyMode.auto')]]);
   const modeField = field(t('ai.classifyMode'), modeSel, t('ai.classifyModeHint'));
   const syncMode = () => { modeSel.disabled = !s['ai.classify']; };
   const stats = h('div.ai-stats', { 'aria-live': 'polite' });
-  api.admin.aiStats().then(({ classify: c }) => {
-    if (!c.decided && !c.pending && !c.none) return mount(stats, h('span.muted', t('ai.statsNone')));
-    mount(stats,
-      c.rate === null ? h('span.muted', t('ai.statsNoDecision')) : h('span', h('strong.ai-rate', `${c.rate} %`), ' ', t('ai.statsRate', { hits: c.hits, decided: c.decided })),
-      h('span.muted.block.small', t('ai.statsDetail', { accepted: c.accepted, auto: c.auto, corrected: c.corrected, rejected: c.rejected, pending: c.pending, none: c.none })));
+  const dupStats = h('div.ai-stats', { 'aria-live': 'polite' });
+  api.admin.aiStats().then(({ classify: c, duplicates: d }) => {
+    if (!c.decided && !c.pending && !c.none) mount(stats, h('span.muted', t('ai.statsNone')));
+    else {
+      mount(stats,
+        c.rate === null ? h('span.muted', t('ai.statsNoDecision')) : h('span', h('strong.ai-rate', `${c.rate} %`), ' ', t('ai.statsRate', { hits: c.hits, decided: c.decided })),
+        h('span.muted.block.small', t('ai.statsDetail', { accepted: c.accepted, auto: c.auto, corrected: c.corrected, rejected: c.rejected, pending: c.pending, none: c.none })));
+    }
+    if (!d) return;
+    if (!d.decided && !d.pending && !d.none) mount(dupStats, h('span.muted', t('ai.statsNone')));
+    else {
+      mount(dupStats,
+        d.rate === null ? h('span.muted', t('ai.statsNoDecision')) : h('span', h('strong.ai-rate', `${d.rate} %`), ' ', t('ai.statsRate', { hits: d.hits, decided: d.decided })),
+        h('span.muted.block.small', t('aiDup.statsDetail', d)));
+    }
   }).catch(() => {});
   const baseUrl = bindInput(s, 'ai.baseUrl', { placeholder: 'http://ollama:11434/v1', spellcheck: false, autocomplete: 'off' });
   const apiKey = bindInput(s, 'ai.apiKey', { type: 'password', autocomplete: 'new-password' });
@@ -818,10 +828,12 @@ function aiPage(body, s) {
         field(t('ai.fn.reply'), bindCheck(s, 'ai.reply'), t('ai.fn.replyHint')),
         field(t('ai.fn.rewrite'), bindCheck(s, 'ai.rewrite'), t('ai.fn.rewriteHint')),
         field(t('ai.fn.kb'), bindCheck(s, 'ai.kb'), t('ai.fn.kbHint')),
-        field(t('ai.fn.classify'), bindCheck(s, 'ai.classify', () => { syncMode(); updateHint(); }), t('ai.fn.classifyHint'))),
-      modeField,
+        field(t('ai.fn.classify'), bindCheck(s, 'ai.classify', () => { syncMode(); updateHint(); }), t('ai.fn.classifyHint')),
+        h('div.ai-fn-sub', modeField), // belongs to "detect component"
+        field(t('ai.fn.duplicates'), bindCheck(s, 'ai.duplicates', updateHint), t('ai.fn.duplicatesHint'))),
       classifyHint,
       h('div.field', h('label', t('ai.stats')), stats),
+      h('div.field', h('label', t('aiDup.stats')), dupStats),
       res,
       saveBar(() => saveKeys(s, ['ai.']),
         h('button.btn', {

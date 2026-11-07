@@ -81,6 +81,6 @@ test('Admin: functions and hit rate on the AI page', { skip }, async () => {
   await p.goto(`${S.base}/admin/ai`);
   await p.waitForSelector('.ai-stats .ai-rate');
   assert.match(await p.$eval('.ai-stats', (e) => e.textContent), /50 %.*1 von 2/);
-  assert.equal(await p.locator('.ai-functions input[type=checkbox]').count(), 5);
+  assert.equal(await p.locator('.ai-functions input[type=checkbox]').count(), 6);
   assert.deepEqual(errors, []);
 });

@@ -19,6 +19,7 @@ import { replyBar } from '../reply.js';
 import {
   openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet, openLinkSheet, openChoiceSheet,
   openReporterSheet,
+  openResolveSheet,
 } from '../actions.js';
 import { projectComponents } from '/js/components.js';
 import { commentView } from '/js/commentfield.js';
@@ -173,6 +174,13 @@ export async function renderTicket(page, ctx) {
         tk.duplicateOf ? h('a.m-pill', { href: `/m/t/${tk.duplicateOf}`, 'data-link': '' }, t('resolution.duplicateOf', { key: tk.duplicateOf })) : null,
         tk.sla ? slaPill(tk.sla) : null,
         tk.dueDate ? h('span.m-pill', `${t('ticket.dueDate')} ${fmtDate(tk.dueDate, false)}`) : null),
+      // AI: possible duplicate (agents)
+      agent && tk.duplicateSuggestion ? h('div.m-ai-suggest.m-ai-duplicate',
+        h('span', icon('sparkle'), ' ', t('aiDup.hint'), ' ', h('a', { href: `/m/t/${tk.duplicateSuggestion.key}`, 'data-link': '' }, tk.duplicateSuggestion.key), ' – ', tk.duplicateSuggestion.title),
+        tk.duplicateSuggestion.reason ? h('span.m-muted', tk.duplicateSuggestion.reason) : null,
+        h('div.m-ai-suggest-actions',
+          h('button.m-btn.m-btn-primary', { type: 'button', onclick: () => openResolveSheet(tk, { kind: 'duplicate', original: tk.duplicateSuggestion.key, onResolved: reloadAfterChange }) }, t('resolve.duplicateBtn')),
+          h('button.m-btn', { type: 'button', onclick: async () => { try { await api.dismissDuplicate(tk.key); await reloadAfterChange(); } catch (e) { toast(e.message, 'error'); } } }, t('aiDup.dismiss')))) : null,
       h('div.m-people',
         person(agent ? t('ticket.assignee') : t('ticket.yourContact'), tk.assignee, agent ? { onClick: () => openAssigneeSheet(tk, save) } : {}),
         person(t('ticket.reporter'), tk.reporter || { displayName: '—' })),

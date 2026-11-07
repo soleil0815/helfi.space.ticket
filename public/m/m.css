@@ -900,3 +900,4 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-reporter-confirm > p { text-align: left; }
 .m-login-source { margin-top: 4px; padding: 10px; font-size: 13px; color: var(--text-subtlest); text-decoration: none; }
 .m-version a { color: inherit; }
+.m-ai-duplicate { margin-top: 12px; }

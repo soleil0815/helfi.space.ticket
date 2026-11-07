@@ -292,6 +292,19 @@ export async function renderTicket(content, key) {
         h('button.btn.btn-subtle.small', { type: 'button', onclick: () => run(() => api.dismissSuggestion(tk.key)) }, t('ai.dismiss'))));
   }
 
+  // AI: "possible duplicate of IT-12" – close as duplicate (dialog with the original filled in) or dismiss
+  function duplicateHint() {
+    const d = tk.duplicateSuggestion;
+    return h('div.ai-duplicate', { role: 'note' },
+      h('div.ai-duplicate-text',
+        icon('sparkle'), ' ', t('aiDup.hint'), ' ',
+        h('a', { href: `/browse/${d.key}`, 'data-link': '' }, d.key), ' – ', h('span', d.title), ' ', lozenge(d.status),
+        d.reason ? h('span.muted.block.small', d.reason) : null),
+      h('div.ai-suggest-actions',
+        h('button.btn.btn-primary.small', { type: 'button', onclick: () => openResolveDialog({ kind: 'duplicate', keys: [tk.key], tk, original: d.key, onDone: refresh }) }, t('resolve.duplicateBtn')),
+        h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { try { await api.dismissDuplicate(tk.key); await refresh(); } catch (e) { toast(e.message, 'error'); } } }, t('aiDup.dismiss'))));
+  }
+
   function detailRow(label, valueEl) { return h('div.detail-row', h('div.detail-label', label), h('div.detail-value', valueEl)); }
 
   function pick(current, options, onPick, render) {
@@ -481,6 +494,7 @@ export async function renderTicket(content, key) {
           h('span.crumb-key', typeIcon(tk.type), h('a', { href: `/browse/${tk.key}`, 'data-link': '' }, tk.key))),
         titleEl(),
         agent ? majorBanner(tk, refresh) : null,
+        agent && tk.duplicateSuggestion ? duplicateHint() : null,
         agent ? problemHint(tk) : null,
         catalogApprovalBox(tk, refresh),
         ratingBox(tk, refresh, agent),
