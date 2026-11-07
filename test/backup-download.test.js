@@ -6,6 +6,8 @@ import path from 'node:path';
 import os from 'node:os';
 import zlib from 'node:zlib';
 import { Readable } from 'node:stream';
+import http from 'node:http';
+import crypto from 'node:crypto';
 import Database from 'better-sqlite3';
 import { startServer } from './helpers/server.js';
 
@@ -128,4 +130,26 @@ test('Download: admins only, only files from the backup folder', async () => {
     assert.equal(r.status, 404, bad);
     assert.notEqual(r.headers.get('content-type'), 'application/zip');
   }
+});
+
+test('Download: at most two at the same time, the slot is freed afterwards', async () => {
+  const name = 'helfi-manuell-2026-11-07T10-00-00.sqlite';
+  fs.writeFileSync(path.join(paths.backups, name), crypto.randomBytes(24 * 1024 * 1024)); // incompressible, fills the buffers
+  const url = `${S.base}/api/admin/backups/${name}/download`;
+  const open = () => new Promise((resolve, reject) => {
+    const req = http.get(url, { headers: { cookie: S.admin.cookie() } }, (res) => { res.pause(); resolve({ req, res }); });
+    req.on('error', reject);
+  });
+  const a = await open(); const b = await open();
+  assert.equal(a.res.statusCode, 200); assert.equal(b.res.statusCode, 200);
+  let r = await S.admin.raw(`/api/admin/backups/${name}/download`);
+  assert.equal(r.status, 429);
+  a.req.destroy(); b.req.destroy();
+  for (let i = 0; i < 50; i++) {
+    await new Promise((res) => setTimeout(res, 50));
+    r = await S.admin.raw(`/api/admin/backups/${name}/download`);
+    if (r.status === 200) break;
+  }
+  assert.equal(r.status, 200, 'free again after the aborted downloads');
+  assert.equal(readZip(r.bytes)['helfi.sqlite'].length, 24 * 1024 * 1024);
 });

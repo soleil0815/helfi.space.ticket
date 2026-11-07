@@ -32,6 +32,7 @@ export async function startServer(name) {
       const r = await fetch(base + url, { headers: { cookie } });
       return { status: r.status, headers: r.headers, bytes: Buffer.from(await r.arrayBuffer()) };
     };
+    call.cookie = () => cookie;
     call.login = async (username, password = 'Sehrgeheim123') => {
       const r = await call('POST', '/api/auth/login', { username, password });
       if (r.status !== 200) throw new Error(`login ${username}: ${r.status} ${JSON.stringify(r.body)}`);

@@ -915,6 +915,16 @@ export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
 }
 
 /** Delete a specific backup (only files from the backup folder). */
+/**
+ * A backup for download: looked up in the folder listing (never a path built from the request).
+ * Returns { name, kind, size, time, file } or null.
+ */
+export function findBackup(name, dir = paths.backups) {
+  if (typeof name !== 'string' || !backupKind(name)) return null;
+  const b = listBackups(dir).find((x) => x.name === name);
+  return b ? { ...b, file: path.join(dir, b.name) } : null;
+}
+
 /** INFO.txt for a downloaded backup (German and English): what is in it and how to restore it. */
 export function backupInfoText({ name, created, version = config.version }) {
   const when = created.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';

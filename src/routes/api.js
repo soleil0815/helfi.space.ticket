@@ -24,7 +24,7 @@ import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
 import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
-import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, backupKind, backupInfoText } from '../db.js';
+import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText } from '../db.js';
 import { zipStream, ZIP_MAX_BYTES } from '../zip.js';
 import { Readable } from 'node:stream';
 import { log } from '../lib/log.js';
@@ -1012,21 +1012,24 @@ export function createApi(ctx) {
    * with it, the encrypted passwords (mailbox, LDAP service account, AI key) could be decrypted
    * by anyone holding the file. The full backup stays in the backup folder on the host.
    */
+  // Packing costs CPU and disk reads: at most two downloads at the same time
+  let backupDownloads = 0;
+  const MAX_BACKUP_DOWNLOADS = 2;
   admin.get('/backups/:name/download', (req, res) => {
-    const name = req.params.name;
-    if (typeof name !== 'string' || !backupKind(name)) throw notFound();
-    const file = path.join(paths.backups, name);
-    let st;
-    try { st = fs.statSync(file); } catch { throw notFound(); }
-    if (!st.isFile()) throw notFound();
-    if (st.size > ZIP_MAX_BYTES) throw new HttpError(413, 'err.backupTooLarge');
+    const b = findBackup(req.params.name);
+    if (!b) throw notFound();
+    if (b.size > ZIP_MAX_BYTES) throw new HttpError(413, 'err.backupTooLarge');
+    if (backupDownloads >= MAX_BACKUP_DOWNLOADS) throw new HttpError(429, 'err.backupBusy');
+    backupDownloads++;
+    res.once('close', () => { backupDownloads--; });
+    const { name, file } = b;
     const zipName = name.replace(/\.sqlite$/, '.zip');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, no-store');
     log.info(`Backup ${name} downloaded by ${req.user.username}`);
-    const created = new Date(st.mtimeMs);
+    const created = new Date(b.time);
     Readable.from(zipStream([
       { name: 'helfi.sqlite', file, mtime: created },
       { name: 'INFO.txt', data: backupInfoText({ name, created }), mtime: new Date() },
