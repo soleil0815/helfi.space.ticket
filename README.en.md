@@ -22,7 +22,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Teamwork:** **@-mentions** in replies and internal notes (with email and a "Mentions me" view), request participants, reply templates, **multi-select** (status, assignment, comment or link for many tickets at once), **linking with search and suggestions** (possible causes, similar tickets)
 - **AI assistance (optional, every function can be switched on its own):** summary, reply suggestion, rewriting, help writing knowledge articles and detecting the component (with hit rate) with your own model (Ollama, LM Studio, vLLM …) or any OpenAI-compatible service – suggestions only, nothing is sent automatically
 - **Phone app:** its own app-like interface under `/m`, installable as an app, with photos, templates, mentions and 2FA setup
-- **Self-registration and "forgot password"** for local accounts (off by default), optionally only for certain domains and with approval
+- **Self-registration and "forgot password"** for local accounts (self-registration off by default, "forgot password" on for user accounts by default), optionally only for certain domains and with approval
 - **Automatic sign-out when idle,** stricter for admins and access from outside if desired, with a "Still there?" prompt
 - **Knowledge articles with 👍/👎 rating** and feedback on what was missing – articles that need rework at a glance
 - **Roles:** administrator, agent, user. Users only see their own requests.
@@ -106,7 +106,7 @@ Agents can have tickets summarized and replies suggested, polished, shortened or
 - **Reasoning models** (e.g. gpt-oss): reasoning is set to *low* (faster) and removed from the answer.
 - Only the server talks to the model; the browser still loads nothing from outside. Calls are limited per agent.
 - **Knowledge articles** (function on by default): in the article editor *AI* is the first button. It works on the selection or the whole article and keeps the formatting – polish, shorten, step-by-step guide from notes, translate, suggest title and category. For an article from a ticket the AI writes a draft on request (problem – cause – solution) without personal data. *Undo* brings back the previous text.
-- **Switch functions one by one:** *summary*, *reply suggestion* and *rewrite* (on by default) and *detect component* (off by default). Functions that are off do not appear anywhere.
+- **Switch functions one by one:** *summary*, *reply suggestion* and *rewrite* and *knowledge articles* (on by default) and *detect component* (off by default). Functions that are off do not appear anywhere.
 - **Detect component:** for new tickets that no [component](#components) rule matches, the AI picks from the list of components (with description and keywords) in the background – or reports “none fits”. Two modes:
   - *Suggest* (default): the ticket shows “AI suggests: VPN & remote access – Accept / Dismiss” (phone: under *All details*). Accepting sets the component and gives the ticket to the responsible person like the rules do.
   - *Assign automatically*: the component is set directly; the history says “by AI” with the model.
@@ -204,6 +204,7 @@ Example: reporters without a code, agents with a code from outside, administrato
 - If a reply is matched only by the number in the subject, its To/CC recipients do not become participants. That only happens for new tickets and for replies to mails from Helfi.Space (matched via the Message-ID).
 - Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the reporter. Agents reply through the web interface.
 - Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.
+- Replies to a ticket-system email from someone who is no longer reporter or participant (e.g. after a reporter change, or an approver who is not a participant) also only become internal notes: no new participants from CC, no reopening.
 - Helfi.Space marks processed mails with its own IMAP flag (`$HelfiDone`). If someone reads the mailbox in parallel in Outlook or on a phone, the mails are still processed. If the mail server cannot store custom flags, Helfi.Space fetches only unread mails as before – then do not read the mailbox in parallel. A folder for processed mails is recommended.
 - Confirmations of receipt go out at most 60 times per hour (protection against abuse with forged senders).
 - Loop protection: more than 20 new tickets per hour from the same sender are ignored.
@@ -249,7 +250,7 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 - **What participants can do:**
   - see the ticket, also under *My requests* with the filter "I am a participant"
   - comment and attach files on the web or by replying to a mail
-- **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter they only see the name, not the email address and logon name (the same applies to approvers without the agent role).
+- **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
@@ -275,7 +276,7 @@ Above the comment field there is a toolbar – in tickets, in comments on knowle
 - **AI** (if set up): suggest a reply, polish, shorten, translate.
 - **Formatting:** bold (Ctrl+B), italic (Ctrl+I), underline, strikethrough, code; bullets, numbered list, quote, code block. The formatting is visible while writing; “- ”, “1. ” or “> ” at the start of a line work too.
 - **Link** (Ctrl+K, also ticket numbers such as IT-42), **image** (or Ctrl+V), **emoji** (also “:)”) and **@** to mention someone.
-- **Canned responses** on the right of the bar, *Save as canned response* in the same menu. Ctrl+Enter saves.
+- **Canned responses** on the right of the bar, *Save as template* in the same menu. Ctrl+Enter saves.
 
 The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. Older comments and mails are shown as before.
 
@@ -284,7 +285,7 @@ The text is stored in the format of knowledge articles. Reporters and participan
 Agents bring colleagues into a ticket directly: in the reply field (desktop and phone) type **@** and a few letters, then pick a person (click/tap or ↑/↓ and Enter or Tab; Esc closes the list). The name is highlighted in the comment, your own mentions in colour.
 
 - **Who can be mentioned:** in an **internal note** only agents; in a **reply** also the ticket's reporter, participants and approvers. People who cannot see the ticket are not offered – and a reference typed by hand becomes plain text when saving. Reporters do not mention anyone; neither do comments from emails (senders can be forged).
-- **Notification:** people mentioned get an email from the ticket system ("Anna mentioned you on IT-12") with the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
+- **Notification:** people mentioned get an email from the ticket system ("[IT-12] Anna mentioned you: …") with the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
 - **Finding them again:** *Mentions me* in the sidebar (phone: *Mentions* chip under *Tickets*) lists all tickets with a mention; the number next to it counts those not opened yet. New mentions are marked with **@** in lists, and so is the comment in the ticket. Opening the ticket marks the mention as seen.
 - Mentions do not add people as participants or watchers – that is what *Request participants* is for.
 
@@ -431,7 +432,7 @@ On phones Helfi.Space opens automatically in its own app-like interface (under `
 - **Me:** name, email and password (local accounts), language, **two-factor authentication** right on the phone (secret key to copy and an *Open in authenticator app* button instead of a QR code, the QR code stays available for a second device; then the recovery codes to copy or share), what's new and *Desktop view*.
 - **Install as an app:** iPhone/iPad: in Safari *Share* → *Add to Home Screen*. Android: in Chrome ⋮ → *Install app* (or the button under *Me → Install app*). Helfi.Space then starts full screen with its own icon; a small service worker keeps only the program files ready and shows a notice page without a connection. New versions arrive automatically ("New version – Reload").
 - **Switching:** *Me → Desktop view* switches to the familiar view for good, *Phone view* in the user menu switches back. Pages that only exist on the PC (administration, reports, board …) open in the desktop view.
-- **Privacy:** photos are uploaded without location data: camera photos (JPEG) are always re-encoded on the phone, which drops metadata such as the location (EXIF/GPS); large pictures (over 2560 px) are also downscaled. Pictures the browser cannot read (e.g. HEIC) are uploaded unchanged. Ticket data, attachments and server responses are **not** cached on the device (`Cache-Control: no-store`) – only the program files. Unsent drafts belong to the account and are deleted on sign-out, when the session expires and when another account signs in; the server deletes unsent uploads after a day. Nothing is loaded from the internet.
+- **Privacy:** photos are uploaded without location data: camera photos (JPEG) are always re-encoded on the phone, which drops metadata such as the location (EXIF/GPS); large pictures (over 2560 px) are also downscaled. Pictures the browser cannot read (e.g. HEIC) are uploaded unchanged. Ticket data, attachments and server responses are **not** cached on the device (`Cache-Control: no-store`, knowledge-base images included) – only the program files. Unsent drafts belong to the account and are deleted on sign-out, when the session expires and when another account signs in; the server deletes unsent uploads after a day. Nothing is loaded from the internet.
 
 The desktop view stays usable on narrow screens too (menu as a drawer, lists as cards, full-screen dialogs).
 
