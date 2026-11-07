@@ -360,7 +360,8 @@ export function createTickets(db, users) {
     return t;
   }
 
-  /** opts.quietResolved: no "Resolved" mail (e.g. when a reply goes out at the same time). */
+  /** opts.quietResolved: no "Resolved" mail to everyone (e.g. when a reply goes out at the same time);
+   *  the 'resolved' event still fires (with quiet: true), the reporter only gets the rating links. */
   function update(user, idOrKey, data, opts = {}) {
     const row = load(user, idOrKey);
     const agent = isAgent(user);
@@ -449,7 +450,8 @@ export function createTickets(db, users) {
     const t = ticketOut(rawById(row.id));
     const result = agent ? t : ticketOut(rawById(row.id), false, user.id);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
-    if (changes.status && changes.status.new === 'done' && !opts.quietResolved) emitLater('resolved', { ticket: t, user });
+    // Always emit (e.g. satisfaction survey); quiet only suppresses the separate "Resolved" mail
+    if (changes.status && changes.status.new === 'done') emitLater('resolved', { ticket: t, user, quiet: !!opts.quietResolved });
     if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
     if (changes.component_id) events.emit('componentChanged', { ticketId: row.id, componentId: changes.component_id.new, userId: user.id });
     return result;

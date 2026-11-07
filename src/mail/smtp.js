@@ -159,7 +159,9 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     for (const r of tickets.customerRecipients(ticket.id)) {
       if (actorId && r.id === actorId) continue;
       const lang = recipientLang(r.id);
-      const { subject, text, html } = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
+      const built = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
+      if (!built) continue; // builder decided: no mail to this recipient
+      const { subject, text, html } = built;
       await mailer.send({ to: r.email, subject, text, html, ticketId: ticket.id, customer: true });
     }
   }
@@ -200,13 +202,17 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     }
   }));
 
-  tickets.events.on('resolved', safe(async ({ ticket, user }) => {
+  tickets.events.on('resolved', safe(async ({ ticket, user, quiet = false }) => {
     if (!settings.get('notify.reporterOnDone')) return;
     // Rating links only for the reporter (not for request participants)
     const raw = tickets.rawById(ticket.id);
     const isReporter = (r) => (raw.reporter_id ? r.id === raw.reporter_id : r.email === String(raw.reporter_email || '').toLowerCase());
+    // quiet (a reply already went out at the same time): no second mail – except the rating links for the reporter
+    if (quiet && !(survey?.enabled() && tickets.customerRecipients(ticket.id).some(isReporter))) return;
     await toCustomers(ticket, user?.id, (lang, name, r) => {
+      if (quiet && !isReporter(r)) return null;
       const token = survey && isReporter(r) ? survey.issueToken(ticket.id) : null;
+      if (quiet && !token) return null;
       let surveyText = '';
       if (token) {
         const url = (n) => `${config.baseUrl}/rate/${token}?r=${n}`;

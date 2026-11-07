@@ -92,12 +92,20 @@ test('Report for one of our own mails: internal note, no reopening, address bloc
   assert.equal((await run(exchangeNdr(outId))).action, 'duplicate');
 });
 
-test('Report without our own Message-ID (forged/foreign): no note in any ticket', async () => {
+test('Report without our own Message-ID (forged/foreign): no note in any ticket, address not blocked', async () => {
   const before = db.prepare('SELECT COUNT(*) n FROM comments').get().n;
   const r = await run(postfixNdr('helfi.1.99.ff@firma.local', 'drucker@firma.local'));
   assert.equal(r.action, 'bounce');
   assert.equal(r.ticketId, null, 'made-up Helfi ID is not trusted');
   assert.equal(db.prepare('SELECT COUNT(*) n FROM comments').get().n, before);
+  // A forged report must not block mail to arbitrary addresses
+  assert.equal(ctx.suppressions.isBlocked('drucker@firma.local'), false);
+  // Postfix report about one of our real outgoing mails: address is blocked
+  const tk = db.prepare('SELECT id FROM tickets ORDER BY id LIMIT 1').get();
+  const outId = `helfi.${tk.id}.1730500000001.fedcba@firma.local`;
+  db.prepare("INSERT INTO mail_messages(message_id,ticket_id,direction) VALUES(?,?,'out')").run(outId, tk.id);
+  const r2 = await run(postfixNdr(outId, 'drucker@firma.local').toString().replace('ndr2@mail.firma.local', 'ndr3@mail.firma.local'));
+  assert.equal(r2.ticketId, tk.id);
   assert.equal(ctx.suppressions.isBlocked('drucker@firma.local'), true);
 });
 

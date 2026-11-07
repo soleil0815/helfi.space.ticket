@@ -81,6 +81,20 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     return !!db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND (author_id=? OR lower(author_email)=?) LIMIT 1').get(ticketId, sender.id, fromAddr);
   }
 
+  /** Is the sender currently the reporter or a request participant? (former reporters/removed participants are not) */
+  function isCurrentParty(ticketId, sender, fromAddr) {
+    const t = db.prepare('SELECT reporter_id, reporter_email FROM tickets WHERE id=?').get(ticketId);
+    if (!t) return false;
+    if ((sender && t.reporter_id === sender.id) || String(t.reporter_email || '').toLowerCase() === fromAddr) return true;
+    return !!sender && tickets.isParticipant(ticketId, sender.id);
+  }
+
+  /** Reply via our Message-ID whose sender is no longer involved (or only got an agent mail, e.g. an approval):
+   *  only an internal note, no CC participants, no reopening. */
+  function outsiderReply(found, sender, fromAddr) {
+    return found.agentMail || !isCurrentParty(found.id, sender, fromAddr);
+  }
+
   /**
    * Look up an unknown sender in AD and create them as an AD user (as on first sign-in).
    * Returns the account or null (then the sender becomes an email contact as before).
@@ -95,9 +109,18 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
   }
 
   /** Look up the recipients (To/CC) of a mail in AD so they become participants as AD users. */
-  async function lookupParticipants(parsed, now = Date.now()) {
+  async function lookupParticipants(parsed, now = Date.now(), sender = null) {
     const found = new Map();
-    if (!settings.get('imap.ccParticipants') || isAutomated(parsed.headers, String(parsed.from?.value?.[0]?.address || '').toLowerCase())) return found;
+    const fromAddr = String(parsed.from?.value?.[0]?.address || '').toLowerCase();
+    if (!settings.get('imap.ccParticipants') || isAutomated(parsed.headers, fromAddr) || deliveryReport(parsed, parsed.raw)) return found;
+    // Only look up (and create) accounts when process() will actually add the CC recipients
+    const t = findTicket(parsed);
+    if (t) {
+      const s = sender || users.byEmail(fromAddr);
+      // Matched via the subject number: a comment never adds CC (a non-participant gets a new ticket, which does)
+      if (t.via !== 'reference') { if (isParticipant(t.id, s || { id: -1 }, fromAddr)) return found; }
+      else if ((s && (s.role === 'agent' || s.role === 'admin')) || outsiderReply(t, s, fromAddr)) return found;
+    }
     for (const addr of recipientAddresses(parsed)) {
       const u = await lookupAddress(addr, now);
       if (u) found.set(addr, u);
@@ -190,7 +213,9 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       // Only reports about our own mails (unguessable Message-ID) end up as a note in the ticket
       const ticketId = report.refs.map((r) => seenOut.get(r)?.ticket_id).find(Boolean) || null;
       return db.transaction(() => {
-        for (const a of report.failed) suppressions?.add(a, cleanSubject(parsed.subject) || 'Unzustellbar');
+        // Block addresses only for reports about our own mails – otherwise a forged report
+        // could block mail to any address (registration, approval, replies)
+        if (ticketId) for (const a of report.failed) suppressions?.add(a, cleanSubject(parsed.subject) || 'Unzustellbar');
         if (ticketId && report.failed.length) {
           tickets.addComment(null, ticketId, {
             body: `Zustellung fehlgeschlagen / delivery failed: ${report.failed.join(', ')}
@@ -250,7 +275,9 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const existingId = found && (found.via === 'reference' || isParticipant(found.id, sender, fromAddr)) ? found.id : null;
     // Reply to an agent-only mail: only as an internal note (invisible to users), reopens nothing.
     // Grants no rights: the author stays the sender address, only the agent knows the Message-ID.
-    const agentReply = !!existingId && !!found.agentMail;
+    // The same applies to replies via our Message-ID from someone who is no longer reporter/participant
+    // (reporter changed, participant removed, approver, forwarded mail).
+    const noteOnly = !!existingId && found.via === 'reference' && (!!found.agentMail || (!privileged && !isCurrentParty(found.id, sender, fromAddr)));
 
     // Protection against mail loops with unmarked auto-responders
     if (!existingId) {
@@ -291,16 +318,16 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
 
     return db.transaction(() => {
       if (existingId) {
-        const asUser = privileged || agentReply ? null : sender;
+        const asUser = privileged || noteOnly ? null : sender;
         const comment = tickets.addComment(asUser, existingId, { body: withNote(stripQuotedReply(text) || '(leer)') }, {
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
           // system: always internal, does not reopen, no account rights
-          ...(agentReply ? { system: true } : {}),
+          ...(noteOnly ? { system: true } : {}),
         });
         storeFiles(existingId, asUser ? asUser.id : null, comment.id);
         // Add CC recipients only when matched via our (unguessable) Message-ID –
         // never when matched only via the number in the subject (sender can be forged)
-        if (!privileged && !agentReply && found.via === 'reference') addCcParticipants(existingId);
+        if (!privileged && !noteOnly && found.via === 'reference') addCcParticipants(existingId);
         remember.run(messageId, existingId);
         return { action: 'comment', ticketId: existingId, messageId };
       }
@@ -404,7 +431,7 @@ export function createImapPoller({ settings, processor, ImapClient = ImapFlow })
             if (!msg?.source) continue;
             const parsed = await processor.parse(msg.source);
             const sender = processor.lookupSender ? await processor.lookupSender(parsed) : null;
-            const participants = processor.lookupParticipants ? await processor.lookupParticipants(parsed) : null;
+            const participants = processor.lookupParticipants ? await processor.lookupParticipants(parsed, Date.now(), sender) : null;
             const r = processor.process(parsed, { ...(sender ? { sender } : {}), ...(participants ? { participants } : {}) });
             if (r.action === 'ticket') { result.tickets++; log.info(`Email → new ticket ${r.key}`); }
             else if (r.action === 'bounce') { result.skipped++; log.info(`Non-delivery report for ${r.failed.join(', ') || '?'}${r.ticketId ? ` (ticket #${r.ticketId})` : ''} – not answered`); }
