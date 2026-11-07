@@ -651,11 +651,13 @@ export function createApi(ctx) {
   }))));
   r.post('/tickets/:key/ai/kb-draft', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.kbDraft(req.user, req.params.key))));
 
-  // Formatted version of an HTML mail – only in the isolated frame: no script, no foreign content
+  // Formatted version of an HTML mail – only in the isolated frame: no script, no foreign content.
+  // sandbox also applies when the address is opened directly; allow-same-origin (no scripts) only so
+  // the app can measure the height of the frame (public/js/mailview.js) and the embedded images load.
   r.get('/tickets/:key/mail-html', (req, res) => {
     const m = tickets.mailHtml(req.user, req.params.key, req.query.comment ? int(req.query.comment) || -1 : null);
     const lang = normalizeLang(req.user?.language || langFromHeader(req.get('accept-language')));
-    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox");
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'private, no-store');

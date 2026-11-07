@@ -8,6 +8,9 @@ import { state } from './state.js';
 // Summary per ticket key, kept while the page is open (the view is redrawn on every change)
 const summaries = new Map();
 
+/** Forget the summaries (they belong to the signed-in account) – on sign-in/sign-out */
+export function clearAiSummaries() { summaries.clear(); }
+
 /** Section "AI summary" below the description */
 export function aiSummarySection(tk) {
   const box = h('div.ai-summary-body');

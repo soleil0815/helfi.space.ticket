@@ -17,6 +17,9 @@ async function load(force = false) {
   return cache;
 }
 
+/** Forget the loaded templates (personal ones belong to one account) – on sign-in/sign-out */
+export function resetCannedCache() { cache = null; }
+
 /** Dropdown list with search; onPick(template) on selection. */
 /** footer: further entries below the list, e.g. [{ label, onClick }] for “Save as canned response” */
 export async function openTemplatePicker(anchor, onPick, { footer = [] } = {}) {

@@ -13,6 +13,16 @@ let projects = [];
 let connInfo = { user: '', server: {} };
 let pollTimer = null;
 
+/** Forget everything of the last import (connection data with token/password) – on sign-in/sign-out */
+export function resetImportState() {
+  clearTimeout(pollTimer);
+  source = 'zammad';
+  conn = emptyConn();
+  csvInfo = null;
+  projects = [];
+  connInfo = { user: '', server: {} };
+}
+
 const SOURCES = [
   { id: 'zammad', icon: 'inbox' },
   { id: 'znuny', icon: 'server' },
@@ -242,6 +252,8 @@ function mappingStep(body, chosen, info) {
       start.disabled = true;
       try {
         await api.admin.importStart(source, connection(), chosen.map((p) => ({ key: p.key, name: p.name, targetKey: p.targetKey })), statusMap, typeMap, opts);
+        // The server has what it needs: the access data does not stay in page memory
+        conn = emptyConn(); csvInfo = null; connInfo = { user: '', server: {} };
         progressStep(body);
       } catch (e) { toast(e.message, 'error'); start.disabled = false; }
     },

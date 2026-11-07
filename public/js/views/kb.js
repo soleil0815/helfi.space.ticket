@@ -316,8 +316,15 @@ function articleBody(md) {
 }
 
 const draftKey = (id, fromKey) => `helfi.kbdraft.${id || 'new'}${fromKey && !id ? `.${fromKey}` : ''}`;
-const readDraft = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
-const writeDraft = (k, v) => { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch { /* ignore */ } };
+// Drafts carry the account that wrote them: a draft of another account is never offered
+// (they are also removed on sign-out, see userdata.js)
+const readDraft = (k) => {
+  try {
+    const d = JSON.parse(localStorage.getItem(k) || 'null');
+    return d && state.user && d.uid === state.user.id ? d : null;
+  } catch { return null; }
+};
+const writeDraft = (k, v) => { try { if (v) localStorage.setItem(k, JSON.stringify({ ...v, uid: state.user?.id })); else localStorage.removeItem(k); } catch { /* ignore */ } };
 
 /** Choose a template for a new article */
 async function templatePicker(content, parent = null) {

@@ -26,6 +26,10 @@ import { renderRate } from './views/survey.js';
 import { state } from './state.js';
 import { isPhone, setUiPref, wantsMobile, mobileUrlFor, takeDesktopOnce } from './uimode.js';
 import { clearUserData, noteUser } from './userdata.js';
+import { resetCannedCache } from './views/canned.js';
+import { resetImportState } from './views/import.js';
+import { clearAiSummaries } from './aiassist.js';
+import { clearComponentCache } from './components.js';
 import { attachQuickSearch } from './quicksearch.js';
 
 // Shared with the mobile UI (/m) – see state.js
@@ -62,6 +66,20 @@ export function navigate(path, { replace = false, force = false } = {}) {
   leaveGuard = null;
   if (replace) history.replaceState({}, '', path); else history.pushState({}, '', path);
   route();
+}
+
+/**
+ * Everything of the previous account that lives in this page (the desktop UI does not reload on
+ * sign-in/sign-out): module caches (personal templates, import access data, AI summaries,
+ * components) and lists. clearData also removes drafts and lists in the browser storage.
+ */
+export function resetAccountState({ clearData = false } = {}) {
+  resetCannedCache();
+  resetImportState();
+  clearAiSummaries();
+  clearComponentCache();
+  state.projects = []; state.agents = []; state.savedFilters = [];
+  if (clearData) clearUserData();
 }
 
 export async function reloadBase() {
@@ -112,7 +130,7 @@ async function start() {
     leaveGuard = null;
     route();
   });
-  window.addEventListener('helfi:unauthorized', () => { state.user = null; clearUserData(); navigate('/login', { replace: true }); });
+  window.addEventListener('helfi:unauthorized', () => { state.user = null; resetAccountState({ clearData: true }); navigate('/login', { replace: true }); });
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');
     if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
@@ -250,7 +268,7 @@ function layout(content, path) {
         label: t('m.switchToMobile'), icon: icon('smartphone'),
         onClick: () => { setUiPref('mobile'); location.assign(mobileUrlFor(location.pathname, location.search) || '/m/'); },
       }, '-'] : []),
-      { label: t('app.logout'), icon: icon('logout'), onClick: async () => { await api.logout(); state.user = null; clearUserData(); navigate('/login'); } },
+      { label: t('app.logout'), icon: icon('logout'), onClick: async () => { await api.logout(); state.user = null; resetAccountState({ clearData: true }); navigate('/login'); } },
     ], { align: 'right' }),
   }, avatar(u, 'sm'));
 

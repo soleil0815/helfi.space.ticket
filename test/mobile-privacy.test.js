@@ -261,7 +261,7 @@ test('Removing the chip of an already uploaded file (failed send) deletes the dr
 });
 
 // ---------- F4: no storage in the browser cache ----------
-test('API answers are no-store, ticket attachments private no-store; static files and KB images unchanged', async () => {
+test('API answers are no-store, ticket attachments private no-store; KB images private no-store; static files unchanged', async () => {
   const login = await fetch(`${S.base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Helfi-Request': '1' }, body: JSON.stringify({ username: 'karl', password: 'Sehrgeheim123' }) });
   const cookie = login.headers.get('set-cookie').split(';')[0];
   assert.equal(login.headers.get('cache-control'), 'no-store');
@@ -272,7 +272,7 @@ test('API answers are no-store, ticket attachments private no-store; static file
   assert.equal(att.status, 200);
   assert.equal(att.headers.get('cache-control'), 'private, no-store');
   assert.equal((await get(`/api/attachments/${id}?download=1`)).headers.get('cache-control'), 'private, no-store');
-  // Knowledge images may stay in the private cache (not ticket data)
+  // Knowledge images (internal articles too) are not kept in the browser cache either
   const fd = new FormData();
   fd.append('file', new Blob([PNG], { type: 'image/png' }), 'bild.png');
   const annaLogin = await fetch(`${S.base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Helfi-Request': '1' }, body: JSON.stringify({ username: 'anna', password: 'Sehrgeheim123' }) });
@@ -280,7 +280,7 @@ test('API answers are no-store, ticket attachments private no-store; static file
   const img = await (await fetch(`${S.base}/api/kb/images`, { method: 'POST', headers: { 'X-Helfi-Request': '1', cookie: annaCookie }, body: fd })).json();
   const kbImg = await fetch(S.base + img.url, { headers: { cookie: annaCookie } });
   assert.equal(kbImg.status, 200);
-  assert.match(kbImg.headers.get('cache-control'), /^private/);
+  assert.equal(kbImg.headers.get('cache-control'), 'private, no-store');
   // Static files keep revalidation (ETag)
   const css = await fetch(`${S.base}/m/m.css`);
   assert.equal(css.headers.get('cache-control'), 'no-cache');
