@@ -126,7 +126,8 @@ test('U2: personal templates and import access data of the previous account are 
   await signIn(p, 'anna');
   await nav(p, `/browse/${tk.key}`);
   await p.click('[data-shortcut=template]');
-  await p.waitForSelector('.menu-templates .menu-item');
+  // The templates load asynchronously ("Save as template" is there at once)
+  await p.waitForSelector('.menu-templates .menu-template');
   assert.match(await p.textContent('.menu-templates'), /ANNA-PRIVAT/);
   await p.keyboard.press('Escape');
   await signOut(p);

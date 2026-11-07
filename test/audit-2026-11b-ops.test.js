@@ -141,7 +141,8 @@ test('.env cannot be written when recording the version: abort, not reported as 
   // .env may be incomplete after a failed write: the complete owner-only copy is kept and named
   const kept = fs.readdirSync(ctx.dir).find((f) => f.startsWith('.env.tmp.'));
   assert.ok(kept, 'complete copy of .env kept');
-  assert.match(r.stderr, new RegExp(`Vollständige Kopie der \\.env.*${kept.replace(/\./g, '\\.')}`));
+  assert.match(r.stderr, /Vollständige Kopie der \.env/);
+  assert.ok(r.stderr.includes(kept), 'the kept copy is named');
   assert.equal(fs.statSync(path.join(ctx.dir, kept)).mode & 0o777, 0o600);
   assert.match(read(ctx, kept), /^HELFI_VERSION=1\.2\.0$/m);
 });
