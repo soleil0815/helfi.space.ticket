@@ -608,6 +608,8 @@ body.m a:hover { text-decoration: none; }
 .status-dot-in_progress { background: #579DFF; }
 .status-dot-waiting { background: #F5CD47; }
 .status-dot-done { background: #4BCE97; }
+.status-dot-rejected { background: #F87168; }
+.status-dot-duplicate { background: #8590A2; }
 .m-sheet-status .m-choice-row { min-height: 56px; font-size: 17px; }
 .m-canned { display: flex; flex-direction: column; gap: 2px; margin: 0 -12px; }
 .m-canned-group { margin: 14px 12px 6px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-subtlest); }

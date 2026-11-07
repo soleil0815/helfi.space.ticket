@@ -74,7 +74,7 @@ async function detail(content, id) {
         h('h2', t('ci.history'), ' ', h('span.muted.small', t('ci.historyCount', { n: item.history.length, open: item.openTickets }))),
         item.history.length ? h('table.data', h('tbody', item.history.map((x) => h('tr',
           h('td', typeIcon(x.type)), h('td', h('a', { href: `/browse/${x.key}`, 'data-link': '' }, x.key)),
-          h('td', h('a', { href: `/browse/${x.key}`, 'data-link': '' }, x.title)), h('td', lozenge(x.status)), h('td.muted', fmtDate(x.createdAt, false)))))) : h('p.muted', t('ci.noHistory')))));
+          h('td', h('a', { href: `/browse/${x.key}`, 'data-link': '' }, x.title)), h('td', lozenge(x.status, x.resolution)), h('td.muted', fmtDate(x.createdAt, false)))))) : h('p.muted', t('ci.noHistory')))));
 }
 
 function editor(content, item) {

@@ -26,6 +26,18 @@ export function suggestStatus(name, category) {
   return 'open';
 }
 
+/**
+ * Resolution of a done ticket from the source: "Won't Do", "Declined", "Abgelehnt" … → rejected,
+ * "Duplicate", "Duplikat" → duplicate, everything else → done. Also looks at the status name
+ * (workflows with a status "Rejected"/"Abgelehnt").
+ */
+export function suggestResolution(resolutionName, statusName) {
+  const n = `${resolutionName || ''} ${statusName || ''}`;
+  if (/duplic|duplikat|doppelt/i.test(n)) return 'duplicate';
+  if (/won'?t|declin|reject|abgelehnt|ablehn|not do|nicht umsetz|nicht durchf|cancel|abgebrochen|storn|invalid|ungültig/i.test(n)) return 'rejected';
+  return 'done';
+}
+
 export function suggestType(name) {
   const n = String(name || '');
   if (/bug|incident|störung|fehler|problem|defect|outage|ausfall/i.test(n)) return 'incident';
@@ -173,6 +185,7 @@ export function createImportCore({ db, tickets, users }) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(values.due || '')) values.due = null;
     if (values.status === 'done' && !values.resolved) values.resolved = values.updated;
     if (values.status !== 'done') values.resolved = null;
+    values.resolution = values.status === 'done' ? suggestResolution(it.resolutionName, statusName) : null;
 
     const created = !ticketId;
     // Already imported and unchanged in the source since → do NOT overwrite local changes.
@@ -187,8 +200,8 @@ export function createImportCore({ db, tickets, users }) {
       const componentId = componentFor(project.id, it.component);
       if (ticketId) {
         // Record changed fields in the history (like a manual change) so nothing is overwritten without a trace
-        const old = db.prepare('SELECT title, description, type, status, priority, labels, due_date, assignee_id, component_id FROM tickets WHERE id=?').get(ticketId);
-        const next = { title: values.title, description: values.description, type: values.type, status: values.status, priority: values.priority,
+        const old = db.prepare('SELECT title, description, type, status, resolution, priority, labels, due_date, assignee_id, component_id FROM tickets WHERE id=?').get(ticketId);
+        const next = { title: values.title, description: values.description, type: values.type, status: values.status, resolution: values.resolution, priority: values.priority,
           labels: values.labels, due_date: values.due, assignee_id: assigneeId ?? old.assignee_id, component_id: componentId ?? old.component_id };
         const field = { due_date: 'dueDate', assignee_id: 'assignee', component_id: 'component' };
         const show = (col, v) => (col === 'assignee_id' ? (v ? db.prepare('SELECT display_name n FROM users WHERE id=?').get(v)?.n ?? null : null)
@@ -200,9 +213,9 @@ export function createImportCore({ db, tickets, users }) {
           db.prepare("INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value) VALUES(?,?,'changed',?,?,?)")
             .run(ticketId, cfg.userId, field[col] || col, o === null ? null : String(o), n === null ? null : String(n));
         }
-        db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
+        db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, resolution=?, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
           component_id=COALESCE(?,component_id), updated_at=MAX(updated_at, ?), resolved_at=? WHERE id=?`).run(
-          values.title, values.description, values.type, values.status, values.priority, values.labels, values.due,
+          values.title, values.description, values.type, values.status, values.resolution, values.priority, values.labels, values.due,
           assigneeId, componentId, values.updated, values.resolved, ticketId);
       } else {
         // Keep the number if it is free and never used in the target project: do not reuse numbers of
@@ -212,9 +225,9 @@ export function createImportCore({ db, tickets, users }) {
           && !db.prepare('SELECT 1 FROM tickets WHERE project_id=? AND number=?').get(project.id, wanted) ? wanted : null;
         if (number === null) number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(project.id).n;
         db.prepare('UPDATE projects SET next_number=MAX(next_number, ?) WHERE id=?').run(number + 1, project.id);
-        const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,
-          assignee_id,labels,due_date,source,rank,created_at,updated_at,resolved_at,component_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-          project.id, number, values.title, values.description, values.type, values.status, values.priority,
+        const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,resolution,priority,reporter_id,reporter_email,reporter_name,
+          assignee_id,labels,due_date,source,rank,created_at,updated_at,resolved_at,component_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          project.id, number, values.title, values.description, values.type, values.status, values.resolution, values.priority,
           reporter?.id ?? null, reporter?.email ?? null, reporter?.name ?? null, assigneeId, values.labels, values.due, adapter.ticketSource || 'import',
           new Date(values.created).getTime() / 1e6, values.created, values.updated, values.resolved, componentId);
         ticketId = info.lastInsertRowid;

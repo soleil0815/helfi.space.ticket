@@ -46,7 +46,7 @@ export async function renderSummary(content) {
       d.urgent.length
         ? h('div.urgent-list', d.urgent.map((tk) => h('a.urgent-row', { href: `/browse/${tk.key}`, 'data-link': '' },
           typeIcon(tk.type), h('span.urgent-key', tk.key), h('span.urgent-title', tk.title),
-          priorityIcon(tk.priority), lozenge(tk.status),
+          priorityIcon(tk.priority), lozenge(tk.status, tk.resolution),
           tk.dueDate ? h('span.muted.small', `${t('ticket.dueDate')}: ${tk.dueDate}`) : null,
           h('span.person', avatar(tk.assignee, 'sm')),
           h('span.muted.small', relTime(tk.createdAt)))))

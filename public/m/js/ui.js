@@ -18,7 +18,7 @@ export function ticketCard(tk, { terms = [], showAssignee = true } = {}) {
     h('div.m-ticket-title', highlight(tk.title, terms)),
     tk.match ? h('div.m-ticket-match', { class: tk.match.source === 'internal' ? 'internal' : '' }, highlight(tk.match.text, terms)) : null,
     h('div.m-ticket-meta',
-      lozenge(tk.status),
+      lozenge(tk.status, tk.resolution),
       h('span.m-ticket-prio', priorityIcon(tk.priority), h('span', t(`priority.${tk.priority}`))),
       tk.commentCount ? h('span.m-ticket-comments', { 'aria-label': t('m.comments', { n: tk.commentCount }) }, icon('comment'), String(tk.commentCount)) : null,
       h('span.spacer'),

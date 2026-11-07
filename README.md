@@ -256,6 +256,19 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
+## Ablehnen und Duplikate
+
+Ein erledigtes Ticket hat eine **Lösung**: *Erledigt*, *Abgelehnt* oder *Duplikat*. Intern bleibt der Status „Erledigt“ – Service Level, Board, Berichte, automatisches Schließen und Wiederöffnen funktionieren deshalb wie gewohnt.
+
+- **Ablehnen:** im Status-Menü des Tickets *Ablehnen …* (Handy: Status → *Ablehnen …*). Die **Begründung ist Pflicht** und geht als Antwort an Melder und Teilnehmer – statt der „Erledigt“-Mail. Antwortvorlagen und Platzhalter funktionieren; eine Zufriedenheitsumfrage gibt es nicht.
+- **Als Duplikat schließen:** Original-Ticket wählen (Nummer oder Suche). Das Ticket wird mit dem Original verknüpft; der Melder bekommt einen Standardhinweis mit der Nummer des Originals (oder deinen eigenen Text). Optional werden Melder und Teilnehmer **zum Original hinzugefügt** und dort auf dem Laufenden gehalten – nur anhaken, wenn das Original nichts Vertrauliches enthält.
+- **Mehrere auf einmal:** in der Ticketliste über die Mehrfachauswahl → *Status* → *Ablehnen …* bzw. *Als Duplikat schließen …*; Platzhalter werden je Ticket ersetzt.
+- **Anzeige:** Lozenge *Abgelehnt* bzw. *Duplikat* statt *Erledigt* (Listen, Ticket, *Meine Anfragen*, Handy), „Duplikat von IT-12“ mit Link, Eintrag im Verlauf. Filter *Lösung* in der Ticketliste, sobald der Status *Erledigt* gewählt ist.
+- **Wiederöffnen:** Antwortet der Melder, öffnet sich das Ticket wie gewohnt wieder; die Lösung wird zurückgesetzt. Ein schon erledigtes Ticket lässt sich nachträglich ablehnen oder als Duplikat markieren.
+- **Berichte:** Abgelehnte und Duplikate stehen in einer eigenen Spalte und zählen nicht zur Ø Lösungszeit.
+- **Servicekatalog:** Eine abgelehnte Genehmigung schließt die Anfrage als *Abgelehnt*.
+- **Import:** Jira-Lösungen wie „Won't Do“, „Declined“ oder ein Status „Abgelehnt“ werden zu *Abgelehnt*, „Duplicate“ zu *Duplikat*.
+
 ## Tickets für andere erfassen
 
 Kommt ein Anliegen per Telefon, im Flur oder an ein anderes Postfach, erfassen Bearbeiter das Ticket gleich im Namen der Person. So landet es bei ihr unter *Meine Anfragen*, und sie gewöhnt sich ans Ticketsystem.

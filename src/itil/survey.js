@@ -17,6 +17,8 @@ export function createSurvey(db, tickets, settings) {
     if (!enabled() || SKIP_TYPES.has(ticket.type)) return;
     const raw = tickets.rawById(ticket.id);
     if (!raw || raw.status !== 'done') return;
+    // Rejected or duplicate: nothing to rate (an open survey from before is dropped)
+    if (raw.resolution && raw.resolution !== 'done') { db.prepare('DELETE FROM ticket_ratings WHERE ticket_id=? AND rating IS NULL').run(ticket.id); return; }
     db.prepare(`INSERT INTO ticket_ratings(ticket_id, assignee_id) VALUES(?, ?)
       ON CONFLICT(ticket_id) DO UPDATE SET token_hash=NULL, assignee_id=excluded.assignee_id, rating=NULL, comment='',
       sent_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), rated_at=NULL`).run(ticket.id, raw.assignee_id || null);

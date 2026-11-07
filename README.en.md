@@ -256,6 +256,19 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
+## Rejecting and duplicates
+
+A done ticket has a **resolution**: *Done*, *Rejected* or *Duplicate*. Internally the status stays “Done” – service levels, board, reports, automatic closing and reopening therefore work as usual.
+
+- **Reject:** *Reject …* in the ticket's status menu (phone: status → *Reject …*). The **reason is required** and goes to the reporter and participants as a reply – instead of the “Resolved” mail. Reply templates and placeholders work; there is no satisfaction survey.
+- **Close as duplicate:** choose the original ticket (number or search). The ticket is linked with the original; the reporter gets a standard note with the original's number (or your own text). Optionally reporter and participants are **added to the original** and kept up to date there – only tick this if the original contains nothing confidential.
+- **Several at once:** in the ticket list via the multiple selection → *Status* → *Reject …* or *Close as duplicate …*; placeholders are filled per ticket.
+- **Display:** lozenge *Rejected* or *Duplicate* instead of *Done* (lists, ticket, *My requests*, phone), “Duplicate of IT-12” with a link, entry in the history. Filter *Resolution* in the ticket list once the status *Done* is chosen.
+- **Reopening:** if the reporter replies, the ticket reopens as usual; the resolution is reset. A ticket that is already done can be rejected or marked as a duplicate afterwards.
+- **Reports:** rejected tickets and duplicates have their own column and do not count towards the avg. resolution time.
+- **Service catalog:** a rejected approval closes the request as *Rejected*.
+- **Import:** Jira resolutions like “Won't Do”, “Declined” or a status “Rejected” become *Rejected*, “Duplicate” becomes *Duplicate*.
+
 ## Entering tickets for others
 
 When a request comes in by phone, in passing or to another mailbox, agents enter the ticket right away on behalf of that person. It then shows up under their *My requests*, and they get used to the ticket system.

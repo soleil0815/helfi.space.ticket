@@ -14,7 +14,8 @@ import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
-import { activityFieldLabel, activityValue, componentReason } from '../activity.js';
+import { activityFieldLabel, activityValue, componentReason, resolutionDetail } from '../activity.js';
+import { openResolveDialog } from './resolve.js';
 import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
@@ -202,6 +203,7 @@ export async function renderTicket(content, key) {
         a.action === 'sla' ? h('span.change', t(`sla.kind.${a.field}`), ' ', t(`sla.state.${a.newValue}`)) : null,
         (a.action === 'linked' || a.action === 'unlinked') && a.field ? h('span.change', linkLabel(...a.field.split(':')), ' ', a.newValue || a.oldValue) : null,
         a.action === 'classified' ? h('span.change', h('span.new', a.newValue), ` (${componentReason(a)})`) : null,
+        a.action === 'resolution' ? h('span.change', h('span.new', resolutionDetail(a))) : null,
         a.action === 'autoAssigned' ? h('span.change', h('span.new', a.newValue), ` (${t(`comp.role.${a.field}`, { name: a.oldValue })})`) : null,
         a.action === 'imported' ? h('span.change', a.oldValue, a.newValue ? ` · ${t('act.importedAssignee', { value: a.newValue })}` : '') : null,
         h('span.muted', { title: fmtDate(a.createdAt) }, ' · ', relTime(a.createdAt))));
@@ -265,11 +267,17 @@ export async function renderTicket(content, key) {
 
   // ---------- Right column ----------
   function statusButton() {
-    if (!agent) return lozenge(tk.status);
-    return h(`button.status-btn.status-${tk.status}`, {
+    if (!agent) return lozenge(tk.status, tk.resolution);
+    return h(`button.status-btn.status-${tk.status === 'done' && tk.resolution && tk.resolution !== 'done' ? tk.resolution : tk.status}`, {
       type: 'button',
-      onclick: (e) => dropdown(e.currentTarget, STATUSES.map((s) => ({ label: t(`status.${s}`), active: s === tk.status, onClick: () => save({ status: s }) }))),
-    }, t(`status.${tk.status}`), icon('chevron-down'));
+      onclick: (e) => dropdown(e.currentTarget, [
+        ...STATUSES.map((s) => ({ label: t(`status.${s}`), active: s === tk.status && !(s === 'done' && tk.resolution && tk.resolution !== 'done'), onClick: () => save({ status: s }) })),
+        '-',
+        // Close with a resolution: reason / original ticket in a dialog
+        { label: t('resolve.rejectMenu'), icon: icon('close'), active: tk.resolution === 'rejected', onClick: () => openResolveDialog({ kind: 'rejected', keys: [tk.key], tk, onDone: refresh }) },
+        { label: t('resolve.duplicateMenu'), icon: icon('copy'), active: tk.resolution === 'duplicate', onClick: () => openResolveDialog({ kind: 'duplicate', keys: [tk.key], tk, onDone: refresh }) },
+      ]),
+    }, tk.status === 'done' && tk.resolution && tk.resolution !== 'done' ? t(`resolution.${tk.resolution}`) : t(`status.${tk.status}`), icon('chevron-down'));
   }
 
   // AI component suggestion (suggest mode): accept or dismiss
@@ -406,6 +414,8 @@ export async function renderTicket(content, key) {
 
     return h('aside.ticket-side',
       h('div.side-top', statusButton(),
+        // Duplicate: link to the original (users only if they may see it – the server says 404 otherwise)
+        tk.duplicateOf ? h('a.dup-of', { href: `/browse/${tk.duplicateOf}`, 'data-link': '' }, t('resolution.duplicateOf', { key: tk.duplicateOf })) : null,
         h('button.btn-icon', {
           type: 'button', title: t('ticket.copyLink'),
           onclick: async () => { try { await navigator.clipboard.writeText(location.href); toast(t('ticket.linkCopied')); } catch { /* ignore */ } },

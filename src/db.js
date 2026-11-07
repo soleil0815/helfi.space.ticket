@@ -760,6 +760,18 @@ export const MIGRATIONS = [
     ALTER TABLE component_suggestions ADD COLUMN backfill INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: 38,
+    name: 'Lösung: erledigt, abgelehnt, Duplikat',
+    sql: `
+    -- Resolution of a ticket in status "done": done | rejected | duplicate (NULL while open);
+    -- duplicate_of: the original ticket of a duplicate
+    ALTER TABLE tickets ADD COLUMN resolution TEXT;
+    ALTER TABLE tickets ADD COLUMN duplicate_of INTEGER REFERENCES tickets(id) ON DELETE SET NULL;
+    UPDATE tickets SET resolution='done' WHERE status='done';
+    CREATE INDEX idx_tickets_resolution ON tickets(resolution);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

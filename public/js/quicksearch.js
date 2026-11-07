@@ -82,7 +82,7 @@ export function attachQuickSearch(input, { openTicket, showAll }) {
     return el;
   }
   const ticketRow = (tk, terms = []) => [
-    h('div.qs-line', typeIcon(tk.type), h('span.qs-key', tk.key), h('span.qs-title', highlight(tk.title, terms)), tk.status ? lozenge(tk.status) : null),
+    h('div.qs-line', typeIcon(tk.type), h('span.qs-key', tk.key), h('span.qs-title', highlight(tk.title, terms)), tk.status ? lozenge(tk.status, tk.resolution) : null),
     tk.match && tk.match.source !== 'title'
       ? h('div.qs-match', { class: tk.match.source === 'internal' ? 'internal' : '' },
         h('span.qs-src', tk.match.source === 'comment' || tk.match.source === 'internal' ? t(`search.src.${tk.match.source}`, { who: tk.match.author || '—' }) : t(`search.src.${tk.match.source}`)),

@@ -145,6 +145,7 @@ export const api = {
   createTicket: (d) => request('POST', '/api/tickets', d),
   updateTicket: (key, d) => request('PATCH', `/api/tickets/${encodeURIComponent(key)}`, d),
   bulk: (d) => request('POST', '/api/tickets/bulk', d),
+  resolveTicket: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/resolve`, d),
   // attachmentIds: draft uploads (draft=file) that belong to this comment (mobile UI)
   // format 'md': written with the formatting toolbar
   comment: (key, body, internal, attachmentIds, format = 'text') => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal, format, ...(attachmentIds?.length ? { attachmentIds } : {}) }),

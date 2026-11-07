@@ -61,6 +61,7 @@ export function jiraAdapter(conn) {
           created: f.created,
           updated: f.updated,
           resolved: f.resolutiondate,
+          resolutionName: f.resolution?.name || '',
           reporter: jiraPerson(f.reporter || f.creator),
           assignee: jiraPerson(f.assignee),
           comments: async () => (await client.comments(issue.id)).map((c) => ({

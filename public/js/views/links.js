@@ -18,7 +18,7 @@ function row(tk, l, refresh) {
     h('a.link-key', { href: `/browse/${l.ticket.key}`, 'data-link': '' }, l.ticket.key),
     h('a.link-title', { href: `/browse/${l.ticket.key}`, 'data-link': '' }, l.ticket.title),
     l.ticket.assignee ? avatar(l.ticket.assignee, 'sm') : h('span'),
-    lozenge(l.ticket.status),
+    lozenge(l.ticket.status, l.ticket.resolution),
     h('button.btn-icon.small', {
       type: 'button', title: t('link.remove'),
       onclick: async () => { try { await api.unlink(tk.key, l.id); refresh(); } catch (e) { toast(e.message, 'error'); } },
@@ -67,7 +67,7 @@ export function ticketPicker(currentKey, { forKeys = currentKey ? [currentKey] :
   const option = (x) => h('div.tp-item', {
     role: 'option', id: `${listId}-${x.key}`, 'aria-selected': 'false',
     onmousedown: (e) => { e.preventDefault(); choose(x); }, // before the blur of the field
-  }, typeIcon(x.type), h('span.tp-key', x.key), h('span.tp-title', x.title), x.major ? h('span.tp-major', icon('warning')) : null, lozenge(x.status));
+  }, typeIcon(x.type), h('span.tp-key', x.key), h('span.tp-title', x.title), x.major ? h('span.tp-major', icon('warning')) : null, lozenge(x.status, x.resolution));
   function render(groups, emptyText) {
     items = [];
     active = -1;

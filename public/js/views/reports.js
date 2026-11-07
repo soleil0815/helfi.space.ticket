@@ -211,13 +211,14 @@ function componentTable(data, showProject) {
     h('h2', t('rep.components')),
     h('p.muted.small', t('rep.componentsHint', { days: data.range.days })),
     h('div.table-wrap', h('table.data.report-table',
-      h('thead', h('tr', h('th', t('ticket.component')), h('th.num', t('rep.total')), h('th.num', t('rep.open')), h('th.num', t('rep.avgResolve')))),
+      h('thead', h('tr', h('th', t('ticket.component')), h('th.num', t('rep.total')), h('th.num', t('rep.open')), h('th.num', { title: t('rep.rejectedHint') }, t('rep.rejected')), h('th.num', t('rep.avgResolve')))),
       h('tbody', rows.map((r) => h('tr',
         h('td', r.componentId
           ? h('a', { href: `/issues?project=${r.projectKey}&component=${r.componentId}`, 'data-link': '' }, r.name)
           : h('span.muted', t('rep.noComponent')), showProject ? h('span.muted.small', ` · ${r.projectKey}`) : null),
         h('td.num', n.format(r.total)),
         h('td.num', n.format(r.open)),
+        h('td.num', r.rejected ? n.format(r.rejected) : h('span.muted', '0')),
         h('td.num', duration(r.avgResolutionHours))))))));
 }
 

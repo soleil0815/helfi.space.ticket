@@ -156,7 +156,9 @@ export function avatar(user, size = 'md') {
   return h(`span.avatar.avatar-${size}`, { title: name, style: { background: AVATAR_COLORS[hash % AVATAR_COLORS.length] } }, initials);
 }
 
-export function lozenge(status) {
+/** Status lozenge; a done ticket that was rejected or is a duplicate shows that instead of "Done" */
+export function lozenge(status, resolution = null) {
+  if (status === 'done' && (resolution === 'rejected' || resolution === 'duplicate')) return h(`span.lozenge.lozenge-${resolution}`, t(`resolution.${resolution}`));
   return h(`span.lozenge.lozenge-${status}`, t(`status.${status}`));
 }
 
