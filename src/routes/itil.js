@@ -86,7 +86,7 @@ export function createItilRoutes(ctx) {
   });
   // Comments
   r.get('/kb/:id/comments', (req, res) => res.json({ comments: kbComments.list(req.user, req.params.id) }));
-  r.post('/kb/:id/comments', (req, res) => res.status(201).json({ comment: kbComments.add(req.user, req.params.id, req.body?.body) }));
+  r.post('/kb/:id/comments', (req, res) => res.status(201).json({ comment: kbComments.add(req.user, req.params.id, req.body?.body, req.body?.format) }));
   r.patch('/kb/comments/:cid', (req, res) => res.json({ comment: kbComments.setResolved(req.user, req.params.cid, !!req.body?.resolved) }));
   r.delete('/kb/comments/:cid', (req, res) => { kbComments.remove(req.user, req.params.cid); res.json({ ok: true }); });
   r.get('/kb/suggest', (req, res) => {

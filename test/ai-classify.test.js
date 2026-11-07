@@ -52,13 +52,13 @@ test('Parsing the answer: exact name from the list, otherwise none', async () =>
 
 test('Functions can be switched off one by one; classification is off by default', async () => {
   let boot = (await anna('GET', '/api/bootstrap')).body;
-  assert.deepEqual(boot.aiFeatures, { summary: true, reply: true, rewrite: true, classify: false });
+  assert.deepEqual(boot.aiFeatures, { summary: true, reply: true, rewrite: true, classify: false, kb: true });
   const tk = (await karl('POST', '/api/tickets', { title: 'Geht nicht -> VPN' })).body.ticket;
   await idle();
   assert.equal(calls.length, 0, 'no classification while switched off');
   await admin('PUT', '/api/admin/settings', { settings: { 'ai.summary': false, 'ai.rewrite': false } });
   boot = (await anna('GET', '/api/bootstrap')).body;
-  assert.deepEqual(boot.aiFeatures, { summary: false, reply: true, rewrite: false, classify: false });
+  assert.deepEqual(boot.aiFeatures, { summary: false, reply: true, rewrite: false, classify: false, kb: true });
   assert.equal((await anna('POST', `/api/tickets/${tk.key}/ai/summary`)).status, 404);
   assert.equal((await anna('POST', '/api/ai/rewrite', { text: 'x', mode: 'polish' })).status, 404);
   assert.equal((await karl('GET', '/api/bootstrap')).body.aiFeatures, null, 'users get nothing');

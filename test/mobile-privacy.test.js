@@ -8,6 +8,9 @@ import nodePath from 'node:path';
 import { createRequire } from 'node:module';
 import { startServer } from './helpers/server.js';
 
+// Reply field is a formatted (contenteditable) field: its text, with normal spaces
+const replyText = (p) => p.textContent('.m-reply-input').then((x) => x.replace(/\u00a0/g, ' ').trim());
+
 let chromium = null;
 try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* not installed */ }
 if (!chromium && process.env.NODE_PATH) {
@@ -87,7 +90,7 @@ test('Reply draft of an agent (internal note) never appears for the next account
   await p.waitForURL((u) => u.pathname.startsWith('/m/t/IT-1') || u.pathname === '/m/');
   await p.goto(`${S.base}/m/t/IT-1`);
   await ready(p);
-  assert.equal(await p.inputValue('.m-reply-input'), '');
+  assert.equal(await replyText(p), '');
   assert.equal(await p.locator('.m-reply.internal').count(), 0);
   assert.deepEqual(errors.filter((e) => !/401/.test(e)), []);
   await close();
@@ -110,14 +113,14 @@ test('Reply draft is not restored for another account even if it is still in the
   await ready(p);
   await p.goto(`${S.base}/m/t/IT-1`);
   await ready(p);
-  assert.equal(await p.inputValue('.m-reply-input'), '');
+  assert.equal(await replyText(p), '');
   // A draft stored for another account id is ignored as well
   await p.evaluate((id) => sessionStorage.setItem(`helfi.m.draft.${id}.IT-1`, JSON.stringify({ uid: id, text: 'fremd', internal: true })), S.ids.anna);
   // … and a tab that was last used by that other account clears everything when Karl's session starts
   await p.evaluate((id) => sessionStorage.setItem('helfi.m.uid', String(id)), S.ids.anna);
   await p.reload();
   await ready(p);
-  assert.equal(await p.inputValue('.m-reply-input'), '');
+  assert.equal(await replyText(p), '');
   assert.equal(await p.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('helfi.m.draft.')).length), 0, 'another account in the tab: old drafts removed');
   assert.deepEqual(errors.filter((e) => !/401/.test(e)), []);
   await close();

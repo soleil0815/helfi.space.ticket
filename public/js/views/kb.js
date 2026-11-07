@@ -1,7 +1,8 @@
 // Knowledge base: search, articles, editor, known errors, suggestions when reporting
 import { api } from '../api.js';
-import { h, mount, icon, toast, fmtDate, relTime, modal, field, select, dropdown, avatar, richText } from '../dom.js';
-import { withEmoji } from '../emoji.js';
+import { h, mount, icon, toast, fmtDate, relTime, modal, field, select, dropdown, avatar } from '../dom.js';
+import { createCommentField, commentView } from '../commentfield.js';
+import { aiComposerTools, editorField, kbAiTools } from '../aiassist.js';
 import { t } from '../i18n.js';
 import { state, navigate, setLeaveGuard } from '../app.js';
 import { renderDoc, headings } from '../kbdoc.js';
@@ -236,18 +237,26 @@ async function article(content, id) {
 function commentsSection(a) {
   const box = h('section.kb-comments.no-print', { id: 'comments' }, h('h3', icon('comment'), t('kb.cm.title')), h('div.loading', t('app.loading')));
   let showDone = false;
-  const ta = h('textarea', { rows: 3, maxLength: 5000, placeholder: t('kb.cm.placeholder') });
+  // Same toolbar as in tickets: formatting, link, emoji; images and AI (polish, shorten, translate) for agents
+  const cm = createCommentField({
+    placeholder: t('kb.cm.placeholder'), label: t('kb.cm.placeholder'),
+    onSubmit: () => send.click(),
+    uploadImage: state.isAgent ? (f) => api.kbImage(f).then((r) => r.url) : null,
+  });
+  const ai = state.isAgent && state.boot.aiFeatures?.rewrite ? aiComposerTools(editorField(cm), null, { className: 'kb-tb-btn.cm-tb-text' }) : null;
+  if (ai) cm.slots.left.append(ai.button, h('span.kb-tb-sep'));
   const send = h('button.btn.btn-primary', {
     type: 'button',
     onclick: async () => {
-      if (!ta.value.trim()) return;
+      if (cm.isEmpty() || send.disabled) return;
+      const body = cm.getValue();
+      if (body.length > 5000) { toast(t('kb.cm.tooLong'), 'error'); return; }
       send.disabled = true;
-      try { await api.kbCommentAdd(a.id, ta.value); ta.value = ''; await load(); } catch (e) { toast(e.message, 'error'); }
+      try { await api.kbCommentAdd(a.id, body, 'md'); cm.clear(); if (ai) ai.note.hidden = true; await load(); } catch (e) { toast(e.message, 'error'); }
       send.disabled = false;
     },
   }, t('kb.cm.send'));
-  ta.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); send.click(); } });
-  const composer = h('div.kb-cm-composer', avatar(state.user, 'sm'), h('div.kb-cm-input', withEmoji(ta), h('div.form-actions', send, h('span.muted.small', t(state.isAgent ? 'kb.cm.hint' : 'kb.cm.hintUser')))));
+  const composer = h('div.kb-cm-composer', avatar(state.user, 'sm'), h('div.kb-cm-input', cm.el, ai?.note, h('div.form-actions', send, h('span.muted.small', t(state.isAgent ? 'kb.cm.hint' : 'kb.cm.hintUser')))));
   const item = (c) => h(`div.kb-cm${c.resolved ? '.resolved' : ''}`,
     avatar(c.author, 'sm'),
     h('div.kb-cm-main',
@@ -256,7 +265,7 @@ function commentsSection(a) {
         h('span.spacer'),
         state.isAgent ? h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { try { await api.kbCommentResolve(c.id, !c.resolved); await load(); } catch (e) { toast(e.message, 'error'); } } }, c.resolved ? t('kb.cm.reopen') : [icon('check'), t('kb.cm.done')]) : null,
         c.canDelete ? h('button.btn-icon.small', { type: 'button', title: t('app.delete'), 'aria-label': t('app.delete'), onclick: async () => { if (!confirm(t('kb.cm.deleteConfirm'))) return; try { await api.kbCommentDelete(c.id); await load(); } catch (e) { toast(e.message, 'error'); } } }, icon('trash')) : null),
-      richText(c.body)));
+      commentView(c)));
   async function load() {
     const { comments } = await api.kbComments(a.id);
     const open = comments.filter((c) => !c.resolved);
@@ -372,6 +381,14 @@ async function editor(content, opts = {}) {
     }, 600);
   };
   const ed = createKbEditor({ value: a.body, placeholder: t('kb.ed.placeholder'), onChange: onEdit });
+  // AI when writing (agents, function "knowledge articles"): first button in the toolbar
+  const kbAi = state.boot.aiFeatures?.kb ? kbAiTools(ed, {
+    getTitle: () => title.value, setTitle: (v) => { if (v) { title.value = v; onEdit(); } },
+    getCategory: () => cat.value, setCategory: (v) => { if (v) { cat.value = v; onEdit(); } },
+    categories: categories.map((c) => c.name),
+    sourceTicket: !id && !tplMode ? a.sourceTicket || null : null,
+  }) : null;
+  if (kbAi) ed.toolbar.prepend(kbAi.button, h('span.kb-tb-sep'));
   for (const el of [title, cat, desc]) el.addEventListener('input', onEdit);
   parentSel.addEventListener('change', onEdit);
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ed.focus(); } });
@@ -440,6 +457,7 @@ async function editor(content, opts = {}) {
         h('div.kb-meta-field', h('label', { for: 'kb-parent' }, icon('ed-toc'), t('kb.tree.parent')), parentSel),
         h('div.kb-meta-field', h('label', { for: 'kb-cat' }, t('kb.f.category')), cat, dl),
         h('div.kb-meta-field', h('label', t('kb.f.visibility')), h('div.kb-vis-row', visRow, h('span.muted.small.kb-vis-hint', t(`kb.visHint.${visibility}`))))),
+      kbAi?.note,
       ed.el));
   visRow.addEventListener('click', () => { const x = content.querySelector('.kb-vis-hint'); if (x) x.textContent = t(`kb.visHint.${visibility}`); });
   content.querySelector('.kb-edit').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); } });

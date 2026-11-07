@@ -6,6 +6,9 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { startServer } from './helpers/server.js';
 
+// Reply field is a formatted (contenteditable) field: its text, with normal spaces
+const replyText = (p) => p.textContent('.m-reply-input').then((x) => x.replace(/\u00a0/g, ' ').trim());
+
 let chromium = null;
 try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch { /* not installed */ }
 if (!chromium && process.env.NODE_PATH) {
@@ -645,7 +648,7 @@ test('Reply bar: agent reply and internal note with photo and file; the user see
   await p.fill('.m-reply-input', 'Ich komme gleich vorbei.');
   assert.equal(await p.isDisabled('.m-reply-send'), false);
   await sendAndWait(p, 'Ich komme gleich vorbei.');
-  assert.equal(await p.inputValue('.m-reply-input'), '');
+  assert.equal(await replyText(p), '');
   assert.equal(await p.isDisabled('.m-reply-send'), true);
   assert.ok(await p.locator('.m-msg.mine:not(.internal)', { hasText: 'Ich komme gleich vorbei.' }).isVisible());
   // Internal note: yellow bar, a large photo (downscaled) and a text file
@@ -666,7 +669,7 @@ test('Reply bar: agent reply and internal note with photo and file; the user see
   await sendAndWait(p, 'Netzteil defekt');
   assert.equal(await p.locator('.m-file').count(), 0, 'chips gone after sending');
   const note = p.locator('.m-msg.internal', { hasText: 'Netzteil defekt' });
-  assert.ok(await note.locator('.inline-image img').count(), 'photo in the note');
+  assert.ok(await note.locator(':is(.inline-image, .kb-figure) img').count(), 'photo in the note');
   assert.ok(await note.locator('.m-att-file', { hasText: 'protokoll.txt' }).count(), 'file in the note');
   // Server: both files belong to the internal note, the photo is a 2560 px JPEG
   const tk = await ticketApi(who.anna, key);
@@ -721,7 +724,7 @@ test('User: reply with an attachment, no internal notes', { skip }, async () => 
   assert.equal(a.filename, 'bildschirm.png');
   assert.equal(a.mime, 'image/png');
   assert.equal((await who.anna('GET', `/api/attachments/${a.id}`)).status, 200);
-  assert.ok(await p.locator('.m-msg.mine .inline-image img').count());
+  assert.ok(await p.locator('.m-msg.mine :is(.inline-image, .kb-figure) img').count());
   assert.deepEqual(errors, []);
   await close();
 });
@@ -739,7 +742,7 @@ test('Canned response, status change and resolve with a closing reply', { skip }
   assert.equal(await p.locator('.m-canned-item').count(), 1);
   await p.locator('.m-canned-item').tap();
   await p.waitForSelector('.m-sheet-layer', { state: 'detached' });
-  assert.equal(await p.inputValue('.m-reply-input'), 'Vorab: Hallo karl, bitte starte das Gerät einmal neu.');
+  assert.equal(await replyText(p), 'Vorab: Hallo karl, bitte starte das Gerät einmal neu.');
   assert.equal(await p.evaluate(() => document.activeElement?.classList.contains('m-reply-input')), true, 'focus back in the text field');
   await p.fill('.m-reply-input', '');
   // Status "waiting"
@@ -902,15 +905,15 @@ test('Draft is kept per ticket when navigating away and back', { skip }, async (
   await p.locator(`.m-ticket[data-key="${key}"]`).tap();
   await p.waitForURL(`**/m/t/${key}`);
   await ready(p);
-  assert.equal(await p.inputValue('.m-reply-input'), 'Entwurf: Ersatz-Headset liegt bereit');
+  assert.equal(await replyText(p), 'Entwurf: Ersatz-Headset liegt bereit');
   assert.ok(await p.isVisible('.m-reply.internal'), 'mode kept');
   await p.reload();
   await ready(p);
-  assert.equal(await p.inputValue('.m-reply-input'), 'Entwurf: Ersatz-Headset liegt bereit', 'kept after reloading the page');
+  assert.equal(await replyText(p), 'Entwurf: Ersatz-Headset liegt bereit', 'kept after reloading the page');
   // Other tickets have their own (empty) draft
   await p.goto(`${S.base}/m/t/IT-2`);
   await ready(p);
-  assert.equal(await p.inputValue('.m-reply-input'), '');
+  assert.equal(await replyText(p), '');
   assert.deepEqual(errors, []);
   await close();
 });

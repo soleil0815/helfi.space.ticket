@@ -466,6 +466,7 @@ export function createTickets(db, users) {
       WHERE c.ticket_id=? ${agent ? '' : 'AND c.internal=0'} ORDER BY c.created_at, c.id`).all(ticketId).map((c) => ({
       id: c.id,
       body: c.body,
+      format: c.format === 'md' ? 'md' : 'text',
       internal: !!c.internal,
       source: c.source,
       createdAt: c.created_at,
@@ -474,7 +475,7 @@ export function createTickets(db, users) {
   }
 
   /** system: notice from Helfi.Space itself (e.g. delivery failure) – always internal, reopens nothing. */
-  function addComment(user, idOrKey, { body, internal = false, attachmentIds = [] }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false } = {}) {
+  function addComment(user, idOrKey, { body, internal = false, attachmentIds = [], format = 'text' }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false } = {}) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
     const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
@@ -488,8 +489,10 @@ export function createTickets(db, users) {
       allowed: (u) => canMention && u.active === 1 && (isAgent(u) || (!isInternal && canSee(u, row))),
     });
     const info = db.transaction(() => {
-      const r = db.prepare('INSERT INTO comments(ticket_id,author_id,author_email,author_name,body,internal,source) VALUES(?,?,?,?,?,?,?)')
-        .run(row.id, user ? user.id : null, authorEmail, authorName, mention.text, isInternal, source);
+      // md: written with the formatting toolbar (web only – mails and system notes stay plain text)
+      const fmt = format === 'md' && source !== 'email' && !system ? 'md' : 'text';
+      const r = db.prepare('INSERT INTO comments(ticket_id,author_id,author_email,author_name,body,internal,source,format) VALUES(?,?,?,?,?,?,?,?)')
+        .run(row.id, user ? user.id : null, authorEmail, authorName, mention.text, isInternal, source, fmt);
       const addMention = db.prepare('INSERT OR IGNORE INTO comment_mentions(comment_id,ticket_id,user_id,seen_at) VALUES(?,?,?,?)');
       // Mentioning oneself counts as already seen
       for (const id of mention.ids) addMention.run(r.lastInsertRowid, row.id, id, id === user?.id ? new Date().toISOString() : null);

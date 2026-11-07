@@ -29,7 +29,7 @@
     <li><a href="#benutzer">Für alle: Anmelden und Anfragen stellen</a>
       <ol><li><a href="#anmelden">Anmelden</a></li><li><a href="#melden">Ein Problem melden</a></li><li><a href="#anfragen">Meine Anfragen</a></li><li><a href="#antworten">Antworten und Dateien</a></li><li><a href="#teilnehmer">Anfrage-Teilnehmer</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profil">Profil, Sprache und Kennwort</a></li><li><a href="#2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</a></li><li><a href="#katalog">Service anfordern</a></li><li><a href="#genehmigen">Genehmigen</a></li><li><a href="#hilfe-wissen">Hilfe &amp; Wissen</a></li><li><a href="#bewerten">Bewerten</a></li><li><a href="#smartphone">Auf dem Smartphone</a></li></ol></li>
     <li><a href="#bearbeiter">Für Bearbeiter</a>
-      <ol><li><a href="#warteschlangen">Warteschlangen und Zusammenfassung</a></li><li><a href="#board">Board</a></li><li><a href="#liste">Ticketliste und Filter</a></li><li><a href="#filter-speichern">Gespeicherte Filter</a></li><li><a href="#ticket">Ein Ticket bearbeiten</a></li><li><a href="#notizen">Antworten und interne Notizen</a></li><li><a href="#erwaehnen">Kollegen erwähnen (@)</a></li><li><a href="#html-mails">HTML-Mails</a></li><li><a href="#vorlagen">Antwortvorlagen</a></li><li><a href="#ki">KI-Unterstützung</a></li><li><a href="#mehrfach">Mehrere Tickets auf einmal</a></li><li><a href="#berichte">Berichte</a></li><li><a href="#kuerzel">Tastenkürzel</a></li><li><a href="#nie-loeschen">Tickets werden nie gelöscht</a></li></ol></li>
+      <ol><li><a href="#warteschlangen">Warteschlangen und Zusammenfassung</a></li><li><a href="#board">Board</a></li><li><a href="#liste">Ticketliste und Filter</a></li><li><a href="#filter-speichern">Gespeicherte Filter</a></li><li><a href="#ticket">Ein Ticket bearbeiten</a></li><li><a href="#formatieren">Antworten formatieren</a></li><li><a href="#notizen">Antworten und interne Notizen</a></li><li><a href="#erwaehnen">Kollegen erwähnen (@)</a></li><li><a href="#html-mails">HTML-Mails</a></li><li><a href="#vorlagen">Antwortvorlagen</a></li><li><a href="#ki">KI-Unterstützung</a></li><li><a href="#mehrfach">Mehrere Tickets auf einmal</a></li><li><a href="#berichte">Berichte</a></li><li><a href="#kuerzel">Tastenkürzel</a></li><li><a href="#nie-loeschen">Tickets werden nie gelöscht</a></li></ol></li>
     <li><a href="#itil">IT-Service-Management (ITIL)</a>
       <ol><li><a href="#verknuepfungen">Verknüpfungen und Unteraufgaben</a></li><li><a href="#major">Auswirkung, Dringlichkeit und Major Incident</a></li><li><a href="#sla">Service Level (SLA)</a></li><li><a href="#probleme">Probleme und bekannte Fehler</a></li><li><a href="#changes">Change-Management</a></li><li><a href="#wissen">Wissensdatenbank</a></li><li><a href="#servicekatalog">Servicekatalog einrichten</a></li><li><a href="#geraete">Geräte &amp; Dienste</a></li><li><a href="#zufriedenheit">Zufriedenheitsumfrage</a></li><li><a href="#kennzahlen">ITIL-Kennzahlen</a></li></ol></li>
     <li><a href="#admin">Für Administratoren: Einrichtung</a>
@@ -115,7 +115,7 @@
 
 <h2 id="emojis">Emojis</h2>
 <ul>
-  <li><strong>🙂-Knopf</strong> unten rechts im Textfeld: Auswahl mit Suche (z. B. „daumen“ oder „drucker“), Gruppen und „Zuletzt verwendet“.</li>
+  <li><strong>🙂-Knopf</strong> in der Werkzeugleiste des Kommentarfelds (in anderen Textfeldern unten rechts): Auswahl mit Suche (z. B. „daumen“ oder „drucker“), Gruppen und „Zuletzt verwendet“.</li>
   <li><strong>Kurznamen:</strong> <code>:dau</code> schlägt 👍 vor (Pfeiltasten und Enter oder Tab übernehmen, Esc schließt). <code>:tada:</code> wird sofort zu 🎉.</li>
   <li><strong>Klassische Smileys</strong> werden umgewandelt, sobald danach ein Leerzeichen folgt: <code>:)</code> → 🙂, <code>;)</code> → 😉, <code>:D</code> → 😄, <code>:(</code> → 🙁, <code>:P</code> → 😛, <code>:O</code> → 😮, <code>&lt;3</code> → ❤️, <code>(y)</code> → 👍. <kbd>Strg</kbd>+<kbd>Z</kbd> macht die Umwandlung sofort rückgängig.</li>
 </ul>
@@ -228,6 +228,19 @@
   <li><strong>Link kopieren</strong> über das Kettensymbol oben rechts.</li>
 </ul>
 
+<h2 id="formatieren">Antworten formatieren</h2>
+<p>Über dem Kommentarfeld liegt eine Werkzeugleiste – im Ticket, bei Kommentaren zu Wissensartikeln und auf dem Handy:</p>
+<ul>
+  <li><strong>KI</strong> (wenn eingerichtet): Antwort vorschlagen, glätten, kürzen, übersetzen.</li>
+  <li><strong>Formatieren:</strong> fett (<kbd>Strg</kbd>+<kbd>B</kbd>), kursiv (<kbd>Strg</kbd>+<kbd>I</kbd>), unter <em>…</em> unterstrichen, durchgestrichen und Code; Aufzählung, nummerierte Liste, Zitat und Codeblock. Die Formatierung siehst du sofort beim Schreiben. Kurzschreibweisen gehen auch: „- “ oder „1. “ am Zeilenanfang beginnt eine Liste, „&gt; “ ein Zitat.</li>
+  <li><strong>Link</strong> (<kbd>Strg</kbd>+<kbd>K</kbd>; auch Ticketnummern wie IT-42 oder KB-3), <strong>Bild</strong> (oder Strg+V), <strong>Emoji</strong> (auch „:)“ oder „:thumbsup:“) und <strong>@</strong> zum Erwähnen.</li>
+  <li>Rechts: <strong>Vorformulierte Antworten</strong> zum Einfügen – im selben Menü <em>Als Vorlage speichern</em>.</li>
+  <li><kbd>Strg</kbd>+<kbd>Enter</kbd> speichert.</li>
+</ul>
+<figure class="medium"><img src="img/de/comment-toolbar.jpg" alt=""><figcaption>Kommentarfeld mit Werkzeugleiste: fett, Erwähnung und Emoji</figcaption></figure>
+<p>Melder und Teilnehmer bekommen die Antwort formatiert per Mail (mit einem lesbaren Textteil für Programme ohne HTML). Auf dem Handy erscheint die Leiste über dem Feld, sobald du schreibst, und lässt sich seitlich wischen.</p>
+<figure class="small"><img src="img/de/m-reply-format.jpg" alt=""><figcaption>Auf dem Handy: Formatleiste beim Schreiben</figcaption></figure>
+
 <h2 id="notizen">Antworten und interne Notizen</h2>
 <p>Über dem Kommentarfeld wählst du zwischen <strong>Antworten</strong> und <strong>Interne Notiz</strong>:</p>
 <ul>
@@ -276,6 +289,9 @@
 <h3>Komponente erkennen</h3>
 <p>Ist <em>Komponente erkennen</em> eingeschaltet, schaut die KI bei neuen Tickets, für die keine <a href="#komponenten">Komponenten</a>-Regel passt, welche Komponente passt. Im Modus <em>Vorschlagen</em> steht in den Details „KI schlägt vor: …“ mit kurzer Begründung: <strong>Übernehmen</strong> setzt die Komponente (und gibt das Ticket der verantwortlichen Person, wenn noch niemand zugewiesen ist), <strong>Verwerfen</strong> blendet den Vorschlag aus. Auf dem Handy steht der Vorschlag unter <em>Alle Details</em>. Wählst du stattdessen selbst eine andere Komponente, zählt das als Korrektur. Im Modus <em>Automatisch zuordnen</em> setzt die KI die Komponente direkt; im Verlauf steht „von KI“.</p>
 <figure class="small"><img src="img/de/ai-suggestion.jpg" alt=""><figcaption>KI-Vorschlag für die Komponente</figcaption></figure>
+<h3>Wissensartikel schreiben</h3>
+<p>Im Artikel-Editor ist <strong>KI</strong> der erste Knopf der Leiste. Er wirkt auf die Markierung – ohne Markierung auf den ganzen Artikel – und lässt die Formatierung stehen: <em>Text glätten</em>, <em>Kürzen</em>, <em>Als Schritt-für-Schritt-Anleitung</em> (aus Stichpunkten werden nummerierte Schritte), <em>Auf Deutsch/Englisch übersetzen</em> und <em>Titel und Kategorie vorschlagen</em> (zum Übernehmen oder Anpassen). Bei einem neuen Artikel aus einem Ticket gibt es zusätzlich <em>Entwurf aus IT-42 schreiben</em>: Problem – Ursache – Lösung aus dem Ticketverlauf, ohne Namen, Adressen, Rechnernamen und Ticketnummern. <em>Rückgängig</em> holt den vorherigen Text zurück; bitte den Entwurf vor dem Veröffentlichen prüfen.</p>
+<figure class="medium"><img src="img/de/kb-ai.jpg" alt=""><figcaption>KI im Artikel-Editor</figcaption></figure>
 
 <h2 id="mehrfach">Mehrere Tickets auf einmal</h2>
 <p>In <em>Alle Tickets</em> wählst du Tickets über die Kästchen aus (Umschalt+Klick für einen Bereich, <kbd>x</kbd> für das markierte Ticket). Die Aktionsleiste bietet:</p>

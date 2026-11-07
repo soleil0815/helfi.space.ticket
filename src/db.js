@@ -712,6 +712,15 @@ export const MIGRATIONS = [
     CREATE INDEX idx_component_suggestions_state ON component_suggestions(state);
     `,
   },
+  {
+    id: 33,
+    name: 'Formatierte Kommentare (Markdown) für Tickets und Wissensartikel',
+    sql: `
+    -- text = as before (plain text, links and **bold**), md = written with the formatting toolbar
+    ALTER TABLE comments ADD COLUMN format TEXT NOT NULL DEFAULT 'text';
+    ALTER TABLE kb_comments ADD COLUMN format TEXT NOT NULL DEFAULT 'text';
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

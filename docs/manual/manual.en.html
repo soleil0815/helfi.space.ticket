@@ -29,7 +29,7 @@
     <li><a href="#users">For everyone: signing in and making requests</a>
       <ol><li><a href="#signin">Signing in</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li><li><a href="#catalog">Requesting a service</a></li><li><a href="#approving">Approving</a></li><li><a href="#help-knowledge">Help &amp; knowledge</a></li><li><a href="#rating">Rating</a></li><li><a href="#smartphone">On a smartphone</a></li></ol></li>
     <li><a href="#agents">For agents</a>
-      <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#saved-filters">Saved filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#mentions">Mentioning colleagues (@)</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#ai">AI assistance</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
+      <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#saved-filters">Saved filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#formatting">Formatting replies</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#mentions">Mentioning colleagues (@)</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#ai">AI assistance</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
     <li><a href="#itil">IT service management (ITIL)</a>
       <ol><li><a href="#links">Links and subtasks</a></li><li><a href="#major">Impact, urgency and major incident</a></li><li><a href="#sla">Service levels (SLA)</a></li><li><a href="#problems">Problems and known errors</a></li><li><a href="#changes">Change management</a></li><li><a href="#knowledge">Knowledge base</a></li><li><a href="#servicecatalog">Setting up the service catalog</a></li><li><a href="#devices">Devices &amp; services</a></li><li><a href="#satisfaction">Satisfaction survey</a></li><li><a href="#kpis">ITIL key figures</a></li></ol></li>
     <li><a href="#admin">For administrators: setup</a>
@@ -115,7 +115,7 @@
 
 <h2 id="emojis">Emojis</h2>
 <ul>
-  <li><strong>🙂 button</strong> at the bottom right of the text field: picker with search (e.g. “thumbs” or “printer”), groups and “Recently used”.</li>
+  <li><strong>🙂 button</strong> in the toolbar of the comment field (in other text fields at the bottom right): picker with search (e.g. “thumbs” or “printer”), groups and “Recently used”.</li>
   <li><strong>Short names:</strong> <code>:thu</code> suggests 👍 (arrow keys and Enter or Tab to accept, Esc to close). <code>:tada:</code> turns into 🎉 right away.</li>
   <li><strong>Classic smileys</strong> are converted as soon as a space follows: <code>:)</code> → 🙂, <code>;)</code> → 😉, <code>:D</code> → 😄, <code>:(</code> → 🙁, <code>:P</code> → 😛, <code>:O</code> → 😮, <code>&lt;3</code> → ❤️, <code>(y)</code> → 👍. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes the conversion right away.</li>
 </ul>
@@ -228,6 +228,19 @@
   <li><strong>Copy link</strong> via the chain icon at the top right.</li>
 </ul>
 
+<h2 id="formatting">Formatting replies</h2>
+<p>Above the comment field there is a toolbar – in tickets, in comments on knowledge articles and on phones:</p>
+<ul>
+  <li><strong>AI</strong> (if set up): suggest a reply, polish, shorten, translate.</li>
+  <li><strong>Formatting:</strong> bold (<kbd>Ctrl</kbd>+<kbd>B</kbd>), italic (<kbd>Ctrl</kbd>+<kbd>I</kbd>), under <em>…</em> underline, strikethrough and code; bullets, numbered list, quote and code block. You see the formatting right away while writing. Shortcuts work too: “- ” or “1. ” at the start of a line starts a list, “&gt; ” a quote.</li>
+  <li><strong>Link</strong> (<kbd>Ctrl</kbd>+<kbd>K</kbd>; also ticket numbers such as IT-42 or KB-3), <strong>image</strong> (or Ctrl+V), <strong>emoji</strong> (also “:)” or “:thumbsup:”) and <strong>@</strong> to mention someone.</li>
+  <li>On the right: <strong>Canned responses</strong> to insert – <em>Save as canned response</em> is in the same menu.</li>
+  <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> saves.</li>
+</ul>
+<figure class="medium"><img src="img/en/comment-toolbar.jpg" alt=""><figcaption>Comment field with toolbar: bold, mention and emoji</figcaption></figure>
+<p>Reporters and participants get the reply formatted by email (with a readable text part for programs without HTML). On phones the bar appears above the field as soon as you write and can be swiped sideways.</p>
+<figure class="small"><img src="img/en/m-reply-format.jpg" alt=""><figcaption>On a phone: format bar while writing</figcaption></figure>
+
 <h2 id="notes">Replies and internal notes</h2>
 <p>Above the comment field choose between <strong>Reply</strong> and <strong>Internal note</strong>:</p>
 <ul>
@@ -276,6 +289,9 @@
 <h3>Detecting the component</h3>
 <p>If <em>Detect component</em> is on, the AI looks at new tickets that no <a href="#components">component</a> rule matches and works out which component fits. In <em>Suggest</em> mode the details show “AI suggests: …” with a short reason: <strong>Accept</strong> sets the component (and gives the ticket to the responsible person if nobody is assigned yet), <strong>Dismiss</strong> hides the suggestion. On phones the suggestion is under <em>All details</em>. If you pick a different component yourself instead, that counts as a correction. In <em>Assign automatically</em> mode the AI sets the component directly; the history says “by AI”.</p>
 <figure class="small"><img src="img/en/ai-suggestion.jpg" alt=""><figcaption>AI suggestion for the component</figcaption></figure>
+<h3>Writing knowledge articles</h3>
+<p>In the article editor <strong>AI</strong> is the first button of the toolbar. It works on the selection – without one on the whole article – and keeps the formatting: <em>Polish text</em>, <em>Shorten</em>, <em>As a step-by-step guide</em> (notes become numbered steps), <em>Translate into German/English</em> and <em>Suggest title and category</em> (to accept or adjust). For a new article from a ticket there is also <em>Write a draft from IT-42</em>: problem – cause – solution from the ticket history, without names, addresses, computer names and ticket numbers. <em>Undo</em> brings back the previous text; please check the draft before publishing.</p>
+<figure class="medium"><img src="img/en/kb-ai.jpg" alt=""><figcaption>AI in the article editor</figcaption></figure>
 
 <h2 id="bulk">Several tickets at once</h2>
 <p>In <em>All tickets</em> select tickets with the check boxes (Shift+click for a range, <kbd>x</kbd> for the highlighted ticket). The action bar offers:</p>

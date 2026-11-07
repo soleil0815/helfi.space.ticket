@@ -798,6 +798,32 @@ a.stat-link:hover { border-color: var(--blue); }
 .preview-label { margin-bottom: 6px; }
 
 /* Emojis */
+/* Formatted comment field: one toolbar (AI · formatting · link · image · emoji · @ · canned responses) */
+.cm-editor { border: 2px solid var(--border); border-radius: 6px; background: var(--bg); }
+.cm-editor:focus-within { border-color: var(--blue); }
+.cm-editor .kb-toolbar.cm-toolbar { position: static; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding: 4px 6px; border-radius: 4px 4px 0 0; background: transparent; }
+.cm-editor .kb-tb-btn { min-width: 30px; height: 30px; flex-shrink: 0; }
+.cm-editor .kb-tb-sep { flex-shrink: 0; margin: 0 4px; }
+.cm-slot { display: contents; }
+.cm-editor { container-type: inline-size; }
+/* narrow field: text buttons show only their icon (the full name is in the tooltip) */
+@container (max-width: 620px) { .cm-tb-text .cm-tb-label, .cm-tb-text .ai-label { display: none; } }
+.cm-tb-text { padding: 0 8px; color: var(--text); font-weight: 500; white-space: nowrap; }
+.cm-tb-text .icon:last-child { width: 14px; height: 14px; color: var(--text-subtle); }
+.cm-editor .kb-editable { min-height: 96px; max-height: 60vh; overflow-y: auto; padding: 10px 14px 12px; font-size: 14px; line-height: 1.55; }
+.cm-editor .kb-editable p { margin: 0 0 8px; }
+.cm-editor .kb-editable > :last-child { margin-bottom: 0; }
+.cm-editor .kb-editable.is-empty::before { left: 14px; top: 10px; }
+.cm-editor .kb-editable .kb-figure img { max-height: 280px; }
+.cm-editor.busy { opacity: .6; pointer-events: none; }
+.composer.internal .cm-editor { background: #FFFBEB; border-color: #F5CD47; }
+.cm-doc { font-size: 14px; line-height: 1.55; }
+.cm-doc p { margin: 0 0 8px; }
+.cm-doc > :last-child { margin-bottom: 0; }
+.cm-doc .kb-figure { margin: 6px 0 10px; }
+.cm-doc .kb-figure img { max-height: 360px; max-width: 100%; }
+.cm-doc h1, .cm-doc h2, .cm-doc h3 { margin: 12px 0 6px; font-size: 15px; }
+.menu-foot { border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; }
 .emoji-wrap { position: relative; }
 .emoji-wrap > textarea { padding-right: 52px; }
 .emoji-wrap > .emoji-btn { position: absolute; right: 16px; bottom: 6px; padding: 2px 6px; font-size: 16px; line-height: 1.2; opacity: .7; }
@@ -1051,7 +1077,7 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
 
 @media (max-width: 800px) {
   /* 16 px inputs: otherwise the iPhone zooms in on tap */
-  input, select, textarea, .input-search, .kb-editable { font-size: 16px; }
+  input, select, textarea, .input-search, .kb-editable, .cm-editor .kb-editable { font-size: 16px; }
   input:not([type=checkbox]):not([type=radio]), select { min-height: 40px; }
   .btn { min-height: 40px; }
   .btn-icon { min-width: 40px; min-height: 40px; }

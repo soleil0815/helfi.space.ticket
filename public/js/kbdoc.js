@@ -8,7 +8,9 @@
 //   | Head | Head |  + separator |---|---|    table
 //   ![Caption|small](/api/kb/images/…)   image (small | medium | full)
 //   [Text](https://… | /browse/IT-1 | /kb/3)       link
+//   @[Name](user:12)             @-mention (comments)
 import { h } from './dom.js';
+import { state } from './state.js';
 
 export const PANEL_KINDS = ['info', 'tip', 'warning'];
 export const IMAGE_SIZES = ['small', 'medium', 'full'];
@@ -168,6 +170,8 @@ const INLINE = [
   { re: /\\([\\`*[\]~+|#>\-.:!_()])/y, make: (m) => document.createTextNode(m[1]) },
   // (?=(`+))\1: whole backtick run as opener, without backtracking it character by character (otherwise cubic runtime)
   { re: /(?=(`+))\1([\s\S]*?[^`])\1(?!`)/y, make: (m) => h('code', m[2].replace(/^ (.*) $/, '$1')) },
+  // @-mention: a name tag (in the editor an atomic element that is saved as the token again)
+  { re: /@\[([^\]\n]{1,120})\]\(user:(\d{1,10})\)/y, make: (m, o) => mentionEl(m[1], Number(m[2]), o) },
   { re: /!\[([^\]\n]*)\]\(([^)\s]+)\)/y, make: (m) => (safeImg(m[2]) ? h('img', { src: m[2], alt: m[1].split('|')[0], loading: 'lazy' }) : document.createTextNode(m[0])) },
   { re: /\[((?:\\.|[^\]\\])+)\]\(([^)\s]+)\)/y, make: (m, o) => { const href = safeHref(m[2]); if (!href) return inline(m[1], o); const a = h('a', linkAttrs(href, o)); a.append(inline(m[1], { ...o, noAuto: true })); return a; } },
   { re: /\*\*((?:\\.|[^*\\]|\*(?!\*))+?)\*\*/y, make: (m, o) => wrap('strong', m[1], o) },
@@ -177,6 +181,10 @@ const INLINE = [
   { re: /(https?:\/\/[^\s<>"')\]]+[^\s<>"')\].,;:!?])/y, make: (m, o) => h('a', linkAttrs(m[1], o), m[1]) },
   { re: /([A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}(?![A-Za-z]))/y, make: (m) => h('a', { href: `mailto:${m[1]}` }, m[1]) },
 ];
+export function mentionEl(name, id, o = {}) {
+  const me = !o.edit && state.user && id === state.user.id;
+  return h(`span.mention${me ? '.mention-me' : ''}`, { 'data-user': String(id), 'data-name': name, ...(o.edit ? { contenteditable: 'false' } : {}) }, `@${name}`);
+}
 const linkAttrs = (href, o) => (/^\/(?![/\\])/.test(href) && !o.edit ? { href, 'data-link': '' } : /^https?:/.test(href) ? { href, target: '_blank', rel: 'noopener noreferrer' } : { href });
 function wrap(tag, text, o) { const el = h(tag); el.append(inline(text, o)); return el; }
 
@@ -283,6 +291,10 @@ function inlineMd(node, opts, ctx = { code: false }) {
     if (c.nodeType !== 1 || SKIP_TAGS.has(c.tagName)) continue;
     const tag = c.tagName;
     if (tag === 'BR') { out += ctx.cell ? ' ' : '\n'; continue; }
+    if (tag === 'SPAN' && c.classList.contains('mention') && /^\d{1,10}$/.test(c.dataset.user || '')) {
+      const name = String(c.dataset.name || c.textContent.replace(/^@/, '')).replace(/[\]\n]/g, ' ').trim().slice(0, 120);
+      if (name) { out += `@[${name}](user:${c.dataset.user})`; continue; }
+    }
     if (tag === 'IMG') {
       const src = safeImg(c.getAttribute('src'));
       if (src) out += `![${(c.getAttribute('alt') || '').replace(/[[\]|\n]/g, ' ').trim()}](${src})`;
