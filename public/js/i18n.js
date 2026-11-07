@@ -1873,6 +1873,10 @@ const de = {
   'ai.kb.replaceConfirm': 'Den bisherigen Text durch den KI-Entwurf ersetzen? „Rückgängig“ holt ihn zurück.',
   'ai.fn.kb': 'Wissensartikel',
   'ai.fn.kbHint': 'Im Artikel-Editor: glätten, kürzen, übersetzen, Anleitung aus Stichpunkten, Titel und Kategorie vorschlagen, Entwurf aus einem Ticket (ohne persönliche Angaben).',
+  'theme.title': 'Design',
+  'theme.system': 'System',
+  'theme.light': 'Hell',
+  'theme.dark': 'Dunkel',
 };
 
 const en = {
@@ -3749,6 +3753,10 @@ const en = {
   'ai.kb.replaceConfirm': 'Replace the current text with the AI draft? “Undo” brings it back.',
   'ai.fn.kb': 'Knowledge articles',
   'ai.fn.kbHint': 'In the article editor: polish, shorten, translate, guide from notes, suggest title and category, draft from a ticket (without personal data).',
+  'theme.title': 'Theme',
+  'theme.system': 'System',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
 };
 
 const dicts = { de, en };

@@ -249,9 +249,14 @@ export function createApi(ctx) {
       if (pw.length < 10) throw new HttpError(400, 'err.passwordWeak');
       newHash = hashPassword(pw);
     }
+    if (req.body.theme !== undefined && !['system', 'light', 'dark'].includes(req.body.theme)) throw new HttpError(400, 'err.badRequest', 'theme');
     db.transaction(() => {
       if (req.body.language !== undefined) {
         db.prepare('UPDATE users SET language=? WHERE id=?').run(req.body.language ? normalizeLang(req.body.language) : null, u.id);
+      }
+      if (req.body.theme !== undefined) {
+        // NULL = system (follows the device)
+        db.prepare('UPDATE users SET theme=? WHERE id=?').run(req.body.theme === 'system' ? null : req.body.theme, u.id);
       }
       if (displayName) db.prepare('UPDATE users SET display_name=? WHERE id=?').run(displayName, u.id);
       if (email !== undefined) users.setEmail(u.id, email);

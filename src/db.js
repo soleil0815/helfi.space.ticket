@@ -721,6 +721,14 @@ export const MIGRATIONS = [
     ALTER TABLE kb_comments ADD COLUMN format TEXT NOT NULL DEFAULT 'text';
     `,
   },
+  {
+    id: 34,
+    name: 'Farbschema pro Konto (System/Hell/Dunkel)',
+    sql: `
+    -- NULL = follow the device (system)
+    ALTER TABLE users ADD COLUMN theme TEXT;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

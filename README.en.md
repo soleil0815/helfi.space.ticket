@@ -28,6 +28,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Roles:** administrator, agent, user. Users only see their own requests.
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
+- **Dark mode:** choose *System* (follows the device), *Light* or *Dark* under *Theme* in the user menu – on phones under *Me → Theme*. The choice is stored with the account on all devices, also with a custom brand colour.
 - **What's new:** after an update Helfi.Space shows everyone once what changed for them; all versions are listed in the user menu under *What's new*.
 - Automatic backups daily and before every update
 

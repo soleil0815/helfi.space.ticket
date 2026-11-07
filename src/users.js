@@ -14,6 +14,8 @@ export function publicUser(u) {
     active: !!u.active,
     roleLocked: !!u.role_locked,
     language: u.language || null,
+    // colour theme: system (follows the device) | light | dark
+    theme: ['light', 'dark'].includes(u.theme) ? u.theme : 'system',
     lastLogin: u.last_login || null,
     hasPassword: !!u.password_hash,
     mfaEnabled: !!u.totp_enabled,
