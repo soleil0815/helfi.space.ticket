@@ -228,7 +228,8 @@ body.m a:hover { text-decoration: none; }
 .m-ticket-prio .icon, .m-ticket-comments .icon { width: 16px; height: 16px; vertical-align: 0; }
 .m .lozenge { font-size: 11px; line-height: 18px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
 .m .sla { font-size: 12px; }
-.m-more { margin-top: 12px; display: flex; justify-content: center; }
+.m-more { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.m-more-error { color: var(--danger-text); text-align: center; }
 
 /* Skeletons */
 .m-skeleton { padding: 16px; }

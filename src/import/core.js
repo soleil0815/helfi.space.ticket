@@ -200,7 +200,7 @@ export function createImportCore({ db, tickets, users }) {
       const componentId = componentFor(project.id, it.component);
       if (ticketId) {
         // Record changed fields in the history (like a manual change) so nothing is overwritten without a trace
-        const old = db.prepare('SELECT title, description, type, status, resolution, priority, labels, due_date, assignee_id, component_id FROM tickets WHERE id=?').get(ticketId);
+        const old = db.prepare('SELECT title, description, type, status, resolution, priority, labels, due_date, assignee_id, component_id, duplicate_of FROM tickets WHERE id=?').get(ticketId);
         const next = { title: values.title, description: values.description, type: values.type, status: values.status, resolution: values.resolution, priority: values.priority,
           labels: values.labels, due_date: values.due, assignee_id: assigneeId ?? old.assignee_id, component_id: componentId ?? old.component_id };
         const field = { due_date: 'dueDate', assignee_id: 'assignee', component_id: 'component' };
@@ -213,9 +213,23 @@ export function createImportCore({ db, tickets, users }) {
           db.prepare("INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value) VALUES(?,?,'changed',?,?,?)")
             .run(ticketId, cfg.userId, field[col] || col, o === null ? null : String(o), n === null ? null : String(n));
         }
-        db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, resolution=?, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
+        // Closed differently in the source (e.g. rejected) instead of as a duplicate: also remove the
+        // "duplicates" link to the previous original, as when re-resolving in Helfi.Space (on reopening
+        // – resolution NULL – the link stays, as for a manual reopen)
+        if (old.duplicate_of && values.resolution && values.resolution !== 'duplicate') {
+          const gone = db.prepare("DELETE FROM ticket_links WHERE kind='duplicates' AND from_id=? AND to_id=?").run(ticketId, old.duplicate_of);
+          if (gone.changes) {
+            const keyOf = (id) => db.prepare("SELECT p.key || '-' || t.number k FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.id=?").get(id)?.k ?? null;
+            const unlinked = db.prepare("INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value) VALUES(?,?,'unlinked',?,?,NULL)");
+            unlinked.run(ticketId, cfg.userId, 'duplicates:out', keyOf(old.duplicate_of));
+            unlinked.run(old.duplicate_of, cfg.userId, 'duplicates:in', keyOf(ticketId));
+          }
+        }
+        db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, resolution=?,
+          -- a local duplicate link only stays while the ticket is still closed as a duplicate
+          duplicate_of=CASE WHEN ?='duplicate' THEN duplicate_of END, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
           component_id=COALESCE(?,component_id), updated_at=MAX(updated_at, ?), resolved_at=? WHERE id=?`).run(
-          values.title, values.description, values.type, values.status, values.resolution, values.priority, values.labels, values.due,
+          values.title, values.description, values.type, values.status, values.resolution, values.resolution ?? null, values.priority, values.labels, values.due,
           assigneeId, componentId, values.updated, values.resolved, ticketId);
       } else {
         // Keep the number if it is free and never used in the target project: do not reuse numbers of

@@ -165,13 +165,15 @@ export async function renderTickets(page, ctx) {
   function drawInfo() {
     info.textContent = total ? t(shown < total ? 'm.tickets.countOf' : 'm.tickets.count', { n: shown, total }) : '';
   }
-  /** "Load more" button at the end; loads automatically when it comes into view */
-  function drawMore() {
+  /** "Load more" button at the end; loads automatically when it comes into view.
+   * failed: the last request failed → show the error and only load again on a tap (no request storm) */
+  function drawMore(failed = false) {
     more.replaceChildren();
     if (shown >= total) return;
-    const btn = h('button.m-btn.m-btn-block', { type: 'button', onclick: () => loadMore() }, t('m.tickets.loadMore'));
+    const btn = h('button.m-btn.m-btn-block', { type: 'button', onclick: () => loadMore() }, t(failed ? 'm.retry' : 'm.tickets.loadMore'));
+    if (failed) more.append(h('div.m-more-error', { role: 'alert' }, t('m.tickets.moreFailed')));
     more.append(btn);
-    if ('IntersectionObserver' in window) {
+    if (!failed && 'IntersectionObserver' in window) {
       const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting) && page.isActive()) { io.disconnect(); loadMore(); } }, { root: page.scroll, rootMargin: '200px' });
       io.observe(btn);
     }
@@ -208,7 +210,11 @@ export async function renderTickets(page, ctx) {
       if (my !== seq) return;
       // the server answers a page past the end with the last one: only append when it is really the next page
       if (r.page === nextPage && r.tickets.length) {
-        listHost.querySelector('.m-list')?.append(...r.tickets.map((tk) => ticketCard(tk, { terms })));
+        // Offset paging: if tickets moved up meanwhile (e.g. updated), the next page repeats some of
+        // the last cards – append only tickets that are not in the list yet
+        const list = listHost.querySelector('.m-list');
+        const have = new Set([...(list?.querySelectorAll('[data-key]') || [])].map((el) => el.dataset.key));
+        list?.append(...r.tickets.filter((tk) => !have.has(tk.key)).map((tk) => ticketCard(tk, { terms })));
         shown += r.tickets.length;
         nextPage += 1;
       }
@@ -216,7 +222,7 @@ export async function renderTickets(page, ctx) {
       if (r.page !== nextPage - 1) shown = total; // nothing more to fetch
       drawInfo();
       drawMore();
-    } catch { drawMore(); } finally { loadingMore = false; }
+    } catch { if (my === seq) drawMore(true); } finally { loadingMore = false; }
   }
 
   drawChips();

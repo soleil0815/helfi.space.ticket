@@ -442,8 +442,8 @@ if ! ask "Vorherige Version wieder starten?" "Restart the previous version?"; th
       "The new version stays running (it may already have migrated the database)."
   say "Zurück später mit: ./update.sh -y  nach Eintragen der alten Version in .env – die passende Sicherung" \
       "To go back later: enter the old version in .env, then ./update.sh -y  – the matching backup"
-  say "liegt im Datenordner unter backups/helfi-vor-${NEW_VERSION:-<Version>}-*.sqlite (siehe README)." \
-      "is in the data directory under backups/helfi-vor-${NEW_VERSION:-<version>}-*.sqlite (see README)."
+  say "liegt im Datenordner unter backups/helfi-vor-${NEW_VERSION:-<Version>}-*.sqlite bzw. *.sqlite.gz (siehe README)." \
+      "is in the data directory under backups/helfi-vor-${NEW_VERSION:-<version>}-*.sqlite or *.sqlite.gz (see README)."
   exit 1
 fi
 
@@ -453,15 +453,15 @@ if [ -n "$NEW_VERSION" ]; then
   if [ -z "$DATA_DIR" ] || [ ! -d "$DATA_DIR" ]; then
     err "Datenordner des Containers nicht gefunden – die Datenbank wird NICHT zurückgespielt." \
         "Data directory of the container not found – the database will NOT be restored."
-    err "Falls die alte Version nicht startet: Sicherung helfi-vor-$NEW_VERSION-*.sqlite von Hand zurückspielen (README)." \
-        "If the old version does not start: restore the backup helfi-vor-$NEW_VERSION-*.sqlite by hand (README)."
+    err "Falls die alte Version nicht startet: Sicherung helfi-vor-$NEW_VERSION-*.sqlite(.gz) von Hand zurückspielen (README)." \
+        "If the old version does not start: restore the backup helfi-vor-$NEW_VERSION-*.sqlite(.gz) by hand (README)."
   elif [ ! -r "$DATA_DIR" ] || [ ! -x "$DATA_DIR" ] || { [ -d "$bdir" ] && { [ ! -r "$bdir" ] || [ ! -x "$bdir" ]; }; }; then
     err "Der Datenordner $DATA_DIR bzw. seine Sicherungen sind für diesen Benutzer nicht lesbar –" \
         "The data directory $DATA_DIR or its backups are not readable for this user –"
     err "die Datenbank wird NICHT zurückgespielt. Bitte mit sudo ausführen (sudo ./update.sh -y) oder" \
         "the database will NOT be restored. Please run with sudo (sudo ./update.sh -y) or"
-    err "die Sicherung helfi-vor-$NEW_VERSION-*.sqlite von Hand zurückspielen (README)." \
-        "restore the backup helfi-vor-$NEW_VERSION-*.sqlite by hand (README)."
+    err "die Sicherung helfi-vor-$NEW_VERSION-*.sqlite(.gz) von Hand zurückspielen (README)." \
+        "restore the backup helfi-vor-$NEW_VERSION-*.sqlite(.gz) by hand (README)."
   else
     # Stop first, then search: otherwise the new version could finish its backup during the search
     # and migrate the database (audit). The previous version is restarted afterwards anyway.
@@ -482,8 +482,8 @@ if [ -n "$NEW_VERSION" ]; then
 $found
 EOF_BACKUPS
     if [ -z "$backup" ] && [ -z "$partial" ]; then
-      say "Keine Sicherung helfi-vor-$NEW_VERSION-*.sqlite aus diesem Update gefunden – die neue Version hat die" \
-          "No backup helfi-vor-$NEW_VERSION-*.sqlite found from this update – so the new version has not"
+      say "Keine Sicherung helfi-vor-$NEW_VERSION-*.sqlite(.gz) aus diesem Update gefunden – die neue Version hat die" \
+          "No backup helfi-vor-$NEW_VERSION-*.sqlite(.gz) found from this update – so the new version has not"
       say "Datenbank demnach nicht umgestellt. Datenbank bleibt unverändert." \
           "migrated the database. The database stays unchanged."
     elif [ -z "$backup" ]; then
@@ -500,11 +500,25 @@ EOF_BACKUPS
           "$DATA_DIR/helfi.sqlite is missing – nothing restored. Backup: $backup"
     else
       stamp="$(date +%Y%m%d-%H%M%S)"
-      # Copy completely first, then swap – never be left without a database
+      # Copy completely first, then swap – never be left without a database.
+      # umask 077: the database holds password hashes – readable by the owner only, like the backup
+      # (gzip -dc > file would otherwise create it with the shell's umask, e.g. 0644)
+      restore_err=""
       case "$backup" in
-        *.gz) if command -v gzip >/dev/null 2>&1; then restore() { gzip -dc "$backup" > "$DATA_DIR/helfi.sqlite.zurueck"; }
-              else restore() { err "gzip fehlt – die gepackte Sicherung lässt sich nicht entpacken." "gzip is missing – the packed backup cannot be unpacked."; return 1; }; fi ;;
-        *) restore() { cp "$backup" "$DATA_DIR/helfi.sqlite.zurueck"; } ;;
+        *.gz) restore() {
+                if ! command -v gzip >/dev/null 2>&1; then
+                  restore_err=1
+                  err "gzip fehlt – die gepackte Sicherung $backup lässt sich nicht entpacken." "gzip is missing – the packed backup $backup cannot be unpacked."
+                  return 1
+                fi
+                if ! (umask 077; gzip -dc "$backup" > "$DATA_DIR/helfi.sqlite.zurueck"); then
+                  restore_err=1
+                  err "Die gepackte Sicherung $backup ließ sich nicht entpacken (gzip -dc; beschädigt oder kein Platz?)." \
+                      "The packed backup $backup could not be unpacked (gzip -dc; damaged or out of disk space?)."
+                  return 1
+                fi
+              } ;;
+        *) restore() { (umask 077; cp "$backup" "$DATA_DIR/helfi.sqlite.zurueck"); } ;;
       esac
       if restore && sync; then
         for ext in "" -wal -shm; do
@@ -517,8 +531,12 @@ EOF_BACKUPS
             "Caution: anything received since the update (e.g. tickets from emails) exists only in the failed state."
       else
         rm -f "$DATA_DIR/helfi.sqlite.zurueck"
-        err "Sicherung konnte nicht kopiert werden (Platz? Rechte?) – Datenbank unverändert." \
-            "Could not copy the backup (disk space? permissions?) – database unchanged."
+        if [ -n "$restore_err" ]; then
+          err "Datenbank unverändert." "Database unchanged."
+        else
+          err "Sicherung konnte nicht kopiert werden (Platz? Rechte?) – Datenbank unverändert." \
+              "Could not copy the backup (disk space? permissions?) – database unchanged."
+        fi
       fi
     fi
   fi

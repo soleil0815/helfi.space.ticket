@@ -136,13 +136,22 @@ export function createSearch(db) {
    * Tickets that share words with a text ("similar tickets"): any of the words, best matches first
    * (title counts most). Only public text – the same for every agent. Returns ticket ids.
    */
-  function similar(words, { limit = 30 } = {}) {
+  function similar(words, { limit = 30, projectId = null, openOnly = false, createdFrom = null, createdTo = null } = {}) {
     const ws = [...new Set(words.map((w) => String(w).trim()).filter((w) => w.length >= 3))].slice(0, 12);
     if (!ws.length) return [];
     flush();
+    // Optional conditions on the ticket are applied BEFORE the limit (otherwise the best hits could all
+    // be from other projects or done tickets and the fitting ones would never be seen)
+    const where = []; const args = [`{title public_text} : (${ws.map(ftsQuote).join(' OR ')})`];
+    if (projectId != null) { where.push('t.project_id=?'); args.push(projectId); }
+    if (openOnly) where.push("t.status<>'done'");
+    if (createdFrom) { where.push('t.created_at>=?'); args.push(createdFrom); }
+    if (createdTo) { where.push('t.created_at<=?'); args.push(createdTo); }
+    const join = where.length ? `JOIN tickets t ON t.id=f.rowid` : '';
     try {
-      return db.prepare(`SELECT f.rowid id FROM ticket_fts f WHERE ticket_fts MATCH ? ORDER BY bm25(ticket_fts, 10.0, 2.0, 0.0, 0.0, 0.0) LIMIT ?`)
-        .all(`{title public_text} : (${ws.map(ftsQuote).join(' OR ')})`, Math.min(200, limit)).map((r) => r.id);
+      return db.prepare(`SELECT f.rowid id FROM ticket_fts f ${join} WHERE ticket_fts MATCH ? ${where.map((w) => `AND ${w}`).join(' ')}
+        ORDER BY bm25(ticket_fts, 10.0, 2.0, 0.0, 0.0, 0.0) LIMIT ?`)
+        .all(...args, Math.min(200, limit)).map((r) => r.id);
     } catch (e) {
       if (e?.code?.startsWith?.('SQLITE_') || e?.name === 'SqliteError') return [];
       throw e;

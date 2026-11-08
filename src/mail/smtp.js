@@ -166,9 +166,12 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
     }
   }
 
-  tickets.events.on('commented', safe(async ({ ticket, comment, user, internal }) => {
+  tickets.events.on('commented', safe(async ({ ticket, comment, user, internal, resolutionReply = false }) => {
     // Never forward comments from emails: mail senders can be forged
-    if (internal || comment.source === 'email' || !settings.get('notify.reporterOnComment') || !user) return;
+    if (internal || comment.source === 'email' || !user) return;
+    // The reason of a rejection/duplicate replaces the "Resolved" mail: it follows reporterOnDone
+    // as well, otherwise the reporter would learn nothing with reply mails switched off
+    if (!settings.get('notify.reporterOnComment') && !(resolutionReply && settings.get('notify.reporterOnDone'))) return;
     const assignee = ticket.assignee?.displayName && ticket.assignee.id !== user.id ? ticket.assignee.displayName : null;
     await toCustomers(ticket, user.id, (lang, name) => {
       const vars = {

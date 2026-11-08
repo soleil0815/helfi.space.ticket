@@ -122,6 +122,35 @@ const formatBytes = (n) => {
   return b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
 };
 
+/** Largest AI response body that is read (bytes); a longer one is cut off and refused */
+export const MAX_AI_RESPONSE = 2 * 1024 * 1024;
+
+/**
+ * Read a response body with a byte cap: never buffers more than `max` bytes (a misbehaving
+ * server or proxy could otherwise exhaust the memory). Timeouts while the body is still
+ * arriving become HttpError 504, other read errors 502.
+ */
+async function readCapped(res, max) {
+  const chunks = []; let size = 0; let over = false;
+  try {
+    if (res.body) {
+      for await (const chunk of res.body) {
+        size += chunk.length;
+        if (size > max) { over = true; break; }
+        chunks.push(chunk);
+      }
+    }
+  } catch (e) {
+    if (e.name === 'TimeoutError' || e.name === 'AbortError') throw new HttpError(504, 'err.aiTimeout');
+    throw new HttpError(502, 'err.aiUnreachable', e.cause?.code || e.message);
+  }
+  if (over) {
+    try { await res.body.cancel(); } catch { /* already closed */ }
+    return { text: Buffer.concat(chunks).toString('utf8'), tooLarge: true };
+  }
+  return { text: Buffer.concat(chunks).toString('utf8'), tooLarge: false };
+}
+
 /** Read a JSON answer with a size limit (model lists are small; a huge answer is an error) */
 async function getJson(url, headers, timeoutMs) {
   let res;
@@ -131,7 +160,8 @@ async function getJson(url, headers, timeoutMs) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') throw new HttpError(504, 'err.aiTimeout');
     throw new HttpError(502, 'err.aiUnreachable', e.cause?.code || e.message);
   }
-  const text = (await res.text()).slice(0, 5 * 1024 * 1024);
+  const { text, tooLarge } = await readCapped(res, 5 * 1024 * 1024);
+  if (tooLarge) return { status: 502, json: null, text: '' };
   let json = null;
   try { json = JSON.parse(text); } catch { /* below */ }
   return { status: res.status, json, text };
@@ -237,7 +267,8 @@ export function createAi({ db, settings, tickets }) {
         if (e.name === 'TimeoutError' || e.name === 'AbortError') throw new HttpError(504, 'err.aiTimeout');
         throw new HttpError(502, 'err.aiUnreachable', e.cause?.code || e.message);
       }
-      const text = await res.text();
+      const { text, tooLarge } = await readCapped(res, MAX_AI_RESPONSE);
+      if (tooLarge) throw new HttpError(502, 'err.aiFailed', `response larger than ${MAX_AI_RESPONSE} bytes`);
       let json = null;
       try { json = JSON.parse(text); } catch { /* handled below */ }
       return { res, json, text };

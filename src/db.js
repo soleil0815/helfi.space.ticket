@@ -4,6 +4,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 import Database from 'better-sqlite3';
 import { config, paths } from './config.js';
 import { log } from './lib/log.js';
@@ -834,6 +835,18 @@ function stamp() {
 }
 
 /**
+ * Flush a file (or directory entry) to disk. A rename is only durable once the data and the
+ * directory are written: otherwise a power loss right after "rename, delete the original" can leave
+ * an empty or truncated backup and no original. File systems without fsync support are tolerated.
+ */
+const FSYNC_UNSUPPORTED = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EISDIR', 'EBADF']);
+export function fsyncPath(file, { dir = false } = {}) {
+  let fd;
+  try { fd = fs.openSync(file, 'r'); } catch (e) { if (dir) return; throw e; }
+  try { fs.fsyncSync(fd); } catch (e) { if (!dir && !FSYNC_UNSUPPORTED.has(e.code)) throw e; } finally { fs.closeSync(fd); }
+}
+
+/**
  * Packs a file with gzip into `dest` (written as dest.part, then renamed) and checks the result:
  * unpacked again it must be byte for byte the original (SHA-256). Returns the packed size.
  */
@@ -850,7 +863,9 @@ async function gzipVerified(src, dest) {
     await pipeline(fs.createReadStream(part), check);
     if (got.digest('hex') !== want.digest('hex')) throw new Error(`packed backup differs from the original: ${path.basename(src)}`);
     try { fs.chmodSync(part, 0o600); } catch { /* e.g. file system without permissions */ }
+    fsyncPath(part);
     fs.renameSync(part, dest);
+    fsyncPath(path.dirname(dest), { dir: true });
     return fs.statSync(dest).size;
   } catch (e) {
     try { fs.rmSync(part, { force: true }); } catch { /* ignore */ }
@@ -880,7 +895,11 @@ export async function backupDatabase(db, label, dir = paths.backups, { compress 
       out = `${file}.gz`;
       await gzipVerified(part, out);
       fs.rmSync(part, { force: true });
-    } else fs.renameSync(part, file);
+    } else {
+      fsyncPath(part);
+      fs.renameSync(part, file);
+      fsyncPath(dir, { dir: true });
+    }
   } catch (e) {
     for (const f of [part, `${part}-journal`]) { try { fs.rmSync(f, { force: true }); } catch { /* ignore */ } }
     throw e;
@@ -954,9 +973,15 @@ export function backupKind(name) {
 /** Backups in the folder, newest first. */
 export function listBackups(dir = paths.backups) {
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((f) => backupKind(f))
-    .map((f) => { const st = fs.statSync(path.join(dir, f)); return { name: f, kind: backupKind(f), size: st.size, time: st.mtimeMs }; })
-    .sort((a, b) => b.time - a.time || (a.name < b.name ? 1 : -1));
+  const out = [];
+  for (const f of fs.readdirSync(dir)) {
+    if (!backupKind(f)) continue;
+    // A file can vanish between readdir and stat (just packed and removed, deleted) → skip it
+    let st;
+    try { st = fs.statSync(path.join(dir, f)); } catch (e) { if (e.code === 'ENOENT') continue; throw e; }
+    out.push({ name: f, kind: backupKind(f), size: st.size, time: st.mtimeMs });
+  }
+  return out.sort((a, b) => b.time - a.time || (a.name < b.name ? 1 : -1));
 }
 
 /**
@@ -974,7 +999,8 @@ export function pruneBackups(keep = DEFAULT_BACKUP_KEEP, dir = paths.backups) {
     catch (e) { log.warn(`Could not delete backup: ${b.name}`, { error: e.message }); }
   }
   // Remove leftover partial backups (aborted while writing) after one hour
-  const PART = /^helfi-[A-Za-z0-9._-]+\.sqlite(\.gz)?\.part(-journal)?$/;
+  // (also the cleaned copies of downloads, helfi-download-….sqlite.part, left over after a crash)
+  const PART = /^helfi-[A-Za-z0-9._-]+\.sqlite(\.gz)?\.part(-journal|-wal|-shm)?$/;
   let names = [];
   try { names = fs.readdirSync(dir); } catch { /* folder missing */ }
   for (const name of names) {
@@ -1001,6 +1027,50 @@ export function findBackup(name, dir = paths.backups) {
   return b ? { ...b, file: path.join(dir, b.name) } : null;
 }
 
+/**
+ * Copy of a backup for download, without anything that grants access by itself: the sessions table
+ * holds the session ids in plain text (they are the cookie values), so a downloaded ZIP would otherwise
+ * let anyone holding it take over every active session – including admins, without password and 2FA.
+ * The copy (unpacked) is written into the backup folder as helfi-download-….sqlite.part – never listed
+ * as a backup, removed by the caller afterwards and by pruneBackups after a crash. Freed pages are
+ * overwritten (secure_delete), so the ids are not left in the file either. Returns the path.
+ */
+export async function backupDownloadCopy(backup, dir = paths.backups, { maxBytes = Infinity } = {}) {
+  const tmp = path.join(dir, `helfi-download-${crypto.randomBytes(8).toString('hex')}.sqlite.part`);
+  try {
+    const read = fs.createReadStream(backup.file);
+    const write = fs.createWriteStream(tmp, { mode: 0o600, flags: 'wx' });
+    // Stop as soon as the (unpacked) copy grows beyond maxBytes – never fill the disk with a copy
+    // that cannot be downloaded anyway
+    let total = 0;
+    const limit = new Transform({
+      transform(chunk, _enc, cb) {
+        total += chunk.length;
+        if (total > maxBytes) { const e = new Error('Backup copy too large'); e.code = 'ETOOLARGE'; cb(e); return; }
+        cb(null, chunk);
+      },
+    });
+    if (backup.name.endsWith('.gz')) await pipeline(read, zlib.createGunzip(), limit, write);
+    else await pipeline(read, limit, write);
+    const d = new Database(tmp, { fileMustExist: true });
+    try {
+      d.pragma('journal_mode = DELETE');
+      d.pragma('secure_delete = ON');
+      const has = (t) => !!d.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(t);
+      if (has('sessions')) d.exec('DELETE FROM sessions');
+    } finally { d.close(); }
+    return tmp;
+  } catch (e) {
+    removeDownloadCopy(tmp);
+    throw e;
+  }
+}
+
+/** Remove a copy made by backupDownloadCopy (with a journal that may be left over). */
+export function removeDownloadCopy(file) {
+  for (const f of [file, `${file}-journal`, `${file}-wal`, `${file}-shm`]) { try { fs.rmSync(f, { force: true }); } catch { /* ignore */ } }
+}
+
 /** INFO.txt for a downloaded backup (German and English): what is in it and how to restore it. */
 export function backupInfoText({ name, created, version = config.version }) {
   const when = created.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
@@ -1011,6 +1081,8 @@ export function backupInfoText({ name, created, version = config.version }) {
     '',
     '--- Deutsch ---',
     'Inhalt: die Datenbank (helfi.sqlite). Nicht enthalten: Anhänge (data/attachments/) und secret.key.',
+    'Die Anmeldesitzungen sind entfernt (sonst ließe sich mit der Datei jede angemeldete Sitzung übernehmen):',
+    'nach dem Zurückspielen melden sich alle neu an.',
     'secret.key fehlt mit Absicht: Damit ließen sich die verschlüsselt gespeicherten Kennwörter',
     '(Postfach, Dienstkonto, SSO, KI-Schlüssel) und 2FA-Schlüssel entschlüsseln.',
     '',
@@ -1025,6 +1097,8 @@ export function backupInfoText({ name, created, version = config.version }) {
     '',
     '--- English ---',
     'Contents: the database (helfi.sqlite). Not included: attachments (data/attachments/) and secret.key.',
+    'Sign-in sessions are removed (otherwise the file would let anyone take over every signed-in session):',
+    'after restoring, everyone signs in again.',
     'secret.key is left out on purpose: it would decrypt the stored passwords',
     '(mailbox, service account, SSO, AI key) and 2FA keys.',
     '',

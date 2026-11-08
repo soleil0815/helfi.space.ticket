@@ -189,6 +189,7 @@ jobs:
         id: v
         env:
           MODE: ${{ inputs.release }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || { echo "::error::Release only by button ($GITHUB_EVENT_NAME)"; exit 1; }
           # only from branch main and only its current state
@@ -197,9 +198,20 @@ jobs:
           case "$MODE" in patch|minor|major) ;; *) echo "::error::Unknown release type ($MODE)"; exit 1 ;; esac
           # Re-run of this release ("Re-run all jobs"): the version it reserved as git tag on exactly this
           # commit is used again – otherwise the re-run would publish the next number and leave a gap
+          # Only a tag WITHOUT a published release is an unfinished reservation: an earlier, completed release
+          # of the same commit is never taken over (404 = no release; any other API error stops)
           if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
             mine="$(git tag -l 'v*.*.*' --points-at "$GITHUB_SHA" | sort -V | tail -n 1)"
-            if [ -n "$mine" ]; then MODE="tag:$mine"; echo "Re-run: version $mine reserved by this release"; fi
+            if [ -n "$mine" ]; then
+              if rel="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$mine" --jq .id 2>&1)"; then
+                echo "Version $mine is already released (release $rel) – not reused"
+              else
+                case "$rel" in
+                  *"Not Found"*|*"HTTP 404"*) MODE="tag:$mine"; echo "Re-run: version $mine reserved by this release" ;;
+                  *) echo "::error::Cannot check the release of $mine: $rel"; exit 1 ;;
+                esac
+              fi
+            fi
           fi
           out="$(sh .github/scripts/next-version.sh "$MODE")" || { echo "::error::Cannot determine version ($MODE)"; exit 1; }
           echo "$out"
@@ -291,7 +303,12 @@ jobs:
           # Only "404 Not Found" means free – any other API error stops the release (never guess "free")
           if out="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$V" --jq .object.sha 2>&1)"; then
             # Re-run of failed jobs of this release: the tag this run reserved points to exactly this commit
-            if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ] && [ "$out" = "$GITHUB_SHA" ]; then echo "Tag v$V reserved by this release (re-run)"; exit 0; fi
+            # and has no published release yet (a completed release is never taken over)
+            if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ] && [ "$out" = "$GITHUB_SHA" ]; then
+              rel="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$V" --jq .id 2>&1)" && { echo "::error::v$V is already released (release $rel)"; exit 1; }
+              case "$rel" in *"Not Found"*|*"HTTP 404"*) ;; *) echo "::error::Cannot check the release of v$V: $rel"; exit 1 ;; esac
+              echo "Tag v$V reserved by this release (re-run)"; exit 0
+            fi
             echo "::error::Tag v$V already exists (two releases at once?)"; exit 1
           fi
           case "$out" in *"Not Found"*|*"HTTP 404"*) ;; *) echo "::error::Cannot check tag v$V: $out"; exit 1 ;; esac
@@ -368,6 +385,9 @@ jobs:
         run: |
           if have="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$V" --jq .object.sha 2>/dev/null)"; then
             if [ "$GITHUB_RUN_ATTEMPT" -le 1 ] || [ "$have" != "$GITHUB_SHA" ]; then echo "::error::Tag v$V exists already ($have)"; exit 1; fi
+            # A completed release is never re-published by a re-run
+            rel="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$V" --jq .id 2>&1)" && { echo "::error::v$V is already released (release $rel)"; exit 1; }
+            case "$rel" in *"Not Found"*|*"HTTP 404"*) ;; *) echo "::error::Cannot check the release of v$V: $rel"; exit 1 ;; esac
           else
             gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$V" -f sha="$GITHUB_SHA" >/dev/null
           fi

@@ -28,6 +28,9 @@ export const PRIORITY_MATRIX = {
 
 const KEY_RE = /^[A-Z][A-Z0-9]{1,9}$/;
 export const MAX_PARTICIPANTS = 20;
+// Closing as a duplicate follows at most this many closed duplicates to the real original
+export const MAX_DUPLICATE_CHAIN = 20;
+const MAX_OFFSET = 1e9; // list offset (far beyond any real ticket count)
 
 /** Name for people without the agent role: a display name that is just a mail address
  *  (email contacts, mail clients without a name) is shortened to "local@…". */
@@ -307,12 +310,16 @@ export function createTickets(db, users) {
   function list(user, f = {}, opts = {}) {
     const { where, args, hits } = listFilter(user, f, opts);
     const sorts = {
-      updated: 't.updated_at DESC', created: 't.created_at DESC', priority: "CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, t.updated_at DESC",
-      key: 'p.key, t.number DESC', rank: 't.rank, t.id', status: "CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END, t.updated_at DESC",
+      // Each ends on a unique column: with LIMIT/OFFSET, equal values could otherwise swap between pages
+      updated: 't.updated_at DESC, t.id DESC', created: 't.created_at DESC, t.id DESC',
+      priority: "CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, t.updated_at DESC, t.id DESC",
+      key: 'p.key, t.number DESC', rank: 't.rank, t.id',
+      status: "CASE t.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END, t.updated_at DESC, t.id DESC",
     };
     const lim = int(f.limit);
     const limit = opts.all ? -1 : lim && lim > 0 ? Math.min(lim, 2000) : 500;
-    const off = opts.all ? 0 : Math.max(0, int(f.offset) || 0);
+    // Clamped: a huge number would end up as 1e+24 in the SQL (error 500)
+    const off = opts.all ? 0 : Math.min(MAX_OFFSET, Math.max(0, int(f.offset) || 0));
     // Search: default "best matches first" (order from the index), otherwise as selected
     const relevance = hits && (!f.sort || f.sort === 'relevance');
     const order = sorts[f.sort] || sorts.updated;
@@ -495,7 +502,7 @@ export function createTickets(db, users) {
    * with its original ("duplicates"); optionally reporter and participants join the original.
    * Also possible for tickets that are done already (changes the resolution).
    */
-  function resolveAs(user, idOrKey, { resolution, reason = '', duplicateOf = null, addToOriginal = false, lang = 'de', note = null } = {}) {
+  function resolveAs(user, idOrKey, { resolution, reason = '', duplicateOf = null, addToOriginal = false, note = null } = {}) {
     if (!isAgent(user)) throw forbidden();
     if (!['rejected', 'duplicate'].includes(resolution)) throw new HttpError(400, 'err.badRequest', 'resolution');
     const row = load(user, idOrKey);
@@ -505,10 +512,17 @@ export function createTickets(db, users) {
     if (resolution === 'duplicate') {
       try { original = load(user, str(duplicateOf, 30).trim().toUpperCase()); } catch { throw new HttpError(400, 'err.duplicateTarget'); }
       if (original.id === row.id) throw new HttpError(400, 'err.duplicateTarget');
-      if (original.duplicate_of === row.id) throw new HttpError(400, 'err.duplicateCycle');
+      // The original is itself a closed duplicate: follow the chain to the ticket where the request is
+      // really handled (so nobody is sent to a closed ticket); reaching this ticket again = cycle
+      for (let depth = 0; original.resolution === 'duplicate' && original.duplicate_of; depth++) {
+        if (original.duplicate_of === row.id || depth >= MAX_DUPLICATE_CHAIN) throw new HttpError(400, 'err.duplicateCycle');
+        try { original = load(user, original.duplicate_of); } catch { throw new HttpError(400, 'err.duplicateTarget'); }
+      }
+      if (original.id === row.id) throw new HttpError(400, 'err.duplicateCycle');
     }
     const originalKey = original ? `${original.project_key}-${original.number}` : null;
-    const body = text || (note ? note(originalKey) : '');
+    // The standard note in the reporter's language (it is a reply to them); null → default language
+    const body = text || (note ? note(originalKey, row.reporter_id ? users.byId(row.reporter_id)?.language || null : null) : '');
     db.transaction(() => {
       if (original) {
         if (!db.prepare("SELECT 1 FROM ticket_links WHERE kind='duplicates' AND ((from_id=? AND to_id=?) OR (from_id=? AND to_id=?))").get(row.id, original.id, original.id, row.id)) {
@@ -529,10 +543,22 @@ export function createTickets(db, users) {
         }
       }
     })();
-    if (body) addComment(user, row.id, { body, format: 'md' });
+    if (body) addComment(user, row.id, { body, format: 'md' }, { resolutionReply: true });
     if (row.status === 'done') {
       // already done: only the resolution changes
-      db.prepare('UPDATE tickets SET resolution=?, duplicate_of=? WHERE id=?').run(resolution, original?.id || null, row.id);
+      db.transaction(() => {
+        // The link to a previous original no longer applies (it was set when closing as its duplicate)
+        if (row.duplicate_of && row.duplicate_of !== original?.id) {
+          const old = db.prepare("DELETE FROM ticket_links WHERE kind='duplicates' AND from_id=? AND to_id=?").run(row.id, row.duplicate_of);
+          if (old.changes) {
+            const prev = rawById(row.duplicate_of);
+            const prevKey = prev ? `${prev.project_key}-${prev.number}` : null;
+            logActivity(row.id, user.id, 'unlinked', 'duplicates:out', prevKey, null);
+            if (prev) logActivity(prev.id, user.id, 'unlinked', 'duplicates:in', `${row.project_key}-${row.number}`, null);
+          }
+        }
+        db.prepare("UPDATE tickets SET resolution=?, duplicate_of=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(resolution, original?.id || null, row.id);
+      })();
       logActivity(row.id, user.id, 'resolution', resolution, row.resolution || 'done', originalKey);
       db.prepare('DELETE FROM ticket_ratings WHERE ticket_id=? AND rating IS NULL').run(row.id);
       return ticketOut(rawById(row.id));
@@ -595,7 +621,7 @@ export function createTickets(db, users) {
   }
 
   /** system: notice from Helfi.Space itself (e.g. delivery failure) – always internal, reopens nothing. */
-  function addComment(user, idOrKey, { body, internal = false, attachmentIds = [], format = 'text' }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false } = {}) {
+  function addComment(user, idOrKey, { body, internal = false, attachmentIds = [], format = 'text' }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false, resolutionReply = false } = {}) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
     const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
@@ -631,7 +657,8 @@ export function createTickets(db, users) {
     })();
     const ticket = ticketOut(rawById(row.id));
     const comment = comments({ role: 'admin' }, row.id).find((c) => c.id === info.lastInsertRowid);
-    emitLater('commented', { ticket, comment, user, internal: !!isInternal });
+    // resolutionReply: the reason of a rejection/duplicate – replaces the "Resolved" mail (see smtp.js)
+    emitLater('commented', { ticket, comment, user, internal: !!isInternal, resolutionReply: !!resolutionReply });
     const others = mention.ids.filter((id) => id !== user?.id);
     if (others.length) emitLater('mentioned', { ticket, comment, user, internal: !!isInternal, userIds: others });
     return comment;

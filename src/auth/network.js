@@ -172,7 +172,14 @@ export function createNetworkPolicy(settings, { gateway = readDefaultGateway(), 
   function listedProxies(req) {
     const v = req.app?.get?.('trust proxy');
     const list = Array.isArray(v) ? v : String(typeof v === 'string' ? v : '').split(',');
-    return new Set(list.map((x) => normalizeIp(String(x).trim())).filter((x) => net.isIP(x)));
+    // "10.0.10.5/32" and "fd00::5/128" are single addresses too
+    const single = (x) => {
+      const m = /^(.+)\/(\d+)$/.exec(x);
+      if (!m) return x;
+      const bits = net.isIPv4(m[1]) ? 32 : (net.isIPv6(m[1]) ? 128 : -1);
+      return Number(m[2]) === bits ? m[1] : '';
+    };
+    return new Set(list.map((x) => normalizeIp(single(String(x).trim()))).filter((x) => net.isIP(x)));
   }
 
   function explicitlyListed(ip) {

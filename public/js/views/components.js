@@ -234,7 +234,9 @@ function backfillPanel(project) {
       h('p.small',
         run.running ? t('backfill.running', run) : t(run.cancelled ? (run.error === 'aiFailing' ? 'backfill.aiFailing' : 'backfill.cancelled') : 'backfill.finished', run),
         ' · ', t('backfill.counts', run)),
-      run.running ? h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { const r = await api.admin.backfillCancel(); if (r.run) showRun(r.run); } }, t('backfill.cancel')) : null);
+      run.running ? h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => {
+        try { const r = await api.admin.backfillCancel(); if (r.run) showRun(r.run); } catch (ex) { toast(ex.message, 'error'); }
+      } }, t('backfill.cancel')) : null);
     if (run.running) poll();
   }
 
