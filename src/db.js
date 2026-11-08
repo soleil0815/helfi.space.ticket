@@ -796,6 +796,17 @@ export const MIGRATIONS = [
     CREATE INDEX idx_duplicate_suggestions_state ON duplicate_suggestions(state);
     `,
   },
+  {
+    id: 40,
+    name: 'Sitzungen: nur noch der Hash der Kennung',
+    sql: `
+    -- Sessions are looked up by SHA-256 of the cookie value (src/auth/session.js sessionKey):
+    -- the database and its backups no longer contain anything that signs anyone in.
+    -- Existing sessions are ended (everyone signs in once more): converting them would keep the
+    -- plaintext ids in the backup made right before this migration (and older ones) usable.
+    DELETE FROM sessions;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
@@ -1064,6 +1075,20 @@ export async function backupDownloadCopy(backup, dir = paths.backups, { maxBytes
     removeDownloadCopy(tmp);
     throw e;
   }
+}
+
+/**
+ * Bytes a download copy may use in `dir` without endangering the live database on the same volume:
+ * free space minus a reserve (at least 256 MB or 5 % of the volume). Infinity if the file system
+ * cannot tell.
+ */
+export function downloadCopyBudget(dir = paths.backups) {
+  try {
+    const st = fs.statfsSync(dir);
+    const free = Number(st.bavail) * Number(st.bsize);
+    const reserve = Math.max(256 * 1024 * 1024, Number(st.blocks) * Number(st.bsize) * 0.05);
+    return Math.max(0, free - reserve);
+  } catch { return Infinity; }
 }
 
 /** Remove a copy made by backupDownloadCopy (with a journal that may be left over). */

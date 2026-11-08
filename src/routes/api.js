@@ -24,8 +24,8 @@ import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
 import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
-import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText, backupDownloadCopy, removeDownloadCopy } from '../db.js';
-import { zipStream, ZIP_MAX_BYTES } from '../zip.js';
+import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText, backupDownloadCopy, removeDownloadCopy, downloadCopyBudget } from '../db.js';
+import { zipStream } from '../zip.js';
 import { Readable, pipeline } from 'node:stream';
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
@@ -945,8 +945,9 @@ export function createApi(ctx) {
 
   admin.get('/ai/stats', (req, res) => res.json({ classify: ctx.aiClassifier.stats(), duplicates: ctx.aiDuplicates.stats() }));
   // Sort existing tickets without component afterwards: preview, start, progress, cancel
-  // all tickets by default (also done ones); includeDone=0 limits it to open ones
-  const backfillOpts = (q) => ({ includeDone: !(q.includeDone === false || q.includeDone === '0'), retry: q.retry === true || q.retry === '1', mode: q.mode || 'suggest' });
+  // open tickets by default; done ones only when asked for explicitly (includeDone=1) – old closed
+  // tickets should not go to an AI provider just because nobody unticked a box
+  const backfillOpts = (q) => ({ includeDone: q.includeDone === true || q.includeDone === '1', retry: q.retry === true || q.retry === '1', mode: q.mode || 'suggest' });
   admin.get('/components/backfill', (req, res) => res.json(ctx.aiClassifier.backfillPreview(req.query.project, backfillOpts(req.query))));
   admin.post('/components/backfill', (req, res) => res.json({ run: ctx.aiClassifier.backfillStart(req.user, req.body.project, backfillOpts(req.body)) }));
   admin.get('/components/backfill/status', (req, res) => res.json({ run: ctx.aiClassifier.backfillStatus() }));
@@ -1044,7 +1045,6 @@ export function createApi(ctx) {
   admin.get('/backups/:name/download', async (req, res) => {
     const b = findBackup(req.params.name);
     if (!b) throw notFound();
-    if (b.size > ZIP_MAX_BYTES) throw new HttpError(413, 'err.backupTooLarge');
     if (backupDownloads >= MAX_BACKUP_DOWNLOADS) throw new HttpError(429, 'err.backupBusy');
     backupDownloads++;
     // Slot and temporary copy are released exactly once: after the copy failed, when the client is
@@ -1057,12 +1057,16 @@ export function createApi(ctx) {
       if (!released) { released = true; backupDownloads--; }
     };
     res.once('close', () => { closed = true; });
+    // The copy lands next to the live database: never let it fill the volume (a .sqlite.gz can
+    // unpack to many times its size, so the limit is also enforced while copying)
+    const budget = downloadCopyBudget();
+    if (!b.name.endsWith('.gz') && b.size > budget) { release(); throw new HttpError(507, 'err.backupNoSpace'); }
     try {
-      copy = await backupDownloadCopy(b, undefined, { maxBytes: ZIP_MAX_BYTES });
+      copy = await backupDownloadCopy(b, undefined, { maxBytes: budget });
     } catch (e) {
       release();
       if (e.code === 'ENOENT') throw notFound(); // removed or packed meanwhile
-      if (e.code === 'ETOOLARGE') throw new HttpError(413, 'err.backupTooLarge'); // unpacked size of a .sqlite.gz
+      if (e.code === 'ETOOLARGE') throw new HttpError(507, 'err.backupNoSpace');
       throw e;
     }
     if (closed) { release(); return; }

@@ -57,6 +57,12 @@ const UNVERIFIED_AGENT_NOTE = 'Mail von einer Bearbeiter-Adresse, nur über die 
   + 'Mail from an agent address matched only via the ticket number in the subject or via a mail sent to someone else – '
   + 'the sender cannot be verified, so it is an internal note only. Please reply to the reporter in the ticket.\n\n';
 
+// Reply mail to a ticket closed as rejected or as a duplicate: it stays closed (the decision stands;
+// a "thanks" or a forged mail must not reopen it and wipe the resolution) – agents reopen it if needed
+const CLOSED_RESOLUTION_NOTE = 'Antwort auf ein abgelehntes bzw. als Duplikat geschlossenes Ticket – nur als interne Notiz, das Ticket bleibt geschlossen. '
+  + 'Bei Bedarf im Ticket wieder öffnen. / '
+  + 'Reply to a ticket closed as rejected or as a duplicate – internal note only, the ticket stays closed. Reopen it in the ticket if needed.\n\n';
+
 export function createMailProcessor({ db, settings, tickets, users, adLookup = null, suppressions = null }) {
   const adMisses = new Map(); // address → time until which it is not looked up again
   const seen = db.prepare('SELECT ticket_id FROM mail_messages WHERE message_id=?');
@@ -298,7 +304,10 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     // having that mail, not being the agent it is sent "from"
     const unverifiedAgent = !!existingId && privileged
       && (found.via !== 'reference' || (!found.agentMail && found.recipient !== fromAddr));
-    const noteOnly = (!!existingId && found.via === 'reference' && !!found.agentMail) || notInvolved || unverifiedAgent;
+    // Reporter/participant replying to a ticket closed as rejected or duplicate: note, no reopening
+    const closedRow = existingId && !privileged ? tickets.rawById(existingId) : null;
+    const closedForGood = !!closedRow && closedRow.status === 'done' && (closedRow.resolution === 'rejected' || closedRow.resolution === 'duplicate');
+    const noteOnly = (!!existingId && found.via === 'reference' && !!found.agentMail) || notInvolved || unverifiedAgent || closedForGood;
 
     // Protection against mail loops with unmarked auto-responders
     if (!existingId) {
@@ -340,7 +349,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     return db.transaction(() => {
       if (existingId) {
         const asUser = privileged || noteOnly ? null : sender;
-        const comment = tickets.addComment(asUser, existingId, { body: (notInvolved ? NOT_INVOLVED_NOTE : unverifiedAgent ? UNVERIFIED_AGENT_NOTE : '') + withNote(stripQuotedReply(text) || '(leer)') }, {
+        const comment = tickets.addComment(asUser, existingId, { body: (notInvolved ? NOT_INVOLVED_NOTE : unverifiedAgent ? UNVERIFIED_AGENT_NOTE : closedForGood ? CLOSED_RESOLUTION_NOTE : '') + withNote(stripQuotedReply(text) || '(leer)') }, {
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
           // system: always internal, does not reopen, no account rights
           ...(noteOnly ? { system: true } : {}),

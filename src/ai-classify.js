@@ -8,13 +8,15 @@ import { HttpError, notFound, str, int } from './lib/http.js';
 import { matchComponent, reasonDetail } from './components.js';
 import { isAgent } from './auth/session.js';
 import { log } from './lib/log.js';
+import { looksRemote } from './ai.js';
 
 export const CLASSIFY_MODES = ['suggest', 'auto'];
 const MAX_QUEUE = 30;
 const TEXT_LIMIT = 4000;
-// Sorting existing tickets afterwards: at most this many go to the AI per run (start again for more);
-// high on purpose – the run is sequential, in the background and can be cancelled
-export const BACKFILL_MAX_AI = 20000;
+// Sorting existing tickets afterwards: at most this many go to the AI per run (start again for more).
+// Kept moderate so that one click never sends tens of millions of tokens to a paid cloud model;
+// the confirm dialog shows the amount of text that goes out.
+export const BACKFILL_MAX_AI = 1000;
 // Stop the AI phase after this many failures in a row (AI unreachable or broken)
 const BACKFILL_MAX_FAILED_IN_A_ROW = 5;
 const SKIP_STATES = ['pending', 'none', 'rejected', 'corrected']; // already asked: only again with "retry"
@@ -54,6 +56,8 @@ export function parseClassification(answer, components) {
 export function createAiClassifier({ db, settings, tickets, ai }) {
   const mode = () => (CLASSIFY_MODES.includes(settings.get('ai.classifyMode')) ? settings.get('ai.classifyMode') : 'suggest');
   const on = () => ai.features().classify;
+  // AI on the internet (cloud model or public address): the confirm dialog then says so clearly
+  const aiRemote = () => { const c = ai.config?.(); return !!c && looksRemote(c.baseUrl, c.model); };
   let queue = Promise.resolve();
   let waiting = 0;
 
@@ -156,7 +160,7 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
 
   function backfillPlan(projectId, { includeDone = false, retry = false } = {}) {
     const comps = tickets.components.active(projectId);
-    const plan = { components: comps.length, total: 0, rules: [], ai: [], aiCount: 0, skipped: 0 };
+    const plan = { components: comps.length, total: 0, rules: [], ai: [], aiCount: 0, aiChars: 0, skipped: 0 };
     if (!comps.length) return plan;
     // All tickets without component, streamed with only the columns the rules need (no scan cap:
     // a cap before skipping already asked tickets would hide older tickets from every later run).
@@ -171,7 +175,11 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
       else if (!retry && SKIP_STATES.includes(row.state)) plan.skipped++;
       else {
         plan.aiCount++;
-        if (plan.ai.length < BACKFILL_MAX_AI) plan.ai.push(row.id);
+        if (plan.ai.length < BACKFILL_MAX_AI) {
+          plan.ai.push(row.id);
+          // Ticket text that goes to the AI (as in classify(): title, description up to TEXT_LIMIT)
+          plan.aiChars += Math.min(String(row.title || '').length, 300) + Math.min(String(row.description || '').length, TEXT_LIMIT);
+        }
       }
     }
     return plan;
@@ -193,6 +201,9 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
       ai: aiOn ? plan.ai.length : 0, aiMore: aiOn ? Math.max(0, plan.aiCount - plan.ai.length) : 0,
       remaining: aiOn ? 0 : plan.aiCount, // without AI: what the rules do not catch stays without component
       skipped: plan.skipped, aiOn, maxAi: BACKFILL_MAX_AI, run: status(),
+      // Amount of ticket text for the confirm dialog (rough tokens: about 4 characters each; the
+      // instructions and the component list come on top for every ticket)
+      aiChars: aiOn ? plan.aiChars : 0, aiTokens: aiOn ? Math.ceil(plan.aiChars / 4) : 0, remote: aiOn ? aiRemote() : false,
     };
   }
 

@@ -1,4 +1,5 @@
 // Sessions (cookie + table), role checks, protection against failed attempts.
+import crypto from 'node:crypto';
 import { randomToken } from '../lib/crypto.js';
 import { config } from '../config.js';
 import { HttpError } from '../lib/http.js';
@@ -41,6 +42,14 @@ export function idlePolicy(settings, policy) {
   };
 }
 
+/**
+ * Key under which a session is stored: SHA-256 of the cookie value. The table (and every backup of
+ * it) only holds this hash, so a copy of the database never lets anyone sign in as someone else.
+ */
+export function sessionKey(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
 export function createSessions(db, { policy, settings } = {}) {
   const insert = db.prepare('INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa,last_seen) VALUES(?,?,?,?,?,?,?,?)');
   const find = db.prepare(`SELECT s.id sid, s.expires_at, s.created_at session_created, s.auth_method, s.mfa session_mfa, s.last_seen session_seen, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`);
@@ -69,12 +78,12 @@ export function createSessions(db, { policy, settings } = {}) {
 
   return {
     create(res, userId, ip, method, { mfa = false } = {}) {
-      const id = randomToken(32);
+      const token = randomToken(32);
       const now = Date.now();
-      insert.run(id, userId, now + ttl(), now, ip || null, method, mfa ? 1 : 0, now);
+      insert.run(sessionKey(token), userId, now + ttl(), now, ip || null, method, mfa ? 1 : 0, now);
       db.prepare('UPDATE users SET last_login=? WHERE id=?').run(new Date().toISOString(), userId);
-      res.cookie(COOKIE, id, cookieOpts());
-      return id;
+      res.cookie(COOKIE, token, cookieOpts());
+      return token;
     },
     /** For the client: idle period, time left, warn before (only for a signed-in request) */
     info(req) {
@@ -82,14 +91,15 @@ export function createSessions(db, { policy, settings } = {}) {
       return { ...remaining(req, req.user), warnMs: 2 * 60 * 1000, browserSession: browserSession() };
     },
     destroy(req, res) {
-      const id = req.cookies?.[COOKIE];
-      if (id) del.run(id);
+      const token = req.cookies?.[COOKIE];
+      if (token) del.run(sessionKey(token));
       res.clearCookie(COOKIE, { path: '/' });
     },
     /** Middleware: sets req.user, extends the session (sliding). */
     middleware(req, res, next) {
-      const id = req.cookies?.[COOKIE];
-      if (id) {
+      const token = req.cookies?.[COOKIE];
+      if (token) {
+        const id = sessionKey(token); // req.sessionId is this stored key, never the cookie value
         let row = find.get(id);
         // Older than the maximum lifetime or idle for too long: invalid (deleted below)
         if (row && !(Date.now() - Number(row.session_created) < SESSION_MAX_AGE_MS)) row = { ...row, expires_at: 0 };
@@ -109,7 +119,7 @@ export function createSessions(db, { policy, settings } = {}) {
             touch.run(until, now, id);
             row.session_seen = now;
             req.user = row;
-            res.cookie(COOKIE, id, cookieOpts(until - now));
+            res.cookie(COOKIE, token, cookieOpts(until - now));
           }
         } else if (row) {
           del.run(id);

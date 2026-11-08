@@ -61,7 +61,7 @@
   <tr><td>Open</td><td>New or not started yet.</td></tr>
   <tr><td>In progress</td><td>Someone is working on it.</td></tr>
   <tr><td>Waiting</td><td>Waiting for the reporter. If they reply, the ticket reopens.</td></tr>
-  <tr><td>Done</td><td>Finished. The reporter gets an email. If they reply to it, the ticket reopens.</td></tr>
+  <tr><td>Done</td><td>Finished. The reporter gets an email. If they reply to it, the ticket reopens (unless it was rejected or closed as a duplicate).</td></tr>
 </table>
 <p><strong>Types:</strong> Incident (something is broken), Request (something is needed), Task (internal work), Question; for agents also Problem (common cause of several incidents) and Change (planned change), see chapter <a href="#itil">4</a>. <strong>Priorities:</strong> Highest, High, Medium, Low.</p>
 <p>Every ticket has a <strong>key</strong> made of the project key and a running number, e.g. <code>IT-42</code>. It also appears in the subject of all emails, e.g. <code>[IT-42]</code>.</p>
@@ -247,7 +247,7 @@
   <li><strong>Close as duplicate …</strong> – the request is already handled in another ticket. Choose the <em>original ticket</em>; both are linked, and the reporter gets a short note with the original's number (or your own text). With <em>Add reporter and participants to the original</em> they keep following the original – only if it contains nothing confidential.</li>
 </ul>
 <figure class="medium"><img src="img/en/reject.jpg" alt=""><figcaption>Rejecting a ticket with a reason</figcaption></figure>
-<p>The ticket then shows <em>Rejected</em> or <em>Duplicate</em> instead of <em>Done</em> – in lists, under <em>My requests</em> and on phones –, duplicates with a link to the original. In the ticket list you filter by <em>Resolution</em> once the status <em>Done</em> is chosen; with the multiple selection you reject several tickets at once. If the reporter replies, the ticket reopens as usual. In the reports, rejected tickets and duplicates are counted separately and not towards the avg. resolution time.</p>
+<p>The ticket then shows <em>Rejected</em> or <em>Duplicate</em> instead of <em>Done</em> – in lists, under <em>My requests</em> and on phones –, duplicates with a link to the original. In the ticket list you filter by <em>Resolution</em> once the status <em>Done</em> is chosen; with the multiple selection you reject several tickets at once. A reply mail to it does not reopen the ticket but becomes an internal note – reopen it yourself if needed. If the reporter writes in the web interface, it reopens as usual. In the reports, rejected tickets and duplicates are counted separately and not towards the avg. resolution time.</p>
 <figure class="medium"><img src="img/en/resolutions-list.jpg" alt=""><figcaption>Done tickets with their resolution</figcaption></figure>
 
 <h2 id="for-others">Entering tickets for others</h2>
@@ -614,7 +614,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <h3>Sorting existing tickets</h3>
 <p>After the import or when components are added, many tickets have no component yet. At the bottom of the page you assign one afterwards:</p>
 <ol>
-  <li><strong>Preview</strong> shows how many tickets have no component, how many a rule matches and how many go to the AI. By default all tickets count, done ones included; untick <em>Also done tickets</em> for open ones only.</li>
+  <li><strong>Preview</strong> shows how many tickets have no component, how many a rule matches and how many go to the AI. By default only open tickets count; done ones only with <em>Also done tickets</em> ticked. At most 1000 tickets go to the AI per run (start again for the rest); the confirmation before starting says how much text goes to the AI and points out possible costs for an AI on the internet.</li>
   <li><strong>Start sorting</strong> applies the rules (sender, keywords) first. If the AI function <em>Detect component</em> is on, all remaining tickets then go to the AI one after the other – in the background, with a progress bar, can be cancelled at any time. Helfi.Space asks first, as the AI receives title and description.</li>
   <li><strong>Review AI suggestions:</strong> by default the AI sets nothing itself. The list shows ticket, suggestion and reason; you accept or dismiss single ones or several at once. With <em>Set directly</em> the AI enters the component right away (“by AI” in the history).</li>
 </ol>
