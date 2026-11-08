@@ -78,6 +78,15 @@ helfi.firma.local {
 }
 ```
 
+**Redirect `http://` to `https://`:** many proxies (e.g. the Synology reverse proxy) cannot redirect custom addresses themselves. Helfi.Space does it: a request from the configured proxy (`HELFI_TRUST_PROXY`) with `X-Forwarded-Proto: http` gets a permanent redirect to the `https://` address from `HELFI_BASE_URL` (301, 308 for forms). The target never comes from the request, so no redirect to other sites is possible. Without this header (direct access to port 8080, Docker health check) nothing changes. For this, add a second proxy rule for **HTTP, port 80** to the same container. On a Synology:
+
+1. *Control Panel → Login Portal → Advanced → Reverse Proxy → Create.*
+2. Source: protocol **HTTP**, hostname as in the HTTPS rule, port **80**.
+3. Destination: exactly as in the HTTPS rule (protocol HTTP, host, port 8080). The Synology sets `X-Forwarded-Proto` itself.
+4. **Check Let's Encrypt:** port 80 stays open on the router. Afterwards renew the certificate once under *Control Panel → Security → Certificate*. If that fails, delete the HTTP rule again – the existing certificate stays valid.
+
+**HSTS** is sent by Helfi.Space itself with an `https://` address (`max-age` one year, including subdomains). If the proxy also sets HSTS (Synology: "Enable HSTS" in the rule), the header arrives twice and checkers such as the Mozilla HTTP Observatory count that as an error. Then switch one of them off: in the proxy or with `HELFI_HSTS=off` in `.env`. `HELFI_HSTS=preload` adds `preload` for the browsers' preload list – only set it if really all subdomains speak HTTPS for good.
+
 ---
 
 ## Appearance (corporate design)

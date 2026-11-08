@@ -24,8 +24,13 @@ const baseUrl = (process.env.HELFI_BASE_URL || 'http://localhost:8080').replace(
 const DEFAULT_SOURCE = 'https://github.com/soleil0815/helfi.space.ticket';
 const sourceUrl = /^https?:\/\/[^\s"'<>]+$/i.test(process.env.HELFI_SOURCE_URL || '') ? process.env.HELFI_SOURCE_URL : DEFAULT_SOURCE;
 
+// HSTS: 'on' (default with an https:// address), 'off' (the reverse proxy sends it), 'preload'
+const hstsRaw = String(process.env.HELFI_HSTS || 'on').trim().toLowerCase();
+const hsts = ['off', 'no', 'false', '0', 'nein'].includes(hstsRaw) ? 'off' : hstsRaw === 'preload' ? 'preload' : 'on';
+
 export const config = {
   sourceUrl,
+  hsts,
   version: pkg.version,
   port: Number(process.env.HELFI_PORT || process.env.PORT || 8080),
   dataDir: path.resolve(process.env.HELFI_DATA_DIR || '/data'),
