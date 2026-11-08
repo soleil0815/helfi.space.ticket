@@ -78,6 +78,15 @@ helfi.firma.local {
 }
 ```
 
+**Von `http://` auf `https://` umleiten:** Viele Proxys (z. B. der Synology-Reverse-Proxy) können für eigene Adressen nicht selbst umleiten. Das übernimmt Helfi.Space: Kommt eine Anfrage vom eingetragenen Proxy (`HELFI_TRUST_PROXY`) mit `X-Forwarded-Proto: http`, antwortet es mit einer dauerhaften Umleitung auf die `https://`-Adresse aus `HELFI_BASE_URL` (301, bei Formularen 308). Das Ziel kommt nie aus der Anfrage, eine Umleitung auf fremde Seiten ist also nicht möglich. Ohne diesen Header (direkter Zugriff auf Port 8080, Docker-Healthcheck) ändert sich nichts. Dafür im Proxy eine zweite Regel für **HTTP, Port 80** auf denselben Container anlegen. Bei der Synology:
+
+1. *Systemsteuerung → Anmeldeportal → Erweitert → Reverse-Proxy → Erstellen.*
+2. Quelle: Protokoll **HTTP**, Hostname wie bei der HTTPS-Regel, Port **80**.
+3. Ziel: genau wie bei der HTTPS-Regel (Protokoll HTTP, Rechner, Port 8080). `X-Forwarded-Proto` setzt die Synology selbst.
+4. **Let's Encrypt prüfen:** Port 80 bleibt am Router offen. Danach unter *Systemsteuerung → Sicherheit → Zertifikat* das Zertifikat einmal erneuern. Klappt das nicht, die HTTP-Regel wieder löschen – das bestehende Zertifikat bleibt gültig.
+
+**HSTS** sendet Helfi.Space bei einer `https://`-Adresse selbst (`max-age` ein Jahr, mit Subdomains). Setzt der Proxy ebenfalls HSTS (Synology: „HSTS aktivieren“ in der Regel), kommt der Header doppelt, und Prüfer wie das Mozilla HTTP Observatory werten das als Fehler. Dann eines von beiden abschalten: im Proxy oder mit `HELFI_HSTS=off` in der `.env`. `HELFI_HSTS=preload` ergänzt `preload` für die Preload-Liste der Browser – nur setzen, wenn wirklich alle Subdomains dauerhaft HTTPS sprechen.
+
 ---
 
 ## Erscheinungsbild (Corporate Design)

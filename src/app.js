@@ -67,6 +67,35 @@ export function applyTrustProxy(app, raw) {
   return value;
 }
 
+/** Helmet HSTS option: only with an https:// address and unless HELFI_HSTS=off (then the proxy sends it). */
+export function hstsOption(baseUrl, hsts) {
+  if (!baseUrl.startsWith('https://') || hsts === 'off') return false;
+  return { maxAge: 31536000, includeSubDomains: true, preload: hsts === 'preload' };
+}
+
+/**
+ * Middleware for the redirect to HTTPS, or null when HELFI_BASE_URL is not https://.
+ * Only requests from a trusted proxy (HELFI_TRUST_PROXY) whose X-Forwarded-Proto says "http" are redirected:
+ * a spoofed header from elsewhere is ignored, and without the header (direct access to port 8080,
+ * docker health check) the request is served as before. GET/HEAD → 301, everything else → 308 (keeps the method).
+ */
+export function httpsRedirectMiddleware(app, baseUrl = config.baseUrl) {
+  if (!baseUrl.startsWith('https://')) return null;
+  const origin = new URL(baseUrl).origin;
+  const basePath = new URL(baseUrl).pathname.replace(/\/+$/, '');
+  return (req, res, next) => {
+    if (req.path === '/healthz') return next();
+    const proto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim().toLowerCase();
+    if (proto !== 'http') return next();
+    const trust = app.get('trust proxy fn');
+    if (typeof trust !== 'function' || !trust(req.socket.remoteAddress, 0)) return next();
+    // originalUrl starts with "/": never "//host" (that would be another site)
+    const pathAndQuery = `/${String(req.originalUrl || '/').replace(/^\/+/, '')}`;
+    res.setHeader('Cache-Control', 'no-store');
+    res.redirect(req.method === 'GET' || req.method === 'HEAD' ? 301 : 308, `${origin}${basePath}${pathAndQuery}`);
+  };
+}
+
 export function createApp(db) {
   fs.mkdirSync(paths.attachments, { recursive: true });
   const settings = createSettings(db);
@@ -138,10 +167,17 @@ export function createApp(db) {
         'upgrade-insecure-requests': config.baseUrl.startsWith('https://') ? [] : null,
       },
     },
-    strictTransportSecurity: config.baseUrl.startsWith('https://'),
+    // HSTS only with an https:// address; HELFI_HSTS=off when the reverse proxy sends it (never twice)
+    strictTransportSecurity: hstsOption(config.baseUrl, config.hsts),
     crossOriginOpenerPolicy: { policy: 'same-origin' },
     referrerPolicy: { policy: 'same-origin' },
   }));
+
+  // http:// → https://: a request the trusted reverse proxy marks as unencrypted (X-Forwarded-Proto: http)
+  // is sent to the https:// address. The target always comes from HELFI_BASE_URL, never from the Host
+  // header (no open redirect). Without the header (direct access, health check) nothing changes.
+  const httpsRedirect = httpsRedirectMiddleware(app);
+  if (httpsRedirect) app.use(httpsRedirect);
 
   app.get('/healthz', (_req, res) => {
     try { db.prepare('SELECT 1').get(); res.json({ ok: true, version: config.version }); }
