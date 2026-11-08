@@ -98,7 +98,8 @@ test('Download: ZIP with the database and INFO.txt, without secret.key', async (
   assert.ok(!Object.keys(z).some((n) => /secret/i.test(n)), 'never the key');
   assert.match(name, /\.sqlite\.gz$/, 'stored packed');
   const original = zlib.gunzipSync(fs.readFileSync(path.join(paths.backups, name)));
-  assert.ok(z['helfi.sqlite'].equals(original), 'identical to the backup on the host');
+  // Same size as the backup on the host – only the sign-in sessions are removed (see audit-2026-11d-backup)
+  assert.equal(z['helfi.sqlite'].length, original.length, 'the whole database of the backup');
   assert.ok(r.bytes.length < original.length, 'packed');
   const key = fs.existsSync(paths.secretKey) ? fs.readFileSync(paths.secretKey) : null;
   if (key) assert.equal(r.bytes.indexOf(key), -1, 'key bytes nowhere in the download');
@@ -135,7 +136,12 @@ test('Download: admins only, only files from the backup folder', async () => {
 
 test('Download: at most two at the same time, the slot is freed afterwards', async () => {
   const name = 'helfi-manuell-2026-11-07T10-00-00.sqlite';
-  fs.writeFileSync(path.join(paths.backups, name), crypto.randomBytes(24 * 1024 * 1024)); // incompressible, fills the buffers
+  // A real database with incompressible content (fills the buffers); it is cleaned before streaming
+  const big = new Database(path.join(paths.backups, name));
+  big.exec('CREATE TABLE blob (b BLOB)');
+  for (let i = 0; i < 24; i++) big.prepare('INSERT INTO blob VALUES (?)').run(crypto.randomBytes(1024 * 1024));
+  big.close();
+  const size = fs.statSync(path.join(paths.backups, name)).size;
   const url = `${S.base}/api/admin/backups/${name}/download`;
   const open = () => new Promise((resolve, reject) => {
     const req = http.get(url, { headers: { cookie: S.admin.cookie() } }, (res) => { res.pause(); resolve({ req, res }); });
@@ -152,5 +158,5 @@ test('Download: at most two at the same time, the slot is freed afterwards', asy
     if (r.status === 200) break;
   }
   assert.equal(r.status, 200, 'free again after the aborted downloads');
-  assert.equal(readZip(r.bytes)['helfi.sqlite'].length, 24 * 1024 * 1024);
+  assert.equal(readZip(r.bytes)['helfi.sqlite'].length, size);
 });

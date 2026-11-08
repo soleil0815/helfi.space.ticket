@@ -24,9 +24,9 @@ import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
 import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
-import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText } from '../db.js';
+import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText, backupDownloadCopy, removeDownloadCopy } from '../db.js';
 import { zipStream, ZIP_MAX_BYTES } from '../zip.js';
-import { Readable } from 'node:stream';
+import { Readable, pipeline } from 'node:stream';
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
 import { REASONING, normalizeBaseUrl, listModels } from '../ai.js';
@@ -1041,14 +1041,31 @@ export function createApi(ctx) {
   // Packing costs CPU and disk reads: at most two downloads at the same time
   let backupDownloads = 0;
   const MAX_BACKUP_DOWNLOADS = 2;
-  admin.get('/backups/:name/download', (req, res) => {
+  admin.get('/backups/:name/download', async (req, res) => {
     const b = findBackup(req.params.name);
     if (!b) throw notFound();
     if (b.size > ZIP_MAX_BYTES) throw new HttpError(413, 'err.backupTooLarge');
     if (backupDownloads >= MAX_BACKUP_DOWNLOADS) throw new HttpError(429, 'err.backupBusy');
     backupDownloads++;
-    res.once('close', () => { backupDownloads--; });
-    const { name, file } = b;
+    // Slot and temporary copy are released exactly once: on close of the response (also when the
+    // client aborts while the copy is still being prepared), on error, or when the stream ends
+    let copy = null; let closed = false; let released = false;
+    const release = () => {
+      if (copy) { removeDownloadCopy(copy); copy = null; }
+      if (!released) { released = true; backupDownloads--; }
+    };
+    res.once('close', () => { closed = true; release(); });
+    try {
+      copy = await backupDownloadCopy(b);
+    } catch (e) {
+      release();
+      if (e.code === 'ENOENT') throw notFound(); // removed or packed meanwhile
+      throw e;
+    }
+    if (closed) { release(); return; }
+    // b.size of a .sqlite.gz is the packed size – check the unpacked one before streaming
+    if (fs.statSync(copy).size > ZIP_MAX_BYTES) { release(); throw new HttpError(413, 'err.backupTooLarge'); }
+    const { name } = b;
     const zipName = name.replace(/\.sqlite(\.gz)?$/, '.zip');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
@@ -1056,13 +1073,14 @@ export function createApi(ctx) {
     res.setHeader('Cache-Control', 'private, no-store');
     log.info(`Backup ${name} downloaded by ${req.user.username}`);
     const created = new Date(b.time);
-    Readable.from(zipStream([
-      { name: 'helfi.sqlite', file, gunzip: name.endsWith('.gz'), mtime: created },
+    // pipeline (not .pipe): an aborted download also ends the generator, its file handle and zlib streams
+    pipeline(Readable.from(zipStream([
+      { name: 'helfi.sqlite', file: copy, mtime: created },
       { name: 'INFO.txt', data: backupInfoText({ name, created }), mtime: new Date() },
-    ])).on('error', (e) => {
-      log.warn('Backup download aborted', { name, error: e.message });
-      res.destroy(e);
-    }).pipe(res);
+    ])), res, (e) => {
+      if (e && !closed) log.warn('Backup download aborted', { name, error: e.message });
+      release();
+    });
   });
 
   admin.delete('/backups/:name', (req, res) => {

@@ -161,6 +161,31 @@ test('Rollback also restores a packed backup (helfi-vor-….sqlite.gz)', () => {
   assert.equal(fs.existsSync(path.join(ctx.dir, 'data/helfi.sqlite.zurueck')), false);
 });
 
+test('Rollback from a packed backup: restored database is readable by the owner only', () => {
+  const ctx = setup();
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_BACKUP_GZ: '1' });
+  assert.equal(r.status, 1);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-neu');
+  assert.equal(fs.statSync(path.join(ctx.dir, 'data/helfi.sqlite')).mode & 0o077, 0, 'no group/other permissions despite umask 022');
+});
+
+test('Rollback from a damaged packed backup: specific message, database unchanged', () => {
+  const ctx = setup();
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_BACKUP_GZ: 'broken' });
+  assert.equal(r.status, 1);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'migriert', 'not replaced');
+  assert.equal(fs.existsSync(path.join(ctx.dir, 'data/helfi.sqlite.zurueck')), false);
+  assert.match(r.stderr, /ließ sich nicht entpacken/);
+  assert.doesNotMatch(r.stderr, /Platz\? Rechte\?/);
+});
+
+test('Manual rollback hints also name the packed backup (.sqlite.gz)', () => {
+  const ctx = setup();
+  const r = run(ctx, [], { FAKE_HEALTH_NEW: 'exited', FAKE_NEW_VERSION: '1.2.0' });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /helfi-vor-1\.2\.0-\*\.sqlite bzw\. \*\.sqlite\.gz/);
+});
+
 test('Rollback uses the real data folder from the mount (Audit)', () => {
   const ctx = setup();
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-volume-'));

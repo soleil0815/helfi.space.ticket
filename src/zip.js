@@ -83,7 +83,7 @@ function endRecord(count, cdSize, cdOffset) {
 }
 
 /** Async generator producing the ZIP bytes. */
-export async function* zipStream(entries, { level = 6 } = {}) {
+export async function* zipStream(entries, { level = 6, maxBytes = ZIP_MAX_BYTES } = {}) {
   const done = [];
   let offset = 0;
   for (const entry of entries) {
@@ -98,7 +98,11 @@ export async function* zipStream(entries, { level = 6 } = {}) {
       // gunzip: the file is stored packed (e.g. a backup .sqlite.gz) – the entry holds the unpacked content
       const read = fs.createReadStream(entry.file);
       const src = entry.gunzip ? zlib.createGunzip() : read;
-      src.on('data', (chunk) => { e.crc = crc32(chunk, e.crc); e.size += chunk.length; });
+      src.on('data', (chunk) => {
+        e.crc = crc32(chunk, e.crc); e.size += chunk.length;
+        // Stop as soon as the entry no longer fits (no ZIP64) – not only after streaming all of it
+        if (e.size > maxBytes) deflate.destroy(new Error('ZIP entry too large'));
+      });
       // An error while reading/unpacking destroys the deflate stream, so the loop below throws
       if (entry.gunzip) pipeline(read, src, deflate, () => {});
       else pipeline(src, deflate, () => {});
@@ -110,14 +114,15 @@ export async function* zipStream(entries, { level = 6 } = {}) {
     }
     for await (const chunk of deflate) {
       e.csize += chunk.length;
+      if (offset + e.csize > maxBytes) throw new Error('ZIP too large');
       yield chunk;
     }
-    if (e.size > ZIP_MAX_BYTES || e.csize > ZIP_MAX_BYTES) throw new Error('ZIP entry too large');
+    if (e.size > maxBytes || e.csize > maxBytes) throw new Error('ZIP entry too large');
     offset += e.csize;
     const desc = descriptor(e);
     yield desc;
     offset += desc.length;
-    if (offset > ZIP_MAX_BYTES) throw new Error('ZIP too large');
+    if (offset > maxBytes) throw new Error('ZIP too large');
     done.push(e);
   }
   const cd = Buffer.concat(done.map(centralEntry));
