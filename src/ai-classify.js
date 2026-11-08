@@ -15,7 +15,8 @@ const TEXT_LIMIT = 4000;
 // Sorting existing tickets afterwards: at most this many go to the AI per run (start again for more);
 // high on purpose – the run is sequential, in the background and can be cancelled
 export const BACKFILL_MAX_AI = 20000;
-const BACKFILL_SCAN = 20000;
+// Stop the AI phase after this many failures in a row (AI unreachable or broken)
+const BACKFILL_MAX_FAILED_IN_A_ROW = 5;
 const SKIP_STATES = ['pending', 'none', 'rejected', 'corrected']; // already asked: only again with "retry"
 
 /** Prompt: list of components with description and keywords; the ticket is data */
@@ -155,19 +156,23 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
 
   function backfillPlan(projectId, { includeDone = false, retry = false } = {}) {
     const comps = tickets.components.active(projectId);
-    const ids = db.prepare(`SELECT id FROM tickets WHERE project_id=? AND component_id IS NULL ${includeDone ? '' : "AND status<>'done'"} ORDER BY id DESC LIMIT ?`)
-      .all(projectId, BACKFILL_SCAN).map((r) => r.id);
-    const asked = new Map(db.prepare(`SELECT s.ticket_id, s.state FROM component_suggestions s JOIN tickets t ON t.id=s.ticket_id WHERE t.project_id=?`)
-      .all(projectId).map((r) => [r.ticket_id, r.state]));
-    const plan = { components: comps.length, total: ids.length, rules: [], ai: [], skipped: 0 };
+    const plan = { components: comps.length, total: 0, rules: [], ai: [], aiCount: 0, skipped: 0 };
     if (!comps.length) return plan;
-    for (const id of ids) {
-      const row = tickets.rawById(id);
-      const sender = row.reporter_email || row.r_email || '';
-      const m = matchComponent(comps, { title: row.title, description: row.description, sender });
-      if (m) plan.rules.push({ id, match: m });
-      else if (!retry && SKIP_STATES.includes(asked.get(id))) plan.skipped++;
-      else plan.ai.push(id);
+    // All tickets without component, streamed with only the columns the rules need (no scan cap:
+    // a cap before skipping already asked tickets would hide older tickets from every later run).
+    // The suggestion state comes along so already asked tickets are skipped without a second pass.
+    const rows = db.prepare(`SELECT t.id, t.title, t.description, COALESCE(NULLIF(t.reporter_email,''), u.email, '') sender, s.state
+      FROM tickets t LEFT JOIN users u ON u.id=t.reporter_id LEFT JOIN component_suggestions s ON s.ticket_id=t.id
+      WHERE t.project_id=? AND t.component_id IS NULL ${includeDone ? '' : "AND t.status<>'done'"} ORDER BY t.id DESC`);
+    for (const row of rows.iterate(projectId)) {
+      plan.total++;
+      const m = matchComponent(comps, { title: row.title, description: row.description, sender: row.sender });
+      if (m) plan.rules.push({ id: row.id, match: m });
+      else if (!retry && SKIP_STATES.includes(row.state)) plan.skipped++;
+      else {
+        plan.aiCount++;
+        if (plan.ai.length < BACKFILL_MAX_AI) plan.ai.push(row.id);
+      }
     }
     return plan;
   }
@@ -185,8 +190,8 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     const aiOn = on();
     return {
       project: p.key, components: plan.components, total: plan.total, rules: plan.rules.length,
-      ai: aiOn ? Math.min(plan.ai.length, BACKFILL_MAX_AI) : 0, aiMore: aiOn ? Math.max(0, plan.ai.length - BACKFILL_MAX_AI) : 0,
-      remaining: aiOn ? 0 : plan.ai.length, // without AI: what the rules do not catch stays without component
+      ai: aiOn ? plan.ai.length : 0, aiMore: aiOn ? Math.max(0, plan.aiCount - plan.ai.length) : 0,
+      remaining: aiOn ? 0 : plan.aiCount, // without AI: what the rules do not catch stays without component
       skipped: plan.skipped, aiOn, maxAi: BACKFILL_MAX_AI, run: status(),
     };
   }
@@ -197,7 +202,7 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     const p = projectOf(projectId);
     const plan = backfillPlan(p.id, { includeDone, retry });
     if (!plan.components) throw new HttpError(400, 'err.backfillNoComponents');
-    const aiIds = on() ? plan.ai.slice(0, BACKFILL_MAX_AI) : [];
+    const aiIds = on() ? plan.ai : [];
     const state = {
       running: true, project: p.key, mode: m, startedBy: user.display_name, startedAt: new Date().toISOString(), finishedAt: null,
       cancelled: false, rules: 0, total: aiIds.length, done: 0, suggested: 0, auto: 0, none: 0, failed: 0,
@@ -214,6 +219,7 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     }
     // 2. AI – one after the other in the background
     (async () => {
+      let failedInARow = 0;
       for (const id of aiIds) {
         if (current.cancel || !on()) { state.cancelled = true; break; }
         try {
@@ -221,10 +227,11 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
           if (r?.state === 'pending') state.suggested++;
           else if (r?.state === 'auto') state.auto++;
           else if (r?.state === 'none') state.none++;
+          failedInARow = 0;
         } catch (e) {
-          state.failed++;
+          state.failed++; failedInARow++;
           log.warn('Backfill: AI component detection failed', { ticket: id, error: e.detail || e.code || e.message });
-          if (state.failed >= 5 && state.failed > state.done / 2) { state.cancelled = true; state.error = 'aiFailing'; break; } // AI unreachable: stop instead of 1000 errors
+          if (failedInARow >= BACKFILL_MAX_FAILED_IN_A_ROW || (state.failed >= 5 && state.failed > state.done / 2)) { state.cancelled = true; state.error = 'aiFailing'; break; } // AI unreachable: stop instead of 1000 errors
         }
         state.done++;
       }

@@ -61,7 +61,9 @@ export function createAiDuplicates({ db, tickets, ai }) {
     if (!words.length) return [];
     const since = new Date(Date.now() - CANDIDATE_DAYS * 86400000).toISOString();
     const out = [];
-    for (const id of tickets.search.similar(words, { limit: 40 })) {
+    // Project, open and date window filtered in the search itself, before its limit
+    const ids = tickets.search.similar(words, { limit: 40, projectId: row.project_id, openOnly: true, createdFrom: since, createdTo: row.created_at });
+    for (const id of ids) {
       if (id === row.id) continue;
       const c = tickets.rawById(id);
       if (!c || c.status === 'done' || c.project_id !== row.project_id || c.created_at < since || c.created_at > row.created_at) continue;
@@ -100,12 +102,16 @@ export function createAiDuplicates({ db, tickets, ai }) {
 
   tickets.events.on('created', ({ ticket }) => { enqueue(ticket); });
 
-  // Closed as a duplicate: of the suggested ticket = hit, of another one = corrected
-  tickets.events.on('resolved', ({ ticket, resolution }) => {
+  // Closed as a duplicate: of the suggested ticket = hit, of another one = corrected.
+  // Closed any other way (done, rejected): the hint is settled as "none" – it neither stays open
+  // (counted as pending, shown again after reopening) nor counts against the hit rate.
+  tickets.events.on('resolved', ({ ticket, resolution, user }) => {
     const s = db.prepare("SELECT * FROM duplicate_suggestions WHERE ticket_id=? AND state='pending'").get(ticket.id);
-    if (!s || resolution !== 'duplicate') return;
+    if (!s) return;
+    const userId = user?.id || null;
+    if (resolution !== 'duplicate') { decide(ticket.id, 'none', userId); return; }
     const raw = tickets.rawById(ticket.id);
-    decide(ticket.id, raw?.duplicate_of === s.original_id ? 'accepted' : 'corrected', null);
+    decide(ticket.id, raw?.duplicate_of === s.original_id ? 'accepted' : 'corrected', userId);
   });
 
   // Agents see an open hint while the ticket is not done and the original still exists
