@@ -50,11 +50,12 @@ export function imapOptions(cfg) {
 const NOT_INVOLVED_NOTE = 'Antwort von einer Adresse, die an diesem Ticket nicht (mehr) beteiligt ist – nur als interne Notiz. / '
   + 'Reply from an address that is not (or no longer) involved in this ticket – internal note only.\n\n';
 
-// Shown to agents when a mail from an agent address was matched only via [KEY] in the subject
-const UNVERIFIED_AGENT_NOTE = 'Mail von einer Bearbeiter-Adresse, nur über die Ticketnummer im Betreff zugeordnet – der Absender ist nicht überprüfbar, '
-  + 'deshalb nur als interne Notiz. Antworten an den Melder bitte im Ticket schreiben. / '
-  + 'Mail from an agent address matched only via the ticket number in the subject – the sender cannot be verified, so it is an internal note only. '
-  + 'Please reply to the reporter in the ticket.\n\n';
+// Shown to agents when a mail from an agent address cannot be attributed to that agent: matched only
+// via [KEY] in the subject, or a reply to one of our mails that went to someone else
+const UNVERIFIED_AGENT_NOTE = 'Mail von einer Bearbeiter-Adresse, nur über die Ticketnummer im Betreff oder über eine Mail an jemand anderen zugeordnet – '
+  + 'der Absender ist nicht überprüfbar, deshalb nur als interne Notiz. Antworten an den Melder bitte im Ticket schreiben. / '
+  + 'Mail from an agent address matched only via the ticket number in the subject or via a mail sent to someone else – '
+  + 'the sender cannot be verified, so it is an internal note only. Please reply to the reporter in the ticket.\n\n';
 
 export function createMailProcessor({ db, settings, tickets, users, adLookup = null, suppressions = null }) {
   const adMisses = new Map(); // address → time until which it is not looked up again
@@ -71,7 +72,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     for (const r of refs) {
       const row = seenOut.get(r);
       // agent_only: mail went only to an agent (assignment, SLA warning, approval) – see smtp.js send()
-      if (row?.ticket_id) return { id: row.ticket_id, via: 'reference', agentMail: row.agent_only === 1 };
+      if (row?.ticket_id) return { id: row.ticket_id, via: 'reference', agentMail: row.agent_only === 1, recipient: row.recipient || '' };
     }
     const k = ticketKeyFromSubject(parsed.subject);
     if (k) {
@@ -292,7 +293,11 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const notInvolved = !!existingId && found.via === 'reference' && !found.agentMail && !privileged && !isCurrentParty(found.id, sender, fromAddr);
     // Agent address matched only via the number in the subject: the sender address can be forged and
     // the ticket number is guessable → never a public comment in the agent's name, no reopening
-    const unverifiedAgent = !!existingId && found.via !== 'reference' && privileged;
+    // The same for a reply via our Message-ID to a mail that went to someone else (e.g. the reporter
+    // forwards a notification with the agent's address as sender): knowing the Message-ID only proves
+    // having that mail, not being the agent it is sent "from"
+    const unverifiedAgent = !!existingId && privileged
+      && (found.via !== 'reference' || (!found.agentMail && found.recipient !== fromAddr));
     const noteOnly = (!!existingId && found.via === 'reference' && !!found.agentMail) || notInvolved || unverifiedAgent;
 
     // Protection against mail loops with unmarked auto-responders

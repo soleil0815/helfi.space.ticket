@@ -213,9 +213,11 @@ export function createImportCore({ db, tickets, users }) {
           db.prepare("INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value) VALUES(?,?,'changed',?,?,?)")
             .run(ticketId, cfg.userId, field[col] || col, o === null ? null : String(o), n === null ? null : String(n));
         }
-        db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, resolution=?, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
+        db.prepare(`UPDATE tickets SET title=?, description=?, type=?, status=?, resolution=?,
+          -- a local duplicate link only stays while the ticket is still closed as a duplicate
+          duplicate_of=CASE WHEN ?='duplicate' THEN duplicate_of END, priority=?, labels=?, due_date=?, assignee_id=COALESCE(?,assignee_id),
           component_id=COALESCE(?,component_id), updated_at=MAX(updated_at, ?), resolved_at=? WHERE id=?`).run(
-          values.title, values.description, values.type, values.status, values.resolution, values.priority, values.labels, values.due,
+          values.title, values.description, values.type, values.status, values.resolution, values.resolution ?? null, values.priority, values.labels, values.due,
           assigneeId, componentId, values.updated, values.resolved, ticketId);
       } else {
         // Keep the number if it is free and never used in the target project: do not reuse numbers of

@@ -618,7 +618,7 @@ export function createApi(ctx) {
    * changes. Tickets are never deleted. Errors on single tickets do not abort the rest.
    */
   // Close as rejected (reason required) or as duplicate of another ticket
-  const resolveNote = (key) => t(normalizeLang(settings.get('general.defaultLanguage')), 'resolution.duplicateNote', { key });
+  const resolveNote = (key, lang) => t(normalizeLang(lang || settings.get('general.defaultLanguage')), 'resolution.duplicateNote', { key });
   r.post('/tickets/:key/resolve', requireRole('agent'), (req, res) => {
     const b = req.body || {};
     // Placeholders ({melder}, {ticket} …) like in replies from templates
@@ -655,6 +655,8 @@ export function createApi(ctx) {
       if (!['rejected', 'duplicate'].includes(resolve.resolution)) throw new HttpError(400, 'err.badRequest', 'resolve');
       if (resolve.resolution === 'rejected' && !comment) throw new HttpError(400, 'err.rejectReasonRequired');
       if (internal) throw new HttpError(400, 'err.badRequest', 'internal');
+      // resolveAs closes the ticket itself – other changes would be skipped silently
+      if (Object.keys(changes).length) throw new HttpError(400, 'err.bulkResolveChanges');
     }
     if (!comment && !link && !resolve && !Object.keys(changes).length) throw new HttpError(400, 'err.badRequest');
     const lang = normalizeLang(req.user?.language || langFromHeader(req.get('accept-language')));
