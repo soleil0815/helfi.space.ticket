@@ -63,7 +63,8 @@ test('admins only; without AI only the rules run', async () => {
   const p = await preview('&includeDone=0');
   assert.equal(p.aiOn, false);
   assert.deepEqual([p.total, p.rules, p.ai, p.remaining], [3, 1, 0, 2], 'open tickets only');
-  assert.equal((await preview()).total, 4, 'all tickets by default');
+  assert.equal((await preview()).total, 3, 'open tickets only by default');
+  assert.equal((await preview('&includeDone=1')).total, 4, 'done ones only on request');
 });
 
 test('run with AI in suggest mode: rules applied, suggestions saved, nothing assigned, no mails, updated time kept', async () => {

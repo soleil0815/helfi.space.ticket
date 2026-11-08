@@ -165,7 +165,7 @@ export async function componentsAdminPage(body) {
 let backfillTimer = null;
 function backfillPanel(project) {
   const aiOn = !!state.boot?.aiFeatures?.classify;
-  const includeDone = h('input', { type: 'checkbox', checked: true }); // all tickets by default
+  const includeDone = h('input', { type: 'checkbox' }); // open tickets by default; done ones only on request
   const retry = h('input', { type: 'checkbox' });
   const mode = select([['suggest', t('backfill.modeSuggest')], ['auto', t('backfill.modeAuto')]], 'suggest');
   const result = h('div.backfill-result', { role: 'status', 'aria-live': 'polite' });
@@ -196,6 +196,7 @@ function backfillPanel(project) {
     const dlg = modal(t('backfill.title'), h('div',
       h('p', t('backfill.confirm', { rules: plan.rules, ai: plan.ai })),
       h('p.muted', t('backfill.confirmData')),
+      plan.aiChars ? h('p.muted', t(plan.remote ? 'backfill.confirmVolumeRemote' : 'backfill.confirmVolume', { chars: plan.aiChars.toLocaleString(), tokens: plan.aiTokens.toLocaleString() })) : null,
       h('p.muted', t(mode.value === 'auto' ? 'backfill.confirmAuto' : 'backfill.confirmSuggest'))), {
       footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')),
         h('button.btn.btn-primary', { type: 'button', onclick: () => { dlg.close(); start(); } }, t('backfill.start'))],

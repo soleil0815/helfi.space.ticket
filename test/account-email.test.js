@@ -122,7 +122,8 @@ test('Administration: name, address and password of local accounts; not AD/SSO a
 
 test('User with AD account cannot change name/address in the profile', async () => {
   const ad = ctx.users.byName('m.muster');
-  db.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa) VALUES('s-ad',?,?,?,NULL,'ldap',1)").run(ad.id, Date.now() + 3600e3, Date.now());
+  const { sessionKey } = await import('../src/auth/session.js');
+  db.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at,ip,auth_method,mfa) VALUES(?,?,?,?,NULL,'ldap',1)").run(sessionKey('s-ad'), ad.id, Date.now() + 3600e3, Date.now());
   const r = await fetch(`${base}/api/me`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Helfi-Request': '1', cookie: 'helfi_sid=s-ad' }, body: JSON.stringify({ email: 'neu@firma.local' }) });
   assert.equal(r.status, 400);
   assert.equal((await r.json()).error.code, 'err.managedExternally');

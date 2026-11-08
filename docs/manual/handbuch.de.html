@@ -247,7 +247,7 @@
   <li><strong>Als Duplikat schließen …</strong> – das Anliegen wird schon in einem anderen Ticket bearbeitet. Wähle das <em>Original-Ticket</em>; beide werden verknüpft, der Melder bekommt einen kurzen Hinweis mit der Nummer des Originals (oder deinen eigenen Text). Mit <em>Melder und Teilnehmer zum Original hinzufügen</em> verfolgen sie das Original weiter – nur, wenn es nichts Vertrauliches enthält.</li>
 </ul>
 <figure class="medium"><img src="img/de/reject.jpg" alt=""><figcaption>Ticket ablehnen mit Begründung</figcaption></figure>
-<p>Das Ticket zeigt dann <em>Abgelehnt</em> bzw. <em>Duplikat</em> statt <em>Erledigt</em> – in Listen, unter <em>Meine Anfragen</em> und auf dem Handy –, bei Duplikaten mit Link zum Original. In der Ticketliste filterst du nach <em>Lösung</em>, sobald der Status <em>Erledigt</em> gewählt ist; über die Mehrfachauswahl lehnst du mehrere Tickets auf einmal ab. Antwortet der Melder, öffnet sich das Ticket wie gewohnt wieder. In den Berichten zählen Abgelehnte und Duplikate getrennt und nicht zur Ø Lösungszeit.</p>
+<p>Das Ticket zeigt dann <em>Abgelehnt</em> bzw. <em>Duplikat</em> statt <em>Erledigt</em> – in Listen, unter <em>Meine Anfragen</em> und auf dem Handy –, bei Duplikaten mit Link zum Original. In der Ticketliste filterst du nach <em>Lösung</em>, sobald der Status <em>Erledigt</em> gewählt ist; über die Mehrfachauswahl lehnst du mehrere Tickets auf einmal ab. Eine Antwort-Mail darauf öffnet das Ticket nicht wieder, sondern wird eine interne Notiz – bei Bedarf öffnest du es selbst. Schreibt der Melder in der Weboberfläche, öffnet es sich wie gewohnt wieder. In den Berichten zählen Abgelehnte und Duplikate getrennt und nicht zur Ø Lösungszeit.</p>
 <figure class="medium"><img src="img/de/resolutions-list.jpg" alt=""><figcaption>Erledigte Tickets mit Lösung</figcaption></figure>
 
 <h2 id="fuer-andere">Tickets für andere erfassen</h2>
@@ -614,7 +614,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <h3>Bestehende Tickets einordnen</h3>
 <p>Nach dem Import oder wenn Komponenten neu dazukommen, haben viele Tickets noch keine Komponente. Unten auf der Seite ordnest du sie nachträglich zu:</p>
 <ol>
-  <li><strong>Vorschau</strong> zeigt, wie viele Tickets ohne Komponente es gibt, wie viele eine Regel trifft und wie viele an die KI gehen. Standardmäßig zählen alle Tickets, auch erledigte; ohne Haken bei <em>Auch erledigte Tickets</em> nur offene.</li>
+  <li><strong>Vorschau</strong> zeigt, wie viele Tickets ohne Komponente es gibt, wie viele eine Regel trifft und wie viele an die KI gehen. Standardmäßig zählen nur offene Tickets; erledigte nur mit Haken bei <em>Auch erledigte Tickets</em>. Je Lauf gehen höchstens 1000 Tickets an die KI (für den Rest erneut starten); die Rückfrage vor dem Start nennt, wie viel Text an die KI geht, und weist bei einer KI im Internet auf mögliche Kosten hin.</li>
   <li><strong>Einordnen starten</strong> wendet zuerst die Regeln (Absender, Schlagwörter) an. Ist die KI-Funktion <em>Komponente erkennen</em> eingeschaltet, gehen alle übrigen Tickets danach nacheinander an die KI – im Hintergrund, mit Fortschrittsbalken und jederzeit abbrechbar. Vorher fragt Helfi.Space nach, denn an die KI gehen Titel und Beschreibung.</li>
   <li><strong>KI-Vorschläge prüfen:</strong> Standardmäßig setzt die KI nichts selbst. In der Liste siehst du Ticket, Vorschlag und Begründung und übernimmst oder verwirfst einzelne oder mehrere auf einmal. Mit <em>Direkt setzen</em> trägt die KI die Komponente gleich ein („von KI“ im Verlauf).</li>
 </ol>

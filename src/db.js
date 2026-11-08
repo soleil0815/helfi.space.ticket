@@ -796,6 +796,16 @@ export const MIGRATIONS = [
     CREATE INDEX idx_duplicate_suggestions_state ON duplicate_suggestions(state);
     `,
   },
+  {
+    id: 40,
+    name: 'Sitzungen: nur noch der Hash der Kennung',
+    sql: `
+    -- Sessions are looked up by SHA-256 of the cookie value (src/auth/session.js sessionKey):
+    -- the database and its backups no longer contain anything that signs anyone in.
+    -- Existing sessions are converted, so nobody has to sign in again.
+    UPDATE sessions SET id = helfi_sha256(id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
@@ -1134,6 +1144,8 @@ export async function openDatabase(file = paths.db, { appVersion = config.versio
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
+  // Used by migration 40 (session keys); the same hash as sessionKey() in src/auth/session.js
+  db.function('helfi_sha256', { deterministic: true }, (v) => (v == null ? null : crypto.createHash('sha256').update(String(v)).digest('hex')));
 
   const dbSchema = Number(getMeta(db, 'schema_version') || 0);
   const dbApp = getMeta(db, 'app_version');

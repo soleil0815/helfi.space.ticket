@@ -945,8 +945,9 @@ export function createApi(ctx) {
 
   admin.get('/ai/stats', (req, res) => res.json({ classify: ctx.aiClassifier.stats(), duplicates: ctx.aiDuplicates.stats() }));
   // Sort existing tickets without component afterwards: preview, start, progress, cancel
-  // all tickets by default (also done ones); includeDone=0 limits it to open ones
-  const backfillOpts = (q) => ({ includeDone: !(q.includeDone === false || q.includeDone === '0'), retry: q.retry === true || q.retry === '1', mode: q.mode || 'suggest' });
+  // open tickets by default; done ones only when asked for explicitly (includeDone=1) – old closed
+  // tickets should not go to an AI provider just because nobody unticked a box
+  const backfillOpts = (q) => ({ includeDone: q.includeDone === true || q.includeDone === '1', retry: q.retry === true || q.retry === '1', mode: q.mode || 'suggest' });
   admin.get('/components/backfill', (req, res) => res.json(ctx.aiClassifier.backfillPreview(req.query.project, backfillOpts(req.query))));
   admin.post('/components/backfill', (req, res) => res.json({ run: ctx.aiClassifier.backfillStart(req.user, req.body.project, backfillOpts(req.body)) }));
   admin.get('/components/backfill/status', (req, res) => res.json({ run: ctx.aiClassifier.backfillStatus() }));
