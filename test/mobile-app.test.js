@@ -750,8 +750,10 @@ test('Canned response, status change and resolve with a closing reply', { skip }
   await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
   await p.locator('.m-choice-row', { hasText: 'Wartet' }).tap();
   await p.waitForFunction(() => document.querySelector('.m-status-btn .lozenge')?.textContent === 'Wartet');
-  await p.waitForLoadState('networkidle');
-  assert.equal((await ticketApi(who.anna, key)).status, 'waiting');
+  // The UI shows the new status right away (optimistic) – wait until the server has saved it
+  let st = '';
+  for (let i = 0; i < 40 && st !== 'waiting'; i++) { st = (await ticketApi(who.anna, key)).status; if (st !== 'waiting') await p.waitForTimeout(100); }
+  assert.equal(st, 'waiting');
   // Resolve with a closing reply from a template
   await p.tap('.m-status-btn');
   await p.waitForSelector('.m-sheet-layer.open .m-choice-row');
