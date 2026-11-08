@@ -25,7 +25,7 @@ import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js'
 import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
 import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText, backupDownloadCopy, removeDownloadCopy } from '../db.js';
-import { zipStream, ZIP_MAX_BYTES } from '../zip.js';
+import { zipStream } from '../zip.js';
 import { Readable, pipeline } from 'node:stream';
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
@@ -1045,7 +1045,6 @@ export function createApi(ctx) {
   admin.get('/backups/:name/download', async (req, res) => {
     const b = findBackup(req.params.name);
     if (!b) throw notFound();
-    if (b.size > ZIP_MAX_BYTES) throw new HttpError(413, 'err.backupTooLarge');
     if (backupDownloads >= MAX_BACKUP_DOWNLOADS) throw new HttpError(429, 'err.backupBusy');
     backupDownloads++;
     // Slot and temporary copy are released exactly once: after the copy failed, when the client is
@@ -1059,11 +1058,10 @@ export function createApi(ctx) {
     };
     res.once('close', () => { closed = true; });
     try {
-      copy = await backupDownloadCopy(b, undefined, { maxBytes: ZIP_MAX_BYTES });
+      copy = await backupDownloadCopy(b);
     } catch (e) {
       release();
       if (e.code === 'ENOENT') throw notFound(); // removed or packed meanwhile
-      if (e.code === 'ETOOLARGE') throw new HttpError(413, 'err.backupTooLarge'); // unpacked size of a .sqlite.gz
       throw e;
     }
     if (closed) { release(); return; }

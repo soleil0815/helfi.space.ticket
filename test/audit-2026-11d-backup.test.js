@@ -119,14 +119,17 @@ test('A file that is not a database is not handed out (it cannot be cleaned)', a
   assert.equal(ok.status, 200, 'slot released after the failure');
 });
 
-test('ZIP writer stops as soon as an entry exceeds the limit, not after reading all of it', async () => {
+test('ZIP writer stops as soon as a plain entry outgrows its 32-bit header, not after reading all of it', async () => {
   const { zipStream } = await import('../src/zip.js');
   const file = path.join(os.tmpdir(), `helfi-zip-limit-${process.pid}.bin`);
-  fs.writeFileSync(file, crypto.randomBytes(8 * 1024 * 1024));
+  fs.writeFileSync(file, crypto.randomBytes(64 * 1024)); // small at stat time → plain header
   let yielded = 0;
   try {
     await assert.rejects(async () => {
-      for await (const c of zipStream([{ name: 'x', file }], { maxBytes: 256 * 1024 })) yielded += c.length;
+      for await (const c of zipStream([{ name: 'x', file }], { limit: 256 * 1024 })) {
+        yielded += c.length;
+        if (yielded < 100) fs.appendFileSync(file, crypto.randomBytes(8 * 1024 * 1024)); // grows after the header
+      }
     }, /too large/);
     assert.ok(yielded < 2 * 1024 * 1024, `stopped early (${yielded} bytes)`);
   } finally { fs.rmSync(file, { force: true }); }
