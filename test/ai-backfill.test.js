@@ -113,7 +113,7 @@ test('already asked tickets are skipped unless retry; auto mode with done ticket
   const p = await preview('&includeDone=1');
   assert.deepEqual([p.rules, p.ai, p.skipped], [0, 1, 1], '"none" is skipped, done ticket is new');
   calls.length = 0;
-  await admin('POST', '/api/admin/components/backfill', { project: project.id, mode: 'auto' });
+  await admin('POST', '/api/admin/components/backfill', { project: project.id, mode: 'auto', includeDone: true });
   await finished();
   assert.equal(calls.length, 1, 'only the done ticket went to the AI');
   const done = raw(keys.done);

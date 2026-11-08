@@ -36,7 +36,7 @@ test('sessions table stores only the SHA-256 of the cookie value', async () => {
   assert.equal((await bob('GET', '/api/me')).status, 200, 'the real cookie still works');
 });
 
-test('migration 40 converts existing plaintext session ids, so nobody has to sign in again', async () => {
+test('migration 40 ends existing plaintext sessions, so ids in older backups are useless', async () => {
   const { openDatabase } = await import('../src/db.js');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-sess-'));
   try {
@@ -47,7 +47,7 @@ test('migration 40 converts existing plaintext session ids, so nobody has to sig
     d.prepare("UPDATE meta SET value='39' WHERE key='schema_version'").run();
     d.close();
     d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });
-    assert.deepEqual(d.prepare('SELECT id FROM sessions').all().map((x) => x.id), [sha('plain-token-0001')]);
+    assert.equal(d.prepare('SELECT COUNT(*) n FROM sessions').get().n, 0, 'plaintext sessions are gone');
     d.close();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
@@ -100,4 +100,25 @@ test('reply mail to a normally done ticket still reopens it (unchanged)', async 
   await anna('PATCH', `/api/tickets/${tk.key}`, { status: 'done' });
   await run(['From: Bob <bob@firma.local>', 'To: helpdesk@firma.local', `Subject: Re: [${tk.key}] Monitor`, 'Message-ID: <reply-done@firma.local>', '', 'Geht wieder nicht.']);
   assert.notEqual(ctx.tickets.rawById(tk.id).status, 'done');
+});
+
+test('backup download is refused (507) instead of filling the disk when free space is too small', async () => {
+  const fsMod = (await import('node:fs')).default;
+  const made = await S.admin('POST', '/api/admin/backup');
+  assert.ok([200, 201].includes(made.status), JSON.stringify(made.body));
+  const list = (await S.admin('GET', '/api/admin/system')).body.backups || [];
+  const name = (list[0] || {}).name;
+  assert.ok(name, 'a backup exists');
+  const { mock } = await import('node:test');
+  const m = mock.method(fsMod, 'statfsSync', () => ({ bavail: 10, bsize: 4096, blocks: 1000 }));
+  try {
+    const r = await S.admin('GET', `/api/admin/backups/${encodeURIComponent(name)}/download`);
+    assert.equal(r.status, 507);
+    assert.equal(r.body.error.code, 'err.backupNoSpace');
+  } finally { m.mock.restore(); }
+  const dir = path.dirname((await import('../src/config.js')).paths.backups + '/x');
+  assert.deepEqual(fsMod.readdirSync(dir).filter((f) => f.startsWith('helfi-download-')), [], 'no copy left behind');
+  const ok = await fetch(`${S.base}/api/admin/backups/${encodeURIComponent(name)}/download`, { headers: { cookie: S.admin.cookie() } });
+  assert.equal(ok.status, 200, 'with enough space the download works');
+  await ok.arrayBuffer();
 });

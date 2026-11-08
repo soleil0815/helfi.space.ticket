@@ -24,7 +24,7 @@ import { testImap } from '../mail/imap.js';
 import { normalizeLang, LANGUAGES, t, hasKey, langFromHeader } from '../i18n.js';
 import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
-import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText, backupDownloadCopy, removeDownloadCopy } from '../db.js';
+import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText, backupDownloadCopy, removeDownloadCopy, downloadCopyBudget } from '../db.js';
 import { zipStream } from '../zip.js';
 import { Readable, pipeline } from 'node:stream';
 import { log } from '../lib/log.js';
@@ -1057,11 +1057,16 @@ export function createApi(ctx) {
       if (!released) { released = true; backupDownloads--; }
     };
     res.once('close', () => { closed = true; });
+    // The copy lands next to the live database: never let it fill the volume (a .sqlite.gz can
+    // unpack to many times its size, so the limit is also enforced while copying)
+    const budget = downloadCopyBudget();
+    if (!b.name.endsWith('.gz') && b.size > budget) { release(); throw new HttpError(507, 'err.backupNoSpace'); }
     try {
-      copy = await backupDownloadCopy(b);
+      copy = await backupDownloadCopy(b, undefined, { maxBytes: budget });
     } catch (e) {
       release();
       if (e.code === 'ENOENT') throw notFound(); // removed or packed meanwhile
+      if (e.code === 'ETOOLARGE') throw new HttpError(507, 'err.backupNoSpace');
       throw e;
     }
     if (closed) { release(); return; }
