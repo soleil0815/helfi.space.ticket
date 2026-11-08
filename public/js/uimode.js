@@ -27,8 +27,22 @@ export function isPhone() {
   } catch { return false; }
 }
 
+/** Started from the home screen as an app (no browser bar, no address, no back button) */
+export function isStandalone() {
+  try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch { return false; }
+}
+
+/**
+ * Installed app on a phone: it always stays in the mobile UI – without an address bar there would be
+ * no way back from the desktop UI. Neither "?ui=desktop" nor a saved "desktop" preference applies there.
+ */
+export function lockedToMobile() {
+  return isStandalone() && isPhone();
+}
+
 /** Should the mobile UI be shown? */
 export function wantsMobile() {
+  if (lockedToMobile()) return true;
   const pref = getUiPref();
   if (pref) return pref === 'mobile';
   return isPhone();

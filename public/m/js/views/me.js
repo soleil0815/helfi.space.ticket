@@ -67,7 +67,8 @@ export function renderMe(page) {
         onClick: openInstall, trailing: icon('chevron-right', 'm-row-chevron'),
       }),
       listRow({ icon: 'info', label: t('news.title'), href: '/m/news' }),
-      listRow({ icon: 'monitor', label: t('m.me.desktop'), hint: t('m.me.desktopHint'), onClick: () => switchToDesktop('/m/me') })),
+      // Installed app: no way into the desktop UI (no address bar there to come back)
+      installed ? null : listRow({ icon: 'monitor', label: t('m.me.desktop'), hint: t('m.me.desktopHint'), onClick: () => switchToDesktop('/m/me') })),
     group(null,
       listRow({ icon: 'logout', label: t('app.logout'), danger: true, onClick: () => signOut() })),
     h('p.m-version', `Helfi.Space ${state.boot.app.version} · `, h('a', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer', title: t('app.sourceTitle') }, t('app.source'))),

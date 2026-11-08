@@ -23,9 +23,9 @@ import {
 } from '../actions.js';
 import { projectComponents } from '/js/components.js';
 import { commentView } from '/js/commentfield.js';
+import { mailView } from '/js/mailview.js';
 
 const isImage = (a) => /^image\/(png|jpeg|gif|webp)$/.test(a.mime);
-const desktopUrl = (tk) => `/browse/${encodeURIComponent(tk.key)}?ui=desktop`;
 
 export async function renderTicket(page, ctx) {
   const key = decodeURIComponent(ctx.match[1]);
@@ -134,7 +134,6 @@ export async function renderTicket(page, ctx) {
           try { await navigator.clipboard.writeText(`${location.origin}/browse/${encodeURIComponent(tk.key)}`); toast(t('ticket.linkCopied')); } catch { /* not allowed here */ }
         },
       },
-      { id: 'desktop', icon: 'monitor', label: t('m.openDesktop'), onClick: () => location.assign(desktopUrl(tk)) },
     ]);
   }
   const statusSheet = () => openStatusSheet(tk, { save, onResolved: reloadAfterChange });
@@ -263,14 +262,18 @@ export async function renderTicket(page, ctx) {
   }
 
   // ---------- Description ----------
-  function mailNote(href) {
-    return h('div.m-mail-note', icon('mail'), h('span', t('m.ticket.mailText')), h('a', { href }, t('m.ticket.mailOriginal')));
+  /** Original email (formatted, sandboxed like on the desktop) in a sheet – the app never leaves the mobile UI */
+  function mailNote(src, textView) {
+    const open = () => openSheet({ title: t('m.ticket.mailOriginalTitle'), className: 'm-sheet-mail', content: mailView(textView, src) });
+    return h('div.m-mail-note', icon('mail'), h('span', t('m.ticket.mailText')),
+      h('button.m-link', { type: 'button', 'data-mail-original': '', onclick: open }, t('m.ticket.mailOriginal')));
   }
+  const mailSrc = (commentId) => `/api/tickets/${encodeURIComponent(tk.key)}/mail-html${commentId ? `?comment=${commentId}` : ''}`;
   function descriptionEl() {
     const edit = canEditText() ? h('button.m-link.m-section-action', { type: 'button', onclick: openEdit, 'aria-label': t('m.edit.title') }, icon('pencil'), t('app.edit')) : null;
     return section(h('span.m-section-row', h('span', t('ticket.description')), edit), h('div.m-card.m-desc',
       tk.description ? richText(tk.description) : h('p.m-muted', t('m.ticket.noDescription')),
-      tk.descriptionHtml ? mailNote(desktopUrl(tk)) : null));
+      tk.descriptionHtml ? mailNote(mailSrc(), () => richText(tk.description)) : null));
   }
 
   // ---------- Attachments ----------
@@ -321,7 +324,7 @@ export async function renderTicket(page, ctx) {
           c.internal ? h('span.m-msg-internal', icon('lock'), t('ticket.internal')) : null,
           c.source === 'email' ? h('span.m-msg-src', { title: t('source.email') }, icon('mail')) : null),
         commentView(c),
-        c.hasHtml ? mailNote(desktopUrl(tk)) : null,
+        c.hasHtml ? mailNote(mailSrc(c.id), () => commentView(c)) : null,
         files.length ? attachmentsEl(files) : null,
         h('time.m-msg-time', { datetime: c.createdAt, title: fmtDate(c.createdAt) }, relTime(c.createdAt))));
   }

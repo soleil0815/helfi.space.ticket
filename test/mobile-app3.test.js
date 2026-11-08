@@ -282,7 +282,7 @@ test('Knowledge base: start page, search, folder drill-down, article with table,
   await p.waitForURL(`**/m/kb/${ids.vpn}`);
   await ready(p);
   // Comment (users may comment, as in the desktop UI); users get no "edit" link
-  assert.equal(await p.locator('.m-kb-edit').count(), 0);
+  assert.equal(await p.locator('.m-kb-edit-hint').count(), 0);
   await p.fill('.m-kb-cm-compose .kb-editable', 'Bei mir half ein Neustart.');
   await p.locator('.m-kb-cm-compose .m-btn-primary').tap();
   await p.waitForSelector('.m-kb-cm:has-text("Bei mir half ein Neustart.")');
@@ -305,12 +305,13 @@ test('Knowledge base: start page, search, folder drill-down, article with table,
   await close();
 });
 
-test('Knowledge base for agents: internal articles marked, "edit on desktop" link', { skip }, async () => {
+test('Knowledge base for agents: internal articles marked, editing hint without a way out of the app', { skip }, async () => {
   const { p, errors, close } = await open('anna');
   await p.goto(`${S.base}/m/kb/${ids.internal}`);
   await ready(p);
   assert.match(await p.textContent('.m-kb-vis'), /Intern/);
-  assert.equal(await p.getAttribute('.m-kb-edit', 'href'), `/kb/${ids.internal}/edit?ui=desktop`);
+  assert.match(await p.textContent('.m-kb-edit-hint'), /am Computer/);
+  assert.equal(await p.locator('a[href*="ui=desktop"]').count(), 0);
   assert.equal(await p.locator('.m-kb-help').count(), 0);
   assert.deepEqual(errors, []);
   await close();

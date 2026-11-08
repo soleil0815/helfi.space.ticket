@@ -1,14 +1,12 @@
 // Installable app: service worker registration, "new version" notice, install prompt, standalone mode.
 import { h, icon } from '/js/dom.js';
 import { t } from '/js/i18n.js';
+import { isStandalone } from '/js/uimode.js';
 
 let installEvent = null; // beforeinstallprompt (Chrome/Android), kept for the "Install app" button
 const listeners = new Set();
 
-/** Started from the home screen (no browser bar) */
-export function isStandalone() {
-  try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch { return false; }
-}
+export { isStandalone };
 export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const canPromptInstall = () => !!installEvent;
 export function onInstallChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }

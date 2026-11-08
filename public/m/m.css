@@ -295,7 +295,16 @@ body.m a:hover { text-decoration: none; }
 .m .rich .inline-image img { display: block; max-width: 100%; max-height: 320px; width: auto; height: auto; border-radius: 10px; }
 .m-mail-note { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--m-line); font-size: 13px; color: var(--text-subtlest); }
 .m-mail-note .icon { width: 16px; height: 16px; vertical-align: 0; }
-.m-mail-note a { font-weight: 600; }
+.m-mail-note a, .m-mail-note .m-link { font-weight: 600; }
+.m-mail-note .m-link { padding: 4px 0; min-height: 36px; font-size: 13px; }
+/* Original email in a sheet: almost full height, the formatted mail always on white */
+.m-sheet-mail { height: calc(100% - 48px - var(--safe-t)); }
+.m-sheet-mail .mail-switch { display: inline-flex; gap: 2px; background: var(--m-bg, #F1F2F4); border-radius: 8px; padding: 2px; margin-bottom: 10px; }
+.m-sheet-mail .mail-switch-btn { border: 0; background: none; font: inherit; font-size: 14px; color: var(--text-subtle); padding: 6px 14px; border-radius: 6px; min-height: 36px; }
+.m-sheet-mail .mail-switch-btn[aria-pressed="true"] { background: var(--m-card); color: var(--text); box-shadow: 0 1px 2px #091E4240; }
+.m-sheet-mail .mail-frame { display: block; width: 100%; height: 120px; border: 0; background: #fff; border-radius: 8px; }
+.m-kb-edit-hint { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 13px; color: var(--text-subtlest); }
+.m-kb-edit-hint .icon { width: 16px; height: 16px; }
 .m-attachments { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 2px var(--m-pad) 4px; margin: 0 calc(-1 * var(--m-pad)); }
 .m-attachments::-webkit-scrollbar { display: none; }
 .m-msg .m-attachments { padding: 0; margin: 10px 0 0; }
@@ -753,7 +762,6 @@ body.m a:hover { text-decoration: none; }
 .m-kb-body .kb-figure[data-size] img { max-width: 100%; }
 .m-kb-body ul, .m-kb-body ol { padding-left: 22px; }
 .m-kb-body a { word-break: break-word; }
-.m-kb-edit { margin-top: 16px; background: var(--m-card); border: 1px solid var(--m-line); }
 .m-kb-help { margin-top: 16px; padding: 16px; text-align: center; }
 .m-kb-help p { margin: 0 0 12px; font-weight: 600; }
 .m-kb-cm-card { padding: 4px 16px 16px; }

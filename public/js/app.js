@@ -24,7 +24,7 @@ import { renderCatalog } from './views/catalog.js';
 import { renderCmdb } from './views/cmdb.js';
 import { renderRate } from './views/survey.js';
 import { state } from './state.js';
-import { isPhone, setUiPref, wantsMobile, mobileUrlFor, takeDesktopOnce } from './uimode.js';
+import { isPhone, setUiPref, wantsMobile, mobileUrlFor, takeDesktopOnce, lockedToMobile } from './uimode.js';
 import { clearUserData, noteUser } from './userdata.js';
 import { resetCannedCache } from './views/canned.js';
 import { resetImportState } from './views/import.js';
@@ -382,7 +382,11 @@ export async function refreshQueueCounts(projectKey = state.project?.key) {
 }
 
 // Phones (or the preference "mobile") get the app-like UI under /m – decided before anything is rendered.
-// "?ui=desktop" shows this one page in the desktop UI anyway.
-const mobileTarget = !takeDesktopOnce() && wantsMobile() ? mobileUrlFor(location.pathname, location.search) : null;
+// "?ui=desktop" shows this one page in the desktop UI anyway – except in the installed app on a phone:
+// there every desktop address leads back into the mobile UI (pages that exist only on the desktop → start page).
+const desktopOnce = takeDesktopOnce();
+const mobileTarget = lockedToMobile()
+  ? mobileUrlFor(location.pathname, location.search) || '/m/'
+  : !desktopOnce && wantsMobile() ? mobileUrlFor(location.pathname, location.search) : null;
 if (mobileTarget) location.replace(mobileTarget);
 else start().catch((e) => { console.error(e); toast(e.message, 'error'); });
