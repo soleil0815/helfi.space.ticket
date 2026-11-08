@@ -513,7 +513,8 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> oder eine feste Version, z. B. <code>1.5.0</code></td></tr>
   <tr><td><code>PUID</code> / <code>PGID</code></td><td>Besitzer der Dateien in <code>data/</code> (Synology z. B. <code>1026</code> / <code>100</code>; nicht 0)</td></tr>
   <tr><td><code>HELFI_TRUST_PROXY</code></td><td>Adresse des Reverse-Proxys (siehe nächster Abschnitt)</td></tr>
-  <tr><td><code>HELFI_HSTS</code></td><td><code>on</code> (Standard), <code>off</code> (der Proxy sendet HSTS) oder <code>preload</code></td></tr>
+  <tr><td><code>HELFI_FORCE_HTTPS</code></td><td><code>auto</code> (Standard: umschalten, sobald HTTPS über den Proxy kam), <code>1</code> (immer) oder <code>0</code> (nie)</td></tr>
+  <tr><td><code>HELFI_HSTS</code></td><td><code>on</code> (Standard: nur wenn Helfi.Space selbst umleiten musste), <code>off</code> (nie) oder <code>preload</code></td></tr>
   <tr><td><code>HELFI_SECRET</code></td><td>optional: eigener Schlüssel für gespeicherte Kennwörter – nur bei der Einrichtung setzen</td></tr>
   <tr><td><code>TZ</code></td><td>Zeitzone, z. B. <code>Europe/Berlin</code></td></tr>
 </table>
@@ -526,14 +527,14 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <div class="warn"><p>Trage die Adresse des Proxys in <code>HELFI_TRUST_PROXY</code> ein, z. B. <code>10.0.10.5</code> (mehrere mit Komma: <code>loopback, 10.0.10.5</code>). Ohne diesen Eintrag glaubt Helfi.Space <code>X-Forwarded-For</code> nur vom eigenen Rechner (<code>loopback</code>); Werte wie <code>true</code> oder eine Zahl werden mit einer Warnung im Protokoll ignoriert. Schickt ein einzeln eingetragener Proxy (Adresse, kein Bereich) eine Anfrage ohne <code>X-Forwarded-For</code>, gilt sie als von außen. Steht der Proxy auf einem anderen Rechner, sieht Helfi.Space ohne Eintrag nur ihn: Die Bremse gegen Kennwort-Raten trifft dann alle gemeinsam, und jeder Zugriff gilt sicherheitshalber als „von außen“.</p></div>
 
 <h3>Von http:// auf https:// umleiten</h3>
-<p>Viele Proxys – auch der Synology-Reverse-Proxy – können für eigene Adressen nicht selbst auf HTTPS umleiten; wer <code>http://…</code> eintippt, landet sonst auf der Startseite der Synology. Das übernimmt Helfi.Space: Kommt eine Anfrage vom eingetragenen Proxy mit <code>X-Forwarded-Proto: http</code>, leitet es dauerhaft auf die <code>https://</code>-Adresse aus <code>HELFI_BASE_URL</code> um. Das Ziel kommt nie aus der Anfrage. Dafür eine zweite Regel anlegen:</p>
+<p>Viele Proxys – auch der Synology-Reverse-Proxy – können für eigene Adressen nicht selbst auf HTTPS umleiten; wer <code>http://…</code> eintippt, landet sonst auf der Startseite der Synology. Das übernimmt Helfi.Space: Sobald die <code>https://</code>-Adresse aus <code>HELFI_BASE_URL</code> einmal per HTTPS über den eingetragenen Proxy aufgerufen wurde, leitet es Anfragen, die der Proxy per HTTP weiterreicht (<code>X-Forwarded-Proto: http</code>), dauerhaft dorthin um. Ein Proxy ganz ohne HTTPS wird so nie ins Leere umgeleitet; <code>HELFI_FORCE_HTTPS=1</code> leitet sofort um, <code>0</code> nie. Das Ziel kommt nie aus der Anfrage. Dafür eine zweite Regel anlegen:</p>
 <ol>
   <li><em>Systemsteuerung → Anmeldeportal → Erweitert → Reverse-Proxy → Erstellen</em>.</li>
   <li>Quelle: Protokoll <strong>HTTP</strong>, Hostname wie bei der HTTPS-Regel, Port <strong>80</strong>.</li>
   <li>Ziel: genau wie bei der HTTPS-Regel (HTTP, Rechner, Port 8080). Den Header <code>X-Forwarded-Proto</code> setzt die Synology selbst.</li>
   <li><strong>Let's Encrypt prüfen:</strong> Port 80 bleibt am Router offen. Danach unter <em>Systemsteuerung → Sicherheit → Zertifikat</em> das Zertifikat einmal erneuern. Klappt das nicht, die HTTP-Regel wieder löschen – das bestehende Zertifikat bleibt gültig.</li>
 </ol>
-<p><strong>HSTS</strong> sendet Helfi.Space selbst. In der Proxy-Regel „HSTS aktivieren“ deshalb abwählen – doppelte Header werten Prüfer wie das Mozilla HTTP Observatory als Fehler. Alternativ <code>HELFI_HSTS=off</code> in der <code>.env</code>, dann setzt nur der Proxy HSTS. <code>HELFI_HSTS=preload</code> ergänzt <code>preload</code> (nur, wenn alle Subdomains dauerhaft HTTPS sprechen).</p>
+<p><strong>HSTS</strong> (ein Jahr, nur diese Adresse) sendet Helfi.Space nur, wenn es selbst umleiten musste – wie hinter der Synology. Ein Proxy, der selbst umleitet (Nginx Proxy Manager mit „Force SSL“), behält seinen eigenen HSTS-Header; doppelte Header, die Prüfer wie das Mozilla HTTP Observatory als Fehler werten, entstehen so nicht. <code>HELFI_HSTS=off</code> schaltet HSTS ganz ab. <code>HELFI_HSTS=preload</code> ergänzt <code>preload</code> (nur, wenn alle Subdomains dauerhaft HTTPS sprechen).</p>
 
 <h2 id="ersteinrichtung">Ersteinrichtung</h2>
 <p>Beim ersten Aufruf von <code>HELFI_BASE_URL</code> startet der Einrichtungsassistent. Er fragt nach dem <strong>Einrichtungscode</strong> aus dem Container-Protokoll (<code>docker compose logs helfi</code>) und legt den <strong>lokalen Administrator</strong> und das erste Projekt an. Danach geht es direkt zur AD-Einrichtung.</p>

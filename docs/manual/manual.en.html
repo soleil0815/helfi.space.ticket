@@ -513,7 +513,8 @@ docker compose logs helfi # shows the setup code</code></pre>
   <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> or a fixed version, e.g. <code>1.5.0</code></td></tr>
   <tr><td><code>PUID</code> / <code>PGID</code></td><td>owner of the files in <code>data/</code> (Synology e.g. <code>1026</code> / <code>100</code>; not 0)</td></tr>
   <tr><td><code>HELFI_TRUST_PROXY</code></td><td>address of the reverse proxy (see next section)</td></tr>
-  <tr><td><code>HELFI_HSTS</code></td><td><code>on</code> (default), <code>off</code> (the proxy sends HSTS) or <code>preload</code></td></tr>
+  <tr><td><code>HELFI_FORCE_HTTPS</code></td><td><code>auto</code> (default: switch once HTTPS came through the proxy), <code>1</code> (always) or <code>0</code> (never)</td></tr>
+  <tr><td><code>HELFI_HSTS</code></td><td><code>on</code> (default: only where Helfi.Space had to redirect itself), <code>off</code> (never) or <code>preload</code></td></tr>
   <tr><td><code>HELFI_SECRET</code></td><td>optional: own key for stored passwords – set it only during setup</td></tr>
   <tr><td><code>TZ</code></td><td>time zone, e.g. <code>Europe/Berlin</code></td></tr>
 </table>
@@ -526,14 +527,14 @@ docker compose logs helfi # shows the setup code</code></pre>
 <div class="warn"><p>Enter the proxy’s address in <code>HELFI_TRUST_PROXY</code>, e.g. <code>10.0.10.5</code> (several separated by commas: <code>loopback, 10.0.10.5</code>). Without it Helfi.Space only trusts <code>X-Forwarded-For</code> from its own host (<code>loopback</code>); values such as <code>true</code> or a number are ignored with a warning in the log. If a proxy listed by its address (not a range) forwards a request without <code>X-Forwarded-For</code>, it counts as from outside. If the proxy runs on another host, Helfi.Space then only sees the proxy: the brake against password guessing then hits everyone together, and every request counts as “from outside” to be safe.</p></div>
 
 <h3>Redirect http:// to https://</h3>
-<p>Many proxies – including the Synology reverse proxy – cannot redirect custom addresses to HTTPS themselves; whoever types <code>http://…</code> otherwise lands on the Synology's start page. Helfi.Space does it: a request from the configured proxy with <code>X-Forwarded-Proto: http</code> is redirected permanently to the <code>https://</code> address from <code>HELFI_BASE_URL</code>. The target never comes from the request. Add a second rule for this:</p>
+<p>Many proxies – including the Synology reverse proxy – cannot redirect custom addresses to HTTPS themselves; whoever types <code>http://…</code> otherwise lands on the Synology's start page. Helfi.Space does it: as soon as the <code>https://</code> address from <code>HELFI_BASE_URL</code> has been opened once over HTTPS through the configured proxy, requests the proxy forwards over HTTP (<code>X-Forwarded-Proto: http</code>) are redirected there permanently. A proxy without any HTTPS is therefore never redirected into nothing; <code>HELFI_FORCE_HTTPS=1</code> redirects right away, <code>0</code> never. The target never comes from the request. Add a second rule for this:</p>
 <ol>
   <li><em>Control Panel → Login Portal → Advanced → Reverse Proxy → Create</em>.</li>
   <li>Source: protocol <strong>HTTP</strong>, hostname as in the HTTPS rule, port <strong>80</strong>.</li>
   <li>Destination: exactly as in the HTTPS rule (HTTP, host, port 8080). The Synology sets the <code>X-Forwarded-Proto</code> header itself.</li>
   <li><strong>Check Let's Encrypt:</strong> port 80 stays open on the router. Afterwards renew the certificate once under <em>Control Panel → Security → Certificate</em>. If that fails, delete the HTTP rule again – the existing certificate stays valid.</li>
 </ol>
-<p><strong>HSTS</strong> is sent by Helfi.Space itself. So untick “Enable HSTS” in the proxy rule – checkers such as the Mozilla HTTP Observatory count duplicate headers as an error. Alternatively <code>HELFI_HSTS=off</code> in <code>.env</code>, then only the proxy sets HSTS. <code>HELFI_HSTS=preload</code> adds <code>preload</code> (only if all subdomains speak HTTPS for good).</p>
+<p><strong>HSTS</strong> (one year, this address only) is sent by Helfi.Space only where it had to redirect itself – as behind the Synology. A proxy that redirects on its own (Nginx Proxy Manager with “Force SSL”) keeps its own HSTS header, so there are no duplicate headers, which checkers such as the Mozilla HTTP Observatory count as an error. <code>HELFI_HSTS=off</code> switches HSTS off entirely. <code>HELFI_HSTS=preload</code> adds <code>preload</code> (only if all subdomains speak HTTPS for good).</p>
 
 <h2 id="initial">Initial setup</h2>
 <p>On the first visit to <code>HELFI_BASE_URL</code> the setup wizard starts. It asks for the <strong>setup code</strong> from the container log (<code>docker compose logs helfi</code>) and creates the <strong>local administrator</strong> and the first project. It then continues straight to the AD setup.</p>
