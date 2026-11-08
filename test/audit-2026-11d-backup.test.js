@@ -176,3 +176,13 @@ test('Release re-run reuses a tag on the same commit only while it has no GitHub
     assert.match(s, /already released/, step);
   }
 });
+
+test('download copy of a packed backup stops as soon as the unpacked size passes the limit', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-dlcopy-'));
+  try {
+    const file = path.join(dir, 'helfi-manuell-20260101-000000.sqlite.gz');
+    fs.writeFileSync(file, zlib.gzipSync(Buffer.alloc(4 * 1024 * 1024))); // 4 MB unpacked, a few KB packed
+    await assert.rejects(dbm.backupDownloadCopy({ name: path.basename(file), file }, dir, { maxBytes: 1024 * 1024 }), (e) => e.code === 'ETOOLARGE');
+    assert.deepEqual(fs.readdirSync(dir).filter((f) => f.startsWith('helfi-download-')), [], 'no partial copy left behind');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

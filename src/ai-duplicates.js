@@ -103,13 +103,13 @@ export function createAiDuplicates({ db, tickets, ai }) {
   tickets.events.on('created', ({ ticket }) => { enqueue(ticket); });
 
   // Closed as a duplicate: of the suggested ticket = hit, of another one = corrected.
-  // Closed any other way (done, rejected): the hint is settled as "none" – it neither stays open
-  // (counted as pending, shown again after reopening) nor counts against the hit rate.
+  // Closed any other way (done, rejected): the hint is settled as "closed" – it neither stays open
+  // (counted as pending, shown again after reopening) nor counts against the hit rate or as "nothing found".
   tickets.events.on('resolved', ({ ticket, resolution, user }) => {
     const s = db.prepare("SELECT * FROM duplicate_suggestions WHERE ticket_id=? AND state='pending'").get(ticket.id);
     if (!s) return;
     const userId = user?.id || null;
-    if (resolution !== 'duplicate') { decide(ticket.id, 'none', userId); return; }
+    if (resolution !== 'duplicate') { decide(ticket.id, 'closed', userId); return; }
     const raw = tickets.rawById(ticket.id);
     decide(ticket.id, raw?.duplicate_of === s.original_id ? 'accepted' : 'corrected', userId);
   });

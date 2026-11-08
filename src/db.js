@@ -4,6 +4,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 import Database from 'better-sqlite3';
 import { config, paths } from './config.js';
 import { log } from './lib/log.js';
@@ -834,10 +835,6 @@ function stamp() {
 }
 
 /**
- * Packs a file with gzip into `dest` (written as dest.part, then renamed) and checks the result:
- * unpacked again it must be byte for byte the original (SHA-256). Returns the packed size.
- */
-/**
  * Flush a file (or directory entry) to disk. A rename is only durable once the data and the
  * directory are written: otherwise a power loss right after "rename, delete the original" can leave
  * an empty or truncated backup and no original. File systems without fsync support are tolerated.
@@ -849,6 +846,10 @@ export function fsyncPath(file, { dir = false } = {}) {
   try { fs.fsyncSync(fd); } catch (e) { if (!dir && !FSYNC_UNSUPPORTED.has(e.code)) throw e; } finally { fs.closeSync(fd); }
 }
 
+/**
+ * Packs a file with gzip into `dest` (written as dest.part, then renamed) and checks the result:
+ * unpacked again it must be byte for byte the original (SHA-256). Returns the packed size.
+ */
 async function gzipVerified(src, dest) {
   const part = `${dest}.part`;
   try {
@@ -1034,13 +1035,23 @@ export function findBackup(name, dir = paths.backups) {
  * as a backup, removed by the caller afterwards and by pruneBackups after a crash. Freed pages are
  * overwritten (secure_delete), so the ids are not left in the file either. Returns the path.
  */
-export async function backupDownloadCopy(backup, dir = paths.backups) {
+export async function backupDownloadCopy(backup, dir = paths.backups, { maxBytes = Infinity } = {}) {
   const tmp = path.join(dir, `helfi-download-${crypto.randomBytes(8).toString('hex')}.sqlite.part`);
   try {
     const read = fs.createReadStream(backup.file);
     const write = fs.createWriteStream(tmp, { mode: 0o600, flags: 'wx' });
-    if (backup.name.endsWith('.gz')) await pipeline(read, zlib.createGunzip(), write);
-    else await pipeline(read, write);
+    // Stop as soon as the (unpacked) copy grows beyond maxBytes – never fill the disk with a copy
+    // that cannot be downloaded anyway
+    let total = 0;
+    const limit = new Transform({
+      transform(chunk, _enc, cb) {
+        total += chunk.length;
+        if (total > maxBytes) { const e = new Error('Backup copy too large'); e.code = 'ETOOLARGE'; cb(e); return; }
+        cb(null, chunk);
+      },
+    });
+    if (backup.name.endsWith('.gz')) await pipeline(read, zlib.createGunzip(), limit, write);
+    else await pipeline(read, limit, write);
     const d = new Database(tmp, { fileMustExist: true });
     try {
       d.pragma('journal_mode = DELETE');

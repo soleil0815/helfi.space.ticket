@@ -147,3 +147,23 @@ test('Ticket list: a huge offset gives an empty page instead of an error; sort o
   assert.deepEqual(paged, all);
   assert.deepEqual([...all].sort((x, y) => y - x), all, 'ties ordered by id, newest first');
 });
+
+test('Import that closes a local duplicate as rejected also removes the duplicates link', async () => {
+  const orig = await mk(bob, 'Import-Original 2');
+  let item = { extId: '1', extKey: '#1', title: 'Importiert 2', statusName: 'Open', created: '2026-01-01T00:00:00Z', updated: '2026-01-01T00:00:00Z' };
+  const adapter = { sourceId: 'fake:dup2', host: 'x', kind: 'fake', keyPrefix: 'G', count: async () => 1, async *tickets() { yield item; } };
+  ctx.importer.start(adapter, { projects: [{ key: 'a', targetKey: 'FDV' }] }, 1);
+  await ctx.importer.wait();
+  const row = db.prepare("SELECT t.id FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.key='FDV'").get();
+  // Closed locally as a duplicate (with its link); the source later closes it as rejected
+  const key = db.prepare("SELECT p.key || '-' || t.number k FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.id=?").get(row.id).k;
+  assert.equal((await anna('POST', `/api/tickets/${key}/resolve`, { resolution: 'duplicate', duplicateOf: orig.key, body: 'Siehe Original' })).status, 200);
+  assert.ok(db.prepare("SELECT 1 FROM ticket_links WHERE kind='duplicates' AND from_id=?").get(row.id), 'link exists before');
+  item = { ...item, statusName: 'Abgelehnt', statusCategory: 'done', updated: new Date(Date.now() + 60000).toISOString() };
+  ctx.importer.start(adapter, { projects: [{ key: 'a', targetKey: 'FDV' }] }, 1);
+  await ctx.importer.wait();
+  const after = db.prepare('SELECT resolution, duplicate_of FROM tickets WHERE id=?').get(row.id);
+  assert.equal(after.resolution, 'rejected');
+  assert.equal(after.duplicate_of, null);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM ticket_links WHERE kind='duplicates' AND from_id=?").get(row.id).n, 0, 'no stale duplicates link');
+});

@@ -1047,24 +1047,25 @@ export function createApi(ctx) {
     if (b.size > ZIP_MAX_BYTES) throw new HttpError(413, 'err.backupTooLarge');
     if (backupDownloads >= MAX_BACKUP_DOWNLOADS) throw new HttpError(429, 'err.backupBusy');
     backupDownloads++;
-    // Slot and temporary copy are released exactly once: on close of the response (also when the
-    // client aborts while the copy is still being prepared), on error, or when the stream ends
+    // Slot and temporary copy are released exactly once: after the copy failed, when the client is
+    // already gone once the copy is ready, or when the stream ends (pipeline also ends on abort).
+    // The slot is NOT released on an early close while the copy is still being made – otherwise
+    // aborted requests could start any number of full copies in the background.
     let copy = null; let closed = false; let released = false;
     const release = () => {
       if (copy) { removeDownloadCopy(copy); copy = null; }
       if (!released) { released = true; backupDownloads--; }
     };
-    res.once('close', () => { closed = true; release(); });
+    res.once('close', () => { closed = true; });
     try {
-      copy = await backupDownloadCopy(b);
+      copy = await backupDownloadCopy(b, undefined, { maxBytes: ZIP_MAX_BYTES });
     } catch (e) {
       release();
       if (e.code === 'ENOENT') throw notFound(); // removed or packed meanwhile
+      if (e.code === 'ETOOLARGE') throw new HttpError(413, 'err.backupTooLarge'); // unpacked size of a .sqlite.gz
       throw e;
     }
     if (closed) { release(); return; }
-    // b.size of a .sqlite.gz is the packed size – check the unpacked one before streaming
-    if (fs.statSync(copy).size > ZIP_MAX_BYTES) { release(); throw new HttpError(413, 'err.backupTooLarge'); }
     const { name } = b;
     const zipName = name.replace(/\.sqlite(\.gz)?$/, '.zip');
     res.setHeader('Content-Type', 'application/zip');

@@ -209,14 +209,20 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     };
     run = { state, cancel: false };
     const current = run;
-    // 1. rules – synchronous, exact
-    for (const { id, match } of plan.rules) {
-      try {
-        if (tickets.rawById(id)?.component_id) continue;
-        tickets.applyComponent(id, match.component.id, { kind: match.kind, detail: reasonDetail(match), backfill: true });
-        state.rules++;
-      } catch (e) { log.warn('Backfill: rule could not be applied', { ticket: id, error: e.message }); }
-    }
+    // 1. rules – synchronous, exact; in one transaction (each ticket in its own savepoint), so that
+    // thousands of rule matches are written at once instead of one disk sync per ticket
+    const applyOne = db.transaction((id, match) => {
+      if (tickets.rawById(id)?.component_id) return false;
+      tickets.applyComponent(id, match.component.id, { kind: match.kind, detail: reasonDetail(match), backfill: true });
+      return true;
+    });
+    db.transaction(() => {
+      for (const { id, match } of plan.rules) {
+        try {
+          if (applyOne(id, match)) state.rules++;
+        } catch (e) { log.warn('Backfill: rule could not be applied', { ticket: id, error: e.message }); }
+      }
+    })();
     // 2. AI – one after the other in the background
     (async () => {
       let failedInARow = 0;

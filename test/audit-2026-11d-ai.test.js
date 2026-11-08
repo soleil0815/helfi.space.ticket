@@ -133,7 +133,7 @@ test('pending duplicate hint is settled (not left pending) when the ticket is cl
   assert.equal((await anna('PATCH', `/api/tickets/${key}`, { status: 'done' })).status, 200);
   await new Promise((r) => setTimeout(r, 40));
   const s = S.db.prepare('SELECT * FROM duplicate_suggestions WHERE ticket_id=?').get(idOf(key));
-  assert.equal(s.state, 'none');
+  assert.equal(s.state, 'closed');
   assert.equal(s.decided_by, S.ids.anna, 'the closing agent is recorded');
   assert.equal(S.ctx.aiDuplicates.stats().pending, before - 1);
 });

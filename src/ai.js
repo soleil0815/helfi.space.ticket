@@ -122,7 +122,6 @@ const formatBytes = (n) => {
   return b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
 };
 
-/** Read a JSON answer with a size limit (model lists are small; a huge answer is an error) */
 /** Largest AI response body that is read (bytes); a longer one is cut off and refused */
 export const MAX_AI_RESPONSE = 2 * 1024 * 1024;
 
@@ -152,6 +151,7 @@ async function readCapped(res, max) {
   return { text: Buffer.concat(chunks).toString('utf8'), tooLarge: false };
 }
 
+/** Read a JSON answer with a size limit (model lists are small; a huge answer is an error) */
 async function getJson(url, headers, timeoutMs) {
   let res;
   try {
