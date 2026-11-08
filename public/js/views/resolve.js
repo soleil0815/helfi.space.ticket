@@ -40,6 +40,11 @@ export function openResolveDialog({ kind, keys, tk = null, original: preset = ''
           let r;
           if (many) {
             r = await api.bulk({ keys, comment: text, resolve: { resolution: kind, duplicateOf: original, addToOriginal: addToOriginal.checked } });
+            // Nothing done at all: keep the dialog (typed reason) and the selection, show why
+            if (!r.ok.length && r.failed.length) {
+              err.textContent = r.failed.map((x) => `${x.key}: ${x.error}`).join(', ');
+              err.hidden = false; ok.disabled = false; return;
+            }
             if (r.failed.length) toast(t('bulk.partly', { ok: r.ok.length, failed: r.failed.length, list: r.failed.map((x) => `${x.key}: ${x.error}`).join(', ') }), 'error');
             else toast(t(kind === 'rejected' ? 'resolve.rejectedMany' : 'resolve.duplicatedMany', { n: r.ok.length }), 'success');
           } else {

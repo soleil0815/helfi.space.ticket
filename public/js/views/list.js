@@ -70,6 +70,9 @@ export async function renderList(content, params, { requests = false } = {}) {
     const p = new URLSearchParams(location.search);
     if (v) p.set(k, v); else p.delete(k);
     p.delete('page'); // other filter, search or sorting → back to page 1
+    // A resolution only exists for done tickets (the server then filters status=done):
+    // switching to another status drops it, otherwise the list would stay empty
+    if (k === 'status' && v !== 'done') p.delete('resolution');
     navigate(`${location.pathname}?${p}`, { replace: true });
   };
 

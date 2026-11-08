@@ -11,7 +11,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Active Directory** (Windows Server or Samba AD): sign in with Windows accounts, roles from AD groups (nested groups too), **fetch the LDAPS certificate with one click**
 - **Single sign-on** via OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **Email → ticket:** a mailbox is polled via IMAP, new mails become tickets and replies land in the matching ticket. Reporters get answers by email.
-- **Clear and simple:** sidebar with queues (open, assigned to me, unassigned, waiting, recently resolved, all) with live counts, per-project summary, board with drag & drop, ticket list with filters and pages (50/100/250/500 per page), ticket view with details, comments, internal notes, attachments and history
+- **Clear and simple:** sidebar with queues (open, assigned to me, unassigned, waiting, recently resolved, all) with live counts, per-project summary, board with drag & drop, ticket list with filters and pages (50/100/250/500 per page; a search shows the best 5000 matches), ticket view with details, comments, internal notes, attachments and history
 - **Easy migration:** import from **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, **Jira** (cloud, Server/Data Center) or a **CSV file** – with comments, internal notes and attachments; ticket numbers are kept, a second run only adds what is new.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
 - **IT service management following ITIL** (all optional): links and subtasks, impact/urgency and major incidents, service levels, problems and known errors, change management with approval and calendar, knowledge base, service catalog with forms and approval, devices & services, satisfaction survey and key figures
@@ -112,7 +112,7 @@ Agents can have tickets summarized and replies suggested, polished, shortened or
   - *Assign automatically*: the component is set directly; the history says “by AI” with the model.
   - The **hit rate** is shown on the AI page, e.g. “87 % (52 of 60 accepted)”: accepted ones and automatic ones nobody changed, against corrected and dismissed ones.
   - With a cloud model, the title and description of every new ticket without a rule match go to the provider for this – the page points it out.
-- **Detect duplicates** (off by default): for a new ticket, Helfi.Space first searches similar **open** tickets of the same project from the last 30 days by full text, without AI (at most 8). Only if there are any does the AI check whether the new ticket reports the same problem. Agents then see “Possible duplicate of IT-12 – reason” in the ticket with **Close as duplicate** (opens the dialog with the original filled in) and **Not a duplicate** – also on phones. Nothing is ever closed automatically; reporters do not see the hint. The hit rate is shown on the AI page.
+- **Detect duplicates** (off by default): for a new ticket, Helfi.Space first searches similar **open** tickets of the same project from the last 30 days by full text, without AI (at most 8). Only if there are any does the AI check whether the new ticket reports the same problem. Agents then see “Possible duplicate of IT-12 – reason” in the ticket with **Close as duplicate** (opens the dialog with the original filled in) and **Not a duplicate** – also on phones. Nothing is ever closed automatically; reporters do not see the hint. The hit rate is shown on the AI page. With a cloud model, the title and description of the new ticket and of up to 8 possible originals (the first 1500 characters each) go to the provider for this.
 
 ## Self-registration and forgotten passwords
 
@@ -266,9 +266,9 @@ A done ticket has a **resolution**: *Done*, *Rejected* or *Duplicate*. Internall
 - **Several at once:** in the ticket list via the multiple selection → *Status* → *Reject …* or *Close as duplicate …*; placeholders are filled per ticket.
 - **Display:** lozenge *Rejected* or *Duplicate* instead of *Done* (lists, ticket, *My requests*, phone), “Duplicate of IT-12” with a link, entry in the history. Filter *Resolution* in the ticket list once the status *Done* is chosen.
 - **Reopening:** if the reporter replies, the ticket reopens as usual; the resolution is reset. A ticket that is already done can be rejected or marked as a duplicate afterwards.
-- **Reports:** rejected tickets and duplicates have their own column and do not count towards the avg. resolution time.
+- **Reports:** rejected tickets and duplicates have their own column in the per-component report and do not count towards the avg. resolution time (also per agent).
 - **Service catalog:** a rejected approval closes the request as *Rejected*.
-- **Import:** Jira resolutions like “Won't Do”, “Declined” or a status “Rejected” become *Rejected*, “Duplicate” becomes *Duplicate*.
+- **Import:** resolutions or status names from the source system like “Won't Do”, “Declined”, “Rejected/Abgelehnt” or “Cancelled” become *Rejected*, “Duplicate/doppelt” becomes *Duplicate*.
 
 ## Entering tickets for others
 
@@ -326,8 +326,8 @@ Components split a project into areas of responsibility. Each has a name, a shor
 - **Take over examples:** ready-made components with description and German and English keywords for IT support (workplace & PC, printers & scanners, email & calendar, network & Wi-Fi, VPN & remote access, user account & password, telephony & mobile devices, software & licences, servers & storage, website & intranet), facilities and administration/service.
 - **List and reports:** filter and column *Component* in the ticket list (with a project selected); under *Reports* tickets, open ones and average resolution time per component.
 - Components are only visible to agents. Deleting leaves the tickets untouched (the field becomes empty); archived components stay visible on old tickets but are no longer assigned. Moving a ticket to another project clears its component.
-- The **Jira import** brings the (first) Jira component along and creates it in the target project if it does not exist yet.
-- **Sort existing tickets:** at the bottom of the page you assign a component to tickets without one afterwards – e.g. after the import or when components are added. *Preview* shows how many there are and how many a rule matches; *Start sorting* applies the rules first and sends the rest – if the AI function *Detect component* is on – to the AI one after the other (one after the other in the background, with progress, can be cancelled at any time).
+- If the source system provides components, the **import** brings the (first) one along and creates it in the target project if it does not exist yet.
+- **Sort existing tickets:** at the bottom of the page you assign a component to tickets without one afterwards – e.g. after the import or when components are added. *Preview* shows how many there are and how many a rule matches; *Start sorting* applies the rules first and sends the rest – if the AI function *Detect component* is on – to the AI one after the other (in the background, with progress, can be cancelled at any time).
   - All tickets by default, done ones included; untick *Also done tickets* for open ones only. Tickets the AI already checked are skipped (unless *check again*).
   - By default the AI only makes **suggestions**: under *Review AI suggestions* you accept or dismiss them one by one or several at once. Optionally it sets the component directly (“by AI” in the history).
   - Afterwards **no mails** are sent, nobody gets tickets **assigned**, and the “Updated” time stays so lists keep their order. The history shows where the component came from.

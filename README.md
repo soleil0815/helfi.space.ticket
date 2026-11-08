@@ -11,7 +11,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Active Directory** (Windows Server oder Samba AD): Anmeldung mit Windows-Konten, Rollen über AD-Gruppen (auch verschachtelt), **LDAPS-Zertifikat per Knopfdruck abrufen**
 - **Single Sign-on** über OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
 - **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
-- **Übersichtlich:** Seitenleiste mit Warteschlangen (offen, mir zugewiesen, nicht zugewiesen, wartet, kürzlich erledigt, alle) samt Live-Zahlen, Zusammenfassung je Projekt, Board mit Drag & Drop, Ticketliste mit Filtern und Seiten (50/100/250/500 pro Seite), Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
+- **Übersichtlich:** Seitenleiste mit Warteschlangen (offen, mir zugewiesen, nicht zugewiesen, wartet, kürzlich erledigt, alle) samt Live-Zahlen, Zusammenfassung je Projekt, Board mit Drag & Drop, Ticketliste mit Filtern und Seiten (50/100/250/500 pro Seite; bei einer Suche die besten 5000 Treffer), Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
 - **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, **Jira** (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
 - **Formatierte Antworten:** eine Werkzeugleiste über dem Kommentarfeld (Ticket, Wissensartikel, Handy) mit KI, fett/kursiv, Listen, Zitat, Code, Link, Bild, Emoji, @-Erwähnung und vorformulierten Antworten – formatiert beim Schreiben, formatiert in der Mail
 - **Screenshots einfügen:** Bilder aus der Zwischenablage mit Strg+V direkt in Kommentar, Beschreibung oder „Ticket erstellen“. In internen Notizen bleiben sie intern.
@@ -112,7 +112,7 @@ Bearbeiter lassen sich Tickets zusammenfassen und Antworten vorschlagen, glätte
   - *Automatisch zuordnen*: Die Komponente wird direkt gesetzt; im Verlauf steht „von KI“ mit dem Modell.
   - Die **Trefferquote** steht auf der KI-Seite, z. B. „87 % (52 von 60 übernommen)“: übernommene und automatisch gesetzte, die niemand geändert hat, gegen korrigierte und verworfene.
   - Mit einem Cloud-Modell gehen dafür Titel und Beschreibung jedes neuen Tickets ohne Regel-Treffer an den Anbieter – die Seite weist darauf hin.
-- **Duplikate erkennen** (standardmäßig aus): Für ein neues Ticket sucht Helfi.Space zuerst ohne KI per Volltext ähnliche **offene** Tickets desselben Projekts aus den letzten 30 Tagen (höchstens 8). Nur wenn es welche gibt, prüft die KI, ob das neue Ticket dasselbe Problem meldet. Bearbeiter sehen dann im Ticket „Mögliches Duplikat von IT-12 – Begründung“ mit **Als Duplikat schließen** (öffnet den Dialog mit eingetragenem Original) und **Kein Duplikat** – auch auf dem Handy. Geschlossen wird nie automatisch; Melder sehen den Hinweis nicht. Die Trefferquote steht auf der KI-Seite.
+- **Duplikate erkennen** (standardmäßig aus): Für ein neues Ticket sucht Helfi.Space zuerst ohne KI per Volltext ähnliche **offene** Tickets desselben Projekts aus den letzten 30 Tagen (höchstens 8). Nur wenn es welche gibt, prüft die KI, ob das neue Ticket dasselbe Problem meldet. Bearbeiter sehen dann im Ticket „Mögliches Duplikat von IT-12 – Begründung“ mit **Als Duplikat schließen** (öffnet den Dialog mit eingetragenem Original) und **Kein Duplikat** – auch auf dem Handy. Geschlossen wird nie automatisch; Melder sehen den Hinweis nicht. Die Trefferquote steht auf der KI-Seite. Mit einem Cloud-Modell gehen dafür Titel und Beschreibung des neuen Tickets und der bis zu 8 möglichen Originale (je die ersten 1500 Zeichen) an den Anbieter.
 
 ## Selbstregistrierung und Kennwort vergessen
 
@@ -266,9 +266,9 @@ Ein erledigtes Ticket hat eine **Lösung**: *Erledigt*, *Abgelehnt* oder *Duplik
 - **Mehrere auf einmal:** in der Ticketliste über die Mehrfachauswahl → *Status* → *Ablehnen …* bzw. *Als Duplikat schließen …*; Platzhalter werden je Ticket ersetzt.
 - **Anzeige:** Lozenge *Abgelehnt* bzw. *Duplikat* statt *Erledigt* (Listen, Ticket, *Meine Anfragen*, Handy), „Duplikat von IT-12“ mit Link, Eintrag im Verlauf. Filter *Lösung* in der Ticketliste, sobald der Status *Erledigt* gewählt ist.
 - **Wiederöffnen:** Antwortet der Melder, öffnet sich das Ticket wie gewohnt wieder; die Lösung wird zurückgesetzt. Ein schon erledigtes Ticket lässt sich nachträglich ablehnen oder als Duplikat markieren.
-- **Berichte:** Abgelehnte und Duplikate stehen in einer eigenen Spalte und zählen nicht zur Ø Lösungszeit.
+- **Berichte:** Abgelehnte und Duplikate stehen im Bericht je Komponente in einer eigenen Spalte und zählen nicht zur Ø Lösungszeit (auch nicht je Bearbeiter).
 - **Servicekatalog:** Eine abgelehnte Genehmigung schließt die Anfrage als *Abgelehnt*.
-- **Import:** Jira-Lösungen wie „Won't Do“, „Declined“ oder ein Status „Abgelehnt“ werden zu *Abgelehnt*, „Duplicate“ zu *Duplikat*.
+- **Import:** Lösungen oder Statusnamen aus dem Quellsystem wie „Won't Do“, „Declined“, „Rejected/Abgelehnt“ oder „Cancelled/Storniert“ werden zu *Abgelehnt*, „Duplicate/doppelt“ zu *Duplikat*.
 
 ## Tickets für andere erfassen
 
@@ -326,8 +326,8 @@ Komponenten teilen ein Projekt in Zuständigkeiten auf. Jede hat einen Namen, ei
 - **Beispiele übernehmen:** fertige Komponenten mit Beschreibung und deutschen wie englischen Schlagwörtern für IT-Support (Arbeitsplatz & PC, Drucker & Scanner, E-Mail & Kalender, Netzwerk & WLAN, VPN & Fernzugriff, Benutzerkonto & Kennwort, Telefonie & Mobilgeräte, Software & Lizenzen, Server & Speicher, Webseite & Intranet), Haustechnik und Verwaltung/Service.
 - **Liste und Berichte:** Filter und Spalte *Komponente* in der Ticketliste (bei gewähltem Projekt); unter *Berichte* Tickets, offene und Ø Lösungszeit je Komponente.
 - Komponenten sind nur für Bearbeiter sichtbar. Löschen lässt die Tickets unangetastet (das Feld wird leer), archivierte Komponenten bleiben an alten Tickets sichtbar, werden aber nicht mehr zugeordnet. Beim Verschieben in ein anderes Projekt fällt die Komponente weg.
-- Beim **Jira-Import** kommt die (erste) Jira-Komponente mit und wird im Zielprojekt angelegt, falls es sie noch nicht gibt.
-- **Bestehende Tickets einordnen:** Unten auf der Seite ordnest du Tickets ohne Komponente nachträglich zu – etwa nach dem Import oder wenn Komponenten neu dazukommen. *Vorschau* zeigt, wie viele es sind und wie viele eine Regel trifft; *Einordnen starten* wendet zuerst die Regeln an und schickt den Rest – wenn die KI-Funktion *Komponente erkennen* an ist – nacheinander an die KI (nacheinander im Hintergrund, mit Fortschritt, jederzeit abbrechbar).
+- Liefert das Quellsystem beim **Import** Komponenten mit, kommt die (erste) Komponente mit und wird im Zielprojekt angelegt, falls es sie noch nicht gibt.
+- **Bestehende Tickets einordnen:** Unten auf der Seite ordnest du Tickets ohne Komponente nachträglich zu – etwa nach dem Import oder wenn Komponenten neu dazukommen. *Vorschau* zeigt, wie viele es sind und wie viele eine Regel trifft; *Einordnen starten* wendet zuerst die Regeln an und schickt den Rest – wenn die KI-Funktion *Komponente erkennen* an ist – nacheinander an die KI (im Hintergrund, mit Fortschritt, jederzeit abbrechbar).
   - Standardmäßig alle Tickets, auch erledigte; ohne Haken bei *Auch erledigte Tickets* nur offene. Tickets, die die KI schon geprüft hat, überspringt der Lauf (außer mit *erneut prüfen*).
   - Die KI macht standardmäßig nur **Vorschläge**: Unter *KI-Vorschläge prüfen* übernimmst oder verwirfst du sie einzeln oder mehrere auf einmal. Wahlweise setzt sie die Komponente direkt („von KI“ im Verlauf).
   - Nachträglich gehen **keine Mails** raus, niemand bekommt Tickets **zugewiesen**, und die Zeit „Aktualisiert“ bleibt, damit Listen ihre Reihenfolge behalten. Der Verlauf zeigt, woher die Komponente kommt.

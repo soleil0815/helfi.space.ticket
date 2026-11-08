@@ -342,10 +342,12 @@ Name a deputy with email address – then nobody has to wait for your return.
 ];
 
 const KINDS = { canned: CANNED_EXAMPLES, catalog: CATALOG_EXAMPLES, kb: KB_EXAMPLES };
+// Own keys only: "__proto__" or "constructor" from the URL must not find Object.prototype members
+const kindList = (kind) => (Object.hasOwn(KINDS, kind) ? KINDS[kind] : null);
 
 /** List for the take-over dialog: key, title and a short description in both languages */
 export function exampleList(kind) {
-  const list = KINDS[kind];
+  const list = kindList(kind);
   if (!list) throw new HttpError(404, 'err.notFound');
   const short = (s) => String(s || '').replace(/[#*:`>\-\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
   return list.map((x) => ({
@@ -362,7 +364,7 @@ export function exampleList(kind) {
  */
 export function createExamples({ db, canned, catalog, kb }) {
   function take(user, kind, keys, lang) {
-    const list = KINDS[kind];
+    const list = kindList(kind);
     if (!list) throw new HttpError(404, 'err.notFound');
     if (kind === 'kb' ? !isAgent(user) : user.role !== 'admin') throw forbidden();
     const l = lang === 'en' ? 'en' : 'de';
