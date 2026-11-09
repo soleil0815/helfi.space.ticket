@@ -510,7 +510,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <table>
   <tr><td style="width:34%"><code>HELFI_BASE_URL</code></td><td>address under which Helfi.Space is reachable (for links in emails and SSO)</td></tr>
   <tr><td><code>HELFI_HTTP_PORT</code></td><td>port on the server (default 8080)</td></tr>
-  <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> or a fixed version, e.g. <code>1.5.0</code></td></tr>
+  <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> (with the monthly security updates on patch day) or a fixed version, e.g. <code>1.5.0</code> or <code>1.5.0-s1</code></td></tr>
   <tr><td><code>PUID</code> / <code>PGID</code></td><td>owner of the files in <code>data/</code> (Synology e.g. <code>1026</code> / <code>100</code>; not 0)</td></tr>
   <tr><td><code>HELFI_TRUST_PROXY</code></td><td>address of the reverse proxy (see next section)</td></tr>
   <tr><td><code>HELFI_FORCE_HTTPS</code></td><td><code>auto</code> (default: switch once HTTPS came through the proxy), <code>1</code> (always) or <code>0</code> (never)</td></tr>
@@ -694,7 +694,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 
 <h2 id="updates">Updates</h2>
 <h3>With container management (recommended)</h3>
-<p>Dockhand, Watchtower or Tugtainer detect new images of <code>ghcr.io/soleil0815/helfi.space.ticket:latest</code> and update the container – ideally at night. Helfi.Space backs up the database itself when a new version starts (<code>data/backups/helfi-vor-&lt;version&gt;-….sqlite</code>) and then migrates it.</p>
+<p>Dockhand, Watchtower or Tugtainer detect new images of <code>ghcr.io/soleil0815/helfi.space.ticket:latest</code> and update the container – ideally at night. Besides new versions, a security update <code>&lt;version&gt;-s&lt;n&gt;</code> appears once a month on patch day (the second Tuesday): same program, only newer packages, tested and checked like every release. Helfi.Space backs up the database itself when a new version starts (<code>data/backups/helfi-vor-&lt;version&gt;-….sqlite</code>) and then migrates it.</p>
 <h3>Manually</h3>
 <pre><code>./update.sh             # latest version
 ./update.sh 1.5.0       # specific version (recorded in .env)

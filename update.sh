@@ -80,10 +80,11 @@ done
 
 valid_version() {
   [ "$1" = latest ] && return 0
-  printf '%s' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
+  # 1.2.0 or a security update of it: 1.2.0-s1 (same program, newer packages)
+  printf '%s' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-s[1-9][0-9]*)?$'
 }
 if [ -n "$VERSION" ] && ! valid_version "$VERSION"; then
-  err "Ungültige Version: $VERSION (Beispiel: 1.2.0 oder latest)" "Invalid version: $VERSION (example: 1.2.0 or latest)"; exit 2
+  err "Ungültige Version: $VERSION (Beispiel: 1.2.0, 1.2.0-s1 oder latest)" "Invalid version: $VERSION (example: 1.2.0, 1.2.0-s1 or latest)"; exit 2
 fi
 
 # Resolve a relative image file path before changing directory (relative to the calling directory)

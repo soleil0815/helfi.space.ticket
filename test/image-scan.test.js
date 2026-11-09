@@ -1,4 +1,4 @@
-// Tests: weekly scan of the published image → issue (open / update / close), slim image (Dockerfile)
+// Tests: daily scan of the published image → issue (open / update / close), slim image (Dockerfile)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -59,7 +59,7 @@ test('Scan: clean image closes the open issue, nothing to do otherwise', { skip:
   assert.doesNotMatch(r.calls, /-X (POST|PATCH)/);
 });
 
-test('Scan workflow: weekly, only reads the repo, writes issues, pinned actions', () => {
+test('Scan workflow: daily, only reads the repo, writes issues, pinned actions', () => {
   const yml = fs.readFileSync(path.join(root, '.github/workflows/image-scan.yml'), 'utf8');
   assert.match(yml, /schedule:\n\s+- cron:/);
   assert.match(yml, /issues: write/);

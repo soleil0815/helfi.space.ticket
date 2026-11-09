@@ -26,16 +26,16 @@ if [ "$n" = 0 ]; then
 fi
 
 body="$(printf '%s\n' \
-  "The weekly scan found **$n fixable HIGH/CRITICAL vulnerabilities** in \`ghcr.io/$GITHUB_REPOSITORY:latest\`." \
+  "The daily scan found **$n fixable HIGH/CRITICAL vulnerabilities** in \`ghcr.io/$GITHUB_REPOSITORY:latest\`." \
   "" \
   "They are fixed upstream (Alpine/Node packages or npm dependencies) – a new build picks them up." \
-  "**To do:** merge pending Dependabot PRs, then publish a new release (Actions → CI → Run workflow → main)." \
+  "**To do:** nothing – the security update on patch day (second Tuesday of the month) picks them up. Urgent: start it now (Actions → Security update → Run workflow → main). If a fix needs a new dependency version: merge the Dependabot PRs and publish a release (Actions → CI → Run workflow)." \
   "" \
   "| Severity | ID | Package | Installed | Fixed in |" \
   "|---|---|---|---|---|" \
   "$list" \
   "" \
-  "_Scan of $(date -u +%Y-%m-%d), run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. This issue is updated weekly and closed automatically once the published image is clean._")"
+  "_Scan of $(date -u +%Y-%m-%d), run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. This issue is updated daily and closed automatically once the published image is clean._")"
 
 if [ -n "$existing" ]; then
   gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$existing" -f body="$body" >/dev/null

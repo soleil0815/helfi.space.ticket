@@ -97,8 +97,15 @@ test('.env with Windows line endings (Audit)', () => {
   assert.doesNotMatch(r.calls, /latest\r/);
 });
 
+test('Security update versions (1.2.0-s1) are accepted and pinned', () => {
+  const ctx = setup({ envText: 'HELFI_BASE_URL=http://x\nHELFI_SECRET=geheim-1234567890abc\n' });
+  const r = run(ctx, ['1.2.0-s1'], { FAKE_NEW_VERSION: '1.2.0-s1', FAKE_PREV_VERSION: '1.2.0' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(read(ctx, '.env'), /HELFI_VERSION=1\.2\.0-s1\n/);
+});
+
 test('Invalid versions are rejected (Audit)', () => {
-  for (const v of ['1.2;rm -rf /', '1.2..3', '1.2.3.4', 'v1.2.3', '1.2']) {
+  for (const v of ['1.2;rm -rf /', '1.2..3', '1.2.3.4', 'v1.2.3', '1.2', '1.2.3-s0', '1.2.3-s', '1.2.3-s1;x', '1.2.3-beta']) {
     const ctx = setup();
     const r = run(ctx, [v]);
     assert.equal(r.status, 2, v);

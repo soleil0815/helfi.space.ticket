@@ -1,12 +1,14 @@
-# Weekly check of the PUBLISHED image (latest): are there fixable HIGH/CRITICAL vulnerabilities
+# Daily check of the PUBLISHED image (latest): are there fixable HIGH/CRITICAL vulnerabilities
 # that a new build would fix (new Alpine/Node packages, updated dependencies)?
-# If so, an issue is opened (or updated) – publishing stays manual (Actions → CI → Run workflow).
+# If so, an issue is opened (or updated). It changes nothing itself: the security update on patch day (second
+# Tuesday of the month, security-update.yml) brings the fix – for an urgent fix start it by hand
+# (Actions → Security update → Run workflow). Same rule as in all programs.
 # The issue is closed automatically once the published image is clean again.
 name: Image scan
 
 on:
   schedule:
-    - cron: '17 4 * * 1'   # Mondays 04:17 UTC
+    - cron: '47 5 * * *'   # every day 05:47 UTC
   workflow_dispatch:
 
 permissions:
