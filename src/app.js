@@ -46,6 +46,7 @@ import { HttpError } from './lib/http.js';
 import { t, langFromHeader, normalizeLang, hasKey } from './i18n.js';
 import { log } from './lib/log.js';
 import { randomToken } from './lib/crypto.js';
+import { httpsMiddleware, createHttpsHosts } from './https.js';
 
 /**
  * Apply HELFI_TRUST_PROXY: list of addresses/networks or loopback/linklocal/uniquelocal.
@@ -65,35 +66,6 @@ export function applyTrustProxy(app, raw) {
   if (/^\d+$/.test(value)) return fallback('is not a valid value (number of proxies is not supported)');
   try { app.set('trust proxy', value); } catch (e) { return fallback(`is invalid (${e.message})`); }
   return value;
-}
-
-/** Helmet HSTS option: only with an https:// address and unless HELFI_HSTS=off (then the proxy sends it). */
-export function hstsOption(baseUrl, hsts) {
-  if (!baseUrl.startsWith('https://') || hsts === 'off') return false;
-  return { maxAge: 31536000, includeSubDomains: true, preload: hsts === 'preload' };
-}
-
-/**
- * Middleware for the redirect to HTTPS, or null when HELFI_BASE_URL is not https://.
- * Only requests from a trusted proxy (HELFI_TRUST_PROXY) whose X-Forwarded-Proto says "http" are redirected:
- * a spoofed header from elsewhere is ignored, and without the header (direct access to port 8080,
- * docker health check) the request is served as before. GET/HEAD → 301, everything else → 308 (keeps the method).
- */
-export function httpsRedirectMiddleware(app, baseUrl = config.baseUrl) {
-  if (!baseUrl.startsWith('https://')) return null;
-  const origin = new URL(baseUrl).origin;
-  const basePath = new URL(baseUrl).pathname.replace(/\/+$/, '');
-  return (req, res, next) => {
-    if (req.path === '/healthz') return next();
-    const proto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim().toLowerCase();
-    if (proto !== 'http') return next();
-    const trust = app.get('trust proxy fn');
-    if (typeof trust !== 'function' || !trust(req.socket.remoteAddress, 0)) return next();
-    // originalUrl starts with "/": never "//host" (that would be another site)
-    const pathAndQuery = `/${String(req.originalUrl || '/').replace(/^\/+/, '')}`;
-    res.setHeader('Cache-Control', 'no-store');
-    res.redirect(req.method === 'GET' || req.method === 'HEAD' ? 301 : 308, `${origin}${basePath}${pathAndQuery}`);
-  };
 }
 
 export function createApp(db) {
@@ -167,17 +139,18 @@ export function createApp(db) {
         'upgrade-insecure-requests': config.baseUrl.startsWith('https://') ? [] : null,
       },
     },
-    // HSTS only with an https:// address; HELFI_HSTS=off when the reverse proxy sends it (never twice)
-    strictTransportSecurity: hstsOption(config.baseUrl, config.hsts),
+    // HSTS comes from httpsMiddleware below (only where Helfi.Space had to redirect itself – never twice)
+    strictTransportSecurity: false,
     crossOriginOpenerPolicy: { policy: 'same-origin' },
     referrerPolicy: { policy: 'same-origin' },
   }));
 
-  // http:// → https://: a request the trusted reverse proxy marks as unencrypted (X-Forwarded-Proto: http)
-  // is sent to the https:// address. The target always comes from HELFI_BASE_URL, never from the Host
-  // header (no open redirect). Without the header (direct access, health check) nothing changes.
-  const httpsRedirect = httpsRedirectMiddleware(app);
-  if (httpsRedirect) app.use(httpsRedirect);
+  // http:// → https:// and HSTS behind the reverse proxy – same rules as Catalytix and AssetLotse (see https.js).
+  // The target always comes from HELFI_BASE_URL, never from the Host header (no open redirect). Direct requests
+  // (port 8080, health check) are never redirected.
+  const https = httpsMiddleware(app, { baseUrl: config.baseUrl, mode: config.forceHttps, hsts: config.hsts,
+    hosts: createHttpsHosts(paths.httpsHosts) });
+  if (https) app.use(https);
 
   app.get('/healthz', (_req, res) => {
     try { db.prepare('SELECT 1').get(); res.json({ ok: true, version: config.version }); }

@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseForceHttps } from './https.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
@@ -24,13 +25,16 @@ const baseUrl = (process.env.HELFI_BASE_URL || 'http://localhost:8080').replace(
 const DEFAULT_SOURCE = 'https://github.com/soleil0815/helfi.space.ticket';
 const sourceUrl = /^https?:\/\/[^\s"'<>]+$/i.test(process.env.HELFI_SOURCE_URL || '') ? process.env.HELFI_SOURCE_URL : DEFAULT_SOURCE;
 
-// HSTS: 'on' (default with an https:// address), 'off' (the reverse proxy sends it), 'preload'
+// HSTS: 'on' (default: only where Helfi.Space had to redirect itself), 'off' (never), 'preload' (always, with
+// includeSubDomains; preload)
 const hstsRaw = String(process.env.HELFI_HSTS || 'on').trim().toLowerCase();
 const hsts = ['off', 'no', 'false', '0', 'nein'].includes(hstsRaw) ? 'off' : hstsRaw === 'preload' ? 'preload' : 'on';
 
 export const config = {
   sourceUrl,
   hsts,
+  // HTTPS behind the reverse proxy: 'auto' (default) | '1' | '0' – see src/https.js
+  forceHttps: parseForceHttps(process.env.HELFI_FORCE_HTTPS),
   version: pkg.version,
   port: Number(process.env.HELFI_PORT || process.env.PORT || 8080),
   dataDir: path.resolve(process.env.HELFI_DATA_DIR || '/data'),
@@ -50,4 +54,5 @@ export const paths = {
   backups: path.join(config.dataDir, 'backups'),
   attachments: path.join(config.dataDir, 'attachments'),
   secretKey: path.join(config.dataDir, 'secret.key'),
+  httpsHosts: path.join(config.dataDir, 'https-hosts.txt'),
 };
