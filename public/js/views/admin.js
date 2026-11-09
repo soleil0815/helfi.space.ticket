@@ -940,7 +940,23 @@ async function systemPage(body) {
         h('dt', t('system.dbSize')), h('dd', fmtSize(sys.dbSize)),
         h('dt', 'Node.js'), h('dd', sys.node),
         h('dt', ''), h('dd', t('system.counts', sys.counts)))),
-    backupPanel(body, sys));
+    backupPanel(body, sys),
+    emergencyPanel(sys));
+}
+
+/** Emergency access: how it works, and its last uses (helfi-admin on the Docker host) */
+function emergencyPanel(sys) {
+  const list = sys.emergency || [];
+  return h('section.panel.emergency-panel',
+    h('h2', t('system.emergency')),
+    h('p.muted', t('system.emergencyHint')),
+    h('pre.emergency-cmd', 'docker compose exec helfi helfi-admin list\ndocker compose exec helfi helfi-admin reset <name>'),
+    list.length ? h('div',
+      h('h3', t('system.emergencyUsed')),
+      h('ul.emergency-log', list.map((e) => h('li',
+        h('span', fmtDate(e.at)), ' · ',
+        t(`system.emergency.${e.action}`, { name: e.username }),
+        e.mfaReset ? h('span.muted', ` · ${t('system.emergencyMfa')}`) : null)))) : null);
 }
 
 /** Starts a file download in the background (the server sends Content-Disposition: attachment). */

@@ -35,7 +35,7 @@
     <li><a href="#admin">Für Administratoren: Einrichtung</a>
       <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS und Reverse-Proxy</a></li><li><a href="#ersteinrichtung">Ersteinrichtung</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single Sign-on</a></li><li><a href="#2fa">Zwei-Faktor-Anmeldung und Netze</a></li><li><a href="#email">E-Mail</a></li><li><a href="#projekte">Projekte</a></li><li><a href="#komponenten">Komponenten</a></li><li><a href="#benutzerverwaltung">Benutzer</a></li><li><a href="#design">Erscheinungsbild</a></li><li><a href="#anmeldeseite">Anmeldeseite</a></li><li><a href="#import">Import aus einem anderen Ticketsystem</a></li></ol></li>
     <li><a href="#betrieb">Für Administratoren: Betrieb</a>
-      <ol><li><a href="#updates">Updates</a></li><li><a href="#zurueck">Version festhalten und zurückgehen</a></li><li><a href="#sicherung">Sicherung und Wiederherstellung</a></li><li><a href="#sicherheit">Sicherheit</a></li><li><a href="#hilfe">Fragen und Lösungen</a></li></ol></li>
+      <ol><li><a href="#updates">Updates</a></li><li><a href="#zurueck">Version festhalten und zurückgehen</a></li><li><a href="#sicherung">Sicherung und Wiederherstellung</a></li><li><a href="#ausgesperrt">Ausgesperrt? (Notfallzugang)</a></li><li><a href="#sicherheit">Sicherheit</a></li><li><a href="#hilfe">Fragen und Lösungen</a></li></ol></li>
   </ol>
 </nav>
 
@@ -733,6 +733,30 @@ docker compose up -d</code></pre></li>
   <li>Ohne <code>secret.key</code> (oder das gesetzte <code>HELFI_SECRET</code>) lassen sich gespeicherte Kennwörter und 2FA-Schlüssel nicht mehr entschlüsseln.</li>
 </ul>
 <figure><img src="img/de/admin-system.jpg" alt=""><figcaption>System: Version, Datenbank, Sicherungen</figcaption></figure>
+
+<h2 id="ausgesperrt">Ausgesperrt? (Notfallzugang)</h2>
+<p>Erst die normalen Wege:</p>
+<table>
+  <tr><th style="width:36%">Situation</th><th>Ausweg</th></tr>
+  <tr><td>AD nicht erreichbar</td><td>Mit dem <strong>lokalen Notfall-Admin</strong> aus der Ersteinrichtung anmelden.</td></tr>
+  <tr><td>SSO leitet direkt weiter und streikt</td><td><code>https://…/login?local=1</code> öffnet die normale Anmeldeseite.</td></tr>
+  <tr><td>Handy mit Authenticator weg</td><td>Mit einem <strong>Wiederherstellungscode</strong> anmelden, oder ein anderer Admin setzt unter <em>Benutzer</em> die 2FA zurück.</td></tr>
+  <tr><td>Kennwort vergessen</td><td><em>Kennwort vergessen</em> auf der Anmeldeseite – für Admins nur, wenn unter <em>Sicherheit → Registrierung und Kennwort vergessen</em> „alle lokalen Konten“ eingestellt ist und Mails rausgehen.</td></tr>
+  <tr><td>AD-Admin hat die Admin-Gruppe verloren</td><td>Der Notfall-Admin oder ein anderer Admin gibt die Rolle unter <em>Benutzer</em> zurück.</td></tr>
+  <tr><td>Zu viele Fehlversuche</td><td>15 Minuten warten oder <code>docker compose restart helfi</code>.</td></tr>
+</table>
+<p>Hilft nichts davon, gibt es den <strong>Notfallbefehl</strong> auf dem Docker-Host – im Ordner mit der <code>docker-compose.yml</code>:</p>
+<pre><code>docker compose exec helfi helfi-admin list             # lokale Admin-Konten anzeigen
+docker compose exec helfi helfi-admin reset admin      # neues Kennwort, 2FA aus, Sitzungen beendet
+docker compose exec helfi helfi-admin create notfall   # neuen lokalen Admin anlegen</code></pre>
+<ul>
+  <li><code>reset</code> fragt das neue Kennwort verdeckt zweimal ab (mindestens 10 Zeichen). <code>--generate</code> erzeugt ein zufälliges Kennwort und zeigt es einmal an; <code>--keep-2fa</code> lässt die Zwei-Faktor-Anmeldung eingerichtet. Ein deaktiviertes Konto wird wieder aktiv. Danach unter <code>/login?local=1</code> anmelden und die 2FA neu einrichten.</li>
+  <li><code>create</code> legt einen lokalen Admin an (<code>--name "Vor Nachname"</code>, <code>--email adresse</code>), etwa wenn der Notfall-Admin gelöscht wurde.</li>
+  <li>Ohne Terminal (Skript, Aufgabenplaner): <code>printf '%s\n' "$PW" | docker compose exec -T helfi helfi-admin reset admin --password-stdin</code>.</li>
+  <li>Der Befehl wirkt nur auf <strong>lokale</strong> Konten; AD- und SSO-Konten werden dort verwaltet.</li>
+</ul>
+<div class="warn"><p>Der Befehl ist nur mit einer Shell auf dem Docker-Host erreichbar – wer die hat, kann den Datenordner sowieso lesen. Über das Netz geht er nicht, und er läuft mit <code>PUID</code>/<code>PGID</code>, nie als root. Jede Benutzung steht unter <em>Administration → System → Notfallzugang</em> und wird allen Admins mit E-Mail-Adresse gemailt.</p></div>
+<figure><img src="img/de/admin-emergency.jpg" alt=""><figcaption>Administration → System: Notfallzugang mit der letzten Benutzung</figcaption></figure>
 
 <h2 id="sicherheit">Sicherheit</h2>
 <ul>

@@ -1546,3 +1546,8 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .ai-duplicate .ai-suggest-actions { margin-top: 0; }
 [data-theme="dark"] .ai-duplicate .icon { color: var(--ai-accent); }
 .ai-fn-sub { margin: -4px 0 12px 30px; max-width: 560px; }
+
+/* Administration → System: emergency access */
+.emergency-cmd { font-family: var(--mono); font-size: 12px; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; overflow-x: auto; margin: 8px 0 12px; }
+.emergency-log { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+.emergency-panel h3 { font-size: 13px; margin: 8px 0 4px; }

@@ -105,7 +105,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Lint shell scripts
         run: |
-          shellcheck -s sh update.sh docker/entrypoint.sh docker/prune-modules.sh scripts/*.sh .github/scripts/*.sh
+          shellcheck -s sh update.sh docker/entrypoint.sh docker/helfi-admin.sh docker/prune-modules.sh scripts/*.sh .github/scripts/*.sh
           dash -n update.sh && dash -n docker/entrypoint.sh && dash -n docker/prune-modules.sh
 
   ad-integration:

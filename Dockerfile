@@ -44,8 +44,10 @@ COPY public ./public
 # Current deployment files are shipped in the image – update.sh adopts them when needed
 COPY docker-compose.yml env.example update.sh docker/compose-hashes.txt ./deploy/
 COPY docker/entrypoint.sh /usr/local/bin/helfi-entrypoint
+# Emergency access: docker compose exec helfi helfi-admin …
+COPY docker/helfi-admin.sh /usr/local/bin/helfi-admin
 
-RUN chmod 0755 /usr/local/bin/helfi-entrypoint ./deploy/update.sh && mkdir -p /data
+RUN chmod 0755 /usr/local/bin/helfi-entrypoint /usr/local/bin/helfi-admin ./deploy/update.sh && mkdir -p /data
 
 VOLUME ["/data"]
 EXPOSE 8080
