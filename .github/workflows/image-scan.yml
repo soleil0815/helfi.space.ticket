@@ -38,26 +38,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Trivy (fixed version, SHA-256 checked, no GitHub Action)
+        run: sh .github/scripts/install-trivy.sh "$RUNNER_TEMP/trivy"
       - name: Scan latest (amd64)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE }}:latest
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          format: json
-          output: trivy-amd64.json
-          exit-code: '0'
+        run: sh .github/scripts/trivy-scan.sh "$IMAGE:latest" trivy-amd64.json
       - name: Scan latest (arm64)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        env:
-          TRIVY_PLATFORM: linux/arm64
-        with:
-          image-ref: ${{ env.IMAGE }}:latest
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          format: json
-          output: trivy-arm64.json
-          exit-code: '0'
+        run: sh .github/scripts/trivy-scan.sh "$IMAGE:latest" trivy-arm64.json linux/arm64
       - name: Open, update or close the issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
