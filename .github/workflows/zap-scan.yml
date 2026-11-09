@@ -28,8 +28,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # ZAP pinned by digest (Dependabot does not track it: update together with the audit)
-  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable
+  # ZAP pinned by digest (Dependabot does not track it: the code audit raises it when older than 3 months)
+  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
   ZAP_MINUTES: '25'
 
 jobs:

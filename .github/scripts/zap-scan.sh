@@ -23,11 +23,13 @@ cleanup() {
 }
 trap cleanup EXIT
 fail() {
-  echo "::error title=ZAP scan::$1 | $(docker logs "$APP" 2>&1 | tail -n 8 | tr '\n' '|')"
+  # container log without the setup code (throwaway, but it does not belong in a public log)
+  echo "::error title=ZAP scan::$1 | $(docker logs "$APP" 2>&1 | grep -viE 'setup code|Einrichtungscode' | tail -n 8 | tr '\n' '|')"
   exit 1
 }
 
 mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)"   # absolute: docker -v would take a relative name for a named volume
 chmod 777 "$OUT"   # ZAP writes its reports as its own user
 [ ! -f .zap/rules.tsv ] || cp .zap/rules.tsv "$OUT/rules.tsv"
 docker network create "$NET" >/dev/null
