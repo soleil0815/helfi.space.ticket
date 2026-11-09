@@ -1,0 +1,365 @@
+# Security update on patch day – same program, newer packages, published as <version>-s<n> (e.g. 1.36.0-s1).
+#
+# When: patch day, the second Tuesday of the month (like Microsoft's Patch Tuesday), 04:17 UTC – the same day as in
+#   Catalytix, AssetLotse, Pocket Knife, SAMAUDIT and SAMonboarding. The schedule starts every Tuesday,
+#   .github/scripts/patchday.sh only lets the second one through (a cron line cannot say "second Tuesday").
+#   By hand at any time (urgent fix): Actions → Security update → Run workflow (branch main).
+# What: the code of the highest release (tag v<version>, never unreleased commits from main), with
+#   - the newest base image of the same Node line (e.g. node:24-alpine, new digest – never a new Node version),
+#   - all Alpine packages upgraded (the Dockerfile runs "apk upgrade" in a build without cache),
+#   - npm security fixes that need no version jump ("npm audit fix", never --force).
+# Checks: tests with the updated packages, build natively for amd64 and arm64 (no QEMU), smoke test per
+#   architecture, compare with the published image (nothing changed → nothing happens), Trivy on both platforms
+#   (fixable HIGH/CRITICAL blocks). Only if everything passed: tag v<version>-s<n>, image <version>-s<n> and
+#   latest, GitHub release with the changed packages, offline images and checksums. Published tags are never
+#   overwritten. A failure publishes nothing; GitHub sends an e-mail and the cause is shown on the run.
+name: Security update
+
+on:
+  schedule:
+    - cron: '17 4 * * 2'   # Tuesdays 04:17 UTC – only patch day goes on (job patchday)
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: security-update
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  patchday:
+    # scheduled: only the Tuesday run on patch day goes on; by hand: any day
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      due: ${{ steps.check.outputs.due }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/patchday.sh
+          sparse-checkout-cone-mode: false
+      - name: Patch day?
+        id: check
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != schedule ] || sh .github/scripts/patchday.sh; then
+            echo "due=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "due=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Security update::Not patch day – the security update runs on the second Tuesday of the month."
+          fi
+
+  # Release state + newer packages, tests – no write permissions
+  prepare:
+    needs: patchday
+    if: needs.patchday.outputs.due == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.t.outputs.version }}
+      tag: ${{ steps.t.outputs.tag }}
+      sha: ${{ steps.t.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # release tags
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Highest release and next security update number
+        id: t
+        run: |
+          out="$(sh .github/scripts/security-tag.sh)" || { echo "::error title=No release::Publish a program version first."; exit 1; }
+          echo "$out" >> "$GITHUB_OUTPUT"
+          v="$(printf '%s\n' "$out" | sed -n 's/^version=//p')"
+          echo "sha=$(git rev-list -n 1 "v$v")" >> "$GITHUB_OUTPUT"
+          echo "$out"
+          git worktree add --detach release "v$v" >/dev/null
+      - name: Newest base image of the same Node line
+        run: |
+          ref="$(sed -n 's/^FROM \(node:[^@ ]*\)@sha256:[0-9a-f]*.*/\1/p' release/Dockerfile | head -n 1)"
+          case "$ref" in node:*-alpine) ;; *) echo "::error title=Base image::Unexpected base image in the Dockerfile ($ref)"; exit 1 ;; esac
+          digest="$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          case "$digest" in sha256:*) ;; *) echo "::error title=Base image::Cannot read the digest of $ref ($digest)"; exit 1 ;; esac
+          sed -i "s#$ref@sha256:[0-9a-f]*#$ref@$digest#g" release/Dockerfile
+          grep -q "$ref@$digest" release/Dockerfile
+          echo "Base image: $ref@$digest"
+      - name: npm security fixes (no version jumps)
+        working-directory: release
+        run: |
+          npm ci --no-audit --no-fund
+          # never --force: only fixes within the version ranges of package.json
+          npm audit fix --no-fund || true
+          npm ci --no-audit --no-fund
+          git --no-pager diff --stat -- package-lock.json
+      - name: Version for the image
+        working-directory: release
+        env:
+          V: ${{ steps.t.outputs.version }}
+          TAG: ${{ steps.t.outputs.tag }}
+        run: |
+          sed -i "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$TAG\"/" package.json
+          grep -q "^  \"version\": \"$TAG\"," package.json || { echo "::error::Version not set"; exit 1; }
+          # news items as in the release of this version
+          node scripts/news-versions.mjs "$V" src/news.json
+      - name: Tests with the updated packages
+        working-directory: release
+        run: npm test
+      - name: Dependencies without known vulnerabilities
+        working-directory: release
+        run: npm audit --omit=dev --audit-level=high
+      - name: Hand over the build context
+        run: |
+          tar -C release --exclude=./node_modules --exclude=./.git -czf context.tgz .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: context
+          path: context.tgz
+          retention-days: 7
+
+  # Build each architecture natively and test it on its own hardware (no QEMU: Node aborts under emulation)
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CAND: ${{ needs.prepare.outputs.tag }}-kandidat-${{ github.run_id }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: context
+      - name: Unpack the build context
+        run: mkdir ctx && tar -C ctx -xzf context.tgz
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push candidate (${{ matrix.arch }}, no cache)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ctx
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          no-cache: true
+          pull: true
+          provenance: false
+          build-args: VERSION=${{ needs.prepare.outputs.tag }}
+          tags: ${{ env.IMAGE }}:${{ env.CAND }}
+      - name: Smoke test (${{ matrix.arch }})
+        run: |
+          docker pull "$IMAGE:$CAND"
+          sh .github/scripts/smoke-test.sh "$IMAGE:$CAND"
+      - name: Package lists (new build and published image)
+        run: |
+          sh .github/scripts/image-packages.sh "$IMAGE:$CAND" > "new-${{ matrix.arch }}.txt"
+          : > "old-${{ matrix.arch }}.txt"
+          if docker pull -q --platform "linux/${{ matrix.arch }}" "$IMAGE:latest" >/dev/null 2>&1; then
+            sh .github/scripts/image-packages.sh "$IMAGE:latest" "linux/${{ matrix.arch }}" > "old-${{ matrix.arch }}.txt"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages-${{ matrix.arch }}
+          path: '*-${{ matrix.arch }}.txt'
+          retention-days: 7
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Environment "release": only allowed from branch main (repository setting)
+    environment: release
+    permissions:
+      contents: write
+      packages: write
+      id-token: write      # sign the build provenance (public repository)
+      attestations: write
+    env:
+      V: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      SHA: ${{ needs.prepare.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # tags: is this still the highest version?
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: packages-*
+          merge-multiple: true
+      - name: Anything changed?
+        id: diff
+        run: |
+          : > notes.md
+          changed=false
+          for arch in amd64 arm64; do
+            rc=0; sh .github/scripts/package-diff.sh "old-$arch.txt" "new-$arch.txt" > "diff-$arch.md" || rc=$?
+            case "$rc" in
+              0) changed=true; { echo "### $arch"; cat "diff-$arch.md"; echo; } >> notes.md ;;
+              3) ;;
+              *) echo "::error title=Comparison failed::See the log of this step."; exit 1 ;;
+            esac
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          if [ "$changed" = false ]; then
+            echo "### Security update: nothing changed – nothing to do" >> "$GITHUB_STEP_SUMMARY"
+            echo "Nothing changed."
+          else
+            { echo "### Changed packages"; head -c 60000 notes.md; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.diff.outputs.changed == 'true'
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        if: steps.diff.outputs.changed == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Still the highest version, tag still free
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch -q --tags origin
+          now="$(sh .github/scripts/security-tag.sh)"
+          [ "$now" = "$(printf 'version=%s\ntag=%s' "$V" "$TAG")" ] \
+            || { echo "::error title=Release meanwhile::A new version or security update appeared during the run ($now) – start the security update again."; exit 1; }
+          # Only "404 Not Found" means free – any other API error stops (never guess "free")
+          if out="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$TAG" --jq .object.sha 2>&1)"; then
+            echo "::error::Tag v$TAG already exists ($out)"; exit 1
+          fi
+          case "$out" in *"Not Found"*|*"HTTP 404"*) ;; *) echo "::error::Cannot check tag v$TAG: $out"; exit 1 ;; esac
+      - name: Merge candidate from both architectures (record digest)
+        id: cand
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          k="$IMAGE:$TAG-kandidat-$GITHUB_RUN_ID"
+          docker buildx imagetools create -t "$k" "$k-amd64" "$k-arm64"
+          digest="$(docker buildx imagetools inspect "$k" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          case "$digest" in sha256:*) ;; *) echo "::error::Cannot read the candidate digest ($digest)"; exit 1 ;; esac
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Scan candidate for vulnerabilities (amd64)
+        if: steps.diff.outputs.changed == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.cand.outputs.digest }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: json
+          output: trivy-amd64.json
+          exit-code: '0'
+      - if: steps.diff.outputs.changed == 'true'
+        run: sh .github/scripts/trivy-check.sh trivy-amd64.json
+      - name: Scan candidate for vulnerabilities (arm64)
+        if: steps.diff.outputs.changed == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.cand.outputs.digest }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: json
+          output: trivy-arm64.json
+          exit-code: '0'
+      - if: steps.diff.outputs.changed == 'true'
+        run: sh .github/scripts/trivy-check.sh trivy-arm64.json
+      - name: Release files (offline images + checksums)
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          DIGEST: ${{ steps.cand.outputs.digest }}
+        run: |
+          mkdir -p release
+          for arch in amd64 arm64; do
+            docker pull --platform "linux/$arch" "$IMAGE@$DIGEST"
+            docker tag "$IMAGE@$DIGEST" "$IMAGE:$TAG"
+            got="$(docker image inspect --format '{{.Architecture}}' "$IMAGE:$TAG")"
+            [ "$got" = "$arch" ] || { echo "::error::Offline image $arch has architecture $got"; exit 1; }
+            if docker save --help 2>/dev/null | grep -q -- '--platform'; then
+              docker save --platform "linux/$arch" "$IMAGE:$TAG" | gzip > "release/helfi-$TAG-$arch.tar.gz"
+            else
+              docker save "$IMAGE:$TAG" | gzip > "release/helfi-$TAG-$arch.tar.gz"
+            fi
+            docker image rm "$IMAGE:$TAG" "$IMAGE@$DIGEST" >/dev/null 2>&1 || true
+          done
+          # deployment files of the release this security update belongs to
+          for f in docker-compose.yml env.example update.sh; do git show "$SHA:$f" > "release/$f"; done
+          (cd release && sha256sum -- * > SHA256SUMS)
+          {
+            echo "Same program as [v$V](https://github.com/$GITHUB_REPOSITORY/releases/tag/v$V), only newer packages (security update on patch day): base image, Alpine and npm packages updated, built without cache, tested and checked with Trivy on amd64 and arm64."
+            echo
+            echo "Update: \`./update.sh\` (follows \`latest\`) or with a container manager such as Dockhand or Watchtower."
+            echo
+            cat notes.md
+          } > release-notes.md
+      # Provenance before the tags: if signing fails, nothing has been published yet
+      - name: Build provenance (image digest)
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.cand.outputs.digest }}
+          push-to-registry: true
+      - name: Build provenance (offline images)
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/helfi-*.tar.gz
+      # Reserve the number as git tag (on the release commit) before any image tag: a failed run never leaves a
+      # published image tag that a later run could overwrite – the next run takes the next number.
+      - name: Reserve the number (git tag)
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$TAG" -f sha="$SHA" >/dev/null
+      - name: Publish the checked image (same digest)
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          DIGEST: ${{ steps.cand.outputs.digest }}
+        run: |
+          # Never overwrite a published tag
+          if old="$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest.Digest}}' 2>inspect.err)"; then
+            echo "::error::$IMAGE:$TAG exists already ($old) – not overwritten"; exit 1
+          fi
+          case "$(cat inspect.err)" in *"not found"*|*"manifest unknown"*|*"MANIFEST_UNKNOWN"*|*"404"*) ;; *) echo "::error::Cannot check $IMAGE:$TAG: $(cat inspect.err)"; exit 1 ;; esac
+          # the security update of the highest version is always the newest state → latest
+          docker buildx imagetools create -t "$IMAGE:$TAG" -t "$IMAGE:latest" "$IMAGE@$DIGEST"
+          now="$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          [ "$now" = "$DIGEST" ] || { echo "::error::Published image ($now) is not the checked candidate ($DIGEST)"; exit 1; }
+          echo "### Published $IMAGE:$TAG (and latest)" >> "$GITHUB_STEP_SUMMARY"
+      - name: GitHub release
+        if: steps.diff.outputs.changed == 'true'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: v${{ env.TAG }}
+          name: v${{ env.TAG }} (security update)
+          target_commitish: ${{ env.SHA }}
+          make_latest: 'true'
+          body_path: release-notes.md
+          files: release/*

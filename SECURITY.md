@@ -19,7 +19,7 @@ You will get an answer within a few days. Fixes are released as a new version; t
 
 ## Supported versions
 
-Only the **latest release** receives fixes. Updating is quick: `./update.sh` or your container manager (see README).
+Only the **latest release** receives fixes – including its security updates (`<version>-s<n>`, same program with newer packages), published once a month on patch day (the second Tuesday). Updating is quick: `./update.sh` or your container manager (see README).
 
 ## Verifying releases
 

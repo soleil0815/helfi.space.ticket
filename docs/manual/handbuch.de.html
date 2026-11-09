@@ -510,7 +510,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <table>
   <tr><td style="width:34%"><code>HELFI_BASE_URL</code></td><td>Adresse, unter der Helfi.Space erreichbar ist (für Links in Mails und SSO)</td></tr>
   <tr><td><code>HELFI_HTTP_PORT</code></td><td>Port auf dem Server (Standard 8080)</td></tr>
-  <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> oder eine feste Version, z. B. <code>1.5.0</code></td></tr>
+  <tr><td><code>HELFI_VERSION</code></td><td><code>latest</code> (mit den monatlichen Sicherheitsupdates am Patchday) oder eine feste Version, z. B. <code>1.5.0</code> bzw. <code>1.5.0-s1</code></td></tr>
   <tr><td><code>PUID</code> / <code>PGID</code></td><td>Besitzer der Dateien in <code>data/</code> (Synology z. B. <code>1026</code> / <code>100</code>; nicht 0)</td></tr>
   <tr><td><code>HELFI_TRUST_PROXY</code></td><td>Adresse des Reverse-Proxys (siehe nächster Abschnitt)</td></tr>
   <tr><td><code>HELFI_FORCE_HTTPS</code></td><td><code>auto</code> (Standard: umschalten, sobald HTTPS über den Proxy kam), <code>1</code> (immer) oder <code>0</code> (nie)</td></tr>
@@ -694,7 +694,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 
 <h2 id="updates">Updates</h2>
 <h3>Mit Container-Verwaltung (empfohlen)</h3>
-<p>Dockhand, Watchtower oder Tugtainer erkennen neue Images von <code>ghcr.io/soleil0815/helfi.space.ticket:latest</code> und aktualisieren den Container – am besten nachts. Helfi.Space sichert die Datenbank beim Start einer neuen Version selbst (<code>data/backups/helfi-vor-&lt;Version&gt;-….sqlite</code>) und stellt sie danach um.</p>
+<p>Dockhand, Watchtower oder Tugtainer erkennen neue Images von <code>ghcr.io/soleil0815/helfi.space.ticket:latest</code> und aktualisieren den Container – am besten nachts. Neben neuen Versionen erscheint einmal im Monat am Patchday (zweiter Dienstag) ein Sicherheitsupdate <code>&lt;Version&gt;-s&lt;n&gt;</code>: gleiches Programm, nur neuere Pakete, getestet und geprüft wie jedes Release. Helfi.Space sichert die Datenbank beim Start einer neuen Version selbst (<code>data/backups/helfi-vor-&lt;Version&gt;-….sqlite</code>) und stellt sie danach um.</p>
 <h3>Von Hand</h3>
 <pre><code>./update.sh             # neueste Version
 ./update.sh 1.5.0       # bestimmte Version (wird in .env festgehalten)
