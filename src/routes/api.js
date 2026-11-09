@@ -26,6 +26,7 @@ import { fillPlaceholders } from '../../public/js/placeholders.js';
 import { DEFAULTS } from '../settings.js';
 import { backupDatabase, listBackups, pruneBackups, deleteBackup, clampBackupKeep, findBackup, backupInfoText, backupDownloadCopy, removeDownloadCopy, downloadCopyBudget } from '../db.js';
 import { zipStream } from '../zip.js';
+import { readEmergencyLog } from '../emergency.js';
 import { Readable, pipeline } from 'node:stream';
 import { log } from '../lib/log.js';
 import { RESET_MODES, parseDomains } from '../auth/selfservice.js';
@@ -1024,6 +1025,7 @@ export function createApi(ctx) {
       backups,
       backupsSize: backups.reduce((n, b) => n + b.size, 0),
       backupKeep: settings.get('backup.keep'),
+      emergency: readEmergencyLog(db).slice(0, 5),
       warnings: adminWarnings(),
     });
   });

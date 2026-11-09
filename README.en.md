@@ -677,6 +677,33 @@ The file has a version number (`HELFI_COMPOSE_VERSION`). If a new program versio
 - The backups in `data/backups/` only contain the database. Attachments (`data/attachments/`) and `secret.key` live next to it. So always back up the whole `data/` folder to another drive.
 - **Retention:** *Administration → System → Backups to keep* (default 10, 1–100). The number applies per kind: daily, manual, before version change, before project deletion and before import. Older ones are deleted, at least the newest of each kind always stays. Cleanup runs when saving, at startup and after every backup. `HELFI_BACKUP_KEEP_DAYS` is no longer used.
 
+## Locked out? (emergency access)
+
+Try the normal ways first, in this order:
+
+| Situation | Way out |
+|---|---|
+| AD unreachable | Sign in with the **local emergency admin** from the initial setup. |
+| SSO redirects right away and fails | `https://…/login?local=1` opens the normal sign-in page. |
+| Phone with the authenticator lost | Sign in with a **recovery code**, or another admin resets 2FA under *Users*. |
+| Password forgotten | *Forgot password* on the sign-in page – for admins only if *Security → Registration and forgotten password* is set to "all local accounts" and mail goes out. |
+| AD admin lost the admin group | The emergency admin or another admin gives the role back under *Users*. |
+| Too many failed attempts | Wait 15 minutes or `docker compose restart helfi`. |
+
+If none of that helps, there is the **emergency command** on the Docker host (in the folder with `docker-compose.yml`):
+
+```sh
+docker compose exec helfi helfi-admin list             # show local admin accounts
+docker compose exec helfi helfi-admin reset admin      # new password, 2FA off, sessions ended
+docker compose exec helfi helfi-admin create notfall   # create a new local admin
+```
+
+- `reset` asks for the new password twice without echo (at least 10 characters). With `--generate` it creates a random password and shows it once; with `--keep-2fa` two-factor sign-in stays set up. A deactivated account becomes active again. Then sign in at `/login?local=1` and set up 2FA again.
+- `create` adds a local admin (`--name "First Last"`, `--email address`), e.g. if the emergency admin was deleted.
+- Without a terminal (script, scheduler) pass the password on standard input: `printf '%s\n' "$PW" | docker compose exec -T helfi helfi-admin reset admin --password-stdin`.
+- The command only works on **local** accounts. AD and SSO accounts are managed there.
+- **Security:** it is only reachable with a shell on the Docker host – whoever has that can read the data folder anyway. It does not work over the network. It runs as `PUID`/`PGID`, never as root. Every use is listed under *Administration → System → Emergency access* and emailed to all admins with an email address.
+
 ## Security
 
 - Two-factor sign-in per RFC 6238. Each code is valid only once; after 5 failed attempts sign-in starts over. The key is stored encrypted, recovery codes only as a scrypt hash with its own salt per code.

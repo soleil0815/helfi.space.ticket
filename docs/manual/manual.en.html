@@ -35,7 +35,7 @@
     <li><a href="#admin">For administrators: setup</a>
       <ol><li><a href="#installation">Installation</a></li><li><a href="#https">HTTPS and reverse proxy</a></li><li><a href="#initial">Initial setup</a></li><li><a href="#ad">Active Directory</a></li><li><a href="#sso">Single sign-on</a></li><li><a href="#2fa">Two-factor authentication and networks</a></li><li><a href="#email">Email</a></li><li><a href="#projects">Projects</a></li><li><a href="#components">Components</a></li><li><a href="#usermgmt">Users</a></li><li><a href="#design">Appearance</a></li><li><a href="#signinpage">Sign-in page</a></li><li><a href="#import">Import from another ticket system</a></li></ol></li>
     <li><a href="#operation">For administrators: operation</a>
-      <ol><li><a href="#updates">Updates</a></li><li><a href="#rollback">Pinning a version and going back</a></li><li><a href="#backup">Backup and restore</a></li><li><a href="#security">Security</a></li><li><a href="#faq">Questions and solutions</a></li></ol></li>
+      <ol><li><a href="#updates">Updates</a></li><li><a href="#rollback">Pinning a version and going back</a></li><li><a href="#backup">Backup and restore</a></li><li><a href="#locked-out">Locked out? (emergency access)</a></li><li><a href="#security">Security</a></li><li><a href="#faq">Questions and solutions</a></li></ol></li>
   </ol>
 </nav>
 
@@ -733,6 +733,30 @@ docker compose up -d</code></pre></li>
   <li>Without <code>secret.key</code> (or the <code>HELFI_SECRET</code> you set) stored passwords and 2FA keys can no longer be decrypted.</li>
 </ul>
 <figure><img src="img/en/admin-system.jpg" alt=""><figcaption>System: version, database, backups</figcaption></figure>
+
+<h2 id="locked-out">Locked out? (emergency access)</h2>
+<p>Try the normal ways first:</p>
+<table>
+  <tr><th style="width:36%">Situation</th><th>Way out</th></tr>
+  <tr><td>AD unreachable</td><td>Sign in with the <strong>local emergency admin</strong> from the initial setup.</td></tr>
+  <tr><td>SSO redirects right away and fails</td><td><code>https://…/login?local=1</code> opens the normal sign-in page.</td></tr>
+  <tr><td>Phone with the authenticator lost</td><td>Sign in with a <strong>recovery code</strong>, or another admin resets 2FA under <em>Users</em>.</td></tr>
+  <tr><td>Password forgotten</td><td><em>Forgot password</em> on the sign-in page – for admins only if <em>Security → Registration and forgotten password</em> is set to “all local accounts” and mail goes out.</td></tr>
+  <tr><td>AD admin lost the admin group</td><td>The emergency admin or another admin gives the role back under <em>Users</em>.</td></tr>
+  <tr><td>Too many failed attempts</td><td>Wait 15 minutes or <code>docker compose restart helfi</code>.</td></tr>
+</table>
+<p>If none of that helps, there is the <strong>emergency command</strong> on the Docker host – in the folder with <code>docker-compose.yml</code>:</p>
+<pre><code>docker compose exec helfi helfi-admin list             # show local admin accounts
+docker compose exec helfi helfi-admin reset admin      # new password, 2FA off, sessions ended
+docker compose exec helfi helfi-admin create notfall   # create a new local admin</code></pre>
+<ul>
+  <li><code>reset</code> asks for the new password twice without echo (at least 10 characters). <code>--generate</code> creates a random password and shows it once; <code>--keep-2fa</code> keeps two-factor sign-in set up. A deactivated account becomes active again. Then sign in at <code>/login?local=1</code> and set up 2FA again.</li>
+  <li><code>create</code> adds a local admin (<code>--name "First Last"</code>, <code>--email address</code>), e.g. if the emergency admin was deleted.</li>
+  <li>Without a terminal (script, scheduler): <code>printf '%s\n' "$PW" | docker compose exec -T helfi helfi-admin reset admin --password-stdin</code>.</li>
+  <li>The command only works on <strong>local</strong> accounts; AD and SSO accounts are managed there.</li>
+</ul>
+<div class="warn"><p>The command is only reachable with a shell on the Docker host – whoever has that can read the data folder anyway. It does not work over the network, and it runs as <code>PUID</code>/<code>PGID</code>, never as root. Every use is listed under <em>Administration → System → Emergency access</em> and emailed to all admins with an email address.</p></div>
+<figure><img src="img/en/admin-emergency.jpg" alt=""><figcaption>Administration → System: emergency access with the last use</figcaption></figure>
 
 <h2 id="security">Security</h2>
 <ul>
