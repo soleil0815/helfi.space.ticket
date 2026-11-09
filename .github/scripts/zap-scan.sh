@@ -72,6 +72,12 @@ echo "ZAP image: $(docker image inspect -f '{{join .RepoDigests " "}}' "$ZAP" 2>
 # Summary: alerts per risk level (High/Medium/Low/Informational)
 summary="$(jq -r '[.site[]?.alerts[]? | (.riskdesc | split(" ")[0])] | group_by(.) | map("\(.[0]): \(length)") | join(", ")' "$OUT/zap-report.json")"
 echo "ZAP findings: ${summary:-none}"
+# The full list in the log as well: the code audit reads it from there (artifact downloads are not always possible)
+echo "::group::ZAP alerts"
+echo "ZAP-ALERTS-BEGIN"
+jq -r '.site[]?.alerts[]? | "\(.riskdesc | split(" ")[0])\t\(.pluginid)\t\(.name)\t\(.count)\t\([.instances[]?.uri] | unique | .[:5] | join(" "))"' "$OUT/zap-report.json"
+echo "ZAP-ALERTS-END"
+echo "::endgroup::"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "### ZAP scan (no login): ${summary:-no findings}"

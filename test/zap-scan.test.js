@@ -39,6 +39,7 @@ test('zap-scan.sh: throwaway container only, no login, no fixed password, setup 
   assert.match(script, /OUT="\$\(cd "\$OUT" && pwd\)"/, 'absolute report path for docker -v');
   assert.match(script, /scanner\.maxScanDurationInMins=\$MINUTES/, 'time limit');
   assert.doesNotMatch(script, /--auth|-z ".*auth/i, 'no login');
+  assert.match(script, /ZAP-ALERTS-BEGIN[\s\S]*ZAP-ALERTS-END/, 'alerts in the log for the audit');
 });
 
 test('.zap/rules.tsv: only comments or "<id> TAB IGNORE TAB <reason>"', () => {
