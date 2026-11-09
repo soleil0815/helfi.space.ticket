@@ -65,7 +65,7 @@ test('Scan workflow: daily, only reads the repo, writes issues, pinned actions',
   assert.match(yml, /issues: write/);
   assert.doesNotMatch(yml, /contents: write|packages: write/, 'publishes nothing');
   for (const u of yml.match(/uses: \S+/g)) assert.match(u, /@[0-9a-f]{40}$/, u);
-  assert.match(yml, /TRIVY_PLATFORM: linux\/arm64/);
+  assert.match(yml, /trivy-scan\.sh "\$IMAGE:latest" trivy-arm64\.json linux\/arm64/);
 });
 
 test('Dockerfile: yarn removed, node_modules pruned and the driver checked', () => {
@@ -75,4 +75,23 @@ test('Dockerfile: yarn removed, node_modules pruned and the driver checked', () 
   assert.match(df, /sqlite_version\(\)/);
   const smoke = fs.readFileSync(path.join(root, '.github/scripts/smoke-test.sh'), 'utf8');
   assert.match(smoke, /left in the image/);
+});
+
+test('Trivy without a GitHub Action (trivy-action/setup-trivy compromised, CVE-2026-33634): fixed version, SHA-256 checked', () => {
+  const dir = path.join(root, '.github/workflows');
+  for (const f of fs.readdirSync(dir)) {
+    const yml = fs.readFileSync(path.join(dir, f), 'utf8');
+    assert.doesNotMatch(yml, /aquasecurity\//, f);
+    for (const scan of yml.match(/trivy-scan\.sh [^\n]+/g) || []) {
+      const before = yml.slice(0, yml.indexOf(scan));
+      assert.match(before, /install-trivy\.sh "\$RUNNER_TEMP\/trivy"/, `${f}: install before scan`);
+    }
+    assert.doesNotMatch(yml, /run: [^\n]*\$\{\{[^\n]*trivy-scan/, `${f}: no expressions in the scan command`);
+  }
+  const inst = fs.readFileSync(path.join(root, '.github/scripts/install-trivy.sh'), 'utf8');
+  const v = /TRIVY_VERSION="(\d+\.\d+\.\d+)"/.exec(inst)[1];
+  assert.match(inst, /TRIVY_SHA256="[0-9a-f]{64}" # trivy_(\d+\.\d+\.\d+)_Linux-64bit\.tar\.gz/);
+  assert.equal(/# trivy_(\d+\.\d+\.\d+)_Linux-64bit/.exec(inst)[1], v, 'checksum belongs to the version');
+  assert.match(inst, /sha256sum -c/);
+  assert.ok(inst.indexOf('sha256sum -c') < inst.indexOf('tar -xzf'), 'checked before unpacking');
 });
