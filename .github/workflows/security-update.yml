@@ -264,30 +264,21 @@ jobs:
           digest="$(docker buildx imagetools inspect "$k" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           case "$digest" in sha256:*) ;; *) echo "::error::Cannot read the candidate digest ($digest)"; exit 1 ;; esac
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Install Trivy (fixed version, SHA-256 checked, no GitHub Action)
+        if: steps.diff.outputs.changed == 'true'
+        run: sh .github/scripts/install-trivy.sh "$RUNNER_TEMP/trivy"
       - name: Scan candidate for vulnerabilities (amd64)
         if: steps.diff.outputs.changed == 'true'
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE }}@${{ steps.cand.outputs.digest }}
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          format: json
-          output: trivy-amd64.json
-          exit-code: '0'
+        env:
+          DIGEST: ${{ steps.cand.outputs.digest }}
+        run: sh .github/scripts/trivy-scan.sh "$IMAGE@$DIGEST" trivy-amd64.json
       - if: steps.diff.outputs.changed == 'true'
         run: sh .github/scripts/trivy-check.sh trivy-amd64.json
       - name: Scan candidate for vulnerabilities (arm64)
         if: steps.diff.outputs.changed == 'true'
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
-          TRIVY_PLATFORM: linux/arm64
-        with:
-          image-ref: ${{ env.IMAGE }}@${{ steps.cand.outputs.digest }}
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          format: json
-          output: trivy-arm64.json
-          exit-code: '0'
+          DIGEST: ${{ steps.cand.outputs.digest }}
+        run: sh .github/scripts/trivy-scan.sh "$IMAGE@$DIGEST" trivy-arm64.json linux/arm64
       - if: steps.diff.outputs.changed == 'true'
         run: sh .github/scripts/trivy-check.sh trivy-arm64.json
       - name: Release files (offline images + checksums)
