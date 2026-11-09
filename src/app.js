@@ -133,6 +133,8 @@ export function createApp(db) {
         'style-src': ["'self'"],
         'img-src': ["'self'", 'data:', 'blob:'],
         'connect-src': ["'self'"],
+        // No web fonts (system fonts only) – no "https:"/"data:" from the Helmet defaults
+        'font-src': ["'self'"],
         // Service worker of the installable mobile app (/m/sw.js)
         'worker-src': ["'self'"],
         'form-action': ["'self'"],
