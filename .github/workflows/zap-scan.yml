@@ -1,0 +1,78 @@
+# ZAP security scan of the running program – part of the monthly code audit (same in all programs).
+#
+# When: the Tuesday one week before patch day (= first Tuesday of the month), at night. The code audit on the
+#   following Wednesday reads the report ("zap-report") and fixes confirmed findings in its pull request, which
+#   is published before patch day. By hand at any time: Actions → ZAP scan → Run workflow.
+#   Pull requests run it only when the scan itself changes (this file, zap-scan.sh, .zap/) – never for
+#   normal program changes.
+# What: builds the image from this state, starts it in a throwaway container with test data only and lets ZAP
+#   crawl and attack it WITHOUT login (spider, passive and active scan, at most ~30 minutes). Never against real
+#   servers. Findings do not fail the run – the audit evaluates them; a scan that could not run does.
+name: ZAP scan
+
+on:
+  schedule:
+    - cron: '23 1 * * 2'   # Tuesdays 01:23 UTC – only the one a week before patch day goes on (job step "due")
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/zap-scan.yml
+      - .github/scripts/zap-scan.sh
+      - .zap/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zap-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # ZAP pinned by digest (Dependabot does not track it: update together with the audit)
+  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable
+  ZAP_MINUTES: '25'
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The week before patch day?
+        id: due
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # scheduled: only if patch day (second Tuesday) is in 7 days; by hand / pull request: always
+          if [ "$EVENT" != schedule ] || sh .github/scripts/patchday.sh "$(date -u -d '+7 days' +%F)"; then
+            echo "due=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "due=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=ZAP scan::Not the week before patch day – nothing to do."
+          fi
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.due.outputs.due == 'true'
+      - name: Build image (amd64)
+        if: steps.due.outputs.due == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: helfi-zap:scan
+          build-args: VERSION=0.0.0-zap
+          cache-from: type=gha
+      - name: ZAP scan (no login, throwaway container)
+        if: steps.due.outputs.due == 'true'
+        run: sh .github/scripts/zap-scan.sh helfi-zap:scan zap-report
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.due.outputs.due == 'true'
+        with:
+          name: zap-report
+          path: |
+            zap-report/zap-report.html
+            zap-report/zap-report.json
+            zap-report/zap-report.md
+          retention-days: 90
+          if-no-files-found: warn
