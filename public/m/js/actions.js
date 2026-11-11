@@ -88,7 +88,22 @@ export function openStatusSheet(tk, { save, onResolved }) {
  * "Resolve": optional closing reply (with templates), same call as the desktop bulk resolve dialog.
  * kind 'rejected': reason required; 'duplicate': key of the original ticket required, note optional.
  */
-export function openResolveSheet(tk, { onResolved, kind = 'done', original = '' }) {
+export function openResolveSheet(tk, { onResolved, kind = 'done', original = '', internal: startInternal = false }) {
+  // "Done": closing reply to the reporter (default) or internal note – like on the desktop
+  let internal = kind === 'done' && state.isAgent && startInternal;
+  const labelEl = h('label');
+  const hintEl = h('p.m-field-hint');
+  const kindBtns = kind === 'done' && state.isAgent ? [
+    h('button', { type: 'button', 'data-done-kind': 'reply', onclick: () => setKind(false) }, t('bulk.asReply')),
+    h('button', { type: 'button', 'data-done-kind': 'note', onclick: () => setKind(true) }, t('bulk.asNote')),
+  ] : null;
+  function setKind(isInternal) {
+    internal = isInternal;
+    kindBtns?.forEach((b, i) => { const on = i === (internal ? 1 : 0); b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+    labelEl.textContent = kind === 'rejected' ? t('resolve.reason') : kind === 'duplicate' ? t('resolve.note') : t(internal ? 'done.noteLabel' : 'm.resolve.label');
+    hintEl.textContent = kind === 'rejected' ? t('resolve.reasonHint') : kind === 'duplicate' ? t('resolve.noteHint') : t(internal ? 'done.noteHint' : 'm.resolve.hint');
+    ta?.classList.toggle('m-internal', internal);
+  }
   const label = kind === 'rejected' ? t('resolve.reason') : kind === 'duplicate' ? t('resolve.note') : t('m.resolve.label');
   const ta = h('textarea.m-textarea', { rows: 5, placeholder: kind === 'rejected' ? t('resolve.reasonPlaceholder') : kind === 'duplicate' ? t('resolve.notePlaceholder') : t('bulk.commentPlaceholder'), 'aria-label': label });
   const orig = kind === 'duplicate' ? h('input.m-input', { type: 'text', value: original, autocapitalize: 'characters', autocomplete: 'off', spellcheck: false, placeholder: t('resolve.originalPlaceholder'), 'aria-label': t('resolve.original') }) : null;
@@ -105,7 +120,7 @@ export function openResolveSheet(tk, { onResolved, kind = 'done', original = '' 
       openCannedSheet(tk, (x) => { text = x; }, () => reopen(text === null ? before : before.slice(0, sel[0]) + text + before.slice(sel[1]), keep), { raw: true });
     },
   }, icon('comment'), t('m.reply.template')) : null;
-  const reopen = (text, keep = '') => { const s = openResolveSheet(tk, { onResolved, kind, original: keep }); const area = s.body.querySelector('textarea'); area.value = text; area.focus(); };
+  const reopen = (text, keep = '') => { const s = openResolveSheet(tk, { onResolved, kind, original: keep, internal }); const area = s.body.querySelector('textarea'); area.value = text; area.focus(); };
   async function submit() {
     if (busy) return;
     const text = ta.value.trim();
@@ -115,7 +130,7 @@ export function openResolveSheet(tk, { onResolved, kind = 'done', original = '' 
     try {
       // Placeholders like {melder} are filled in by the server for this ticket
       const r = kind === 'done'
-        ? await api.bulk({ keys: [tk.key], changes: { status: 'done' }, comment: text })
+        ? await api.bulk({ keys: [tk.key], changes: { status: 'done' }, ...(text ? { comment: text, internal } : {}) })
         : await api.bulk({ keys: [tk.key], comment: text, resolve: { resolution: kind, duplicateOf: orig ? orig.value.trim().toUpperCase() : null } });
       if (r.failed.length) throw new Error(r.failed.map((x) => x.error).join(', '));
       sheet.close();
@@ -126,12 +141,14 @@ export function openResolveSheet(tk, { onResolved, kind = 'done', original = '' 
       toast(e.message, 'error');
     }
   }
+  setKind(internal);
   const sheet = openSheet({
     title: kind === 'rejected' ? t('resolve.rejectTitle', { key: tk.key }) : kind === 'duplicate' ? t('resolve.duplicateTitle', { key: tk.key }) : t('m.resolve.title'),
     className: 'm-sheet-resolve',
     content: h('div.m-form',
       orig ? h('div.m-field', h('label', t('resolve.original')), orig, h('p.m-field-hint', t('resolve.originalHint'))) : null,
-      h('div.m-field', h('label', label), ta, h('p.m-field-hint', kind === 'rejected' ? t('resolve.reasonHint') : kind === 'duplicate' ? t('resolve.noteHint') : t('m.resolve.hint'))),
+      kindBtns ? h('div.m-segmented.m-done-kind', { role: 'group', 'aria-label': t('bulk.kind') }, ...kindBtns) : null,
+      h('div.m-field', labelEl, ta, hintEl),
       tpl ? h('div.m-form-tools', tpl) : null),
     footer: [h('button.m-btn', { type: 'button', onclick: () => sheet.close() }, t('app.cancel')), btn],
   });

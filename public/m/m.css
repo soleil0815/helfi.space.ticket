@@ -910,3 +910,6 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-login-source { margin-top: 4px; padding: 10px; font-size: 13px; color: var(--text-subtlest); text-decoration: none; }
 .m-version a { color: inherit; }
 .m-ai-duplicate { margin-top: 12px; }
+/* "Done" sheet: reply or internal note */
+.m-done-kind { flex: 0 0 auto; margin-bottom: 12px; }
+.m-textarea.m-internal { background: var(--yellow-subtle); border-color: var(--note-border); }

@@ -269,6 +269,10 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
+## Erledigen mit Abschlusskommentar
+
+*Erledigt* im Status-Menü öffnet ein Fenster für einen optionalen Abschlusskommentar: **Antwort an Melder** (voreingestellt, dann keine zusätzliche „Erledigt“-Mail) oder **interne Notiz**, mit Antwortvorlagen und Platzhaltern. Kommentieren und Schließen in einem Schritt; ohne Text wird einfach erledigt, <kbd>Strg</kbd>+<kbd>Enter</kbd> erledigt sofort. Genauso in der Mehrfachauswahl und auf dem Handy (*Status → Erledigt*).
+
 ## Ablehnen und Duplikate
 
 Ein erledigtes Ticket hat eine **Lösung**: *Erledigt*, *Abgelehnt* oder *Duplikat*. Intern bleibt der Status „Erledigt“ – Service Level, Board, Berichte, automatisches Schließen und Wiederöffnen funktionieren deshalb wie gewohnt.
