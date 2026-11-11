@@ -106,7 +106,11 @@ test('SSO-Claims', () => {
   assert.equal(u.username, 'J.Doe');
   assert.equal(u.trustName, true);
   assert.equal(u.email, 'J.Doe@firma.local');
-  assert.deepEqual(u.groups, { admin: true, agent: false });
+  assert.deepEqual(u.groups, { admin: true, agent: false, projects: [] });
+  // Project groups by name (same rules as admin/agent groups: case-insensitive)
+  const withProjects = claimsToUser({ iss: 'https://idp', sub: '124', preferred_username: 'h@firma.local', groups: ['haustechnik', 'Andere'] },
+    { ...cfg, projectGroups: [{ id: 3, key: 'HM', group: 'Haustechnik' }, { id: 4, key: 'IT', group: 'IT-Helpdesk' }] });
+  assert.deepEqual(withProjects.groups.projects, [3]);
   assert.equal(u.externalId, 'https://idp|123');
   assert.equal(u.trustEmail, true, 'address of the allowed domain');
   assert.equal(claimsToUser({ sub: '9', preferred_username: 'x@firma.local', email: 'x@gmail.example' }, cfg).trustEmail, false, 'foreign, unverified address');

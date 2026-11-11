@@ -27,7 +27,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Selbstregistrierung und „Kennwort vergessen“** für lokale Konten (Selbstregistrierung standardmäßig aus, „Kennwort vergessen“ standardmäßig für Benutzer-Konten), optional nur für bestimmte Domänen und mit Freigabe
 - **Automatische Abmeldung bei Inaktivität,** für Admins und Zugriffe von außen strenger einstellbar, mit „Noch da?“-Hinweis
 - **Wissensartikel mit 👍/👎-Bewertung** und Rückmeldungen, was gefehlt hat – Artikel, die eine Überarbeitung brauchen, auf einen Blick
-- **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen.
+- **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen. **Bearbeiter je Projekt:** Wer nur für die Haustechnik zuständig ist, sieht keine IT-Tickets – per AD/SSO-Projektgruppe oder von Hand ([Projektrechte](#projektrechte)).
 - **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht – einstellbar je Rolle.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
 - **Dunkelmodus:** Im Benutzermenü unter *Design* zwischen *System* (folgt dem Gerät), *Hell* und *Dunkel* wählen – am Handy unter *Ich → Design*. Die Wahl gilt für das Konto auf allen Geräten, auch mit eigener Firmenfarbe.
@@ -151,7 +151,7 @@ Ohne AD oder SSO schreiben Externe einfach eine Mail und werden als E-Mail-Konta
 5. **Verbindung testen**, am besten mit einer Testanmeldung. Ist der Base-DN leer, wird er dabei aus dem AD übernommen. Gibt es eine Microsoft-Zertifizierungsstelle (AD CS), findet der Test sie und bietet an, sie mit zu übernehmen. Dann bleiben auch erneuerte DC-Zertifikate automatisch gültig.
 6. **AD-Anmeldung aktivieren** und speichern.
 
-Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Benutzer werden bei der ersten Anmeldung angelegt. Ihre Rolle ergibt sich bei jeder Anmeldung aus den Gruppen, außer ein Admin hat sie unter *Benutzer* mit „Rolle fest“ gesperrt. Ändert ein Admin die Rolle von Hand, wird sie automatisch gesperrt.
+Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Benutzer werden bei der ersten Anmeldung angelegt. Ihre Rolle ergibt sich bei jeder Anmeldung aus den Gruppen, außer ein Admin hat sie unter *Benutzer* mit „Rolle fest“ gesperrt. Ändert ein Admin die Rolle von Hand, wird sie automatisch gesperrt. Zusätzlich kann jedes Projekt eine **Projektgruppe** haben (siehe [Projektrechte](#projektrechte)); *Verbindung testen* zeigt auch diese Gruppen und bei der Testanmeldung die Projekte der Person.
 
 **Gut zu wissen**
 
@@ -265,13 +265,26 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
   - im Web oder per Antwort-Mail kommentieren und Dateien anhängen
 - **Was Teilnehmer nicht dürfen:** interne Notizen sehen, Status, Zuweisung oder Titel ändern. Vom Melder und von anderen Antwortenden sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen (das gilt auch für Genehmigende ohne Bearbeiter-Rolle und in der Personensuche).
 - **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
-- **Erinnerung an Projektverantwortliche** (*Administration → E-Mail*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommt der Verantwortliche jedes Projekts eine Sammelmail mit den offenen Tickets, die seit X Tagen niemandem zugewiesen sind – mit Links zu den Tickets und zur gefilterten Liste. Ohne Verantwortlichen geht sie an die Admins, ohne liegengebliebene Tickets kommt keine Mail. Auf Wunsch nur Montag bis Freitag; *Jetzt prüfen und senden* zum Ausprobieren.
+- **Erinnerung an Projektverantwortliche** (*Administration → E-Mail*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommt der Verantwortliche jedes Projekts eine Sammelmail mit den offenen Tickets, die seit X Tagen niemandem zugewiesen sind – mit Links zu den Tickets und zur gefilterten Liste. Ohne Verantwortlichen (oder wenn er kein Bearbeiter des Projekts ist) geht sie an die Admins, ohne liegengebliebene Tickets kommt keine Mail. Auf Wunsch nur Montag bis Freitag; *Jetzt prüfen und senden* zum Ausprobieren.
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
 ## Erledigen mit Abschlusskommentar
 
 *Erledigt* im Status-Menü öffnet ein Fenster für einen optionalen Abschlusskommentar: **Antwort an Melder** (voreingestellt, dann keine zusätzliche „Erledigt“-Mail) oder **interne Notiz**, mit Antwortvorlagen und Platzhaltern. Kommentieren und Schließen in einem Schritt; ohne Text wird einfach erledigt, <kbd>Strg</kbd>+<kbd>Enter</kbd> erledigt sofort. Genauso in der Mehrfachauswahl und auf dem Handy (*Status → Erledigt*).
+
+## Projektrechte
+
+Standardmäßig sind Bearbeiter für **alle Projekte** zuständig – so wie bisher, beim Update ändert sich nichts. Gibt es mehrere Abteilungen (z. B. IT und Haustechnik), lässt sich das einschränken: Ein Bearbeiter für **nur bestimmte Projekte** sieht und bearbeitet nur deren Tickets. Für alle anderen Projekte ist er ein normaler Benutzer: Er sieht dort nur seine eigenen Anfragen (oder solche, an denen er beteiligt ist), ohne interne Notizen, Verlauf und Bearbeiter-Werkzeuge.
+
+- **Projektgruppe (AD/SSO):** *Administration → Projekte → Bearbeiter* – z. B. `IT-Helpdesk` beim Projekt IT. Wer in der Gruppe ist, wird bei der Anmeldung Bearbeiter dieses Projekts; mehrere Gruppen = mehrere Projekte. Wer zusätzlich in der allgemeinen Bearbeiter-Gruppe ist, bleibt für alle Projekte zuständig. Eine Projektgruppe macht nie jemanden zum einfachen Benutzer oder nimmt Admin-Rechte weg. Die Mitgliedschaft wird bei jeder Anmeldung abgeglichen; wird die Gruppe geändert, gelten die alten Mitgliedschaften sofort nicht mehr.
+- **Von Hand:** im selben Fenster Bearbeiter ankreuzen oder unter *Benutzer → Projekte ändern* „Alle Projekte“ / „Nur diese Projekte“ wählen. Das setzt „Rolle fest“, damit AD-Gruppen es nicht überschreiben.
+- **Auf einen Blick:** In *Benutzer* steht unter jeder Rolle, was die Person sieht, z. B. „Sieht: IT, HM – über Gruppe IT-Helpdesk“.
+- **Eingeschränkt wird überall:** Ticketlisten, Suche (interne Notizen fremder Projekte finden nichts), Board, Warteschlangen und Zähler, Zusammenfassung, Berichte, SLA, Probleme, Changes, Major Incidents, Verknüpfungen, Geräte-Verlauf, KI-Funktionen, @-Erwähnungen in internen Notizen und Zuweisen (nur an Bearbeiter des Projekts). Verschieben geht nur in eigene Projekte; wird ein Ticket in ein Projekt verschoben, für das der Zugewiesene nicht zuständig ist, ist es danach niemandem zugewiesen.
+- **Gemeinsam bleiben** Wissensdatenbank, Antwortvorlagen, Geräte & Dienste und die Personensuche.
+- **Admins** sind immer für alle Projekte zuständig.
+
+Beispiel Umstellung: Projektgruppe `IT-Helpdesk` beim Projekt IT eintragen, Konten der IT in diese Gruppe, Haustechnik entsprechend mit `Haustechnik`. Wer in beiden Abteilungen arbeitet, kommt in beide Gruppen.
 
 ## Ablehnen und Duplikate
 

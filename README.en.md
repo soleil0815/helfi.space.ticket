@@ -27,7 +27,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Self-registration and "forgot password"** for local accounts (self-registration off by default, "forgot password" on for user accounts by default), optionally only for certain domains and with approval
 - **Automatic sign-out when idle,** stricter for admins and access from outside if desired, with a "Still there?" prompt
 - **Knowledge articles with 👍/👎 rating** and feedback on what was missing – articles that need rework at a glance
-- **Roles:** administrator, agent, user. Users only see their own requests.
+- **Roles:** administrator, agent, user. Users only see their own requests. **Agents per project:** someone only responsible for facilities never sees IT tickets – via an AD/SSO project group or by hand ([Project rights](#project-rights)).
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
 - **Dark mode:** choose *System* (follows the device), *Light* or *Dark* under *Theme* in the user menu – on phones under *Me → Theme*. The choice is stored with the account on all devices, also with a custom brand colour.
@@ -151,7 +151,7 @@ Without AD or SSO, external people simply send an email and are kept as an email
 5. **Test connection**, ideally with a test sign-in. If the base DN is empty, it is taken from the AD. If there is a Microsoft certification authority (AD CS), the test finds it and offers to accept it too. Renewed DC certificates then stay valid automatically.
 6. **Enable AD sign-in** and save.
 
-Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users are created on their first sign-in. Their role follows from their groups at every sign-in, unless an admin has locked it under *Users* with "fixed role". If an admin changes a role by hand, it is locked automatically.
+Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users are created on their first sign-in. Their role follows from their groups at every sign-in, unless an admin has locked it under *Users* with "fixed role". If an admin changes a role by hand, it is locked automatically. In addition every project can have a **project group** (see [Project rights](#project-rights)); *Test connection* also shows these groups and, with a test sign-in, the person's projects.
 
 **Good to know**
 
@@ -265,13 +265,26 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
   - comment and attach files on the web or by replying to a mail
 - **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
-- **Reminder to project leads** (*Administration → Email*, off by default): once a day at the set time, the lead of each project gets one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without a lead it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
+- **Reminder to project leads** (*Administration → Email*, off by default): once a day at the set time, the lead of each project gets one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without a lead (or if the lead is not an agent of the project) it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
 ## Resolving with a closing comment
 
 *Done* in the status menu opens a window for an optional closing comment: **reply to reporter** (default, then no extra “Resolved” mail) or **internal note**, with reply templates and placeholders. Comment and close in one step; without text the ticket is simply resolved, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> resolves right away. The same in the multiple selection and on phones (*Status → Done*).
+
+## Project rights
+
+By default agents work on **all projects** – as before, nothing changes with the update. With several departments (e.g. IT and facilities) this can be narrowed: an agent for **selected projects only** sees and works on their tickets only. For every other project they are a normal user: there they only see their own requests (or those they take part in), without internal notes, history and agent tools.
+
+- **Project group (AD/SSO):** *Administration → Projects → Agents* – e.g. `IT-Helpdesk` for the IT project. Members of the group become agents of this project on sign-in; several groups = several projects. Whoever is also in the general agent group stays responsible for all projects. A project group never turns anyone into a plain user or removes admin rights. Membership is checked at every sign-in; when the group is changed, the old memberships stop counting at once.
+- **By hand:** tick agents in the same window, or choose “All projects” / “These projects only” under *Users → Change projects*. This sets “Role locked”, so AD groups do not overwrite it.
+- **At a glance:** under each role *Users* shows what the person sees, e.g. “Sees: IT, HM – via group IT-Helpdesk”.
+- **Restricted everywhere:** ticket lists, search (internal notes of other projects find nothing), board, queues and counts, summary, reports, SLA, problems, changes, major incidents, links, device history, AI functions, @-mentions in internal notes and assigning (only to agents of the project). Moving is only possible into one's own projects; a ticket moved into a project its assignee does not work on is unassigned afterwards.
+- **Shared:** knowledge base, reply templates, devices & services and the people search.
+- **Admins** always work on all projects.
+
+Example: enter the project group `IT-Helpdesk` for the IT project and put the IT accounts in it, facilities likewise with `Facilities`. Whoever works in both departments joins both groups.
 
 ## Rejecting and duplicates
 

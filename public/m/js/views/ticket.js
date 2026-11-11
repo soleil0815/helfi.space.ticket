@@ -33,10 +33,12 @@ export async function renderTicket(page, ctx) {
   page.body.replaceChildren(skeleton());
   let tk;
   let bar = null;
-  const agent = state.isAgent;
+  // Agent tools only for tickets of the agent's projects (set with each load)
+  let agent = false;
 
   const load = async () => {
     const fresh = (await api.ticket(tk?.key || key)).ticket;
+    agent = !!fresh.agentView;
     if (!page.el.isConnected && !page.isActive()) { tk = fresh; return; }
     if (tk && fresh.key !== tk.key) bar?.rekey(tk.key, fresh.key);
     tk = fresh;

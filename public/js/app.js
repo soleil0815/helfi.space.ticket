@@ -310,9 +310,9 @@ function layout(content, path) {
       p ? h('div.sidebar-project',
         h('div.project-avatar', p.key.slice(0, 2)),
         h('div', h('div.project-name', p.name), h('div.project-sub', p.key)),
-        state.projects.length > 1 ? h('button.btn-icon', {
+        state.agentProjects.length > 1 ? h('button.btn-icon', {
           type: 'button', title: t('nav.projects'),
-          onclick: (e) => dropdown(e.currentTarget, state.projects.map((pr) => ({
+          onclick: (e) => dropdown(e.currentTarget, state.agentProjects.map((pr) => ({
             label: `${pr.name} (${pr.key})`, active: pr.key === p.key,
             onClick: () => { state.project = pr; route(); },
           }))),

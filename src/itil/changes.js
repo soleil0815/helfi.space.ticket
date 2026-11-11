@@ -1,6 +1,6 @@
 // Change management: standard/normal/emergency, phases, approval (CAB), calendar, review.
 import { HttpError, forbidden, str } from '../lib/http.js';
-import { isAgent } from '../auth/session.js';
+import { isAgent, agentOn } from '../auth/session.js';
 import { log } from '../lib/log.js';
 
 export const PHASES = ['draft', 'approval', 'approved', 'rejected', 'scheduled', 'implementing', 'review', 'closed'];
@@ -46,6 +46,7 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
   function transition(user, key, to, { outcome = null, review = null } = {}) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);
+    if (!agentOn(user, row.project_id)) throw forbidden();
     if (row.type !== 'change') throw new HttpError(400, 'err.notChange');
     const f = state(row);
     if (!nextPhases(f).includes(to)) throw new HttpError(400, 'err.changePhase', `${f.phase}→${to}`);
@@ -76,6 +77,7 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
   function requestLate(user, key) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);
+    if (!agentOn(user, row.project_id)) throw forbidden();
     const f = state(row);
     if (row.type !== 'change' || f.changeType !== 'emergency' || f.phase === 'draft' || approvals.current(row.id).round) throw new HttpError(400, 'err.changePhase');
     const ids = approvals.approverUsers(approverIds()).map((u) => u.id);
@@ -104,11 +106,11 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
   }
 
   /** Calendar: changes with a planned period, overlaps marked */
-  function calendar(fromIso, toIso) {
-    const rows = db.prepare(`SELECT t.id FROM tickets t
+  function calendar(fromIso, toIso, user = null) {
+    const rows = db.prepare(`SELECT t.id, t.project_id FROM tickets t
       JOIN ticket_fields s ON s.ticket_id=t.id AND s.name='plannedStart' AND s.value<>''
       JOIN ticket_fields e ON e.ticket_id=t.id AND e.name='plannedEnd' AND e.value<>''
-      WHERE t.type='change' AND s.value < ? AND e.value > ?`).all(toIso, fromIso);
+      WHERE t.type='change' AND s.value < ? AND e.value > ?`).all(toIso, fromIso).filter((r) => !user || agentOn(user, r.project_id));
     const items = rows.map((r) => {
       const tk = tickets.ticketOut(tickets.rawById(r.id));
       const f = state(tickets.rawById(r.id));
@@ -141,7 +143,7 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
   }
 
   tickets.addDetailExtra((user, row) => {
-    if (!isAgent(user) || row.type !== 'change') return {};
+    if (!agentOn(user, row.project_id) || row.type !== 'change') return {};
     const f = state(row);
     return { change: { phase: f.phase, next: nextPhases(f), approvals: approvals.current(row.id), mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id) } };
   });

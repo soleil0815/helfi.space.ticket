@@ -5,7 +5,7 @@
 // anything itself. Runs in the background (one at a time, small queue), never blocks creating a
 // ticket; hit rate = accepted against dismissed/corrected.
 import { HttpError, notFound, str } from './lib/http.js';
-import { isAgent } from './auth/session.js';
+import { isAgent, agentOn } from './auth/session.js';
 import { log } from './lib/log.js';
 import { significantWords } from './itil/links.js';
 
@@ -116,7 +116,7 @@ export function createAiDuplicates({ db, tickets, ai }) {
 
   // Agents see an open hint while the ticket is not done and the original still exists
   tickets.addDetailExtra((user, row) => {
-    if (!isAgent(user) || row.status === 'done') return {};
+    if (!agentOn(user, row.project_id) || row.status === 'done') return {};
     const s = db.prepare("SELECT * FROM duplicate_suggestions WHERE ticket_id=? AND state='pending'").get(row.id);
     if (!s || !s.original_id) return {};
     const o = tickets.rawById(s.original_id);
@@ -128,6 +128,7 @@ export function createAiDuplicates({ db, tickets, ai }) {
   function dismiss(user, key) {
     const row = tickets.load(user, key);
     if (!isAgent(user)) throw notFound();
+    if (!agentOn(user, row.project_id)) throw notFound();
     if (!decide(row.id, 'rejected', user.id).changes) throw new HttpError(409, 'err.noSuggestion');
     return { ok: true };
   }

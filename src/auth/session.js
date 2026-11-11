@@ -4,6 +4,7 @@ import { randomToken } from '../lib/crypto.js';
 import { config } from '../config.js';
 import { HttpError } from '../lib/http.js';
 import { normalizeUsername } from './ldap.js';
+import { withProjects as loadProjects } from './access.js';
 
 export const COOKIE = 'helfi_sid';
 // Maximum session lifetime from sign-in – after that sign in again, even with constant use
@@ -108,7 +109,7 @@ export function createSessions(db, { policy, settings } = {}) {
           // Session without second factor (e.g. signed in at the office), but now from outside → sign in again
           req.mfaBlocked = true;
         } else if (row && row.expires_at > Date.now() && row.active) {
-          req.user = row;
+          req.user = loadProjects(db, row);
           req.sessionId = id;
           // Activity: remember it at most once per minute (never beyond the maximum lifetime).
           // Asking for the remaining time is not activity.
@@ -118,7 +119,6 @@ export function createSessions(db, { policy, settings } = {}) {
             const until = Math.min(now + ttl(), Number(row.session_created) + SESSION_MAX_AGE_MS);
             touch.run(until, now, id);
             row.session_seen = now;
-            req.user = row;
             res.cookie(COOKIE, token, cookieOpts(until - now));
           }
         } else if (row) {
@@ -161,7 +161,7 @@ export function requireRole(role) {
   };
 }
 
-export const isAgent = (user) => user && (user.role === 'agent' || user.role === 'admin');
+export { isAgent, agentProjects, agentOn, projectScopeSql, withProjects } from './access.js';
 
 /**
  * Protection against password guessing (15-minute window):

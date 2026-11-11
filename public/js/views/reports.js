@@ -64,7 +64,7 @@ export async function renderReports(content, params) {
       onchange: (e) => (e.target.value === 'custom' ? go({ from: range.from, to: range.to, project: f.project }) : go({ period: e.target.value === '30' ? '' : e.target.value, project: f.project })),
     }),
     preset === 'custom' ? h('span.date-range', fromInput, h('span.muted', '–'), toInput) : h('span.muted.small', `${fmtDay(range.from, {})} – ${fmtDay(range.to, {})}`),
-    state.projects.length > 1 ? select([['', t('nav.allProjects')], ...state.projects.map((p) => [p.key, p.name])], f.project || '', {
+    state.agentProjects.length > 1 ? select([['', t('nav.allProjects')], ...state.agentProjects.map((p) => [p.key, p.name])], f.project || '', {
       class: 'select-sm', onchange: (e) => go({ ...(preset === 'custom' ? { from: range.from, to: range.to } : { period: preset === '30' ? '' : preset }), project: e.target.value }),
     }) : null);
 
@@ -91,7 +91,7 @@ export async function renderReports(content, params) {
       h('section.panel.chart-panel', h('h2', t('reports.resolvedByAgent')), barChart(data.agents, tip)),
       h('section.panel.chart-panel', h('h2', t('reports.createdVsResolved')), lineChart(data.series, tip))),
     agentTable(data),
-    componentTable(data, !f.project && state.projects.length > 1));
+    componentTable(data, !f.project && state.agentProjects.length > 1));
   const q = { from: range.from, to: range.to, project: f.project || '' };
   const [itil, sat] = await Promise.all([itilPanel(q), satisfactionPanel(q)]);
   if (itil) host.append(itil);

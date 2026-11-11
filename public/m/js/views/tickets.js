@@ -131,7 +131,7 @@ export async function renderTickets(page, ctx) {
       group(t('ticket.priority'), 'priority', [['', all], ...PRIOS.map((x) => [x, t(`priority.${x}`), priorityIcon(x)])]),
       state.isAgent ? group(t('ticket.assignee'), 'assignee', [['', all], ['me', t('app.me'), avatar(state.user, 'xs')], ['none', t('app.unassigned'), avatar(null, 'xs')],
         ...state.agents.filter((a) => a.id !== state.user.id).map((a) => [String(a.id), a.displayName, avatar(a, 'xs')])]) : null,
-      state.projects.length > 1 ? group(t('ticket.project'), 'project', [['', all], ...state.projects.map((p) => [p.key, p.name])]) : null,
+      state.agentProjects.length > 1 ? group(t('ticket.project'), 'project', [['', all], ...state.agentProjects.map((p) => [p.key, p.name])]) : null,
     ];
     let apply = null;
     const sheet = openSheet({

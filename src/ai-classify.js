@@ -6,7 +6,7 @@
 // The hit rate counts accepted against corrected suggestions.
 import { HttpError, notFound, str, int } from './lib/http.js';
 import { matchComponent, reasonDetail } from './components.js';
-import { isAgent } from './auth/session.js';
+import { isAgent, agentOn, projectScopeSql } from './auth/session.js';
 import { log } from './lib/log.js';
 import { looksRemote } from './ai.js';
 
@@ -114,7 +114,7 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
 
   // Agents see an open suggestion in the ticket (only while the ticket has no component)
   tickets.addDetailExtra((user, row) => {
-    if (!isAgent(user) || row.component_id) return {};
+    if (!agentOn(user, row.project_id) || row.component_id) return {};
     const s = db.prepare("SELECT * FROM component_suggestions WHERE ticket_id=? AND state='pending' AND component_id IS NOT NULL").get(row.id);
     return s ? { componentSuggestion: { id: s.component_id, name: s.component_name, reason: s.reason, model: s.model } } : {};
   });
@@ -122,6 +122,7 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
   function pending(user, key) {
     const row = tickets.load(user, key);
     if (!isAgent(user)) throw notFound();
+    if (!agentOn(user, row.project_id)) throw notFound();
     const s = db.prepare("SELECT * FROM component_suggestions WHERE ticket_id=? AND state='pending'").get(row.id);
     if (!s || !s.component_id || row.component_id) throw new HttpError(409, 'err.noSuggestion');
     return { row, s };
@@ -265,11 +266,13 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
   }
 
   /** Open suggestions (state pending) for the review list, newest first */
-  function pendingList(projectId) {
+  /** user (optional): only tickets of the agent's projects */
+  function pendingList(projectId, user = null) {
+    const ps = user ? projectScopeSql(user) : { sql: '1', args: [] };
     const rows = db.prepare(`SELECT s.ticket_id, s.component_id, s.component_name, s.reason, s.model, s.created_at, s.backfill
       FROM component_suggestions s JOIN tickets t ON t.id=s.ticket_id
-      WHERE s.state='pending' AND s.component_id IS NOT NULL AND t.component_id IS NULL ${projectId ? 'AND t.project_id=?' : ''}
-      ORDER BY t.id DESC LIMIT 500`).all(...(projectId ? [int(projectId) || 0] : []));
+      WHERE s.state='pending' AND s.component_id IS NOT NULL AND t.component_id IS NULL AND ${ps.sql} ${projectId ? 'AND t.project_id=?' : ''}
+      ORDER BY t.id DESC LIMIT 500`).all(...ps.args, ...(projectId ? [int(projectId) || 0] : []));
     return rows.map((r) => {
       const t = tickets.rawById(r.ticket_id);
       return {

@@ -1,6 +1,6 @@
 // Knowledge base: articles internal (agents only) or public (all signed-in users).
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
-import { isAgent } from '../auth/session.js';
+import { isAgent, agentOn } from '../auth/session.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -292,6 +292,7 @@ export function createKb(db, tickets) {
   function draftFromTicket(user, key) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);
+    if (!agentOn(user, row.project_id)) throw forbidden();
     const lastReply = db.prepare(`SELECT c.body FROM comments c JOIN users u ON u.id=c.author_id WHERE c.ticket_id=? AND c.internal=0 AND u.role IN ('agent','admin') ORDER BY c.created_at DESC LIMIT 1`).get(row.id);
     const f = row.type === 'problem' ? db.prepare("SELECT name, value FROM ticket_fields WHERE ticket_id=? AND name IN ('rootCause','workaround')").all(row.id) : [];
     const field = (n) => f.find((x) => x.name === n)?.value || '';

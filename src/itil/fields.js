@@ -1,6 +1,6 @@
 // Extra fields per ticket type (problem, change). Only agents read and change them.
 import { HttpError, forbidden, str } from '../lib/http.js';
-import { isAgent } from '../auth/session.js';
+import { isAgent, agentOn } from '../auth/session.js';
 
 // name → { type: 'text' | 'bool' | 'enum' | 'datetime', max, values }
 export const FIELD_DEFS = {
@@ -52,6 +52,7 @@ export function createFields(db, tickets) {
   function update(user, key, data = {}, { allowed = null } = {}) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);
+    if (!agentOn(user, row.project_id)) throw forbidden();
     const defs = FIELD_DEFS[row.type];
     if (!defs) throw new HttpError(400, 'err.badRequest', 'type');
     const before = read(row.id, row.type);
@@ -71,7 +72,7 @@ export function createFields(db, tickets) {
     return read(row.id, row.type);
   }
 
-  tickets.addDetailExtra((user, row) => (isAgent(user) && FIELD_DEFS[row.type] ? { fields: read(row.id, row.type) } : {}));
+  tickets.addDetailExtra((user, row) => (agentOn(user, row.project_id) && FIELD_DEFS[row.type] ? { fields: read(row.id, row.type) } : {}));
 
   return { read, update, defs: FIELD_DEFS };
 }

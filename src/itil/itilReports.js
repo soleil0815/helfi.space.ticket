@@ -1,16 +1,19 @@
 // ITIL metrics: SLA compliance, reopenings, first contact resolution, changes per month.
 import { HttpError } from '../lib/http.js';
 import { parseRange } from '../reports.js';
+import { agentProjects } from '../auth/access.js';
 
 const SERVICE_TYPES = ['incident', 'request', 'question', 'task'];
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
 
 export function createItilReports(db, sla) {
-  const projectIdOf = (key) => {
-    if (!key) return null;
+  /** Projects covered: null = all, otherwise a list of ids (the selected one, or the agent's projects) */
+  const projectIdOf = (key, user) => {
+    const scope = user ? agentProjects(user) : null;
+    if (!key) return scope;
     const pr = db.prepare('SELECT id FROM projects WHERE key=?').get(String(key).toUpperCase());
-    if (!pr) throw new HttpError(404, 'err.notFound');
-    return pr.id;
+    if (!pr || (scope && !scope.includes(pr.id))) throw new HttpError(404, 'err.notFound');
+    return [pr.id];
   };
   const statusChanges = db.prepare("SELECT old_value, new_value, created_at FROM activity WHERE ticket_id=? AND action='changed' AND field='status' ORDER BY created_at, id");
   const agentReplies = db.prepare(`SELECT COUNT(*) n FROM comments c JOIN users u ON u.id=c.author_id
@@ -24,8 +27,8 @@ export function createItilReports(db, sla) {
   function resolvedInRange(range, projectId) {
     return db.prepare(`SELECT DISTINCT t.* FROM tickets t JOIN activity a ON a.ticket_id=t.id
       WHERE a.action='changed' AND a.field='status' AND a.new_value='done' AND a.created_at>=? AND a.created_at<?
-      AND t.type IN (${SERVICE_TYPES.map(() => '?').join(',')}) ${projectId ? 'AND t.project_id=?' : ''}`)
-      .all(range.fromIso, range.toIso, ...SERVICE_TYPES, ...(projectId ? [projectId] : []))
+      AND t.type IN (${SERVICE_TYPES.map(() => '?').join(',')}) ${projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : ''}`)
+      .all(range.fromIso, range.toIso, ...SERVICE_TYPES, ...(projectId ? [JSON.stringify(projectId)] : []))
       .filter((t) => !(t.reporter_id && reporterIsAgent.get(t.reporter_id)));
   }
 
@@ -76,8 +79,8 @@ export function createItilReports(db, sla) {
         (SELECT value FROM ticket_fields f WHERE f.ticket_id=t.id AND f.name='changeType') kind,
         (SELECT value FROM ticket_fields f WHERE f.ticket_id=t.id AND f.name='outcome') outcome,
         (SELECT value FROM ticket_fields f WHERE f.ticket_id=t.id AND f.name='phase') phase
-      FROM tickets t WHERE t.type='change' AND t.created_at>=? AND t.created_at<? ${projectId ? 'AND t.project_id=?' : ''}`)
-      .all(range.fromIso, range.toIso, ...(projectId ? [projectId] : []));
+      FROM tickets t WHERE t.type='change' AND t.created_at>=? AND t.created_at<? ${projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : ''}`)
+      .all(range.fromIso, range.toIso, ...(projectId ? [JSON.stringify(projectId)] : []));
     const months = new Map();
     for (const r of rows) {
       const m = r.created_at.slice(0, 7);
@@ -97,7 +100,7 @@ export function createItilReports(db, sla) {
 
   /** Problems: new, resolved, known errors, linked incidents */
   function problems(range, projectId) {
-    const p = projectId ? 'AND t.project_id=?' : ''; const pa = projectId ? [projectId] : [];
+    const p = projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : ''; const pa = projectId ? [JSON.stringify(projectId)] : [];
     const created = db.prepare(`SELECT COUNT(*) n FROM tickets t WHERE t.type='problem' AND t.created_at>=? AND t.created_at<? ${p}`).get(range.fromIso, range.toIso, ...pa).n;
     const resolved = db.prepare(`SELECT COUNT(DISTINCT t.id) n FROM tickets t JOIN activity a ON a.ticket_id=t.id
       WHERE t.type='problem' AND a.action='changed' AND a.field='status' AND a.new_value='done' AND a.created_at>=? AND a.created_at<? ${p}`).get(range.fromIso, range.toIso, ...pa).n;
@@ -107,9 +110,9 @@ export function createItilReports(db, sla) {
     return { created, resolved, open, knownErrors };
   }
 
-  function report(query = {}) {
+  function report(query = {}, user = null) {
     const range = parseRange(query);
-    const projectId = projectIdOf(query.project);
+    const projectId = projectIdOf(query.project, user);
     const rows = resolvedInRange(range, projectId);
     return {
       range: { from: range.from, to: range.to },
@@ -117,8 +120,8 @@ export function createItilReports(db, sla) {
       sla: slaCompliance(rows),
       changes: changes(range, projectId),
       problems: problems(range, projectId),
-      majorIncidents: db.prepare(`SELECT COUNT(*) n FROM tickets t WHERE t.major=1 AND t.created_at>=? AND t.created_at<? ${projectId ? 'AND t.project_id=?' : ''}`)
-        .get(range.fromIso, range.toIso, ...(projectId ? [projectId] : [])).n,
+      majorIncidents: db.prepare(`SELECT COUNT(*) n FROM tickets t WHERE t.major=1 AND t.created_at>=? AND t.created_at<? ${projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : ''}`)
+        .get(range.fromIso, range.toIso, ...(projectId ? [JSON.stringify(projectId)] : [])).n,
     };
   }
 

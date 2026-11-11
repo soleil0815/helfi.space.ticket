@@ -2,6 +2,7 @@
 // the project's open tickets that nobody has taken on for X days – so tickets created in Helfi.Space are
 // noticed even if nobody looks in every day. Off by default (reminder.unassignedDays = 0).
 import { log } from '../lib/log.js';
+import { agentOn } from '../auth/access.js';
 
 const DAY = 86400000;
 const MAX_LIST = 30;
@@ -20,10 +21,11 @@ export function createReminders(db, settings, { mailer, users, baseUrl, t }) {
       WHERE t.project_id=? AND t.status<>'done' AND t.assignee_id IS NULL AND t.created_at<=? ORDER BY t.created_at, t.id`).all(projectId, before);
   }
 
-  /** Who gets the mail: the project lead, otherwise all active admins with an address. */
+  /** Who gets the mail: the project lead (if an agent of the project), otherwise all active admins with an address. */
   function recipients(project) {
     const lead = project.lead_id ? users.byId(project.lead_id) : null;
-    if (lead?.active && lead.email) return [lead];
+    // The lead must be able to open the tickets: an agent of this project
+    if (lead?.active && lead.email && agentOn(lead, project.id)) return [lead];
     return db.prepare("SELECT * FROM users WHERE role='admin' AND active=1 AND email IS NOT NULL AND email<>''").all();
   }
 

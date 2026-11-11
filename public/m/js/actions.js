@@ -90,10 +90,11 @@ export function openStatusSheet(tk, { save, onResolved }) {
  */
 export function openResolveSheet(tk, { onResolved, kind = 'done', original = '', internal: startInternal = false }) {
   // "Done": closing reply to the reporter (default) or internal note – like on the desktop
-  let internal = kind === 'done' && state.isAgent && startInternal;
+  const agentHere = tk.agentView ?? state.isAgent;
+  let internal = kind === 'done' && agentHere && startInternal;
   const labelEl = h('label');
   const hintEl = h('p.m-field-hint');
-  const kindBtns = kind === 'done' && state.isAgent ? [
+  const kindBtns = kind === 'done' && agentHere ? [
     h('button', { type: 'button', 'data-done-kind': 'reply', onclick: () => setKind(false) }, t('bulk.asReply')),
     h('button', { type: 'button', 'data-done-kind': 'note', onclick: () => setKind(true) }, t('bulk.asNote')),
   ] : null;
@@ -109,7 +110,7 @@ export function openResolveSheet(tk, { onResolved, kind = 'done', original = '',
   const orig = kind === 'duplicate' ? h('input.m-input', { type: 'text', value: original, autocapitalize: 'characters', autocomplete: 'off', spellcheck: false, placeholder: t('resolve.originalPlaceholder'), 'aria-label': t('resolve.original') }) : null;
   let busy = false;
   const btn = h('button.m-btn.m-btn-primary', { type: 'button', onclick: () => submit() }, icon(kind === 'done' ? 'check' : kind === 'rejected' ? 'close' : 'copy'), kind === 'rejected' ? t('resolve.rejectBtn') : kind === 'duplicate' ? t('resolve.duplicateBtn') : t('bulk.resolve'));
-  const tpl = state.isAgent ? h('button.m-btn.m-btn-ghost', {
+  const tpl = agentHere ? h('button.m-btn.m-btn-ghost', {
     type: 'button',
     onclick: () => {
       const sel = [ta.selectionStart, ta.selectionEnd];
@@ -214,7 +215,8 @@ export function openCannedSheet(tk, onPick, onClose, { raw = false } = {}) {
 // ---------- Assignee, priority, type ----------
 export function openAssigneeSheet(tk, save) {
   const me = state.user;
-  const others = state.agents.filter((a) => a.id !== me.id);
+  // agents of the ticket's project only
+  const others = state.agents.filter((a) => a.id !== me.id && (!Array.isArray(tk.assignableIds) || tk.assignableIds.includes(a.id)));
   const options = [
     { value: me.id, label: me.displayName, sub: t('m.assignee.me'), iconEl: avatar(me, 'sm'), keywords: me.username },
     ...others.map((a) => ({ value: a.id, label: a.displayName, sub: a.username !== a.displayName ? a.username : '', iconEl: avatar(a, 'sm'), keywords: a.email || '' })),
@@ -353,7 +355,7 @@ function peopleSearch({ input, results, current = null, adOn, allowEmail, exclud
 }
 
 export function openParticipantsSheet(getTicket, { changed, left }) {
-  const agent = state.isAgent;
+  const agent = getTicket()?.agentView ?? state.isAgent;
   const adOn = agent && !!state.boot?.adPeople;
   const canRemove = (tk, p) => agent || tk.reporter?.id === state.user.id || p.id === state.user.id;
   const input = h('input.m-sheet-search-input', {

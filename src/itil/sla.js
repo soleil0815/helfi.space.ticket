@@ -1,6 +1,7 @@
 // Service level agreements: targets for first response and resolution per priority, in business hours.
 // "Waiting" (for the reporter) pauses the resolution clock. Computed on demand from history and comments.
 import { log } from '../lib/log.js';
+import { agentOn, projectScopeSql } from '../auth/access.js';
 
 export const DEFAULT_TARGETS = {
   highest: { response: 30, resolve: 240 },
@@ -123,10 +124,12 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
     return { state: c.state, remaining: c.remaining, due: c.due, kind: c === s.response ? 'response' : 'resolve', paused: !!c.paused };
   }
 
-  function atRisk(projectKey = null) {
+  /** Ticket ids whose SLA is at risk; user: only tickets of the agent's projects */
+  function atRisk(projectKey = null, user = null) {
     if (!enabled()) return [];
+    const ps = user ? projectScopeSql(user) : { sql: '1', args: [] };
     const rows = db.prepare(`SELECT t.*, p.key project_key FROM tickets t JOIN projects p ON p.id=t.project_id
-      WHERE t.status<>'done' AND p.archived=0 ${projectKey ? 'AND p.key=?' : ''}`).all(...(projectKey ? [String(projectKey).toUpperCase()] : []));
+      WHERE t.status<>'done' AND p.archived=0 AND ${ps.sql} ${projectKey ? 'AND p.key=?' : ''}`).all(...ps.args, ...(projectKey ? [String(projectKey).toUpperCase()] : []));
     return rows.filter((r) => ['warning', 'breached'].includes(worst(forRow(r))?.state)).map((r) => r.id);
   }
 
@@ -169,7 +172,7 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
   }
 
   tickets.addDetailExtra((user, row) => {
-    if (!['agent', 'admin'].includes(user?.role)) return {};
+    if (!user || !agentOn(user, row.project_id)) return {};
     const s = forRow(row);
     return s ? { sla: s } : {};
   });

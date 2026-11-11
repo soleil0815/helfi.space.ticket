@@ -32,6 +32,8 @@ const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 import { TYPES, typesFor } from '../types.js';
 import { projectComponents } from '../components.js';
 const PRIOS = ['highest', 'high', 'medium', 'low'];
+/** Agents who may get this ticket: those of its project (the ticket says which) */
+const assignable = (tk) => (Array.isArray(tk.assignableIds) ? state.agents.filter((a) => tk.assignableIds.includes(a.id)) : state.agents);
 
 export async function renderTicket(content, key) {
   let tk = (await api.ticket(key)).ticket;
@@ -43,7 +45,8 @@ export async function renderTicket(content, key) {
   if (!content.isConnected) return;
   if (tk.key !== key) history.replaceState({}, '', `/browse/${tk.key}`);
   document.title = `[${tk.key}] ${tk.title} – Helfi.Space`;
-  const agent = state.isAgent;
+  // Agent tools only for tickets of the agent's projects (elsewhere: their own request, as a user)
+  const agent = !!tk.agentView;
   const canEditText = agent || tk.reporter?.id === state.user.id;
   let tab = 'comments';
   // Components of the ticket's project (agents; empty list = field hidden unless one is set)
@@ -400,7 +403,7 @@ export async function renderTicket(content, key) {
   let detailsOpen = false;
   function sidePanel() {
     const assignee = h('div', { 'data-shortcut': 'assignee' },
-      pick(tk.assignee?.id ?? null, [[null, t('app.unassigned'), avatar(null, 'sm')], ...state.agents.map((a) => [a.id, a.displayName, avatar(a, 'sm')])],
+      pick(tk.assignee?.id ?? null, [[null, t('app.unassigned'), avatar(null, 'sm')], ...assignable(tk).map((a) => [a.id, a.displayName, avatar(a, 'sm')])],
         (v) => save({ assigneeId: v }),
         () => h('span.person', avatar(tk.assignee, 'sm'), h('span', tk.assignee?.displayName || t('app.unassigned')))),
       agent && tk.assignee?.id !== state.user.id ? h('button.link', { type: 'button', onclick: () => save({ assigneeId: state.user.id }) }, t('ticket.assignToMe')) : null);
@@ -475,8 +478,8 @@ export async function renderTicket(content, key) {
           tk.componentSuggestion ? suggestionBox() : null)) : null,
         detailRow(t('ticket.labels'), labels),
         detailRow(t('ticket.dueDate'), due),
-        detailRow(t('ticket.project'), agent && state.projects.length > 1
-          ? pick(tk.projectId, state.projects.map((p) => [p.id, `${p.name} (${p.key})`]), (v) => save({ projectId: v }), () => h('span', tk.projectName))
+        detailRow(t('ticket.project'), agent && state.agentProjects.length > 1
+          ? pick(tk.projectId, state.agentProjects.map((p) => [p.id, `${p.name} (${p.key})`]), (v) => save({ projectId: v }), () => h('span', tk.projectName))
           : h('span', tk.projectName)),
         detailRow(t('ticket.source'), h('span.person', icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' || tk.source === 'import' ? 'download' : 'globe')), h('span', t(`source.${tk.source}`)))),
       ),
@@ -608,10 +611,12 @@ function reporterField() {
 
 export function openCreateDialog(defaults = {}) {
   if (!state.isAgent && !state.boot.allowSelfService) return;
-  const agent = state.isAgent;
   const current = state.project;
   const project = select(state.projects.map((p) => [p.id, `${p.name} (${p.key})`]), defaults.projectId || current?.id);
-  const type = select(typesFor(agent).map((x) => [x, t(`type.${x}`)]), defaults.type || (agent ? 'task' : 'request'));
+  // Agent fields only for projects the person works on – elsewhere it is their own request
+  const agentFor = () => state.isAgentOf(Number(project.value));
+  const agent = state.isAgent;
+  const type = select(typesFor(agentFor()).map((x) => [x, t(`type.${x}`)]), defaults.type || (agentFor() ? 'task' : 'request'));
   const summary = h('input', { required: true, maxLength: 255, value: defaults.title || '' });
   const desc = h('textarea', { rows: 6, placeholder: t('create.descriptionHint') });
   const descPaste = enableImagePaste(desc); // no ticket yet: upload images after creation
@@ -628,8 +633,26 @@ export function openCreateDialog(defaults = {}) {
     component.replaceChildren(...[['', t('create.componentAuto')], ...list.map((c) => [c.id, c.name])].map(([v, l]) => h('option', { value: v }, l)));
     componentField.hidden = !list.length;
   };
-  if (agent) { loadComponents(); project.addEventListener('change', loadComponents); }
+  // Agents of the chosen project for the assignee field
+  const loadAgents = async () => {
+    const p = state.projects.find((x) => x.id === Number(project.value));
+    let list = state.agents;
+    try { if (p) list = (await api.projectAgentsFor(p.key)).users; } catch { /* keep all */ }
+    assignee.replaceChildren(...[['', t('app.unassigned')], ...list.map((a) => [a.id, a.displayName])].map(([v, l]) => h('option', { value: v }, l)));
+  };
   const reporter = agent ? reporterField() : null;
+  const agentOnly = [];
+  const keep = (el) => { agentOnly.push(el); return el; };
+  const applyProject = () => {
+    const on = agentFor();
+    for (const el of agentOnly) el.hidden = !on;
+    const types = typesFor(on);
+    const cur = type.value;
+    type.replaceChildren(...types.map((x) => h('option', { value: x }, t(`type.${x}`))));
+    type.value = types.includes(cur) ? cur : (on ? 'task' : 'request');
+    if (on) { loadComponents(); loadAgents(); } else componentField.hidden = true;
+  };
+  if (agent) project.addEventListener('change', applyProject);
   const files = h('input', { type: 'file', multiple: true });
   const another = h('input', { type: 'checkbox' });
   const err = h('div.form-error', { role: 'alert', hidden: true });
@@ -641,7 +664,7 @@ export function openCreateDialog(defaults = {}) {
       submitBtn.disabled = true;
       try {
         const body = { projectId: Number(project.value), type: type.value, title: summary.value.trim(), description: desc.value, priority: prio.value };
-        if (agent) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null, componentId: component.value ? Number(component.value) : null, ...reporter.value() });
+        if (agentFor()) Object.assign(body, { assigneeId: assignee.value ? Number(assignee.value) : null, labels: labels.value, dueDate: due.value || null, componentId: component.value ? Number(component.value) : null, ...reporter.value() });
         const pend = descPaste.takePending();
         if (pend.length) body.description = replacePending(body.description, new Map()); // replace placeholders only after uploading
         const r = await api.createTicket(body);
@@ -664,17 +687,18 @@ export function openCreateDialog(defaults = {}) {
     },
   },
   err,
-  agent ? reporter.el : null,
+  agent ? keep(reporter.el) : null,
   state.projects.length > 1 ? h('div.grid-2', field(t('create.project'), project), field(t('create.type'), type)) : field(t('create.type'), type),
   field(t('create.summary'), summary),
   kbSuggestions(summary),
   field(t('create.description'), withEmoji(desc)),
-  h('div.grid-2', field(t('create.priority'), prio), agent ? field(t('create.assignee'), assignee) : h('div')),
-  agent ? h('div.grid-2', field(t('create.labels'), labels), field(t('create.dueDate'), due)) : null,
+  h('div.grid-2', field(t('create.priority'), prio), agent ? keep(field(t('create.assignee'), assignee)) : h('div')),
+  agent ? keep(h('div.grid-2', field(t('create.labels'), labels), field(t('create.dueDate'), due))) : null,
   agent ? componentField : null,
   field(t('create.attachments'), files),
   );
   const submitBtn = h('button.btn.btn-primary', { type: 'submit', form: 'create-form' }, t('create.submit'));
+  if (agent) applyProject();
   const dlg = modal(t('create.title'), form, {
     wide: true,
     footer: [h('label.check-inline', another, t('create.another')), h('span.spacer'),

@@ -3,7 +3,7 @@ import express from 'express';
 import { config } from '../config.js';
 import { randomToken } from '../lib/crypto.js';
 import { beginLogin, finishLogin } from '../auth/oidc.js';
-import { roleFromGroups } from '../users.js';
+import { roleFromGroups, projectAccessFromGroups, withProjectGroups } from '../users.js';
 import { log } from '../lib/log.js';
 
 const PENDING_COOKIE = 'helfi_oidc';
@@ -43,14 +43,14 @@ export function rememberPending(pending, id, p, { max = MAX_PENDING, perIp = MAX
 export async function adAccountFor(ctx, adId, { allowCreate = true } = {}) {
   const { settings, users } = ctx;
   const known = users.byAdId(adId);
-  const ldapCfg = settings.group('ldap');
+  const ldapCfg = withProjectGroups(ctx.db, settings.group('ldap'));
   const directory = ctx.directory; // at runtime (replaceable in tests)
   if (!directory || !settings.get('ldap.enabled') || !ldapCfg.bindDn) return known ? { user: known } : { none: true };
   const info = adId.guid ? await directory.byGuid(ldapCfg, adId.guid) : await directory.bySid(ldapCfg, adId.sid);
   if (!info) return known ? { denied: 'noAccount' } : { none: true }; // deleted or disabled
   const role = roleFromGroups(info.groups, ldapCfg);
-  if (!info.groups.user && role !== 'admin' && role !== 'agent') return { denied: 'notInGroup' };
-  const user = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, sid: info.sid, role, allowCreate: !!known || allowCreate });
+  if (!info.groups.user && role !== 'admin' && role !== 'agent' && !info.groups.projects?.length) return { denied: 'notInGroup' };
+  const user = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, sid: info.sid, role, access: projectAccessFromGroups(info.groups, ldapCfg), allowCreate: !!known || allowCreate });
   return user ? { user } : { denied: 'noAccount' };
 }
 
@@ -80,7 +80,7 @@ export function createOidcRoutes(ctx) {
     if (!p) return res.redirect('/login?error=oidcFailed');
     pending.delete(id);
     try {
-      const cfg = settings.group('oidc');
+      const cfg = withProjectGroups(ctx.db, settings.group('oidc'));
       const currentUrl = new URL(req.originalUrl, config.baseUrl);
       const info = await finishLogin(cfg, currentUrl, p);
       // Merge via the stable AD identifier (if configured): sign in directly as the AD account –
@@ -101,7 +101,7 @@ export function createOidcRoutes(ctx) {
       }
       if (!u) {
         const role = roleFromGroups(info.groups, cfg);
-        u = users.upsertExternal({ source: 'oidc', ...info, role, allowCreate: cfg.allowCreate });
+        u = users.upsertExternal({ source: 'oidc', ...info, role, access: projectAccessFromGroups(info.groups, cfg), allowCreate: cfg.allowCreate });
       }
       if (!u) return res.redirect('/login?error=oidcNoAccount');
       if (!u.active) return res.redirect('/login?error=accountDisabled');

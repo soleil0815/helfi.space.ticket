@@ -56,6 +56,8 @@ export const api = {
   updateMe: (d) => request('PATCH', '/api/me', d),
 
   users: (all = false) => request('GET', `/api/users${all ? '?all=1' : ''}`),
+  /** agents of one project (assignment) */
+  projectAgentsFor: (key) => request('GET', `/api/users?project=${encodeURIComponent(key)}`),
   createUser: (d) => request('POST', '/api/users', d),
   updateUser: (id, d) => request('PATCH', `/api/users/${id}`, d),
 
@@ -63,6 +65,8 @@ export const api = {
   createProject: (d) => request('POST', '/api/projects', d),
   updateProject: (id, d) => request('PATCH', `/api/projects/${id}`, d),
   deleteProject: (id, d) => request('DELETE', `/api/projects/${id}`, d),
+  projectAgents: (id) => request('GET', `/api/projects/${id}/agents`),
+  setProjectAgents: (id, d) => request('PUT', `/api/projects/${id}/agents`, d),
   components: (projectId, all = false) => request('GET', `/api/projects/${projectId}/components${all ? '?all=1' : ''}`),
   createComponent: (projectId, d) => request('POST', `/api/projects/${projectId}/components`, d),
   updateComponent: (id, d) => request('PATCH', `/api/components/${id}`, d),

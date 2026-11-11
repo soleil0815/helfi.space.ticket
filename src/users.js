@@ -1,6 +1,7 @@
 // User management: local accounts, provisioning from AD/SSO, roles.
 import { hashPassword } from './lib/crypto.js';
 import { HttpError } from './lib/http.js';
+import { withProjects } from './auth/access.js';
 
 export function publicUser(u) {
   if (!u) return null;
@@ -10,6 +11,8 @@ export function publicUser(u) {
     displayName: u.display_name,
     email: u.email || '',
     role: u.role,
+    // agents: 'all' projects or only 'projects' (see project_agents)
+    agentScope: u.agent_scope === 'projects' ? 'projects' : 'all',
     source: u.source,
     active: !!u.active,
     roleLocked: !!u.role_locked,
@@ -45,6 +48,8 @@ export function createUsers(db) {
   const byName = db.prepare('SELECT * FROM users WHERE username=?');
   // Case-insensitive: AD returns e.g. "Max.Muster@firma.local", mails arrive in lowercase
   const byEmail = db.prepare("SELECT * FROM users WHERE lower(email)=lower(?) AND email<>'' ORDER BY (source='email'), id LIMIT 1");
+  // With the agent's projects (agentOn/agentProjects need them for agents limited to projects)
+  const scoped = (u) => withProjects(db, u);
 
   function countActiveAdmins(exceptId = 0) {
     return db.prepare("SELECT COUNT(*) n FROM users WHERE role='admin' AND active=1 AND id<>?").get(exceptId).n;
@@ -59,7 +64,7 @@ export function createUsers(db) {
         `INSERT INTO users(username,display_name,email,role,source,password_hash,language) VALUES(?,?,NULL,?,'local',?,?)`,
       ).run(username, displayName || username, role, hashPassword(password), language);
       if (mail) setEmail(info.lastInsertRowid, mail);
-      return byId.get(info.lastInsertRowid);
+      return scoped(byId.get(info.lastInsertRowid));
     })();
   }
 
@@ -78,7 +83,7 @@ export function createUsers(db) {
       }
       db.prepare('UPDATE users SET email=? WHERE id=?').run(mail || null, userId);
     })();
-    return byId.get(userId);
+    return scoped(byId.get(userId));
   }
 
   /** Merge an email contact into an account and delete the contact. */
@@ -137,7 +142,25 @@ export function createUsers(db) {
   /** Up to 1.12 the objectGUID could be stored as text (instead of hex): neither 32 hex characters nor a DN */
   const garbledGuid = (id) => !/^[0-9a-f]{32}$/i.test(String(id)) && !String(id).includes('=');
 
-  function upsertExternal({ source, username, displayName, email, externalId, role, trustName = true, trustEmail = true, allowCreate = true, sid = '' }) {
+  /**
+   * Project rights from AD/SSO groups (access = projectAccessFromGroups): the group rows of
+   * project_agents follow the groups on every sign-in; the scope ("all projects" / "only these")
+   * changes unless the role is locked. Project groups never demote anyone: they only make users agents.
+   */
+  function applyAccess(u, access, { roleFromGroupsSet, promoted }) {
+    if (!access || !u) return;
+    db.transaction(() => {
+      db.prepare("DELETE FROM project_agents WHERE user_id=? AND source='group'").run(u.id);
+      const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) SELECT id, ?, 'group' FROM projects WHERE id=?");
+      for (const pid of access.projects) add.run(u.id, pid);
+      if (u.role_locked) return;
+      if (access.scope === 'all') db.prepare("UPDATE users SET agent_scope='all' WHERE id=?").run(u.id);
+      // Only these projects: when the groups decide the role, or the project group made them an agent
+      else if (access.scope === 'projects' && (roleFromGroupsSet || promoted)) db.prepare("UPDATE users SET agent_scope='projects' WHERE id=?").run(u.id);
+    })();
+  }
+
+  function upsertExternal({ source, username, displayName, email, externalId, role, access = null, trustName = true, trustEmail = true, allowCreate = true, sid = '' }) {
     // Store objectSid only for AD accounts (stable identifier for merging with SSO)
     const adSid = source === 'ldap' && /^S-1-[\d-]+$/.test(String(sid || '')) ? String(sid) : null;
     // Never store unverified addresses: mails from this address would otherwise be matched to this account
@@ -174,13 +197,20 @@ export function createUsers(db) {
     if (!u) {
       if (!allowCreate) return null;
       if (byName.get(username)) throw new HttpError(409, 'err.usernameTaken');
+      // In a project group only: agent of those projects
+      const promoted = access?.scope === 'projects' && (!role || role === 'user');
       const info = db.prepare(
         'INSERT INTO users(username,display_name,email,role,source,external_id,ad_sid) VALUES(?,?,?,?,?,?,?)',
-      ).run(username, displayName || username, email || null, role || 'user', source, externalId || null, adSid);
-      return byId.get(info.lastInsertRowid);
+      ).run(username, displayName || username, email || null, promoted ? 'agent' : (role || 'user'), source, externalId || null, adSid);
+      const created = byId.get(info.lastInsertRowid);
+      applyAccess(created, access, { roleFromGroupsSet: !!role, promoted });
+      return scoped(byId.get(created.id));
     }
 
-    const newRole = u.role_locked || !role ? u.role : role;
+    let newRole = u.role_locked || !role ? u.role : role;
+    // A project group makes users agents (of those projects) – it never demotes anyone
+    const promoted = !u.role_locked && access?.scope === 'projects' && newRole === 'user';
+    if (promoted) newRole = 'agent';
     // Do not demote the last admin through a group change
     const safeRole = u.role === 'admin' && newRole !== 'admin' && countActiveAdmins(u.id) === 0 ? 'admin' : newRole;
     // Take over the source only if the account was an email contact or already belongs to this source
@@ -193,7 +223,8 @@ export function createUsers(db) {
     if (adopt && u.source === 'email' && u.username !== username && !byName.get(username)) {
       db.prepare('UPDATE users SET username=? WHERE id=?').run(username, u.id);
     }
-    return byId.get(u.id);
+    applyAccess(u, access, { roleFromGroupsSet: !!role && !u.role_locked, promoted });
+    return scoped(byId.get(u.id));
   }
 
   /** Sender of an email without an account: create as "email" contact (cannot sign in). */
@@ -205,7 +236,7 @@ export function createUsers(db) {
     const info = db.prepare(
       "INSERT INTO users(username,display_name,email,role,source) VALUES(?,?,?,'user','email')",
     ).run(username, name || email, email);
-    return byId.get(info.lastInsertRowid);
+    return scoped(byId.get(info.lastInsertRowid));
   }
 
   /** AD account via the AD identifier from an SSO claim ({ sid } or { guid }) */
@@ -215,7 +246,47 @@ export function createUsers(db) {
     return null;
   }
 
-  return { byAdId, byId: (id) => byId.get(id), byName: (n) => byName.get(n), byEmail: (e) => byEmail.get(e), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
+  /** Every account (admin list) */
+  function all() { return db.prepare('SELECT * FROM users ORDER BY active DESC, display_name').all(); }
+
+  /** Active agents and admins – of these projects (ids), or of every project (null) */
+  function agentsOf(projectIds = null) {
+    if (projectIds === null) return db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all();
+    return db.prepare(`SELECT * FROM users WHERE active=1 AND (role='admin' OR (role='agent' AND (agent_scope<>'projects'
+      OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))))) ORDER BY display_name`).all(JSON.stringify(projectIds));
+  }
+
+  /** Projects per agent (manual and via project group): Map userId → [{ id, key, name, source, group }] */
+  function projectsByUser() {
+    const byUser = new Map();
+    for (const r of db.prepare(`SELECT pa.user_id, pa.source, p.id, p.key, p.name, p.agent_group FROM project_agents pa
+      JOIN projects p ON p.id=pa.project_id ORDER BY p.key`).all()) {
+      if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
+      byUser.get(r.user_id).push({ id: r.id, key: r.key, name: r.name, source: r.source, group: r.source === 'group' ? r.agent_group : undefined });
+    }
+    return byUser;
+  }
+
+  return { all, agentsOf, projectsByUser, byAdId: (adId) => scoped(byAdId(adId)), byId: (id) => scoped(byId.get(id)), byName: (n) => scoped(byName.get(n)), byEmail: (e) => scoped(byEmail.get(e)), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
+}
+
+/** Settings of a directory (AD or SSO) plus the project groups of active projects: projectGroups [{ id, key, group }] */
+export function withProjectGroups(db, cfg) {
+  const projectGroups = db.prepare("SELECT id, key, agent_group FROM projects WHERE agent_group<>'' AND archived=0 ORDER BY id").all()
+    .map((p) => ({ id: p.id, key: p.key, group: p.agent_group }));
+  return { ...cfg, projectGroups };
+}
+
+/**
+ * Project rights from group membership (groups.projects: ids of the projects whose group the person
+ * is in): scope 'all' (admin or agent group), 'projects' (only project groups) or null (unchanged).
+ */
+export function projectAccessFromGroups(groups, cfg) {
+  const projects = (cfg.projectGroups || []).length ? [...new Set((groups.projects || []).map(Number))] : [];
+  let scope = null;
+  if ((cfg.adminGroup && groups.admin) || (cfg.agentGroup && groups.agent)) scope = 'all';
+  else if (projects.length) scope = 'projects';
+  return { scope, projects };
 }
 
 /** Derive the role from group membership. No groups configured → null (role stays). */

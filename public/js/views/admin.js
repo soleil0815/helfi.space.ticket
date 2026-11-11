@@ -395,6 +395,37 @@ async function projectsPage(body) {
     }, err, content, h('p.muted.small', t('projects.deleteBackup'))),
     { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), submit] });
   };
+  // Who works on the project: project group (AD/SSO) and agents assigned by hand
+  const agentsDialog = async (p) => {
+    const [cur, all] = await Promise.all([api.projectAgents(p.id), api.users(true)]);
+    const group = h('input', { value: cur.agentGroup, maxLength: 500, placeholder: t('projects.agentGroupPlaceholder'), autocomplete: 'off' });
+    const manual = new Set(cur.agents.filter((a) => a.source === 'manual').map((a) => a.id));
+    const viaGroup = cur.agents.filter((a) => a.source === 'group');
+    const candidates = all.users.filter((u) => u.active && u.role === 'agent');
+    const boxes = candidates.map((u) => {
+      const cb = h('input', { type: 'checkbox', value: u.id, checked: manual.has(u.id) });
+      return h('label.check-row', cb, h('span.person', avatar(u, 'sm'), h('span', u.displayName,
+        h('span.muted.small.block', u.agentScope === 'projects' ? t('projects.agentScopeProjects') : t('projects.agentScopeAll')))));
+    });
+    const err = h('div.form-error', { role: 'alert', hidden: true });
+    const dlg = modal(`${t('projects.agents')}: ${p.name} (${p.key})`, h('form#proj-agents-form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        err.hidden = true;
+        const userIds = [...dlg.el.querySelectorAll('#proj-agents-form input[type=checkbox]:checked')].map((x) => Number(x.value));
+        try { await api.setProjectAgents(p.id, { agentGroup: group.value.trim(), userIds }); dlg.close(); toast(t('app.saved'), 'success'); projectsPage(body); }
+        catch (ex) { err.textContent = ex.message; err.hidden = false; }
+      },
+    }, err,
+    h('p.muted', t('projects.agentsHint')),
+    field(t('projects.agentGroup'), group, t('projects.agentGroupHint')),
+    viaGroup.length ? h('div.field', h('span.field-label', t('projects.agentsViaGroup')),
+      h('ul.plain', viaGroup.map((a) => h('li', h('span.person', avatar(a, 'sm'), h('span', a.displayName)))))) : null,
+    h('div.field', h('span.field-label', t('projects.agentsManual')),
+      candidates.length ? h('div.check-list', boxes) : h('p.muted.small', t('projects.agentsNone')),
+      h('p.muted.small', t('projects.agentsManualHint')))),
+    { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'proj-agents-form' }, t('app.save'))] });
+  };
   mount(body, h('section.panel',
     h('div.section-head', h('h2', t('admin.projects')), h('button.btn.btn-primary', { type: 'button', onclick: newForm }, icon('plus'), t('projects.new'))),
     h('table.data',
@@ -405,6 +436,7 @@ async function projectsPage(body) {
         h('td', select([['', '—'], ...users.map((u) => [u.id, u.displayName])], p.leadId || '', { class: 'select-sm', onchange: async (e) => { await api.updateProject(p.id, { leadId: e.target.value || null }); toast(t('app.saved'), 'success'); } })),
         h('td', String(p.openCount ?? '')),
         h('td.actions-cell',
+          !p.archived ? h('button.btn.btn-subtle.small', { type: 'button', 'data-agents': p.key, onclick: () => agentsDialog(p) }, icon('user'), t('projects.agents')) : null,
           !p.archived ? h('a.btn.btn-subtle.small', { href: `/admin/components?project=${p.key}`, 'data-link': '' }, t('admin.components')) : null,
           h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { await api.updateProject(p.id, { archived: !p.archived }); await reloadBase(); projectsPage(body); } }, p.archived ? t('projects.unarchive') : t('projects.archive')),
           projects.length > 1 ? h('button.btn-icon.small', { type: 'button', title: t('projects.delete'), 'aria-label': t('projects.delete'), onclick: () => removeProject(p) }, icon('trash')) : null)))))));
@@ -448,6 +480,38 @@ async function usersPage(body, showContacts = false) {
     }, h('div.grid-2', field(t('users.displayName'), name), field(t('users.email'), email, t('profile.emailHint'))), field(t('users.newPassword'), pw)),
     { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'edit-user-form' }, t('app.save'))] });
   };
+  // Which projects an agent works on – shown under the role, changed in a small dialog
+  const { projects: allProjects } = await api.projects(true);
+  const seesLine = (u) => {
+    if (u.role === 'admin') return t('users.seesAll');
+    if (u.role !== 'agent') return '';
+    if (u.agentScope !== 'projects') return t('users.seesAll');
+    if (!u.projects.length) return t('users.seesNone');
+    const groups = [...new Set(u.projects.filter((p) => p.source === 'group').map((p) => p.group))];
+    const keys = [...new Set(u.projects.map((p) => p.key))].join(', ');
+    return groups.length ? t('users.seesVia', { projects: keys, groups: groups.join(', ') }) : t('users.sees', { projects: keys });
+  };
+  const projectsDialog = (u) => {
+    const scope = select([['all', t('users.scopeAll')], ['projects', t('users.scopeProjects')]], u.agentScope);
+    const manual = new Set(u.projects.filter((p) => p.source === 'manual').map((p) => p.id));
+    const viaGroup = new Map(u.projects.filter((p) => p.source === 'group').map((p) => [p.id, p.group]));
+    const boxes = allProjects.filter((p) => !p.archived || manual.has(p.id)).map((p) => h('label.check-row',
+      h('input', { type: 'checkbox', value: p.id, checked: manual.has(p.id) }),
+      h('span', `${p.name} (${p.key})`, viaGroup.has(p.id) ? h('span.muted.small.block', t('users.viaGroup', { group: viaGroup.get(p.id) })) : null)));
+    const list = h('div.field', h('span.field-label', t('users.projectsManual')), h('div.check-list', boxes));
+    const sync = () => { list.hidden = scope.value !== 'projects'; };
+    scope.addEventListener('change', sync); sync();
+    const dlg = modal(`${t('users.projects')}: ${u.displayName}`, h('form#user-projects-form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const projectIds = [...list.querySelectorAll('input:checked')].map((x) => Number(x.value));
+        try { await api.updateUser(u.id, { agentScope: scope.value, projectIds }); dlg.close(); toast(t('app.saved'), 'success'); await reloadBase(); usersPage(body, showContacts); }
+        catch (ex) { toast(ex.message, 'error'); }
+      },
+    }, h('p.muted', t('users.projectsHint')), field(t('users.scope'), scope), list,
+    u.source !== 'local' ? h('p.muted.small', t('users.projectsLockHint')) : null),
+    { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), h('button.btn.btn-primary', { type: 'submit', form: 'user-projects-form' }, t('app.save'))] });
+  };
   const contactsToggle = h('input', { type: 'checkbox', checked: showContacts, onchange: (e) => usersPage(body, e.target.checked) });
   mount(body, h('section.panel',
     h('div.section-head', h('h2', t('admin.users')), h('button.btn.btn-primary', { type: 'button', onclick: newUser }, icon('plus'), t('users.new'))),
@@ -461,7 +525,9 @@ async function usersPage(body, showContacts = false) {
         h('td', t(`profile.source.${u.source}`),
           u.selfRegistered ? h('span.muted.block.small', t('users.selfRegistered')) : null,
           u.approvalPending ? h('div', h('span.lozenge.lozenge-waiting', t('users.approvalPending'))) : null),
-        h('td', select(['user', 'agent', 'admin'].map((r) => [r, t(`role.${r}`)]), u.role, { class: 'select-sm', disabled: u.source === 'email', onchange: (e) => update(u, { role: e.target.value }) })),
+        h('td', select(['user', 'agent', 'admin'].map((r) => [r, t(`role.${r}`)]), u.role, { class: 'select-sm', disabled: u.source === 'email', onchange: (e) => update(u, { role: e.target.value }) }),
+          u.role === 'agent' || u.role === 'admin' ? h('span.muted.small.block.user-sees', seesLine(u)) : null,
+          u.role === 'agent' ? h('button.link.small', { type: 'button', 'data-projects': u.username, onclick: () => projectsDialog(u) }, t('users.projectsEdit')) : null),
         h('td', u.source === 'local' || u.source === 'email' ? '' : h('input', { type: 'checkbox', checked: u.roleLocked, title: t('users.roleLockedHint'), onchange: (e) => update(u, { roleLocked: e.target.checked }) })),
         h('td', u.mfaEnabled ? h('span.badge.badge-ok', { title: t('mfa.statusOn') }, icon('check')) : h('span.muted', '—')),
         h('td', { title: u.lastLogin ? fmtDate(u.lastLogin) : '' }, u.lastLogin ? relTime(u.lastLogin) : '—'),
@@ -588,8 +654,9 @@ function ldapPage(body, s) {
         const lines = r.steps.map((st) => h('li', { class: st.ok ? 'ok' : 'fail' }, icon(st.ok ? 'check' : 'warning'),
           t(`ldap.step.${st.key}`, { value: st.value }),
           st.key === 'search' ? ` (${st.count}${st.count >= 5 ? '+' : ''})` : '',
-          st.key === 'group' && st.dn ? h('span.muted.block.mono', st.dn) : null,
-          st.key === 'user' && st.user ? h('span.muted.block', `${st.user.displayName} <${st.user.email}> – admin: ${st.user.groups.admin ? '✓' : '–'}, agent: ${st.user.groups.agent ? '✓' : '–'}, user: ${st.user.groups.user ? '✓' : '–'}`) : null,
+          st.key === 'projectGroup' ? ` (${st.project})` : '',
+          (st.key === 'group' || st.key === 'projectGroup') && st.dn ? h('span.muted.block.mono', st.dn) : null,
+          st.key === 'user' && st.user ? h('span.muted.block', `${st.user.displayName} <${st.user.email}> – admin: ${st.user.groups.admin ? '✓' : '–'}, agent: ${st.user.groups.agent ? '✓' : '–'}, user: ${st.user.groups.user ? '✓' : '–'}${st.user.groups.projects?.length ? `, ${t('ldap.projectsOf')}: ${st.user.groups.projects.join(', ')}` : ''}`) : null,
           st.message ? h('span.block', st.message) : null));
         const extras = [];
         if (!s['ldap.baseDn'] && r.rootDse?.defaultNamingContext) {
