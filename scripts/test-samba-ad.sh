@@ -33,6 +33,10 @@ ad group add IT-Team
 ad group addmembers IT-Team e.beispiel
 ad group addmembers Helfi-Admins IT-Team
 ad group addmembers Helfi-Bearbeiter m.muster
+# Group in its own OU, outside the users' container (base DN = CN=Users…): found by name alone
+ad ou add OU=Gruppen
+ad group add Helfi-Support --groupou=OU=Gruppen
+ad group addmembers Helfi-Support m.muster
 
 samba -D -s "$DIR/etc/smb.conf"
 

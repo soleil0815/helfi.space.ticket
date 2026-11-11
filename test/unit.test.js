@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hashPassword, verifyPassword, encrypt, decrypt, setMasterKeyForTests } from '../src/lib/crypto.js';
 import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail } from '../src/mail/parse.js';
-import { escapeFilter, normalizeUsername, domainFromBaseDn, mergePem, splitPem, dnsDomain } from '../src/auth/ldap.js';
+import { escapeFilter, normalizeUsername, domainFromBaseDn, mergePem, splitPem, dnsDomain, groupSearchBase } from '../src/auth/ldap.js';
 import { claimsToUser } from '../src/auth/oidc.js';
 import { roleFromGroups } from '../src/users.js';
 import { normalizeLabels } from '../src/tickets.js';
@@ -78,6 +78,11 @@ test('LDAP helpers', () => {
   assert.equal(domainFromBaseDn('OU=x,dc=a,dc=b,dc=c'), 'a.b.c');
   assert.equal(dnsDomain({ baseDn: '', host: 'dc01.firma.local' }), 'firma.local');
   assert.equal(dnsDomain({ baseDn: '', host: '10.0.10.5' }), '');
+  // Groups by name are searched in the whole domain, not only below the users' OU
+  assert.equal(groupSearchBase('OU=Mitarbeiter,OU=Firma,DC=firma,DC=local'), 'DC=firma,DC=local');
+  assert.equal(groupSearchBase('CN=Users, dc=firma, dc=local'), 'dc=firma,dc=local');
+  assert.equal(groupSearchBase('DC=firma,DC=local'), 'DC=firma,DC=local');
+  assert.equal(groupSearchBase(''), '');
 });
 
 test('Merge PEM without duplicates', () => {
