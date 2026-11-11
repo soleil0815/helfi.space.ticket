@@ -123,6 +123,14 @@ select { height: 36px; padding: 0 8px; }
 .field-check label { margin: 0; font-size: 14px; font-weight: 400; color: var(--text); }
 .field-check .hint { flex-basis: 100%; margin: 0 0 0 24px; }
 .field-btn { display: flex; align-items: flex-end; padding-top: 24px; }
+.field .field-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-subtle); margin-bottom: 4px; }
+/* checkbox list in a dialog (agents of a project, projects of an agent) */
+.check-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+.check-row, .field label.check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; font-size: 14px; font-weight: 400; color: var(--text); }
+.check-row input { margin: 0; flex: none; }
+.check-row .block { display: block; }
+ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.user-sees { margin-top: 2px; }
 .check-inline { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
 .grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0 16px; }

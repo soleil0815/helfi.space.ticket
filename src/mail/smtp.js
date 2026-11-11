@@ -7,6 +7,7 @@ import { log } from '../lib/log.js';
 import { parseRules, matchRule } from './rules.js';
 import { mentionsAsText } from '../mentions.js';
 import { mdToText, mdToHtml, mailHtml, MAIL_BODY } from '../markdown.js';
+import { agentOn } from '../auth/access.js';
 
 export function transportOptions(cfg) {
   return {
@@ -192,8 +193,8 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       if (id === user.id || customers.has(id)) continue;
       const u = users.byId(id);
       if (!u || !u.active || !u.email) continue;
-      const agentRecipient = u.role === 'agent' || u.role === 'admin';
-      // Internal notes only ever go to agents (the comment layer already ensures this)
+      const agentRecipient = agentOn(u, ticket.projectId);
+      // Internal notes only ever go to agents of the project (the comment layer already ensures this)
       if (internal && !agentRecipient) continue;
       const lang = recipientLang(u.id);
       const vars = {

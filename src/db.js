@@ -807,6 +807,25 @@ export const MIGRATIONS = [
     DELETE FROM sessions;
     `,
   },
+  {
+    id: 41,
+    name: 'Projektrechte für Bearbeiter',
+    sql: `
+    -- Which projects an agent works on. agent_scope: all (every project, the behaviour up to now –
+    -- existing agents keep it) | projects (only the projects in project_agents).
+    ALTER TABLE users ADD COLUMN agent_scope TEXT NOT NULL DEFAULT 'all';
+    -- AD/SSO group whose members become agents of this project on sign-in
+    ALTER TABLE projects ADD COLUMN agent_group TEXT NOT NULL DEFAULT '';
+    -- source: manual (set by an admin) | group (from the project group, synced on every sign-in)
+    CREATE TABLE project_agents (
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source TEXT NOT NULL,
+      PRIMARY KEY (project_id, user_id, source)
+    );
+    CREATE INDEX idx_project_agents_user ON project_agents(user_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

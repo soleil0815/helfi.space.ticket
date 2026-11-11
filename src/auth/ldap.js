@@ -278,7 +278,12 @@ async function entryToUser(client, cfg, entry, fallbackName) {
     admin: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.adminGroup),
     agent: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.agentGroup),
     user: cfg.userGroup ? await isMember(client, cfg, entry.dn, entry.memberOf, cfg.userGroup) : true,
+    projects: [],
   };
+  // Project groups (Administration → Projects): member = agent of that project
+  for (const pg of cfg.projectGroups || []) {
+    if (await isMember(client, cfg, entry.dn, entry.memberOf, pg.group)) groups.projects.push(pg.id);
+  }
   const guid = first(entry.objectGUID);
   return {
     username: String(first(entry[cfg.usernameAttr]) || fallbackName),
@@ -514,9 +519,15 @@ export async function testConnection(cfg, { username, password } = {}) {
       const dn = await resolveGroupDn(client, cfg, value);
       result.steps.push({ ok: !!dn, key: 'group', role, value, dn });
     }
+    // Project groups (Administration → Projects)
+    for (const pg of cfg.projectGroups || []) {
+      const dn = await resolveGroupDn(client, cfg, pg.group);
+      result.steps.push({ ok: !!dn, key: 'projectGroup', role: 'project', value: pg.group, project: pg.key, dn });
+    }
     if (username && password) {
       const u = await authenticate(cfg, username, password);
-      result.steps.push({ ok: !!u, key: 'user', user: u ? { username: u.username, displayName: u.displayName, email: u.email, groups: u.groups } : null });
+      const projects = (u?.groups.projects || []).map((id) => (cfg.projectGroups || []).find((pg) => pg.id === id)?.key).filter(Boolean);
+      result.steps.push({ ok: !!u, key: 'user', user: u ? { username: u.username, displayName: u.displayName, email: u.email, groups: { ...u.groups, projects } } : null });
     }
     result.ok = result.steps.every((s) => s.ok);
   } catch (e) {

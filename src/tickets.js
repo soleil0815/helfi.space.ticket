@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { paths } from './config.js';
 import { HttpError, notFound, forbidden, str, isoDate, int } from './lib/http.js';
-import { isAgent } from './auth/session.js';
+import { isAgent, agentOn, agentProjects, projectScopeSql } from './auth/session.js';
 import { userRef } from './users.js';
 import { createSearch } from './search.js';
 import { log } from './lib/log.js';
@@ -32,6 +32,9 @@ export const MAX_PARTICIPANTS = 20;
 export const MAX_DUPLICATE_CHAIN = 20;
 const MAX_OFFSET = 1e9; // list offset (far beyond any real ticket count)
 
+/** SQL (users u): agent of the project given as the one parameter – admins, agents of all projects, its agents */
+export const AGENT_OF_PROJECT = "(u.role='admin' OR (u.role='agent' AND (u.agent_scope<>'projects' OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=?))))";
+
 /** Name for people without the agent role: a display name that is just a mail address
  *  (email contacts, mail clients without a name) is shortened to "local@…". */
 export function publicName(name) {
@@ -56,6 +59,10 @@ export function createTickets(db, users) {
   const components = createComponents(db, users);
   // Fire events only after the current transaction has completed
   const emitLater = (name, payload) => setImmediate(() => events.emit(name, payload));
+  // Project rights: an agent limited to projects is an agent only for tickets of those projects –
+  // for every other ticket they are a normal user (sees it only as reporter/participant/approver)
+  const projectOf = (ticketId) => db.prepare('SELECT project_id FROM tickets WHERE id=?').get(ticketId)?.project_id;
+  const agentFor = (user, row) => !!user && agentOn(user, row.project_id);
 
   // ---------- Projects ----------
   /** Project lead: existing users only, otherwise 400 instead of a foreign key error */
@@ -67,10 +74,12 @@ export function createTickets(db, users) {
   }
 
   const projects = {
-    list(includeArchived = false) {
+    /** user (optional): only the projects this agent works on */
+    list(includeArchived = false, user = null) {
+      const ps = user ? projectScopeSql(user, 'p.id') : { sql: '1', args: [] };
       return db.prepare(`SELECT p.*, (SELECT COUNT(*) FROM tickets t WHERE t.project_id=p.id AND t.status<>'done') open_count,
         (SELECT COUNT(*) FROM tickets t WHERE t.project_id=p.id) ticket_count
-        FROM projects p ${includeArchived ? '' : 'WHERE archived=0'} ORDER BY name`).all().map(projectOut);
+        FROM projects p WHERE ${includeArchived ? '1' : 'archived=0'} AND ${ps.sql} ORDER BY name`).all(...ps.args).map(projectOut);
     },
     get(idOrKey) {
       const p = db.prepare('SELECT * FROM projects WHERE id=? OR key=?').get(int(idOrKey) || 0, str(idOrKey, 20));
@@ -179,8 +188,9 @@ export function createTickets(db, users) {
   function leadFor(component) {
     const leadId = component.lead_id ?? component.leadId;
     const deputyId = component.deputy_id ?? component.deputyId;
-    if (leadId && isAssignable(leadId)) return { id: leadId, role: 'lead' };
-    if (deputyId && isAssignable(deputyId)) return { id: deputyId, role: 'deputy' };
+    const pid = component.project_id ?? component.projectId;
+    if (leadId && isAssignable(leadId, pid)) return { id: leadId, role: 'lead' };
+    if (deputyId && isAssignable(deputyId, pid)) return { id: deputyId, role: 'deputy' };
     return null;
   }
 
@@ -213,10 +223,10 @@ export function createTickets(db, users) {
     return t;
   }
 
-  /** Assign only to active agents/admins */
-  function isAssignable(id) {
+  /** Assign only to active agents/admins – of this project (projectId) */
+  function isAssignable(id, projectId) {
     const u = users.byId(Number(id));
-    return !!u && u.active === 1 && (u.role === 'agent' || u.role === 'admin');
+    return !!u && u.active === 1 && (u.role === 'agent' || u.role === 'admin') && agentOn(u, projectId);
   }
 
   function rawById(id) { return db.prepare(`${SELECT} WHERE t.id=?`).get(id); }
@@ -245,7 +255,7 @@ export function createTickets(db, users) {
   // Approvers (e.g. managers for catalog requests) see the ticket like a participant
   const approverStmt = db.prepare('SELECT 1 FROM approvals WHERE ticket_id=? AND approver_id=?');
   function canSee(user, row) {
-    return isAgent(user) || isCustomer(user, row) || (!!user && !!approverStmt.get(row.id, user.id));
+    return agentFor(user, row) || isCustomer(user, row) || (!!user && !!approverStmt.get(row.id, user.id));
   }
 
   /** WHERE clause of the ticket list (also used to count saved filters) */
@@ -254,13 +264,26 @@ export function createTickets(db, users) {
     const args = [];
     // Internal pre-selection (e.g. "my open approvals"), never from the query string
     if (Array.isArray(ids)) { where.push('t.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(ids)); }
+    const own = '(t.reporter_id=? OR t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?) OR t.id IN (SELECT ticket_id FROM approvals WHERE approver_id=?))';
+    const scope = agentProjects(user); // null = all projects
     if (!isAgent(user)) {
-      where.push('(t.reporter_id=? OR t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?) OR t.id IN (SELECT ticket_id FROM approvals WHERE approver_id=?))');
+      where.push(own);
       args.push(user.id, user.id, user.id);
+    } else if (scope !== null) {
+      // Agent of some projects: their tickets there, plus their own requests anywhere (as a user)
+      const ps = projectScopeSql(user);
+      where.push(`(${ps.sql} OR ${own})`);
+      args.push(...ps.args, user.id, user.id, user.id);
     }
     if (f.project) { where.push('(p.key=? OR p.id=?)'); args.push(String(f.project).toUpperCase(), Number(f.project) || 0); }
     // Archived projects are hidden from the agents' lists; a user's own requests stay visible
-    else if (isAgent(user)) where.push('p.archived=0');
+    else if (scope === null && isAgent(user)) where.push('p.archived=0');
+    else if (isAgent(user)) {
+      // their projects: active ones only; own requests elsewhere stay visible (as for users)
+      const ps = projectScopeSql(user);
+      where.push(`(p.archived=0 OR NOT ${ps.sql})`);
+      args.push(...ps.args);
+    }
     if (f.status) {
       const st = String(f.status).split(',').filter((s) => STATUSES.includes(s) || s === 'unresolved');
       if (st.includes('unresolved')) where.push("t.status<>'done'");
@@ -278,6 +301,7 @@ export function createTickets(db, users) {
     if (f.participant === 'me') { where.push('t.id IN (SELECT ticket_id FROM ticket_participants WHERE user_id=?)'); args.push(user.id); }
     // Components are only shown to agents (ticketOut): no filter for users, it would reveal them
     const comp = isAgent(user) ? f.component : null;
+    if (comp && scope !== null) { const ps = projectScopeSql(user); where.push(ps.sql); args.push(...ps.args); }
     if (comp === 'none') where.push('t.component_id IS NULL');
     else if (comp) { where.push('t.component_id=?'); args.push(int(comp) || 0); }
     if (f.label) { where.push("(','||t.labels||',') LIKE ?"); args.push(`%,${String(f.label).toLowerCase()},%`); }
@@ -289,7 +313,18 @@ export function createTickets(db, users) {
       const q = String(f.q).trim().slice(0, 300);
       const km = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/.exec(q);
       if (km) { where.push('(p.key=? AND t.number=?)'); args.push(km[1].toUpperCase(), Number(km[2])); }
-      else {
+      else if (isAgent(user) && scope !== null) {
+        // Internal notes only count for tickets of their own projects – elsewhere they are a user
+        const inner = search.find(q, { internal: true });
+        const outer = search.find(q, { internal: false });
+        if (inner || outer) {
+          const ps = projectScopeSql(user);
+          const ids = [...new Set([...(inner?.ids || []), ...(outer?.ids || [])])];
+          hits = { ids, terms: (inner || outer).terms, capped: !!(inner?.capped || outer?.capped) };
+          where.push(`((t.id IN (SELECT value FROM json_each(?)) AND ${ps.sql}) OR t.id IN (SELECT value FROM json_each(?)))`);
+          args.push(JSON.stringify(inner?.ids || []), ...ps.args, JSON.stringify(outer?.ids || []));
+        }
+      } else {
         hits = search.find(q, { internal: isAgent(user) });
         if (hits) { where.push('t.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(hits.ids)); }
       }
@@ -329,10 +364,10 @@ export function createTickets(db, users) {
       rows = rows.sort((a, b) => pos.get(a.id) - pos.get(b.id));
       if (limit > 0) rows = rows.slice(off, off + limit);
     }
-    const out = rows.map((r) => ticketOut(r, isAgent(user), user.id));
+    const out = rows.map((r) => ticketOut(r, agentFor(user, r), user.id));
     if (hits) {
       // Match location for the first results (description, reply, attachment)
-      out.slice(0, 100).forEach((tk) => { const m = search.snippet(tk.id, hits.terms, { internal: isAgent(user) }); if (m) tk.match = m; });
+      out.slice(0, 100).forEach((tk) => { const m = search.snippet(tk.id, hits.terms, { internal: agentOn(user, tk.projectId) }); if (m) tk.match = m; });
       out.searchTerms = hits.terms;
       if (hits.capped) out.searchCapped = true;
     }
@@ -352,7 +387,9 @@ export function createTickets(db, users) {
     let project = data.projectId ? projects.get(data.projectId) : null;
     if (!project || project.archived) project = db.prepare('SELECT * FROM projects WHERE archived=0 ORDER BY id LIMIT 1').get();
     if (!project) throw new HttpError(400, 'err.noProject');
-    const agent = isAgent(user);
+    const agent = !!user && agentOn(user, project.id);
+    // For someone else only as an agent of this project (a fallback project may not be theirs)
+    if (onBehalf && !agent) throw forbidden();
     const id = db.transaction(() => {
       // Component: chosen by an agent, otherwise by the rules (sender pattern, keywords)
       let component = null;
@@ -363,7 +400,7 @@ export function createTickets(db, users) {
         match = matchComponent(components.active(project.id), { title, description: str(data.description, 100000), sender });
         if (match) component = match.component;
       }
-      let assigneeId = agent && int(data.assigneeId) && isAssignable(int(data.assigneeId)) ? int(data.assigneeId) : null;
+      let assigneeId = agent && int(data.assigneeId) && isAssignable(int(data.assigneeId), project.id) ? int(data.assigneeId) : null;
       const autoAssigned = !assigneeId && component ? leadFor(component) : null;
       if (autoAssigned) assigneeId = autoAssigned.id;
       const number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(project.id).n;
@@ -371,7 +408,7 @@ export function createTickets(db, users) {
       const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,assignee_id,labels,due_date,source,rank,component_id)
         VALUES(?,?,?,?,?,'open',?,?,?,?,?,?,?,?,?,?)`).run(
         project.id, number, title, str(data.description, 100000),
-        TYPES.includes(data.type) && (isAgent(user) || !AGENT_TYPES.includes(data.type)) ? data.type : 'request',
+        TYPES.includes(data.type) && (agent || !AGENT_TYPES.includes(data.type)) ? data.type : 'request',
         PRIORITIES.includes(data.priority) ? data.priority : 'medium',
         reporterId !== undefined ? reporterId : (user ? user.id : null),
         reporterEmail, reporterName,
@@ -397,7 +434,7 @@ export function createTickets(db, users) {
    *  the 'resolved' event still fires (with quiet: true), the reporter only gets the rating links. */
   function update(user, idOrKey, data, opts = {}) {
     const row = load(user, idOrKey);
-    const agent = isAgent(user);
+    const agent = agentFor(user, row);
     const isReporter = row.reporter_id === user.id;
     if (!agent && !isReporter) throw forbidden();
 
@@ -416,11 +453,22 @@ export function createTickets(db, users) {
     if (data.type !== undefined && TYPES.includes(data.type)) set('type', 'type', data.type);
     if (data.status !== undefined && STATUSES.includes(data.status)) set('status', 'status', data.status);
     if (data.priority !== undefined && PRIORITIES.includes(data.priority)) set('priority', 'priority', data.priority);
+    // Project change first: the assignee must be an agent of the (new) project
+    let target = null;
+    if (data.projectId !== undefined && agent) {
+      target = projects.get(data.projectId);
+      // Only into projects the agent works on (others: as if they did not exist)
+      if (!target || target.archived || !agentOn(user, target.id)) throw notFound();
+    }
+    const finalProject = target ? target.id : row.project_id;
     if (data.assigneeId !== undefined) {
       const aid = data.assigneeId ? int(data.assigneeId) : null;
       if (data.assigneeId && !aid) throw new HttpError(400, 'err.badRequest', 'assigneeId');
-      if (aid && !isAssignable(aid)) throw new HttpError(400, 'err.badRequest');
+      if (aid && !isAssignable(aid, finalProject)) throw new HttpError(400, 'err.badRequest');
       set('assignee', 'assignee_id', aid);
+    } else if (agent && target && target.id !== row.project_id && row.assignee_id && !isAssignable(row.assignee_id, target.id)) {
+      // Moved to a project the assignee does not work on: nobody assigned there
+      set('assignee', 'assignee_id', null);
     }
     if (data.labels !== undefined) set('labels', 'labels', normalizeLabels(data.labels));
     for (const f of ['impact', 'urgency']) {
@@ -440,12 +488,8 @@ export function createTickets(db, users) {
       if (data.dueDate && !d) throw new HttpError(400, 'err.badRequest', 'dueDate');
       set('dueDate', 'due_date', d);
     }
-    if (data.projectId !== undefined && agent) {
-      // Project change: new number in the target project
-      const target = projects.get(data.projectId);
-      if (!target || target.archived) throw notFound();
-      if (target.id !== row.project_id) changes.project_id = { field: 'project', old: row.project_key, new: target.key, target };
-    }
+    // Project change: new number in the target project
+    if (target && target.id !== row.project_id) changes.project_id = { field: 'project', old: row.project_key, new: target.key, target };
     if (data.componentId !== undefined && agent) {
       // Component of the (new) project; empty = none. After a project change the old one is cleared anyway.
       const pid = changes.project_id ? changes.project_id.target.id : row.project_id;
@@ -486,7 +530,7 @@ export function createTickets(db, users) {
     })();
 
     const t = ticketOut(rawById(row.id));
-    const result = agent ? t : ticketOut(rawById(row.id), false, user.id);
+    const result = agentOn(user, t.projectId) ? t : ticketOut(rawById(row.id), false, user.id);
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
     // Always emit (e.g. satisfaction survey); quiet only suppresses the separate "Resolved" mail
     if (changes.status && changes.status.new === 'done') emitLater('resolved', { ticket: t, user, quiet: !!opts.quietResolved, resolution: opts.resolution || 'done' });
@@ -506,6 +550,7 @@ export function createTickets(db, users) {
     if (!isAgent(user)) throw forbidden();
     if (!['rejected', 'duplicate'].includes(resolution)) throw new HttpError(400, 'err.badRequest', 'resolution');
     const row = load(user, idOrKey);
+    if (!agentFor(user, row)) throw forbidden();
     const text = str(reason, 100000).trim();
     let original = null;
     if (resolution === 'rejected' && !text) throw new HttpError(400, 'err.rejectReasonRequired');
@@ -573,7 +618,7 @@ export function createTickets(db, users) {
    */
   function setReporter(user, idOrKey, target, { notify = false } = {}) {
     const row = load(user, idOrKey);
-    if (!isAgent(user)) throw forbidden();
+    if (!agentFor(user, row)) throw forbidden();
     if (!target || !target.active) throw new HttpError(400, 'err.badRequest', 'reporter');
     if (row.reporter_id === target.id) return ticketOut(row);
     const old = row.reporter_id ? users.byId(row.reporter_id) : null;
@@ -582,7 +627,7 @@ export function createTickets(db, users) {
       db.prepare("UPDATE tickets SET reporter_id=?, reporter_email=NULL, reporter_name=NULL, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(target.id, row.id);
       db.prepare('DELETE FROM ticket_participants WHERE ticket_id=? AND user_id=?').run(row.id, target.id);
       logActivity(row.id, user.id, 'changed', 'reporter', oldName, target.display_name);
-      if (old && old.active && old.source !== 'email' && !isAgent(old) && !isParticipant(row.id, old.id)) {
+      if (old && old.active && old.source !== 'email' && !agentFor(old, row) && !isParticipant(row.id, old.id)) {
         db.prepare('INSERT INTO ticket_participants(ticket_id,user_id,added_by) VALUES(?,?,?)').run(row.id, old.id, user.id);
         logActivity(row.id, user.id, 'participantAdded', null, null, old.display_name);
       }
@@ -604,7 +649,7 @@ export function createTickets(db, users) {
 
   // ---------- Comments ----------
   function comments(user, ticketId) {
-    const agent = isAgent(user);
+    const agent = !!user && agentOn(user, projectOf(ticketId));
     return db.prepare(`SELECT c.*, u.display_name u_name, u.username u_username FROM comments c LEFT JOIN users u ON u.id=c.author_id
       WHERE c.ticket_id=? ${agent ? '' : 'AND c.internal=0'} ORDER BY c.created_at, c.id`).all(ticketId).map((c) => ({
       id: c.id,
@@ -625,14 +670,14 @@ export function createTickets(db, users) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
     const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
-    const agent = user && isAgent(user);
+    const agent = agentFor(user, row);
     const isInternal = system || (agent && internal) ? 1 : 0;
     // @-mentions only from agents on the web; internal notes only reach agents, replies also
     // the people who can see the ticket anyway. Everything else stays plain text "@Name".
     const canMention = !!agent && !system && source !== 'email';
     const mention = normalizeMentions(text, {
       getUser: (id) => users.byId(id),
-      allowed: (u) => canMention && u.active === 1 && (isAgent(u) || (!isInternal && canSee(u, row))),
+      allowed: (u) => canMention && u.active === 1 && (agentFor(u, row) || (!isInternal && canSee(u, row))),
     });
     const info = db.transaction(() => {
       // md: written with the formatting toolbar (web only – mails and system notes stay plain text)
@@ -714,18 +759,19 @@ export function createTickets(db, users) {
   function attachmentFile(user, attId) {
     const a = db.prepare('SELECT * FROM attachments WHERE id=?').get(attId);
     if (!a) throw notFound();
-    load(user, a.ticket_id); // permissions
-    if (a.draft && !isAgent(user) && a.uploaded_by !== user.id) throw notFound();
-    if (a.comment_id && !isAgent(user)) {
+    const row = load(user, a.ticket_id); // permissions
+    const agent = agentFor(user, row);
+    if (a.draft && !agent && a.uploaded_by !== user.id) throw notFound();
+    if (a.comment_id && !agent) {
       const c = db.prepare('SELECT internal FROM comments WHERE id=?').get(a.comment_id);
       if (c?.internal) throw notFound();
     }
-    return { ...a, path: path.join(paths.attachments, String(a.ticket_id), a.storage_name) };
+    return { ...a, agent, path: path.join(paths.attachments, String(a.ticket_id), a.storage_name) };
   }
 
   function deleteAttachment(user, attId) {
     const a = attachmentFile(user, attId);
-    if (!isAgent(user) && a.uploaded_by !== user.id) throw forbidden();
+    if (!a.agent && a.uploaded_by !== user.id) throw forbidden();
     db.prepare('DELETE FROM attachments WHERE id=?').run(a.id);
     fs.rmSync(a.path, { force: true });
     logActivity(a.ticket_id, user.id, 'detached', null, a.filename, null);
@@ -764,7 +810,7 @@ export function createTickets(db, users) {
   // ---------- Request participants ----------
   /** Participant list. Email addresses only for agents (or one's own). */
   function participants(ticketId, viewer = null) {
-    const agent = !viewer || isAgent(viewer);
+    const agent = !viewer || agentOn(viewer, projectOf(ticketId));
     return db.prepare(`SELECT u.id, u.display_name, u.username, u.email, u.source, p.created_at FROM ticket_participants p
       JOIN users u ON u.id=p.user_id WHERE p.ticket_id=? ORDER BY p.created_at, u.display_name`).all(ticketId)
       .map((u) => ({
@@ -781,7 +827,7 @@ export function createTickets(db, users) {
    */
   function addParticipant(user, idOrKey, { userId, email } = {}, { system = false, notify = true } = {}) {
     const row = system ? load(null, idOrKey) : load(user, idOrKey);
-    const agent = !system && isAgent(user);
+    const agent = !system && agentFor(user, row);
     if (!system && !agent && !isCustomer(user, row)) throw forbidden();
     let target = null;
     if (userId) {
@@ -812,7 +858,7 @@ export function createTickets(db, users) {
     const row = load(user, idOrKey);
     const target = users.byId(int(userId) || 0);
     if (!target || !isParticipant(row.id, target.id)) throw notFound();
-    if (!isAgent(user) && row.reporter_id !== user.id && target.id !== user.id) throw forbidden();
+    if (!agentFor(user, row) && row.reporter_id !== user.id && target.id !== user.id) throw forbidden();
     db.transaction(() => {
       db.prepare('DELETE FROM ticket_participants WHERE ticket_id=? AND user_id=?').run(row.id, target.id);
       logActivity(row.id, user.id, 'participantRemoved', null, target.display_name, null);
@@ -856,7 +902,7 @@ export function createTickets(db, users) {
   /** Old and new version of the description for a history entry (agents only, like the history) */
   function descriptionVersion(user, idOrKey, activityId) {
     const row = load(user, idOrKey);
-    if (!isAgent(user)) throw forbidden();
+    if (!agentFor(user, row)) throw forbidden();
     const a = db.prepare("SELECT a.*, u.display_name u_name FROM activity a LEFT JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.ticket_id=? AND a.action='changed' AND a.field='description'")
       .get(int(activityId) || 0, row.id);
     if (!a || a.old_value === null) throw notFound();
@@ -872,7 +918,7 @@ export function createTickets(db, users) {
     const row = load(user, idOrKey);
     if (commentId) {
       const c = db.prepare('SELECT internal FROM comments WHERE id=? AND ticket_id=?').get(commentId, row.id);
-      if (!c || (c.internal && !isAgent(user))) throw notFound();
+      if (!c || (c.internal && !agentFor(user, row))) throw notFound();
     }
     const m = db.prepare(`SELECT html, blocked FROM mail_html WHERE ticket_id=? AND ${commentId ? 'comment_id=?' : 'comment_id IS NULL'}`)
       .get(...(commentId ? [row.id, commentId] : [row.id]));
@@ -890,14 +936,18 @@ export function createTickets(db, users) {
     const mentionsMe = new Set(db.prepare('SELECT comment_id FROM comment_mentions WHERE ticket_id=? AND user_id=?').all(row.id, user.id).map((r) => r.comment_id));
     if (mentionsMe.size) markMentionsSeen(user, row.id);
     const htmlFor = new Set(db.prepare('SELECT comment_id FROM mail_html WHERE ticket_id=?').all(row.id).map((r) => r.comment_id ?? 0));
+    const agent = agentFor(user, row);
     return {
-      ...ticketOut(row, isAgent(user), user.id),
+      ...ticketOut(row, agent, user.id),
+      agentView: agent, // the client shows the agent tools only for tickets of the agent's projects
+      // who may get the ticket: agents of its project
+      ...(agent ? { assignableIds: db.prepare(`SELECT u.id FROM users u WHERE u.active=1 AND ${AGENT_OF_PROJECT}`).all(row.project_id).map((r) => r.id) } : {}),
       descriptionHtml: htmlFor.has(0),
       participants: participants(row.id, user),
-      canManageParticipants: isAgent(user) || row.reporter_id === user.id || isParticipant(row.id, user.id),
+      canManageParticipants: agent || row.reporter_id === user.id || isParticipant(row.id, user.id),
       comments: comments(user, row.id).map((c) => ({ ...c, hasHtml: htmlFor.has(c.id), mentionsMe: mentionsMe.has(c.id) || undefined })),
-      attachments: attachments(row.id).filter((a) => isAgent(user) || !a.commentId || !db.prepare('SELECT internal FROM comments WHERE id=?').get(a.commentId)?.internal),
-      activity: isAgent(user) ? activity(row.id) : [],
+      attachments: attachments(row.id).filter((a) => agent || !a.commentId || !db.prepare('SELECT internal FROM comments WHERE id=?').get(a.commentId)?.internal),
+      activity: agent ? activity(row.id) : [],
       ...extra,
     };
   }
@@ -920,18 +970,20 @@ export function createTickets(db, users) {
    */
   function mentionCandidates(user, idOrKey, { q = '', internal = false } = {}) {
     const row = load(user, idOrKey);
-    if (!isAgent(user)) throw forbidden();
+    if (!agentFor(user, row)) throw forbidden();
     const needle = str(q, 60).trim().toLowerCase();
     const like = `%${needle.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const match = needle ? "AND (lower(u.display_name) LIKE ? ESCAPE '\\' OR lower(u.username) LIKE ? ESCAPE '\\')" : '';
     const margs = needle ? [like, like] : [];
+    // Agents of this project only (others would not see the ticket – as agents)
     const agents = db.prepare(`SELECT u.id, u.display_name, u.username, u.role FROM users u
-      WHERE u.active=1 AND u.role IN ('agent','admin') ${match} ORDER BY lower(u.display_name) LIMIT 30`).all(...margs);
+      WHERE u.active=1 AND ${AGENT_OF_PROJECT} ${match}
+      ORDER BY lower(u.display_name) LIMIT 30`).all(row.project_id, ...margs);
     let customers = [];
     if (!internal) {
       customers = db.prepare(`SELECT u.id, u.display_name, u.username, u.role FROM users u
-        WHERE u.active=1 AND u.role NOT IN ('agent','admin') ${match} AND (u.id=? OR u.id IN (SELECT user_id FROM ticket_participants WHERE ticket_id=?)
-          OR u.id IN (SELECT approver_id FROM approvals WHERE ticket_id=?)) ORDER BY lower(u.display_name) LIMIT 20`).all(...margs, row.reporter_id || 0, row.id, row.id);
+        WHERE u.active=1 AND NOT ${AGENT_OF_PROJECT} ${match} AND (u.id=? OR u.id IN (SELECT user_id FROM ticket_participants WHERE ticket_id=?)
+          OR u.id IN (SELECT approver_id FROM approvals WHERE ticket_id=?)) ORDER BY lower(u.display_name) LIMIT 20`).all(row.project_id, ...margs, row.reporter_id || 0, row.id, row.id);
     }
     const out = (u, kind) => ({ id: u.id, displayName: u.display_name || u.username, kind });
     // Ticket people first (reporter, assignee), then everyone else
@@ -943,7 +995,9 @@ export function createTickets(db, users) {
 
   /** Counts for the sidebar queues (one query, active projects only; unknown project → 0). */
   function queueCounts(user, projectKey = null) {
-    const p = projectKey ? (projects.get(projectKey) || { id: 0 }) : null;
+    let p = projectKey ? (projects.get(projectKey) || { id: 0 }) : null;
+    if (p && !agentOn(user, p.id)) p = { id: 0 };
+    const ps = projectScopeSql(user);
     const r = db.prepare(`SELECT
         SUM(t.status<>'done') open,
         SUM(t.status<>'done' AND t.assignee_id=?) mine,
@@ -954,20 +1008,21 @@ export function createTickets(db, users) {
         SUM(t.status<>'done' AND t.type='request') requests,
         SUM(t.status<>'done' AND t.type='incident') incidents
       FROM tickets t JOIN projects pr ON pr.id=t.project_id
-      WHERE pr.archived=0 ${p ? 'AND t.project_id=?' : ''}`).get(user.id, ...(p ? [p.id] : []));
+      WHERE pr.archived=0 AND ${ps.sql} ${p ? 'AND t.project_id=?' : ''}`).get(user.id, ...ps.args, ...(p ? [p.id] : []));
     return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v || 0]));
   }
 
   /** Summary of one project (also an archived one if explicitly selected) or of all active ones. */
   function summary(user, projectKey = null) {
     const p = projectKey ? projects.get(projectKey) : null;
-    if (projectKey && !p) throw notFound();
-    const where = p ? 't.project_id=?' : 'pr.archived=0';
-    const a = p ? [p.id] : [];
+    if (projectKey && (!p || !agentOn(user, p.id))) throw notFound();
+    const ps = projectScopeSql(user);
+    const where = p ? 't.project_id=?' : `pr.archived=0 AND ${ps.sql}`;
+    const a = p ? [p.id] : ps.args;
     const one = (sql) => db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id WHERE ${where} AND ${sql}`).get(...a).n;
     const group = (col, cond) => Object.fromEntries(db.prepare(`SELECT t.${col} k, COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id
       WHERE ${where} AND ${cond} GROUP BY t.${col}`).all(...a).map((x) => [x.k, x.n]));
-    const urgent = db.prepare(`${SELECT} WHERE ${p ? 't.project_id=?' : 'p.archived=0'} AND t.status<>'done'
+    const urgent = db.prepare(`${SELECT} WHERE ${p ? 't.project_id=?' : `p.archived=0 AND ${ps.sql}`} AND t.status<>'done'
       ORDER BY CASE t.priority WHEN 'highest' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
         CASE WHEN t.due_date IS NOT NULL AND t.due_date < date('now') THEN 0 ELSE 1 END, t.created_at LIMIT 8`).all(...a);
     return {
@@ -982,16 +1037,17 @@ export function createTickets(db, users) {
       byStatus: { ...Object.fromEntries(STATUSES.map((x) => [x, 0])), ...group('status', '1=1') },
       byType: { ...Object.fromEntries(TYPES.map((x) => [x, 0])), ...group('type', "t.status<>'done'") },
       byPriority: { ...Object.fromEntries(PRIORITIES.map((x) => [x, 0])), ...group('priority', "t.status<>'done'") },
-      urgent: urgent.map((r) => ticketOut(r, isAgent(user), user.id)),
+      urgent: urgent.map((r) => ticketOut(r, agentFor(user, r), user.id)),
     };
   }
 
   function stats(user) {
     // like the queues: active projects only
-    const mine = db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND assignee_id=? AND status<>'done'").get(user.id).n;
-    const unassigned = db.prepare("SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND assignee_id IS NULL AND status<>'done'").get().n;
+    const ps = projectScopeSql(user);
+    const mine = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND ${ps.sql} AND assignee_id=? AND status<>'done'`).get(...ps.args, user.id).n;
+    const unassigned = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND ${ps.sql} AND assignee_id IS NULL AND status<>'done'`).get(...ps.args).n;
     const byStatus = Object.fromEntries(STATUSES.map((s) => [s, 0]));
-    for (const r of db.prepare('SELECT status, COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 GROUP BY status').all()) byStatus[r.status] = r.n;
+    for (const r of db.prepare(`SELECT status, COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE p.archived=0 AND ${ps.sql} GROUP BY status`).all(...ps.args)) byStatus[r.status] = r.n;
     return { mine, unassigned, byStatus };
   }
 

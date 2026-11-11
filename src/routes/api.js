@@ -15,8 +15,8 @@ import { csvAdapter, readCsv, suggestColumns, CSV_FIELDS, MAX_CSV_BYTES } from '
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
-import { requireAuth, requireRole, isAgent, idleMinutes } from '../auth/session.js';
-import { publicUser, userRef, roleFromGroups, normalizeEmail } from '../users.js';
+import { requireAuth, requireRole, isAgent, agentOn, agentProjects, projectScopeSql, idleMinutes } from '../auth/session.js';
+import { publicUser, userRef, roleFromGroups, projectAccessFromGroups, withProjectGroups, normalizeEmail } from '../users.js';
 import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
 import { parseNetworks, parseOwnAddresses, MFA_LEVELS } from '../auth/network.js';
@@ -65,7 +65,7 @@ export function createApi(ctx) {
         userLabel: { de: String(settings.get('login.userLabelDe')).slice(0, 80), en: String(settings.get('login.userLabelEn')).slice(0, 80) },
       },
       setupRequired: userCount === 0,
-      majorIncidents: req.user && isAgent(req.user) ? ctx.major.open() : [],
+      majorIncidents: req.user && isAgent(req.user) ? ctx.major.open(req.user) : [],
       sla: { enabled: ctx.sla.enabled() },
       pendingApprovals: req.user ? ctx.approvals.pendingFor(req.user.id).length : 0,
       adPeople: !!(req.user && isAgent(req.user) && adPeopleOn()), // people search in AD available
@@ -162,7 +162,7 @@ export function createApi(ctx) {
 
     // 2. Active Directory
     if (settings.get('ldap.enabled')) {
-      const cfg = settings.group('ldap');
+      const cfg = withProjectGroups(db, settings.group('ldap'));
       let info;
       try {
         info = await ldap.authenticate(cfg, username, password);
@@ -173,12 +173,12 @@ export function createApi(ctx) {
       }
       if (!info) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const role = roleFromGroups(info.groups, cfg);
-      if (!info.groups.user && role !== 'admin' && role !== 'agent') {
+      if (!info.groups.user && role !== 'admin' && role !== 'agent' && !info.groups.projects?.length) {
         // Deliberately a separate message (helps support); admins see in the log who was rejected
         log.warn(`AD sign-in rejected: ${info.username} is not in the "allowed users" group`);
         throw new HttpError(403, 'err.notInGroup');
       }
-      const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, sid: info.sid, role });
+      const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: info.email, externalId: info.externalId, sid: info.sid, role, access: projectAccessFromGroups(info.groups, cfg) });
       if (!u.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r2 = mfa.afterPrimary(req, res, u, 'ldap');
       if (r2.done) limiter.success(req.ip, username);
@@ -290,10 +290,27 @@ export function createApi(ctx) {
   // ---------- Users ----------
   r.get('/users', requireRole('agent'), (req, res) => {
     const all = req.query.all === '1' && req.user.role === 'admin';
-    const rows = all
-      ? db.prepare('SELECT * FROM users ORDER BY active DESC, display_name').all()
-      : db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all();
-    res.json({ users: rows.map(all ? publicUser : userRef) });
+    // Agents (for assigning): of one project (?project=KEY) – or of the asking agent's projects
+    let rows;
+    if (all) rows = db.prepare('SELECT * FROM users ORDER BY active DESC, display_name').all();
+    else {
+      const p = req.query.project ? tickets.projects.get(str(req.query.project, 20).toUpperCase()) : null;
+      if (req.query.project && (!p || !agentOn(req.user, p.id))) throw notFound();
+      const scope = p ? [p.id] : agentProjects(req.user);
+      rows = scope === null
+        ? db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all()
+        : db.prepare(`SELECT * FROM users u WHERE active=1 AND (role='admin' OR (role='agent' AND (agent_scope<>'projects'
+            OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))))) ORDER BY display_name`).all(JSON.stringify(scope));
+    }
+    if (!all) return res.json({ users: rows.map(userRef) });
+    // Admins: which projects each agent works on (manually and via project group)
+    const byUser = new Map();
+    for (const r of db.prepare(`SELECT pa.user_id, pa.source, p.id, p.key, p.name, p.agent_group FROM project_agents pa
+      JOIN projects p ON p.id=pa.project_id ORDER BY p.key`).all()) {
+      if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
+      byUser.get(r.user_id).push({ id: r.id, key: r.key, name: r.name, source: r.source, group: r.source === 'group' ? r.agent_group : undefined });
+    }
+    res.json({ users: rows.map((u) => ({ ...publicUser(u), projects: byUser.get(u.id) || [] })) });
   });
 
   // Search people (e.g. request participants): name/login name only, from 2 characters, at most 10 matches.
@@ -344,7 +361,7 @@ export function createApi(ctx) {
 
   /** Create or update an AD person (by objectGUID or mail address) as a user. null = not in AD. */
   async function personFromAd({ adId, email }) {
-    const cfg = settings.group('ldap');
+    const cfg = withProjectGroups(db, settings.group('ldap'));
     let info;
     try {
       info = await withTimeout(adId ? ctx.directory.byGuid(cfg, adId) : ctx.directory.byEmail(cfg, email));
@@ -360,12 +377,12 @@ export function createApi(ctx) {
     const role = roleFromGroups(info.groups, cfg);
     let mail = '';
     try { mail = normalizeEmail(info.email || email || ''); } catch { /* invalid address in AD: import without address */ }
-    if (!info.groups.user && role !== 'admin' && role !== 'agent') {
+    if (!info.groups.user && role !== 'admin' && role !== 'agent' && !info.groups.projects?.length) {
       // Not allowed to sign in according to groups: only as email contact (as with the sender lookup)
       if (!mail) throw new HttpError(400, 'err.adNotAllowed');
       return users.byEmail(mail) || users.contactForEmail(mail, info.displayName);
     }
-    const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: mail, externalId: info.externalId, sid: info.sid, role });
+    const u = users.upsertExternal({ source: 'ldap', username: info.username, displayName: info.displayName, email: mail, externalId: info.externalId, sid: info.sid, role, access: projectAccessFromGroups(info.groups, cfg) });
     log.info(`Participant imported from AD: ${u.username}`);
     return u;
   }
@@ -415,7 +432,17 @@ export function createApi(ctx) {
     if (u.role === 'admin' && u.active && (role !== 'admin' || !active) && users.countActiveAdmins(u.id) === 0) {
       throw new HttpError(400, 'err.lastAdmin');
     }
-    const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (req.body.role !== undefined && role !== u.role ? 1 : u.role_locked);
+    // Project rights: all projects or only selected ones (manual assignment; project groups add more)
+    const agentScope = req.body.agentScope !== undefined ? oneOf(req.body.agentScope, ['all', 'projects'], u.agent_scope) : u.agent_scope;
+    let projectIds = null;
+    if (req.body.projectIds !== undefined) {
+      if (!Array.isArray(req.body.projectIds) || req.body.projectIds.length > 500) throw new HttpError(400, 'err.badRequest', 'projectIds');
+      projectIds = [...new Set(req.body.projectIds.map((x) => int(x)).filter(Boolean))];
+      for (const pid of projectIds) if (!tickets.projects.get(pid)) throw new HttpError(400, 'err.badRequest', 'projectIds');
+    }
+    // A changed role or scope stays as set here (AD/SSO groups do not overwrite it)
+    const changedByHand = (req.body.role !== undefined && role !== u.role) || agentScope !== u.agent_scope;
+    const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (changedByHand ? 1 : u.role_locked);
     // Validate everything first, then save in one transaction (no partial save on errors)
     let newHash = null;
     let approvedNow = false;
@@ -433,12 +460,17 @@ export function createApi(ctx) {
       // Activating or deactivating ends the wait for approval of a self-registered account
       if (req.body.active !== undefined) db.prepare('UPDATE users SET approval_pending=0 WHERE id=?').run(u.id);
       if (u.approval_pending && active) approvedNow = true;
-      db.prepare('UPDATE users SET role=?, active=?, role_locked=?, display_name=? WHERE id=?').run(
-        role, active, roleLocked,
+      db.prepare('UPDATE users SET role=?, active=?, role_locked=?, agent_scope=?, display_name=? WHERE id=?').run(
+        role, active, roleLocked, agentScope,
         req.body.displayName !== undefined ? str(req.body.displayName, 120).trim() || u.display_name : u.display_name,
         u.id,
       );
       if (email !== undefined) users.setEmail(u.id, email);
+      if (projectIds) {
+        db.prepare("DELETE FROM project_agents WHERE user_id=? AND source='manual'").run(u.id);
+        const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) VALUES(?,?,'manual')");
+        for (const pid of projectIds) add.run(pid, u.id);
+      }
       if (newHash) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
     })();
     if (newHash || !active) sessions.destroyAllForUser(u.id);
@@ -456,7 +488,10 @@ export function createApi(ctx) {
 
   // ---------- Projects ----------
   r.get('/projects', (req, res) => {
-    res.json({ projects: tickets.projects.list(req.query.all === '1' && isAgent(req.user)) });
+    // agent: the asking person works on this project (switcher, board); everyone may file requests anywhere
+    const list = tickets.projects.list(req.query.all === '1' && isAgent(req.user))
+      .map((p) => ({ ...p, agent: agentOn(req.user, p.id) }));
+    res.json({ projects: list });
   });
   r.post('/projects', requireRole('admin'), wrap(async (req, res) => {
     const p = tickets.projects.create({ key: req.body.key, name: req.body.name, description: req.body.description, leadId: int(req.body.leadId) });
@@ -466,6 +501,44 @@ export function createApi(ctx) {
   r.patch('/projects/:id', requireRole('admin'), wrap(async (req, res) => {
     res.json({ project: tickets.projects.update(int(req.params.id), { name: req.body.name, description: req.body.description, leadId: req.body.leadId !== undefined ? int(req.body.leadId) : undefined, archived: req.body.archived }) });
   }));
+
+  // Agents of a project (admins): project group (AD/SSO) and people assigned by hand
+  const projectAgents = (p) => ({
+    agentGroup: p.agent_group || '',
+    agents: db.prepare(`SELECT u.id, u.display_name, u.username, u.role, u.agent_scope, pa.source FROM project_agents pa JOIN users u ON u.id=pa.user_id
+      WHERE pa.project_id=? ORDER BY lower(u.display_name), pa.source`).all(p.id)
+      .map((u) => ({ id: u.id, displayName: u.display_name, username: u.username, role: u.role, agentScope: u.agent_scope, source: u.source })),
+  });
+  r.get('/projects/:id/agents', requireRole('admin'), (req, res) => {
+    const p = tickets.projects.get(int(req.params.id) || 0);
+    if (!p) throw notFound();
+    res.json(projectAgents(p));
+  });
+  r.put('/projects/:id/agents', requireRole('admin'), (req, res) => {
+    const p = tickets.projects.get(int(req.params.id) || 0);
+    if (!p) throw notFound();
+    const group = str(req.body?.agentGroup, 500).trim();
+    const ids = Array.isArray(req.body?.userIds) ? [...new Set(req.body.userIds.map((x) => int(x)).filter(Boolean))].slice(0, 500) : null;
+    if (ids) {
+      for (const id of ids) {
+        const u = users.byId(id);
+        // only agents (admins work on every project anyway)
+        if (!u || u.role !== 'agent') throw new HttpError(400, 'err.badRequest', 'userIds');
+      }
+    }
+    db.transaction(() => {
+      db.prepare('UPDATE projects SET agent_group=? WHERE id=?').run(group, p.id);
+      // Another group: the memberships of the old one no longer count (renewed at the next sign-in)
+      if (group.toLowerCase() !== String(p.agent_group || '').toLowerCase()) db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='group'").run(p.id);
+      if (ids) {
+        db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='manual'").run(p.id);
+        const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) VALUES(?,?,'manual')");
+        for (const id of ids) add.run(p.id, id);
+      }
+    })();
+    log.info(`Agents of project ${p.key} changed by ${req.user.username}`, { group: !!group, people: ids ? ids.length : undefined });
+    res.json(projectAgents(tickets.projects.get(p.id)));
+  });
 
   r.delete('/projects/:id', requireRole('admin'), wrap(async (req, res) => {
     const p = tickets.projects.get(int(req.params.id) || 0);
@@ -503,6 +576,8 @@ export function createApi(ctx) {
   const components = tickets.components;
   // Agents need the list for the ticket field and the filter; admins also see archived ones
   r.get('/projects/:id/components', requireRole('agent'), (req, res) => {
+    const p = tickets.projects.get(req.params.id);
+    if (p && !agentOn(req.user, p.id)) throw notFound();
     res.json({ components: components.list(req.params.id, { includeArchived: req.query.all === '1' && req.user.role === 'admin' }) });
   });
   r.post('/projects/:id/components', requireRole('admin'), (req, res) => {
@@ -541,11 +616,12 @@ export function createApi(ctx) {
   r.get('/queues', requireRole('agent'), (req, res) => {
     const project = req.query.project ? str(req.query.project, 20) : null;
     const counts = tickets.queueCounts(req.user, project);
-    if (ctx.sla.enabled()) counts.slaRisk = ctx.sla.atRisk(project).length;
-    counts.changes = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='change' AND t.status<>'done' AND p.archived=0 ${project ? 'AND p.key=?' : ''}`).get(...(project ? [project.toUpperCase()] : [])).n;
+    if (ctx.sla.enabled()) counts.slaRisk = ctx.sla.atRisk(project, req.user).length;
+    const ps = projectScopeSql(req.user);
+    counts.changes = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='change' AND t.status<>'done' AND p.archived=0 AND ${ps.sql} ${project ? 'AND p.key=?' : ''}`).get(...ps.args, ...(project ? [project.toUpperCase()] : [])).n;
     counts.approvals = ctx.approvals.pendingFor(req.user.id).length;
     counts.mentions = tickets.unseenMentionTickets(req.user).size;
-    counts.problems = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='problem' AND t.status<>'done' AND p.archived=0 ${project ? 'AND p.key=?' : ''}`).get(...(project ? [project.toUpperCase()] : [])).n;
+    counts.problems = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='problem' AND t.status<>'done' AND p.archived=0 AND ${ps.sql} ${project ? 'AND p.key=?' : ''}`).get(...ps.args, ...(project ? [project.toUpperCase()] : [])).n;
     res.json({ counts });
   });
   r.get('/summary', requireRole('agent'), (req, res) => res.json(tickets.summary(req.user, req.query.project ? str(req.query.project, 20) : null)));
@@ -570,7 +646,8 @@ export function createApi(ctx) {
     let list = tickets.list(req.user, f, slaRisk ? { ...opts, all: true } : opts);
     const searchTerms = list.searchTerms;
     const searchCapped = list.searchCapped;
-    if (slaOn) list = list.map((tk) => ({ ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) }));
+    // SLA only for tickets of the agent's projects (their own requests elsewhere: as a user)
+    if (slaOn) list = list.map((tk) => (agentOn(req.user, tk.projectId) ? { ...tk, sla: ctx.sla.worst(ctx.sla.forRow(tickets.rawById(tk.id))) } : tk));
     if (slaRisk) {
       list = list.filter((tk) => ['warning', 'breached'].includes(tk.sla?.state));
       total = list.length;
@@ -601,13 +678,15 @@ export function createApi(ctx) {
     // Agents may enter the ticket for someone else (reporter); users only for themselves
     let opts = {};
     if (req.body.reporter !== undefined && req.body.reporter !== null) {
-      if (!isAgent(req.user)) throw forbidden();
+      // for someone else: only as an agent of the target project (default project if none is given)
+      const target = projectId ? tickets.projects.get(projectId) : null;
+      if (!isAgent(req.user) || (target && !agentOn(req.user, target.id))) throw forbidden();
       const rep = await reporterFrom(req.body.reporter);
       if (rep.id !== req.user.id) opts = { reporterId: rep.id, notifyReporter: req.body.notifyReporter !== false };
     }
     const t = tickets.create(req.user, { ...req.body, projectId }, opts);
     // Users get their own view (no internal fields such as the component or agents' addresses)
-    res.status(201).json({ ticket: isAgent(req.user) ? t : tickets.ticketOut(tickets.rawById(t.id), false, req.user.id) });
+    res.status(201).json({ ticket: agentOn(req.user, t.projectId) ? t : tickets.ticketOut(tickets.rawById(t.id), false, req.user.id) });
   }));
 
   /**
@@ -709,7 +788,7 @@ export function createApi(ctx) {
   r.post('/tickets/:key/ai/reply', requireRole('agent'), wrap(async (req, res) => res.json(await ctx.ai.suggestReply(req.user, req.params.key, req.body.draft))));
   // AI component suggestion: accept or dismiss
   // Review list of open AI suggestions (also from sorting existing tickets afterwards)
-  r.get('/component-suggestions', requireRole('agent'), (req, res) => res.json({ suggestions: ctx.aiClassifier.pendingList(req.query.project) }));
+  r.get('/component-suggestions', requireRole('agent'), (req, res) => res.json({ suggestions: ctx.aiClassifier.pendingList(req.query.project, req.user) }));
   r.post('/component-suggestions/decide', requireRole('agent'), (req, res) => res.json(ctx.aiClassifier.decideMany(req.user, req.body.keys, req.body.action)));
   r.post('/tickets/:key/duplicate-suggestion/dismiss', requireRole('agent'), (req, res) => res.json(ctx.aiDuplicates.dismiss(req.user, req.params.key)));
   r.post('/tickets/:key/component-suggestion/accept', requireRole('agent'), (req, res) => res.json({ ticket: ctx.aiClassifier.accept(req.user, req.params.key) }));
@@ -735,7 +814,8 @@ export function createApi(ctx) {
   });
 
   r.put('/tickets/:key/reporter', requireRole('agent'), wrap(async (req, res) => {
-    tickets.load(req.user, req.params.key); // check access before any AD lookup
+    const row = tickets.load(req.user, req.params.key); // check access before any AD lookup
+    if (!agentOn(req.user, row.project_id)) throw forbidden();
     const target = await reporterFrom(req.body.reporter);
     res.json({ ticket: tickets.setReporter(req.user, req.params.key, target, { notify: req.body.notify !== false }) });
   }));
@@ -748,7 +828,7 @@ export function createApi(ctx) {
   r.delete('/tickets/:key', (_req, _res) => { throw new HttpError(405, 'err.ticketDeleteDisabled'); });
 
   // ---------- Reports (all agents) ----------
-  r.get('/reports', requireRole('agent'), (req, res) => res.json(reports.report(req.query)));
+  r.get('/reports', requireRole('agent'), (req, res) => res.json(reports.report(req.query, req.user)));
 
   // ---------- Canned responses (agents only) ----------
   r.get('/canned', requireRole('agent'), (req, res) => res.json({ responses: canned.list(req.user) }));
@@ -769,11 +849,12 @@ export function createApi(ctx) {
     let { userId, email } = req.body || {};
     const adId = typeof req.body?.adId === 'string' ? req.body.adId : '';
     if (adId || (email && typeof email === 'string')) {
-      tickets.load(req.user, req.params.key); // check access first, then look up in AD
-      if (adId && (!isAgent(req.user) || !adPeopleOn())) throw forbidden();
+      const row = tickets.load(req.user, req.params.key); // check access first, then look up in AD
+      const agent = agentOn(req.user, row.project_id);
+      if (adId && (!agent || !adPeopleOn())) throw forbidden();
       if (adId && !/^[0-9a-f]{32}$/i.test(adId)) throw new HttpError(400, 'err.badRequest', 'adId');
       if (adId) userId = (await personFromAd({ adId })).id;
-      else if (isAgent(req.user) && adPeopleOn()) {
+      else if (agent && adPeopleOn()) {
         const e = normalizeEmail(email);
         const existing = users.byEmail(e);
         // Only look up if there is no real account with this address yet
@@ -929,7 +1010,7 @@ export function createApi(ctx) {
   }));
 
   admin.post('/ldap/test', wrap(async (req, res) => {
-    const cfg = mergedGroup('ldap', req.body.settings);
+    const cfg = withProjectGroups(db, mergedGroup('ldap', req.body.settings));
     const result = await ldap.testConnection(cfg, { username: str(req.body.username, 256), password: str(req.body.password, 1024) });
     res.json(result);
   }));

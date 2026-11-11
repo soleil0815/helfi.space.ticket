@@ -7,7 +7,7 @@ import { state } from '../app.js';
 const COLUMNS = ['open', 'in_progress', 'waiting', 'done'];
 
 export async function renderBoard(content, params) {
-  const project = params.get('project') ? state.projects.find((p) => p.key === params.get('project').toUpperCase()) : state.project;
+  const project = params.get('project') ? state.agentProjects.find((p) => p.key === params.get('project').toUpperCase()) : state.project;
   if (project) state.project = project;
   if (!project) {
     mount(content, h('div.empty-state', h('h2', t('nav.projects')), state.isAdmin ? h('a.btn.btn-primary', { href: '/admin/projects', 'data-link': '' }, t('projects.new')) : null));

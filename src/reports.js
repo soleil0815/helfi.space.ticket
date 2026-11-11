@@ -1,5 +1,6 @@
 // Reports: statistics per agent (visible to all agents) and created/resolved over time.
 import { HttpError } from './lib/http.js';
+import { agentProjects } from './auth/access.js';
 
 const DAY = 24 * 3600 * 1000;
 export const MAX_RANGE_DAYS = 3 * 366;
@@ -39,8 +40,8 @@ export function createReports(db) {
    *   not rejected or duplicates)
    */
   function agents(range, projectId = null) {
-    const p = projectId ? 'AND t.project_id=?' : '';
-    const pa = projectId ? [projectId] : [];
+    const p = projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : '';
+    const pa = projectId ? [JSON.stringify(projectId)] : [];
     const r = [range.fromIso, range.toIso, ...pa];
     const resolved = db.prepare(`SELECT a.user_id id, COUNT(DISTINCT a.ticket_id) n,
         AVG(CASE WHEN COALESCE(t.resolution,'done')='done' THEN (julianday(a.created_at) - julianday(t.created_at)) * 24 END) hours
@@ -66,7 +67,9 @@ export function createReports(db) {
       return byId.get(id);
     };
     // All active agents appear, even with 0
-    for (const u of db.prepare("SELECT id FROM users WHERE active=1 AND role IN ('agent','admin')").all()) row(u.id);
+    // (with a project selection: the agents of these projects)
+    const ofProjects = projectId ? `AND (role='admin' OR agent_scope<>'projects' OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?))))` : '';
+    for (const u of db.prepare(`SELECT id FROM users WHERE active=1 AND role IN ('agent','admin') ${ofProjects}`).all(...pa)) row(u.id);
     for (const x of resolved) Object.assign(row(x.id), { resolved: x.n, avgResolutionHours: x.hours === null ? null : Math.round(x.hours * 10) / 10 });
     for (const x of open) row(x.id).openAssigned = x.n;
     for (const x of touched) row(x.id).touched = x.n;
@@ -83,8 +86,8 @@ export function createReports(db) {
   /** Created and resolved per day (up to 92 days) or per week (Monday) for longer periods. */
   function series(range, projectId = null) {
     const weekly = range.days > 92;
-    const p = projectId ? 'AND t.project_id=?' : '';
-    const pa = projectId ? [projectId] : [];
+    const p = projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : '';
+    const pa = projectId ? [JSON.stringify(projectId)] : [];
     const bucket = (col) => (weekly
       ? `date(${col}, '-' || ((strftime('%w', ${col}) + 6) % 7) || ' days')`
       : `date(${col})`);
@@ -119,21 +122,33 @@ export function createReports(db) {
         -- rejected and duplicates would distort the resolution time: only really solved ones
         AVG(CASE WHEN t.status='done' AND COALESCE(t.resolution,'done')='done' AND t.resolved_at IS NOT NULL THEN (julianday(t.resolved_at)-julianday(t.created_at))*24 END) avg_hours
       FROM tickets t JOIN projects pr ON pr.id=t.project_id LEFT JOIN components c ON c.id=t.component_id
-      WHERE t.created_at >= ? AND t.created_at < ? ${projectId ? 'AND t.project_id=?' : 'AND pr.archived=0'}
-      GROUP BY t.component_id, pr.key ORDER BY total DESC, c.name`).all(range.fromIso, range.toIso, ...(projectId ? [projectId] : [])).map((r) => ({
+      WHERE t.created_at >= ? AND t.created_at < ? ${projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : 'AND pr.archived=0'}
+      GROUP BY t.component_id, pr.key ORDER BY total DESC, c.name`).all(range.fromIso, range.toIso, ...(projectId ? [JSON.stringify(projectId)] : [])).map((r) => ({
       componentId: r.id, name: r.name, projectKey: r.project_key, total: r.total, open: r.open, resolved: r.resolved, rejected: r.rejected || 0,
       avgResolutionHours: r.avg_hours === null ? null : Math.round(r.avg_hours * 10) / 10,
     }));
   }
 
-  function report(query = {}) {
-    const range = parseRange(query);
-    let projectId = null;
+  /**
+   * Projects a report covers: null = all (active ones where it matters), otherwise a list of ids –
+   * the selected project, or (agents limited to projects) their projects. Unknown or not the
+   * agent's → 404.
+   */
+  function reportProjects(query, user) {
+    const scope = user ? agentProjects(user) : null;
     if (query.project) {
       const pr = db.prepare('SELECT id FROM projects WHERE key=? OR id=?').get(String(query.project).toUpperCase(), Number(query.project) || 0);
-      if (!pr) throw new HttpError(404, 'err.notFound');
-      projectId = pr.id;
+      if (!pr || (scope && !scope.includes(pr.id))) throw new HttpError(404, 'err.notFound');
+      return [pr.id];
     }
+    if (!scope) return null;
+    // only their active projects (like "all" for everyone else)
+    return db.prepare('SELECT id FROM projects WHERE archived=0 AND id IN (SELECT value FROM json_each(?))').all(JSON.stringify(scope)).map((r) => r.id);
+  }
+
+  function report(query = {}, user = null) {
+    const range = parseRange(query);
+    const projectId = reportProjects(query, user); // null | [ids]
     const s = series(range, projectId);
     const list = agents(range, projectId);
     return {
@@ -142,7 +157,7 @@ export function createReports(db) {
       totals: {
         created: s.points.reduce((n, x) => n + x.created, 0),
         resolved: s.points.reduce((n, x) => n + x.resolved, 0),
-        open: db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id WHERE t.status<>'done' AND pr.archived=0 ${projectId ? 'AND t.project_id=?' : ''}`).get(...(projectId ? [projectId] : [])).n,
+        open: db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects pr ON pr.id=t.project_id WHERE t.status<>'done' AND pr.archived=0 ${projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : ''}`).get(...(projectId ? [JSON.stringify(projectId)] : [])).n,
       },
       agents: list,
       series: s,
@@ -150,5 +165,5 @@ export function createReports(db) {
     };
   }
 
-  return { report };
+  return { report, reportProjects };
 }

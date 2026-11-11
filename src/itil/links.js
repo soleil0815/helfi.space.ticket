@@ -1,7 +1,7 @@
 // Links between tickets: relates to, duplicate, blocks, causes, subtask.
 // Stored directed (from → to); the reverse direction is derived when displaying.
 import { HttpError, notFound, forbidden, str } from '../lib/http.js';
-import { isAgent } from '../auth/session.js';
+import { isAgent, agentOn } from '../auth/session.js';
 
 // kind: meaning from the point of view of "from"
 export const LINK_KINDS = ['relates', 'duplicates', 'blocks', 'causes', 'parent'];
@@ -32,13 +32,14 @@ export function significantWords(items, max = 8) {
 export function createLinks(db, tickets) {
   const keyOf = (row) => `${row.project_key}-${row.number}`;
 
-  function list(ticketId) {
+  /** user (optional): leave out linked tickets of projects the agent does not work on */
+  function list(ticketId, user = null) {
     const rows = db.prepare(`SELECT l.id, l.kind, l.from_id, l.to_id FROM ticket_links l
       WHERE l.from_id=? OR l.to_id=? ORDER BY l.id`).all(ticketId, ticketId);
     return rows.map((l) => {
       const out = l.from_id === ticketId;
       const other = tickets.rawById(out ? l.to_id : l.from_id);
-      if (!other) return null;
+      if (!other || (user && !agentOn(user, other.project_id))) return null;
       const t = tickets.ticketOut(other);
       return {
         id: l.id, kind: l.kind, direction: out ? 'out' : 'in',
@@ -67,7 +68,9 @@ export function createLinks(db, tickets) {
     if (!LINK_KINDS.includes(kind)) throw new HttpError(400, 'err.badRequest', 'kind');
     const a = tickets.load(user, keyFrom);
     let b;
+    if (!agentOn(user, a.project_id)) throw forbidden();
     try { b = tickets.load(user, str(target, 30).trim()); } catch { throw new HttpError(400, 'err.linkTarget'); }
+    if (!agentOn(user, b.project_id)) throw new HttpError(400, 'err.linkTarget');
     if (a.id === b.id) throw new HttpError(400, 'err.linkSelf');
     // "parent" is stored as "a is a subtask of b": parents always come first
     let [from, to, k] = [a, b, kind];
@@ -86,12 +89,13 @@ export function createLinks(db, tickets) {
       tickets.logActivity(from.id, user.id, 'linked', `${k}:out`, null, keyOf(to));
       tickets.logActivity(to.id, user.id, 'linked', `${k}:in`, null, keyOf(from));
     })();
-    return list(a.id);
+    return list(a.id, user);
   }
 
   function remove(user, key, linkId) {
     if (!isAgent(user)) throw forbidden();
     const a = tickets.load(user, key);
+    if (!agentOn(user, a.project_id)) throw forbidden();
     const l = db.prepare('SELECT * FROM ticket_links WHERE id=? AND (from_id=? OR to_id=?)').get(linkId, a.id, a.id);
     if (!l) throw notFound();
     const from = tickets.rawById(l.from_id);
@@ -101,24 +105,25 @@ export function createLinks(db, tickets) {
       tickets.logActivity(from.id, user.id, 'unlinked', `${l.kind}:out`, keyOf(to), null);
       tickets.logActivity(to.id, user.id, 'unlinked', `${l.kind}:in`, keyOf(from), null);
     })();
-    return list(a.id);
+    return list(a.id, user);
   }
 
   /** Create a subtask: task in the same project, linked */
   function createSubtask(user, key, { title, assigneeId = null } = {}) {
     if (!isAgent(user)) throw forbidden();
     const parent = tickets.load(user, key);
+    if (!agentOn(user, parent.project_id)) throw forbidden();
     const t = tickets.create(user, { title, type: 'task', projectId: parent.project_id, priority: parent.priority, assigneeId }, { source: 'web' });
     db.transaction(() => {
       db.prepare("INSERT INTO ticket_links(from_id,to_id,kind,created_by) VALUES(?,?,'parent',?)").run(parent.id, t.id, user.id);
       tickets.logActivity(parent.id, user.id, 'linked', 'parent:out', null, t.key);
       tickets.logActivity(t.id, user.id, 'linked', 'parent:in', null, keyOf(parent));
     })();
-    return { ticket: t, links: list(parent.id) };
+    return { ticket: t, links: list(parent.id, user) };
   }
 
   // Ticket view: only agents see links
-  tickets.addDetailExtra((user, row) => (isAgent(user) ? { links: list(row.id) } : {}));
+  tickets.addDetailExtra((user, row) => (agentOn(user, row.project_id) ? { links: list(row.id, user) } : {}));
 
   /**
    * Suggestions for linking (agents): open problems and major incidents ("possible cause") and
@@ -128,7 +133,7 @@ export function createLinks(db, tickets) {
   function suggest(user, keys) {
     const rows = [];
     for (const k of keys.slice(0, 50)) {
-      try { rows.push(tickets.load(user, k)); } catch { /* unknown/invisible: ignore */ }
+      try { const r = tickets.load(user, k); if (agentOn(user, r.project_id)) rows.push(r); } catch { /* unknown/invisible: ignore */ }
     }
     const exclude = new Set(rows.map((r) => r.id));
     if (rows.length === 1) for (const l of db.prepare('SELECT from_id, to_id FROM ticket_links WHERE from_id=? OR to_id=?').all(rows[0].id, rows[0].id)) { exclude.add(l.from_id); exclude.add(l.to_id); }
@@ -136,15 +141,16 @@ export function createLinks(db, tickets) {
       const t = tickets.ticketOut(r);
       return { key: t.key, title: t.title, status: t.status, type: t.type, major: !!t.major, updatedAt: t.updatedAt };
     };
-    const causes = db.prepare(`SELECT id FROM tickets WHERE status<>'done' AND (type='problem' OR major=1)
-      ORDER BY major DESC, updated_at DESC LIMIT 30`).all()
-      .filter((r) => !exclude.has(r.id)).slice(0, 6)
+    const mine = (r) => agentOn(user, r.project_id);
+    const causes = db.prepare(`SELECT id, project_id FROM tickets WHERE status<>'done' AND (type='problem' OR major=1)
+      ORDER BY major DESC, updated_at DESC LIMIT 200`).all()
+      .filter((r) => !exclude.has(r.id) && mine(r)).slice(0, 6)
       .map((r) => tickets.rawById(r.id)).filter(Boolean).map(brief);
     const shown = new Set(causes.map((c) => c.key));
     const words = significantWords(rows.map((r) => ({ title: r.title, text: r.description })));
     const similar = tickets.search.similar(words, { limit: 40 })
       .filter((id) => !exclude.has(id))
-      .map((id) => tickets.rawById(id)).filter(Boolean).map(brief)
+      .map((id) => tickets.rawById(id)).filter((r) => r && mine(r)).map(brief)
       .filter((t) => !shown.has(t.key)).slice(0, 8);
     return { causes, similar, words };
   }

@@ -78,7 +78,7 @@ export async function renderList(content, params, { requests = false } = {}) {
 
   // Smartphone: filters behind a button (with the number of active filters)
   // Component filter: components belong to a project – offered once a project is chosen (or there is only one)
-  const filterProject = !requests && state.isAgent ? (f.project ? state.projects.find((p) => p.key === String(f.project).toUpperCase() || String(p.id) === String(f.project)) : (state.projects.length === 1 ? state.projects[0] : null)) : null;
+  const filterProject = !requests && state.isAgent ? (f.project ? state.agentProjects.find((p) => p.key === String(f.project).toUpperCase() || String(p.id) === String(f.project)) : (state.agentProjects.length === 1 ? state.agentProjects[0] : null)) : null;
   const comps = filterProject ? await projectComponents(filterProject.id) : [];
   if (!content.isConnected) return;
   const active = ['project', 'status', 'type', 'priority', 'assignee', 'participant', 'component'].filter((k) => f[k]).length + (requests && f.reporter === 'me' ? 0 : 0);
@@ -102,7 +102,7 @@ export async function renderList(content, params, { requests = false } = {}) {
           navigate(`${location.pathname}?${p}`, { replace: true });
         },
       }) : null,
-    !requests && state.projects.length > 1 ? select([['', t('nav.allProjects')], ...state.projects.map((p) => [p.key, p.name])], f.project || '', { class: 'select-sm', onchange: (e) => set('project', e.target.value) }) : null,
+    !requests && state.agentProjects.length > 1 ? select([['', t('nav.allProjects')], ...state.agentProjects.map((p) => [p.key, p.name])], f.project || '', { class: 'select-sm', onchange: (e) => set('project', e.target.value) }) : null,
     select([['', t('filter.allStatus')], ['unresolved', t('status.unresolved')], ...STATUSES.map((s) => [s, t(`status.${s}`)])], f.status || '', { class: 'select-sm', onchange: (e) => set('status', e.target.value) }),
     // Resolution: only meaningful for done tickets
     f.status === 'done' || f.resolution ? select([['', t('filter.allResolutions')], ...['done', 'rejected', 'duplicate'].map((r) => [r, t(`resolution.${r}`)])], f.resolution || '', { class: 'select-sm', 'aria-label': t('field.resolution'), onchange: (e) => set('resolution', e.target.value) }) : null,
@@ -342,7 +342,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
       ]),
       menu(t('list.priority'), PRIOS.map((x) => ({ label: t(`priority.${x}`), icon: priorityIcon(x), onClick: () => run({ changes: { priority: x } }) }))),
       componentMenu(),
-      state.projects.length > 1 ? menu(t('bulk.move'), state.projects.map((p) => ({ label: `${p.name} (${p.key})`, onClick: () => run({ changes: { projectId: p.id } }, t('bulk.moveConfirm', { n: sel.size, key: p.key })) }))) : null,
+      state.agentProjects.length > 1 ? menu(t('bulk.move'), state.agentProjects.map((p) => ({ label: `${p.name} (${p.key})`, onClick: () => run({ changes: { projectId: p.id } }, t('bulk.moveConfirm', { n: sel.size, key: p.key })) }))) : null,
       h('span.spacer'),
       h('button.btn.btn-subtle', { type: 'button', onclick: () => { sel.clear(); sync(); } }, t('bulk.clear')));
   }

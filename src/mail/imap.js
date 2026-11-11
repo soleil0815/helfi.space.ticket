@@ -4,7 +4,8 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { convert as htmlToText } from 'html-to-text';
 import { log } from '../lib/log.js';
-import { roleFromGroups } from '../users.js';
+import { roleFromGroups, projectAccessFromGroups, withProjectGroups } from '../users.js';
+import { agentOn, agentProjects } from '../auth/access.js';
 import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail, deliveryReport } from './parse.js';
 import { parseRules, matchRule } from './rules.js';
 import { sanitizeMailHtml, resolveCids } from './html.js';
@@ -136,9 +137,9 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       const s = sender || users.byEmail(fromAddr);
       // Matched via the subject number: a comment never adds CC (a non-participant gets a new ticket, which does)
       if (t.via !== 'reference') { if (isParticipant(t.id, s || { id: -1 }, fromAddr)) return found; }
-      else if ((s && (s.role === 'agent' || s.role === 'admin')) || outsiderReply(t, s, fromAddr)) return found;
+      else if ((s && agentOn(s, tickets.rawById(t.id)?.project_id)) || outsiderReply(t, s, fromAddr)) return found;
     }
-    for (const addr of recipientAddresses(parsed)) {
+    for (const addr of recipientAddresses(parsed, t ? tickets.rawById(t.id)?.project_id : null)) {
       const u = await lookupAddress(addr, now);
       if (u) found.set(addr, u);
     }
@@ -149,11 +150,14 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     return [settings.get('smtp.from'), settings.get('imap.user')].filter(Boolean).map((x) => x.toLowerCase());
   }
 
-  /** To and CC addresses excluding own addresses, sender and agents, at most MAX_CC_PARTICIPANTS. */
-  function recipientAddresses(parsed) {
+  /**
+   * To and CC addresses excluding own addresses, sender and agents (of the ticket's project; without
+   * a project: agents of all projects), at most MAX_CC_PARTICIPANTS.
+   */
+  function recipientAddresses(parsed, projectId = null) {
     const own = ownAddresses();
     // Agents do not count towards the limit (they never become participants anyway)
-    const isAgent = (a) => { const u = users.byEmail(a); return !!u && (u.role === 'agent' || u.role === 'admin'); };
+    const isAgent = (a) => { const u = users.byEmail(a); return !!u && (projectId ? agentOn(u, projectId) : agentProjects(u) === null); };
     const from = String(parsed.from?.value?.[0]?.address || '').toLowerCase();
     const list = [];
     for (const field of [parsed.to, parsed.cc]) {
@@ -179,7 +183,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
 
   async function lookupAddress(addr, now) {
     if (!adLookup || !settings.get('imap.adLookup') || !settings.get('ldap.enabled')) return null;
-    const ldapCfg = settings.group('ldap');
+    const ldapCfg = withProjectGroups(db, settings.group('ldap'));
     if (!ldapCfg.bindDn) return null;
     if (ownAddresses().includes(addr)) return null;
     const existing = users.byEmail(addr);
@@ -201,10 +205,10 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     if (!info) return miss(AD_MISS_TTL_MS);
     if (info.ambiguous) { log.warn('Sender address is used more than once in AD – becomes email contact'); return miss(AD_MISS_TTL_MS); }
     const role = roleFromGroups(info.groups, ldapCfg);
-    if (!info.groups.user && role !== 'admin' && role !== 'agent') return miss(AD_MISS_TTL_MS); // not permitted
+    if (!info.groups.user && role !== 'admin' && role !== 'agent' && !info.groups.projects?.length) return miss(AD_MISS_TTL_MS); // not permitted
     const u = users.upsertExternal({
       source: 'ldap', username: info.username, displayName: info.displayName,
-      email: info.email || addr, externalId: info.externalId, sid: info.sid, role,
+      email: info.email || addr, externalId: info.externalId, sid: info.sid, role, access: projectAccessFromGroups(info.groups, ldapCfg),
     });
     log.info(`Email sender found in AD: ${u.username}`);
     return u;
@@ -285,13 +289,15 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const withNote = (body) => body.slice(0, MAX_BODY - droppedNote.length) + droppedNote;
     if (dropped.length) log.warn(`Email ${messageId}: ${dropped.length} attachment(s) not imported (too large or too many)`);
 
-    // Agent accounts are not treated as agents via email (sender can be forged):
-    // comments appear with the sender address, not under the account
-    const privileged = sender.role === 'agent' || sender.role === 'admin';
-
     const found = findTicket(parsed);
     // Anyone who only knows the (sequential) ticket number but is not involved gets a new ticket
     const existingId = found && (found.via === 'reference' || isParticipant(found.id, sender, fromAddr)) ? found.id : null;
+    const ticketProject = existingId ? tickets.rawById(existingId)?.project_id : null;
+
+    // Agent accounts are not treated as agents via email (sender can be forged):
+    // comments appear with the sender address, not under the account.
+    // Agents of other projects write to this ticket like any user.
+    const privileged = (sender.role === 'agent' || sender.role === 'admin') && (!existingId || agentOn(sender, ticketProject));
     // Reply to an agent-only mail: only as an internal note (invisible to users), reopens nothing.
     // Grants no rights: the author stays the sender address, only the agent knows the Message-ID.
     // The same applies to replies via our Message-ID from someone who is no longer reporter/participant
@@ -320,9 +326,10 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     const addCcParticipants = (ticketId) => {
       if (!settings.get('imap.ccParticipants')) return;
       const names = recipientNames(parsed);
-      for (const addr of recipientAddresses(parsed)) {
+      const pid = tickets.rawById(ticketId)?.project_id;
+      for (const addr of recipientAddresses(parsed, pid)) {
         const u = opts.participants?.get(addr) || users.byEmail(addr) || users.contactForEmail(addr, names.get(addr) || '');
-        if ((!u.active && !u.approval_pending) || u.role === 'agent' || u.role === 'admin') continue;
+        if ((!u.active && !u.approval_pending) || agentOn(users.byId(u.id) || u, pid)) continue;
         try { tickets.addParticipant(sender, ticketId, { userId: u.id }, { system: true, notify: false }); }
         catch (e) { log.warn(`Participant ${addr} not added`, { error: e.message }); break; }
       }

@@ -1,6 +1,6 @@
 // Devices and services (lightweight CI registry): entries, links to tickets, history, CSV import.
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
-import { isAgent } from '../auth/session.js';
+import { isAgent, agentOn, projectScopeSql } from '../auth/session.js';
 
 export const CI_KINDS = ['device', 'server', 'network', 'printer', 'phone', 'service', 'application', 'other'];
 export const CI_STATUS = ['active', 'maintenance', 'retired'];
@@ -86,8 +86,10 @@ export function createCmdb(db, tickets, users) {
     need(user);
     const c = db.prepare(`${SELECT} WHERE c.id=?`).get(int(id) || 0);
     if (!c) throw notFound();
+    // Ticket history of the device: only tickets of the agent's projects
+    const ps = projectScopeSql(user);
     const history = db.prepare(`SELECT t.*, p.key project_key FROM ticket_cis x JOIN tickets t ON t.id=x.ticket_id JOIN projects p ON p.id=t.project_id
-      WHERE x.ci_id=? ORDER BY t.created_at DESC LIMIT 500`).all(c.id)
+      WHERE x.ci_id=? AND ${ps.sql} ORDER BY t.created_at DESC LIMIT 500`).all(c.id, ...ps.args)
       .map((t) => ({ key: `${t.project_key}-${t.number}`, title: t.title, type: t.type, status: t.status, priority: t.priority, createdAt: t.created_at, resolvedAt: t.resolved_at }));
     return { ...out(c), history };
   }
@@ -140,6 +142,7 @@ export function createCmdb(db, tickets, users) {
   function link(user, key, { ciId, name } = {}) {
     need(user);
     const row = tickets.load(user, key);
+    if (!agentOn(user, row.project_id)) throw forbidden();
     const c = ciId ? db.prepare('SELECT * FROM config_items WHERE id=?').get(int(ciId) || 0) : db.prepare('SELECT * FROM config_items WHERE name=?').get(str(name, 120).trim());
     if (!c) throw notFound();
     if (db.prepare('SELECT 1 FROM ticket_cis WHERE ticket_id=? AND ci_id=?').get(row.id, c.id)) return forTicket(row.id);
@@ -151,6 +154,7 @@ export function createCmdb(db, tickets, users) {
   function unlink(user, key, ciId) {
     need(user);
     const row = tickets.load(user, key);
+    if (!agentOn(user, row.project_id)) throw forbidden();
     const c = db.prepare('SELECT name FROM config_items WHERE id=?').get(int(ciId) || 0);
     if (c && db.prepare('DELETE FROM ticket_cis WHERE ticket_id=? AND ci_id=?').run(row.id, int(ciId)).changes) {
       tickets.logActivity(row.id, user.id, 'ciUnlinked', null, c.name, null);
@@ -158,7 +162,7 @@ export function createCmdb(db, tickets, users) {
     return forTicket(row.id);
   }
 
-  tickets.addDetailExtra((user, row) => (isAgent(user) ? { cis: forTicket(row.id) } : {}));
+  tickets.addDetailExtra((user, row) => (agentOn(user, row.project_id) ? { cis: forTicket(row.id) } : {}));
 
   // ---------- CSV import ----------
   function importCsv(user, text) {

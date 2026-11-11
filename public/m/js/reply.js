@@ -41,7 +41,7 @@ const altText = (name) => String(name || '').replace(/[[\]\n\r]/g, ' ').slice(0,
  */
 export function replyBar({ getTicket, onSent }) {
   const owner = state.user?.id; // drafts of this bar belong to the account it was opened for
-  const agent = state.isAgent;
+  const agent = getTicket()?.agentView ?? state.isAgent;
   const key = () => getTicket().key;
   let internal = false;
   let busy = false;

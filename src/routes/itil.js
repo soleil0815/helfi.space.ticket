@@ -1,6 +1,6 @@
 // ITIL extensions: links, (later) SLA, problem, change, knowledge, catalog …
 import express from 'express';
-import { requireRole, isAgent } from '../auth/session.js';
+import { requireRole, agentOn } from '../auth/session.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
@@ -39,7 +39,7 @@ export function createItilRoutes(ctx) {
   r.post('/tickets/:key/problem', requireRole('agent'), wrap(async (req, res) => {
     res.status(201).json({ ticket: problems.fromIncident(req.user, req.params.key, { title: req.body.title }) });
   }));
-  r.get('/known-errors', requireRole('agent'), (req, res) => res.json({ knownErrors: problems.knownErrors() }));
+  r.get('/known-errors', requireRole('agent'), (req, res) => res.json({ knownErrors: problems.knownErrors(req.user) }));
 
   // ---------- Change management ----------
   r.post('/tickets/:key/change/transition', requireRole('agent'), wrap(async (req, res) => {
@@ -62,11 +62,11 @@ export function createItilRoutes(ctx) {
     const from = new Date(String(req.query.from || ''));
     const to = new Date(String(req.query.to || ''));
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to - from > 400 * 864e5) return res.status(400).json({ error: { code: 'err.badRequest' } });
-    res.json({ changes: changes.calendar(from.toISOString(), to.toISOString()) });
+    res.json({ changes: changes.calendar(from.toISOString(), to.toISOString(), req.user) });
   });
   r.get('/changes/templates', requireRole('agent'), (req, res) => res.json({ templates: changes.standardTemplates() }));
   r.get('/approvals/mine', (req, res) => {
-    res.json({ tickets: approvals.pendingFor(req.user.id).map((id) => tickets.ticketOut(tickets.rawById(id), isAgent(req.user), req.user.id)) });
+    res.json({ tickets: approvals.pendingFor(req.user.id).map((id) => { const row = tickets.rawById(id); return tickets.ticketOut(row, agentOn(req.user, row.project_id), req.user.id); }) });
   });
 
   // ---------- Knowledge base (read: all signed-in users, public articles; write: agents) ----------
@@ -145,8 +145,8 @@ export function createItilRoutes(ctx) {
   // ---------- Service catalog ----------
   // ---------- Satisfaction ----------
   r.post('/tickets/:key/rating', (req, res) => res.json({ ticket: survey.rateAsUser(req.user, req.params.key, req.body.rating, req.body.comment) }));
-  r.get('/reports/itil', requireRole('agent'), (req, res) => res.json(itilReports.report(req.query)));
-  r.get('/reports/satisfaction', requireRole('agent'), (req, res) => res.json(survey.report(req.query)));
+  r.get('/reports/itil', requireRole('agent'), (req, res) => res.json(itilReports.report(req.query, req.user)));
+  r.get('/reports/satisfaction', requireRole('agent'), (req, res) => res.json(survey.report(req.query, req.user)));
 
   // ---------- Devices and services ----------
   r.get('/cis', requireRole('agent'), (req, res) => res.json({ items: cmdb.list(req.user, { q: str(req.query.q, 200), kind: str(req.query.kind, 20), status: str(req.query.status, 20) }) }));

@@ -310,11 +310,18 @@ export function createAi({ db, settings, tickets }) {
   const langOf = (user) => normalizeLang(user.language, settings.get('general.defaultLanguage'));
   const fingerprint = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 32);
 
+  /** Ticket for the AI: only for agents of its project (others see it as a user at most) */
+  function agentDetail(user, key) {
+    const tk = tickets.detail(user, key);
+    if (!tk.agentView) throw new HttpError(403, 'err.forbidden');
+    return tk;
+  }
+
   /** Stored summary (also if the ticket changed meanwhile: then marked as outdated) */
   function storedSummary(user, key) {
     const cfg = config();
     if (!ready(cfg) || !cfg.features.summary) return null;
-    const tk = tickets.detail(user, key);
+    const tk = agentDetail(user, key);
     const row = db.prepare('SELECT * FROM ai_summaries WHERE ticket_id=?').get(tk.id);
     if (!row) return null;
     const ctx = ticketContext(tk, cfg);
@@ -323,7 +330,7 @@ export function createAi({ db, settings, tickets }) {
 
   async function summarize(user, key) {
     const cfg = guard(user, 'summary');
-    const tk = tickets.detail(user, key);
+    const tk = agentDetail(user, key);
     const lang = langOf(user);
     const ctx = ticketContext(tk, cfg);
     const text = await timed('summary', tk.key, cfg, () => chat([
@@ -339,7 +346,7 @@ export function createAi({ db, settings, tickets }) {
 
   async function suggestReply(user, key, draft = '') {
     const cfg = guard(user, 'reply');
-    const tk = tickets.detail(user, key);
+    const tk = agentDetail(user, key);
     const lang = langOf(user);
     const notes = str(draft, 4000).trim();
     const text = await timed('reply', tk.key, cfg, () => chat([
@@ -391,7 +398,7 @@ export function createAi({ db, settings, tickets }) {
   /** Article draft from a ticket (problem – cause – solution, without personal data) */
   async function kbDraft(user, key) {
     const cfg = guard(user, 'kb');
-    const tk = tickets.detail(user, key);
+    const tk = agentDetail(user, key);
     const lang = langOf(user);
     const text = await timed('kb:draft', tk.key, cfg, () => chat([
       { role: 'system', content: PROMPTS.kb.draft(lang) },

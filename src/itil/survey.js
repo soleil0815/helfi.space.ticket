@@ -2,7 +2,7 @@
 import crypto from 'node:crypto';
 import { HttpError, notFound, forbidden, str, int, isoDate } from '../lib/http.js';
 import { randomToken } from '../lib/crypto.js';
-import { isAgent } from '../auth/session.js';
+import { agentOn, projectScopeSql } from '../auth/session.js';
 
 const SKIP_TYPES = new Set(['problem', 'change']); // internal, no reporter in the real sense
 const hash = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -78,18 +78,20 @@ export function createSurvey(db, tickets, settings) {
   tickets.addDetailExtra((user, row) => {
     const r = rowOf(row.id);
     if (!r) return {};
-    if (isAgent(user)) return r.rating ? { rating: { value: r.rating, comment: r.comment, ratedAt: r.rated_at } } : {};
+    if (agentOn(user, row.project_id)) return r.rating ? { rating: { value: r.rating, comment: r.comment, ratedAt: r.rated_at } } : {};
     if (row.reporter_id === user.id && row.status === 'done' && !expired(r)) return { rating: { value: r.rating, comment: r.comment, ratedAt: r.rated_at, open: true } };
     return {};
   });
 
   /** Evaluation for reports */
-  function report({ from, to, project } = {}) {
+  function report({ from, to, project } = {}, user = null) {
     const f = isoDate(from) || '0000'; const tt = isoDate(to) ? `${isoDate(to)}T23:59:59.999Z` : '9999';
     const p = project ? tickets.projects.get(String(project).toUpperCase()) : null;
+    // Agents limited to projects: their projects only (another project = none)
+    const scope = user ? projectScopeSql(user) : { sql: '1', args: [] };
     const rows = db.prepare(`SELECT r.*, t.number, t.title, pr.key project_key, u.display_name a_name FROM ticket_ratings r
       JOIN tickets t ON t.id=r.ticket_id JOIN projects pr ON pr.id=t.project_id LEFT JOIN users u ON u.id=r.assignee_id
-      WHERE r.sent_at>=? AND r.sent_at<=? ${p ? 'AND t.project_id=?' : ''} ORDER BY r.rated_at DESC`).all(f, tt, ...(p ? [p.id] : []));
+      WHERE r.sent_at>=? AND r.sent_at<=? AND ${scope.sql} ${p ? 'AND t.project_id=?' : ''} ORDER BY r.rated_at DESC`).all(f, tt, ...scope.args, ...(p ? [p.id] : []));
     const rated = rows.filter((r) => r.rating);
     const avg = (xs) => (xs.length ? Math.round((xs.reduce((s, x) => s + x.rating, 0) / xs.length) * 10) / 10 : null);
     const per = new Map();

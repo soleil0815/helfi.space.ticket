@@ -56,13 +56,21 @@ test('Login, roles from (nested) groups', { skip }, async () => {
   const max = await ldap.authenticate(cfg, 'FIRMA\\m.muster', 'Muster!Pass2026');
   assert.equal(max.username, 'm.muster');
   assert.equal(max.email, 'm.muster@firma.local');
-  assert.deepEqual(max.groups, { admin: false, agent: true, user: true });
+  assert.deepEqual(max.groups, { admin: false, agent: true, user: true, projects: [] });
 
   const erika = await ldap.authenticate(cfg, 'e.beispiel@firma.local', 'Beispiel!Pass2026');
   assert.equal(erika.groups.admin, true, 'nested group IT-Team → Helfi-Admins');
 
   const flat = await ldap.authenticate({ ...cfg, nestedGroups: false }, 'e.beispiel', 'Beispiel!Pass2026');
   assert.equal(flat.groups.admin, false, 'no admin without nesting');
+
+  // Project groups (by name, in another OU; nested): member = agent of that project
+  const pg = { ...cfg, projectGroups: [{ id: 7, key: 'HM', group: 'Helfi-Support' }, { id: 8, key: 'IT', group: 'IT-Team' }] };
+  assert.deepEqual((await ldap.authenticate(pg, 'm.muster', 'Muster!Pass2026')).groups.projects, [7]);
+  assert.deepEqual((await ldap.authenticate(pg, 'e.beispiel', 'Beispiel!Pass2026')).groups.projects, [8]);
+  const test = await ldap.testConnection(pg, { username: 'm.muster', password: 'Muster!Pass2026' });
+  assert.ok(test.steps.some((st) => st.key === 'projectGroup' && st.project === 'HM' && st.ok), JSON.stringify(test.steps));
+  assert.deepEqual(test.steps.find((st) => st.key === 'user').user.groups.projects, ['HM']);
 
   assert.equal(await ldap.authenticate(cfg, 'm.muster', 'falsch'), null);
   assert.equal(await ldap.authenticate(cfg, 'm.muster', ''), null, 'empty password = never anonymous');
@@ -75,7 +83,7 @@ test('Without service account: search as the user logging in', { skip }, async (
   cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
   const u = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
   assert.equal(u.username, 'k.kunde');
-  assert.deepEqual(u.groups, { admin: false, agent: false, user: true });
+  assert.deepEqual(u.groups, { admin: false, agent: false, user: true, projects: [] });
   assert.equal(await ldap.authenticate(cfg, 'k.kunde', 'falsch'), null);
 });
 
