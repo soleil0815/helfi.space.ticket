@@ -34,6 +34,7 @@ async function main() {
   // Email fetching
   ctx.poller.start();
   ctx.sla.start();
+  ctx.reminders.start();
 
   // Clean up old backups right at startup (e.g. after an update)
   try { pruneBackups(ctx.settings.get('backup.keep')); } catch (e) { log.warn('Backup cleanup failed', { error: e.message }); }

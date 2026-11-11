@@ -160,6 +160,10 @@ export const DEFAULTS = {
   'notify.assignee': true,
   'notify.participantAdded': true, // mail to people added as participants on the web
   'notify.mention': true, // mail to people @-mentioned in a comment
+  // Daily reminder to the project lead about open tickets nobody has taken on for X days (0 = off)
+  'reminder.unassignedDays': 0,
+  'reminder.time': '08:00',
+  'reminder.weekdaysOnly': true,
 };
 
 export const SECRET_KEYS = new Set(['ldap.bindPassword', 'oidc.clientSecret', 'imap.password', 'smtp.password', 'ai.apiKey']);

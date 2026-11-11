@@ -265,6 +265,7 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
   - im Web oder per Antwort-Mail kommentieren und Dateien anhängen
 - **Was Teilnehmer nicht dürfen:** interne Notizen sehen, Status, Zuweisung oder Titel ändern. Vom Melder und von anderen Antwortenden sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen (das gilt auch für Genehmigende ohne Bearbeiter-Rolle und in der Personensuche).
 - **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
+- **Erinnerung an Projektverantwortliche** (*Administration → E-Mail*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommt der Verantwortliche jedes Projekts eine Sammelmail mit den offenen Tickets, die seit X Tagen niemandem zugewiesen sind – mit Links zu den Tickets und zur gefilterten Liste. Ohne Verantwortlichen geht sie an die Admins, ohne liegengebliebene Tickets kommt keine Mail. Auf Wunsch nur Montag bis Freitag; *Jetzt prüfen und senden* zum Ausprobieren.
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
