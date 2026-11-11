@@ -18,6 +18,7 @@ import { resetActionCaches } from './actions.js';
 import { clearUserData, noteUser } from '/js/userdata.js';
 import { renderNotFound } from './views/misc.js';
 import { setupPwa } from './pwa.js';
+import { setupImageViewer } from './imageview.js';
 
 const NEXT_KEY = 'helfi.m.next';
 
@@ -197,6 +198,7 @@ async function start() {
   initIdle({ login: '/m/login' });
   trackKeyboard();
   setupPwa();
+  setupImageViewer();
   try {
     [state.boot] = await Promise.all([api.bootstrap(), loadSprite()]);
   } catch {
