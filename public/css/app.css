@@ -1377,7 +1377,7 @@ a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px
 .idle-actions .btn { min-height: 40px; }
 
 /* Bulk dialog: comment as reply or internal note, link */
-.bulk-comment textarea.internal { background: var(--note-bg); border-color: var(--note-border); }
+.bulk-comment textarea.internal, #done-form textarea.internal { background: var(--note-bg); border-color: var(--note-border); }
 .bulk-link select, .bulk-link .link-picker, .bulk-link .link-target { width: 100%; }
 .bulk-link { margin-bottom: 8px; }
 
