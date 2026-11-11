@@ -268,6 +268,10 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
+## Resolving with a closing comment
+
+*Done* in the status menu opens a window for an optional closing comment: **reply to reporter** (default, then no extra “Resolved” mail) or **internal note**, with reply templates and placeholders. Comment and close in one step; without text the ticket is simply resolved, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> resolves right away. The same in the multiple selection and on phones (*Status → Done*).
+
 ## Rejecting and duplicates
 
 A done ticket has a **resolution**: *Done*, *Rejected* or *Duplicate*. Internally the status stays “Done” – service levels, board, reports, automatic closing and reopening therefore work as usual.

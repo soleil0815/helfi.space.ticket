@@ -15,7 +15,7 @@ import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
 import { activityFieldLabel, activityValue, componentReason, resolutionDetail } from '../activity.js';
-import { openResolveDialog } from './resolve.js';
+import { openResolveDialog, openDoneDialog } from './resolve.js';
 import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
@@ -271,7 +271,8 @@ export async function renderTicket(content, key) {
     return h(`button.status-btn.status-${tk.status === 'done' && tk.resolution && tk.resolution !== 'done' ? tk.resolution : tk.status}`, {
       type: 'button',
       onclick: (e) => dropdown(e.currentTarget, [
-        ...STATUSES.map((s) => ({ label: t(`status.${s}`), active: s === tk.status && !(s === 'done' && tk.resolution && tk.resolution !== 'done'), onClick: () => save({ status: s }) })),
+        // "Done" opens a dialog for an optional closing comment (reply or internal note) – one step
+        ...STATUSES.map((s) => ({ label: t(`status.${s}`), active: s === tk.status && !(s === 'done' && tk.resolution && tk.resolution !== 'done'), onClick: () => (s === 'done' && tk.status !== 'done' ? openDoneDialog({ keys: [tk.key], tk, onDone: refresh }) : save({ status: s })) })),
         '-',
         // Close with a resolution: reason / original ticket in a dialog
         { label: t('resolve.rejectMenu'), icon: icon('close'), active: tk.resolution === 'rejected', onClick: () => openResolveDialog({ kind: 'rejected', keys: [tk.key], tk, onDone: refresh }) },

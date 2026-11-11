@@ -9,6 +9,69 @@ import { openTemplatePicker, fillPlaceholders } from './canned.js';
 import { withEmoji } from '../emoji.js';
 
 /**
+ * "Done" with an optional closing comment – reply to the reporter (default) or internal note –
+ * in one step. With a reply the reporter gets no extra "resolved" mail (the reply informs).
+ */
+export function openDoneDialog({ keys, tk = null, onDone }) {
+  const many = keys.length > 1;
+  const ta = h('textarea', { id: 'done-comment', rows: 6, maxLength: 100000, placeholder: t('done.placeholder') });
+  let internal = false;
+  const label = h('label', { for: 'done-comment' });
+  const hint = h('div.hint');
+  const reply = h('button.mode', { type: 'button', 'data-done-kind': 'reply', onclick: () => setKind(false) }, icon('mail'), t('bulk.asReply'));
+  const note = h('button.mode', { type: 'button', 'data-done-kind': 'note', onclick: () => setKind(true) }, icon('lock'), t('bulk.asNote'));
+  function setKind(isInternal) {
+    internal = isInternal;
+    for (const [b, on] of [[reply, !internal], [note, internal]]) { b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); }
+    label.textContent = t(internal ? 'done.noteLabel' : 'done.replyLabel');
+    hint.textContent = t(internal ? 'done.noteHint' : 'done.replyHint');
+    ta.classList.toggle('internal', internal);
+  }
+  const tplBtn = h('button.btn.btn-subtle.small', { type: 'button', onclick: (e) => openTemplatePicker(e.currentTarget, (x) => {
+    const text = tk ? fillPlaceholders(x.body, tk) : x.body;
+    const at = ta.selectionStart ?? ta.value.length;
+    ta.value = ta.value.slice(0, at) + text + ta.value.slice(ta.selectionEnd ?? at);
+    ta.focus();
+  }) }, icon('comment'), t('canned.toolbar'));
+  const err = h('div.form-error', { role: 'alert', hidden: true });
+  const ok = h('button.btn.btn-primary', { type: 'submit', form: 'done-form', 'data-done-submit': '' }, icon('check'), t('done.btn'));
+  const dlg = modal(t(many ? 'done.titleMany' : 'done.title', { n: keys.length, key: keys[0] }),
+    h('form#done-form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        err.hidden = true;
+        ok.disabled = true;
+        const comment = ta.value.trim();
+        try {
+          // Placeholders like {melder} are filled in per ticket on the server
+          const r = await api.bulk({ keys, changes: { status: 'done' }, ...(comment ? { comment, internal } : {}) });
+          if (!r.ok.length && r.failed.length) {
+            err.textContent = r.failed.map((x) => `${x.key}: ${x.error}`).join(', ');
+            err.hidden = false; ok.disabled = false; return;
+          }
+          if (r.failed.length) toast(t('bulk.partly', { ok: r.ok.length, failed: r.failed.length, list: r.failed.map((x) => `${x.key}: ${x.error}`).join(', ') }), 'error');
+          else toast(many ? t('done.doneMany', { n: r.ok.length }) : t('done.done', { key: r.ok[0] || keys[0] }), 'success');
+          dlg.close();
+          onDone?.(r);
+        } catch (ex) { err.textContent = ex.message; err.hidden = false; ok.disabled = false; }
+      },
+      // Ctrl/Cmd+Enter in the text field closes the ticket right away
+      onkeydown: (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ok.click(); } },
+    },
+    h('p.muted', t('done.intro')),
+    err,
+    h('div.composer-modes.bulk-modes', { role: 'group', 'aria-label': t('bulk.kind') }, reply, note),
+    h('div.field',
+      h('div.resolve-label-row', label, tplBtn),
+      withEmoji(ta),
+      hint)),
+    { wide: true, footer: [h('span.muted.small.done-shortcut', t('done.shortcut')), h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), ok] });
+  setKind(false);
+  ta.focus();
+  return dlg;
+}
+
+/**
  * kind: 'rejected' | 'duplicate'; keys: ticket keys; tk: the single ticket (for placeholders in
  * templates – with several tickets they are filled per ticket on the server); onDone(result)
  */
