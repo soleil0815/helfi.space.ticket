@@ -170,3 +170,18 @@ test('objectSid: find account by SID (SSO merging)', { skip }, async () => {
   assert.equal(bySid.externalId, max.externalId);
   assert.equal(await ldap.findBySid(cfg, 'S-1-5-21-1-2-3-999999'), null);
 });
+
+test('Group given by name only is found outside the base DN (groups in their own OU)', { skip }, async () => {
+  // Base DN = the users' container, the group lives in OU=Gruppen – before, only the full DN worked
+  const cfg = { ...base, baseDn: 'CN=Users,DC=firma,DC=local', agentGroup: 'Helfi-Support', adminGroup: 'helfi-admins' };
+  const max = await ldap.authenticate(cfg, 'm.muster', 'Muster!Pass2026');
+  assert.equal(max.groups.agent, true, 'group name alone, group in another OU');
+  const erika = await ldap.authenticate(cfg, 'e.beispiel', 'Beispiel!Pass2026');
+  assert.equal(erika.groups.admin, true, 'name in other letter case, nested');
+  assert.equal(erika.groups.agent, false);
+  // the connection test shows the resolved DN
+  const t = await ldap.testConnection(cfg);
+  const step = t.steps.find((s) => s.key === 'group' && s.role === 'agent');
+  assert.equal(step.ok, true);
+  assert.match(step.dn, /^CN=Helfi-Support,OU=Gruppen,DC=firma,DC=local$/i);
+});

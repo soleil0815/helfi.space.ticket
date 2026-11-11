@@ -191,12 +191,27 @@ async function ensureBaseDn(client, cfg) {
   return { ...cfg, baseDn: dse.defaultNamingContext };
 }
 
+/**
+ * Where groups are searched by name: the whole domain (DC=… part of the base DN), not just the base DN.
+ * The base DN often points to the users' OU, while the groups live in another OU – then a group given by
+ * name alone was never found (only the full DN worked).
+ */
+export function groupSearchBase(baseDn) {
+  const dc = String(baseDn || '').split(',').map((p) => p.trim()).filter((p) => /^dc=/i.test(p));
+  return dc.length ? dc.join(',') : String(baseDn || '');
+}
+
 async function resolveGroupDn(client, cfg, value) {
   if (!value) return '';
+  value = String(value).trim();
   if (value.includes('=')) return value;
-  const { searchEntries } = await client.search(cfg.baseDn, {
+  let base = groupSearchBase(cfg.baseDn);
+  if (!base) base = (await readRootDse(client)).defaultNamingContext || '';
+  const v = escapeFilter(value);
+  // cn, pre-Windows-2000 name, name and display name – AD shows different ones in different places
+  const { searchEntries } = await client.search(base, {
     scope: 'sub',
-    filter: `(&(objectClass=group)(|(cn=${escapeFilter(value)})(sAMAccountName=${escapeFilter(value)})))`,
+    filter: `(&(objectClass=group)(|(cn=${v})(sAMAccountName=${v})(name=${v})(displayName=${v})))`,
     attributes: ['dn'],
   });
   if (!searchEntries.length) { log.warn(`AD group not found: ${value}`); return ''; }
