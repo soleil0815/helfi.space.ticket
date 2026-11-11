@@ -246,7 +246,28 @@ export function createUsers(db) {
     return null;
   }
 
-  return { byAdId: (adId) => scoped(byAdId(adId)), byId: (id) => scoped(byId.get(id)), byName: (n) => scoped(byName.get(n)), byEmail: (e) => scoped(byEmail.get(e)), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
+  /** Every account (admin list) */
+  function all() { return db.prepare('SELECT * FROM users ORDER BY active DESC, display_name').all(); }
+
+  /** Active agents and admins – of these projects (ids), or of every project (null) */
+  function agentsOf(projectIds = null) {
+    if (projectIds === null) return db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all();
+    return db.prepare(`SELECT * FROM users WHERE active=1 AND (role='admin' OR (role='agent' AND (agent_scope<>'projects'
+      OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))))) ORDER BY display_name`).all(JSON.stringify(projectIds));
+  }
+
+  /** Projects per agent (manual and via project group): Map userId → [{ id, key, name, source, group }] */
+  function projectsByUser() {
+    const byUser = new Map();
+    for (const r of db.prepare(`SELECT pa.user_id, pa.source, p.id, p.key, p.name, p.agent_group FROM project_agents pa
+      JOIN projects p ON p.id=pa.project_id ORDER BY p.key`).all()) {
+      if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
+      byUser.get(r.user_id).push({ id: r.id, key: r.key, name: r.name, source: r.source, group: r.source === 'group' ? r.agent_group : undefined });
+    }
+    return byUser;
+  }
+
+  return { all, agentsOf, projectsByUser, byAdId: (adId) => scoped(byAdId(adId)), byId: (id) => scoped(byId.get(id)), byName: (n) => scoped(byName.get(n)), byEmail: (e) => scoped(byEmail.get(e)), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
 }
 
 /** Settings of a directory (AD or SSO) plus the project groups of active projects: projectGroups [{ id, key, group }] */

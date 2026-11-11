@@ -15,7 +15,7 @@ import { csvAdapter, readCsv, suggestColumns, CSV_FIELDS, MAX_CSV_BYTES } from '
 import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
-import { requireAuth, requireRole, isAgent, agentOn, agentProjects, projectScopeSql, idleMinutes } from '../auth/session.js';
+import { requireAuth, requireRole, isAgent, agentOn, agentProjects, idleMinutes } from '../auth/session.js';
 import { publicUser, userRef, roleFromGroups, projectAccessFromGroups, withProjectGroups, normalizeEmail } from '../users.js';
 import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
@@ -291,26 +291,14 @@ export function createApi(ctx) {
   r.get('/users', requireRole('agent'), (req, res) => {
     const all = req.query.all === '1' && req.user.role === 'admin';
     // Agents (for assigning): of one project (?project=KEY) – or of the asking agent's projects
-    let rows;
-    if (all) rows = db.prepare('SELECT * FROM users ORDER BY active DESC, display_name').all();
-    else {
+    if (!all) {
       const p = req.query.project ? tickets.projects.get(str(req.query.project, 20).toUpperCase()) : null;
       if (req.query.project && (!p || !agentOn(req.user, p.id))) throw notFound();
-      const scope = p ? [p.id] : agentProjects(req.user);
-      rows = scope === null
-        ? db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all()
-        : db.prepare(`SELECT * FROM users u WHERE active=1 AND (role='admin' OR (role='agent' AND (agent_scope<>'projects'
-            OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))))) ORDER BY display_name`).all(JSON.stringify(scope));
+      return res.json({ users: users.agentsOf(p ? [p.id] : agentProjects(req.user)).map(userRef) });
     }
-    if (!all) return res.json({ users: rows.map(userRef) });
     // Admins: which projects each agent works on (manually and via project group)
-    const byUser = new Map();
-    for (const r of db.prepare(`SELECT pa.user_id, pa.source, p.id, p.key, p.name, p.agent_group FROM project_agents pa
-      JOIN projects p ON p.id=pa.project_id ORDER BY p.key`).all()) {
-      if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
-      byUser.get(r.user_id).push({ id: r.id, key: r.key, name: r.name, source: r.source, group: r.source === 'group' ? r.agent_group : undefined });
-    }
-    res.json({ users: rows.map((u) => ({ ...publicUser(u), projects: byUser.get(u.id) || [] })) });
+    const byUser = users.projectsByUser();
+    res.json({ users: users.all().map((u) => ({ ...publicUser(u), projects: byUser.get(u.id) || [] })) });
   });
 
   // Search people (e.g. request participants): name/login name only, from 2 characters, at most 10 matches.
@@ -617,11 +605,10 @@ export function createApi(ctx) {
     const project = req.query.project ? str(req.query.project, 20) : null;
     const counts = tickets.queueCounts(req.user, project);
     if (ctx.sla.enabled()) counts.slaRisk = ctx.sla.atRisk(project, req.user).length;
-    const ps = projectScopeSql(req.user);
-    counts.changes = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='change' AND t.status<>'done' AND p.archived=0 AND ${ps.sql} ${project ? 'AND p.key=?' : ''}`).get(...ps.args, ...(project ? [project.toUpperCase()] : [])).n;
+    counts.changes = tickets.openOfType(req.user, 'change', project);
     counts.approvals = ctx.approvals.pendingFor(req.user.id).length;
     counts.mentions = tickets.unseenMentionTickets(req.user).size;
-    counts.problems = db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type='problem' AND t.status<>'done' AND p.archived=0 AND ${ps.sql} ${project ? 'AND p.key=?' : ''}`).get(...ps.args, ...(project ? [project.toUpperCase()] : [])).n;
+    counts.problems = tickets.openOfType(req.user, 'problem', project);
     res.json({ counts });
   });
   r.get('/summary', requireRole('agent'), (req, res) => res.json(tickets.summary(req.user, req.query.project ? str(req.query.project, 20) : null)));

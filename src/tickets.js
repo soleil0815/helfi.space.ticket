@@ -1041,6 +1041,13 @@ export function createTickets(db, users) {
     };
   }
 
+  /** Open tickets of one type (changes, problems) in active projects of the agent (optionally one project) */
+  function openOfType(user, type, projectKey = null) {
+    const ps = projectScopeSql(user);
+    return db.prepare(`SELECT COUNT(*) n FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.type=? AND t.status<>'done' AND p.archived=0 AND ${ps.sql} ${projectKey ? 'AND p.key=?' : ''}`)
+      .get(type, ...ps.args, ...(projectKey ? [String(projectKey).toUpperCase()] : [])).n;
+  }
+
   function stats(user) {
     // like the queues: active projects only
     const ps = projectScopeSql(user);
@@ -1055,6 +1062,6 @@ export function createTickets(db, users) {
     search,
     events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
-    applyComponent, resolveAs, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, summary,
+    applyComponent, resolveAs, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, openOfType, summary,
   };
 }
