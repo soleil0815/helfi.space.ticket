@@ -197,6 +197,7 @@ export const api = {
     testImap: (settings) => request('POST', '/api/admin/imap/test', { settings }),
     pollImap: () => request('POST', '/api/admin/imap/poll'),
     testSmtp: (settings, to) => request('POST', '/api/admin/smtp/test', { settings, to }),
+    runReminder: () => request('POST', '/api/admin/reminder/run'),
     testAi: (settings) => request('POST', '/api/admin/ai/test', { settings }),
     aiModels: (settings) => request('POST', '/api/admin/ai/models', { settings }),
     aiStats: () => request('GET', '/api/admin/ai/stats'),

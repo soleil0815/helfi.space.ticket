@@ -882,6 +882,12 @@ export function createApi(ctx) {
       incoming['ldap.caInfo'] = JSON.stringify(ldap.splitPem(incoming['ldap.caPem']).map((p) => { const { pem, ...rest } = ldap.describeCert(p); return rest; }));
     }
     delete incoming['brand.logo']; // only via the dedicated upload
+    if (incoming['reminder.unassignedDays'] !== undefined) {
+      const d = Math.round(Number(incoming['reminder.unassignedDays']));
+      if (!Number.isFinite(d) || d < 0 || d > 60) throw new HttpError(400, 'err.badRequest', 'reminder.unassignedDays');
+      incoming['reminder.unassignedDays'] = d;
+    }
+    if (incoming['reminder.time'] !== undefined && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(incoming['reminder.time']))) throw new HttpError(400, 'err.badRequest', 'reminder.time');
     if (incoming['brand.color'] !== undefined && incoming['brand.color'] !== '' && !isHexColor(incoming['brand.color'])) throw new HttpError(400, 'err.brandColor');
     if (incoming['brand.header'] !== undefined && !['light', 'color'].includes(incoming['brand.header'])) throw new HttpError(400, 'err.badRequest', 'brand.header');
     if (incoming['backup.keep'] !== undefined) incoming['backup.keep'] = clampBackupKeep(incoming['backup.keep']);
@@ -981,6 +987,9 @@ export function createApi(ctx) {
     const result = await poller.pollOnce();
     res.json({ result, status: poller.status() });
   }));
+
+  // Reminder for unassigned tickets: check right away (ignores time of day and "already sent today")
+  admin.post('/reminder/run', wrap(async (req, res) => res.json(await ctx.reminders.check({ force: true }))));
 
   admin.post('/smtp/test', wrap(async (req, res) => {
     const cfg = mergedGroup('smtp', req.body.settings);

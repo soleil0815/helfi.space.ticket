@@ -265,6 +265,7 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
   - comment and attach files on the web or by replying to a mail
 - **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
+- **Reminder to project leads** (*Administration → Email*, off by default): once a day at the set time, the lead of each project gets one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without a lead it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 

@@ -8,6 +8,7 @@ import { createMobileSw } from './pwa.js';
 import { createLinks } from './itil/links.js';
 import { createMajor } from './itil/major.js';
 import { createSla } from './itil/sla.js';
+import { createReminders } from './itil/reminders.js';
 import { createFields } from './itil/fields.js';
 import { createProblems } from './itil/problems.js';
 import { createApprovals } from './itil/approvals.js';
@@ -97,6 +98,7 @@ export function createApp(db) {
   const catalog = createCatalog(db, tickets, approvals, fields, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const changes = createChanges(db, tickets, fields, approvals, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
+  const reminders = createReminders(db, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const itilReports = createItilReports(db, sla);
 
   // Initial setup: one-time code, only as long as there are no users
@@ -117,7 +119,7 @@ export function createApp(db) {
   const aiClassifier = createAiClassifier({ db, settings, tickets, ai });
   const examples = createExamples({ db, canned, catalog, kb });
   const aiDuplicates = createAiDuplicates({ db, tickets, ai });
-  const ctx = { links, major, sla, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, aiDuplicates, examples, ldapCertWarning: null,
+  const ctx = { links, major, sla, reminders, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, aiDuplicates, examples, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 

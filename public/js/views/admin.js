@@ -912,6 +912,21 @@ async function mailPage(body, s) {
       field(t('mail.verifyTls'), bindCheck(s, 'smtp.verifyTls')),
       h('h3', t('mail.notifications')),
       ['reporterOnCreate', 'reporterOnComment', 'reporterOnDone', 'assignee', 'participantAdded', 'mention'].map((k) => field(t(`mail.notify.${k}`), bindCheck(s, `notify.${k}`))),
+      h('div.reminder-settings',
+      h('h3', t('reminder.title')),
+      h('p.muted.small', t('reminder.hint')),
+      h('div.grid-2',
+        field(t('reminder.days'), bindInput(s, 'reminder.unassignedDays', { type: 'number', min: 0, max: 60 }), t('reminder.daysHint')),
+        field(t('reminder.time'), bindInput(s, 'reminder.time', { type: 'time' }))),
+      field(t('reminder.weekdaysOnly'), bindCheck(s, 'reminder.weekdaysOnly')),
+      h('div.field', h('button.btn', {
+        type: 'button', 'data-reminder-run': '',
+        onclick: async (e) => {
+          const btn = e.currentTarget; btn.disabled = true;
+          try { await saveKeys(s, ['reminder.']); const r = await api.admin.runReminder(); toast(r.mails ? t('reminder.sent', r) : t('reminder.none'), r.mails ? 'success' : 'info'); }
+          catch (ex) { toast(ex.message, 'error'); } finally { btn.disabled = false; }
+        },
+      }, icon('mail'), t('reminder.runNow')))),
       h('h3', t('survey.adminTitle')),
       h('p.muted.small', t('survey.adminHint')),
       field(t('survey.enabled'), bindCheck(s, 'survey.enabled')),
@@ -921,7 +936,7 @@ async function mailPage(body, s) {
         onclick: async () => { const r = await api.admin.testSmtp(pick(s, 'smtp.'), testTo.value); showResult(smtpRes, r.ok, r.ok ? t('mail.testSent') : r.error); },
       }, icon('mail'), t('mail.sendTest')))),
       smtpRes,
-      saveBar(() => saveKeys(s, ['smtp.', 'notify.', 'survey.']))));
+      saveBar(() => saveKeys(s, ['smtp.', 'notify.', 'reminder.', 'survey.']))));
   body.append(loopPanel(s));
 }
 
