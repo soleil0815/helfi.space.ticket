@@ -784,7 +784,7 @@ docker compose exec helfi helfi-admin create notfall   # neuen lokalen Admin anl
   <tr><td>Jeder Zugriff gilt als „von außen“</td><td><code>HELFI_TRUST_PROXY</code> auf die Adresse des Reverse-Proxys setzen; interne Netze prüfen. Die Seite <em>Sicherheit</em> zeigt, wie deine Adresse erkannt wird.</td></tr>
   <tr><td>Handy mit Authenticator verloren</td><td>Mit einem Wiederherstellungscode anmelden oder <em>Benutzer → 2FA zurücksetzen</em>; danach im Firmennetz neu einrichten.</td></tr>
   <tr><td>AD-Anmeldung geht nicht mehr, Hinweis zum Zertifikat</td><td>Das DC-Zertifikat wurde erneuert: <em>Active Directory → Zertifikat abrufen</em> und übernehmen (oder die Zertifizierungsstelle hinterlegen).</td></tr>
-  <tr><td>Rolle eines AD-Benutzers stimmt nicht</td><td>Gruppenmitgliedschaft im AD prüfen; ist der Gruppenname mehrdeutig, den vollständigen DN eintragen. Ist „Rolle fest“ gesetzt, gilt die Rolle aus Helfi.Space.</td></tr>
+  <tr><td>Rolle eines AD-Benutzers stimmt nicht</td><td>Gruppenmitgliedschaft im AD prüfen (<em>Verbindung testen</em> zeigt, zu welchem DN ein Gruppenname aufgelöst wird); ist der Gruppenname mehrdeutig, den vollständigen DN eintragen. Ist „Rolle fest“ gesetzt, gilt die Rolle aus Helfi.Space.</td></tr>
   <tr><td>Hinweis „docker-compose.yml ist veraltet“</td><td><code>./update.sh</code> übernimmt die neue Datei, oder sie aus dem Release laden.</td></tr>
   <tr><td>Helfi.Space startet nach dem Wiederherstellen nicht</td><td>Passt <code>secret.key</code> bzw. <code>HELFI_SECRET</code> zur Datenbank? Das Protokoll (<code>docker compose logs helfi</code>) nennt die Ursache.</td></tr>
   <tr><td>Einrichtungscode verloren</td><td>Steht im Protokoll: <code>docker compose logs helfi</code>.</td></tr>

@@ -784,7 +784,7 @@ docker compose exec helfi helfi-admin create notfall   # create a new local admi
   <tr><td>Every request counts as “from outside”</td><td>Set <code>HELFI_TRUST_PROXY</code> to the address of the reverse proxy; check the internal networks. The <em>Security</em> page shows how your address is classified.</td></tr>
   <tr><td>Lost the phone with the authenticator</td><td>Sign in with a recovery code or use <em>Users → Reset 2FA</em>; then set it up again inside the company network.</td></tr>
   <tr><td>AD sign-in stopped working, certificate notice</td><td>The DC certificate was renewed: <em>Active Directory → Fetch certificate</em> and accept it (or store the certificate authority).</td></tr>
-  <tr><td>An AD user’s role is wrong</td><td>Check the group membership in AD; if the group name is ambiguous, enter the full DN. With “Role locked” the role from Helfi.Space applies.</td></tr>
+  <tr><td>An AD user’s role is wrong</td><td>Check the group membership in AD (<em>Test connection</em> shows which DN a group name resolves to); if the group name is ambiguous, enter the full DN. With “Role locked” the role from Helfi.Space applies.</td></tr>
   <tr><td>Notice “docker-compose.yml is outdated”</td><td><code>./update.sh</code> takes over the new file, or download it from the release.</td></tr>
   <tr><td>Helfi.Space does not start after a restore</td><td>Does <code>secret.key</code> or <code>HELFI_SECRET</code> match the database? The log (<code>docker compose logs helfi</code>) states the cause.</td></tr>
   <tr><td>Setup code lost</td><td>It is in the log: <code>docker compose logs helfi</code>.</td></tr>
