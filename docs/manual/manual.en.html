@@ -435,7 +435,7 @@
   <li><strong>Changing</strong> – create, edit, move, delete, versions, feedback, marking comments as done – is for the project's people only, also for public articles. Articles of other projects lack these buttons.</li>
   <li><strong>Subpages inherit the project</strong> of their parent page; the editor then shows “Project: … (from the parent article)”. If you move a page below a page of another project, it goes there with its subpages – you need to work on both projects for this.</li>
   <li>Working on several projects, you choose the <strong>project</strong> for a new article. In the list, the project chips at the top filter.</li>
-  <li>Articles from before the update belong to the <strong>default project</strong> <span class="role role-admin">admin</span> (<em>Administration → General</em>). An admin switches them to another project in the editor if needed; the subpages follow.</li>
+  <li>Articles from before the update belong to the <strong>default project</strong> <span class="role role-admin">admin</span> (<em>Administration → Projects</em>). An admin switches them to another project in the editor if needed; the subpages follow.</li>
 </ul>
 <figure><img src="img/en/kb-project-editor.jpg" alt=""><figcaption>New article: choosing the project</figcaption></figure>
 <p><strong>Example articles:</strong> if the knowledge base is still empty, <em>Examples</em> takes over ready sample articles – such as “How to report a problem well”, “Setting up VPN” or “Changing or forgetting your password”. They show how a good article is built and are created <strong>internal</strong>: replace the details in square brackets with your own and then make them public.</p>
@@ -504,8 +504,8 @@
 <p><span class="role role-admin">admin</span> <strong>CSV import</strong> from your inventory tool: the first line contains the column names (name/hostname, type, location, IP address, serial number, vendor, model, user, status – German or English). Values like “Notebook” or “Switch” are mapped to the matching kind. Existing names are updated. Only administrators can delete an entry, and only while no tickets are linked; otherwise set it to “retired”.</p>
 
 <h2 id="satisfaction">Satisfaction survey <span class="role role-admin">admin</span></h2>
-<p>Switch it on under <em>Administration → Email → Satisfaction survey</em>. The “Resolved” email to the reporter then contains the rating links (<a href="#rating">2.12</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
-<figure class="medium"><img src="img/en/admin-mail-survey.jpg" alt=""><figcaption>Administration → Email with the satisfaction survey</figcaption></figure>
+<p>Switch it on under <em>Administration → Tickets → General → Satisfaction survey</em>. The “Resolved” email to the reporter then contains the rating links (<a href="#rating">2.12</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
+<figure class="medium"><img src="img/en/admin-survey.jpg" alt=""><figcaption>Administration → Tickets → General: satisfaction survey</figcaption></figure>
 
 <h2 id="kpis">ITIL key figures</h2>
 <p>Under <em>Reports</em>, the agent statistics (<a href="#reports">3.9</a>) are followed by further figures for the same period:</p>
@@ -569,6 +569,20 @@ docker compose logs helfi # shows the setup code</code></pre>
 <h2 id="initial">Initial setup</h2>
 <p>On the first visit to <code>HELFI_BASE_URL</code> the setup wizard starts. It asks for the <strong>setup code</strong> from the container log (<code>docker compose logs helfi</code>) and creates the <strong>local administrator</strong> and the first project. It then continues straight to the AD setup.</p>
 
+<h3 id="admin-layout">Administration layout</h3>
+<p><em>Administration</em> is grouped by topic; on phones a select list with the same groups sits at the top.</p>
+<table>
+  <tr><th style="width:26%">Group</th><th>Sections</th></tr>
+  <tr><td><strong>Organisation</strong></td><td>Projects (with default project), components, users</td></tr>
+  <tr><td><strong>Tickets</strong></td><td>General (users may create tickets, reminder to project leads, satisfaction survey), service level, change, service catalog, reply templates</td></tr>
+  <tr><td><strong>Email</strong></td><td>Incoming (fetching, inbox project, sender rules, mail loop protection), outgoing (sending, notifications)</td></tr>
+  <tr><td><strong>Sign-in &amp; security</strong></td><td>Active Directory, single sign-on, two-factor &amp; sessions, registration</td></tr>
+  <tr><td><strong>Appearance</strong></td><td>Name, language &amp; design (with sign-in page)</td></tr>
+  <tr><td><strong>System</strong></td><td>AI, import, system (info, backups, emergency access)</td></tr>
+</table>
+<figure><img src="img/en/admin-overview.jpg" alt=""><figcaption>Administration with the groups on the left, here Tickets → General</figcaption></figure>
+<p>Old addresses from bookmarks (<code>/admin/general</code>, <code>/admin/security</code>, <code>/admin/mail</code>) lead to the new place.</p>
+
 <h2 id="ad">Active Directory</h2>
 <p><em>Administration → Active Directory</em></p>
 <figure><img src="img/en/admin-ldap.jpg" alt=""><figcaption>Active Directory settings</figcaption></figure>
@@ -595,7 +609,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p><strong>Stable via the AD identifier (recommended):</strong> under <em>Claim with AD identifier</em> enter the claim holding <code>objectSid</code> or <code>objectGUID</code> – <code>onprem_sid</code> (optional claim) for Entra ID, a custom mapping for Keycloak/Authentik. Then accounts are merged only this way, not by freely chosen names. With a service account the AD account is checked on every SSO sign-in (disabled, group, role); if the AD is unreachable, the SSO sign-in is cancelled.</p>
 
 <h2 id="2fa">Two-factor authentication and networks</h2>
-<p><em>Administration → Security</em></p>
+<p><em>Administration → Sign-in &amp; security → Two-factor &amp; sessions</em></p>
 <figure class="medium"><img src="img/en/admin-security-full.jpg" alt=""><figcaption>Two-factor requirement, internal networks and own internet connection</figcaption></figure>
 <table>
   <tr><th style="width:36%">Setting</th><th>Options</th></tr>
@@ -612,7 +626,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 </ul>
 
 <h2 id="email">Email</h2>
-<p><em>Administration → Email</em></p>
+<p><em>Administration → Email → Incoming</em> (fetching, inbox project, sender rules, mail loop protection) and <em>Outgoing</em> (sending, notifications)</p>
 <figure><img src="img/en/admin-mail-1.jpg" alt=""><figcaption>Fetching a mailbox (IMAP)</figcaption></figure>
 <ul>
   <li><strong>Fetch mailbox (IMAP):</strong> server, user and password of the help desk mailbox. New emails become tickets, replies become comments. Processed emails are marked as read or moved to a folder – a separate folder is recommended. Skipped emails and delivery failure reports stay in the inbox, marked as read, and are not deleted automatically. Processed emails get their own flag; if the mailbox is read in Outlook in parallel, they are still not lost (if the mail server supports custom flags, otherwise better not read it in parallel).</li>
@@ -624,7 +638,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>The sender is always the ticket system</strong> – never an agent’s address, no personal signatures. So the reporter knows who looks after them, reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added. In the browser, users see the field as “Your contact”.</li>
   <li><strong>Look up senders in Active Directory:</strong> unknown senders are searched in AD and created as AD users right away. Otherwise they become <em>email contacts</em>; when they sign in later, their tickets are theirs.</li>
   <li><strong>Notifications:</strong> each can be switched off – receipt confirmation, replies and resolved to reporters and participants, assignment to agents, mail to newly added participants and to people <strong>@</strong>-mentioned.</li>
-  <li><strong>Reminder to project leads:</strong> whoever does not look into the ticket system every day would otherwise miss new tickets. Enter a number under <em>After days without assignee</em> (0 = off); then the lead and deputy of each project get one mail a day at the set time (optionally Monday to Friday only): all open tickets nobody has been assigned to for that many days, with a link to each ticket and to the filtered list. If a project has neither lead nor deputy, the mail goes to all admins. If nothing is left lying, no mail is sent. <em>Check and send now</em> sends right away – handy for trying it out.
+  <li><strong>Reminder to project leads</strong> (<em>Administration → Tickets → General</em>): whoever does not look into the ticket system every day would otherwise miss new tickets. Enter a number under <em>After days without assignee</em> (0 = off); then the lead and deputy of each project get one mail a day at the set time (optionally Monday to Friday only): all open tickets nobody has been assigned to for that many days, with a link to each ticket and to the filtered list. If a project has neither lead nor deputy, the mail goes to all admins. If nothing is left lying, no mail is sent. <em>Check and send now</em> sends right away – handy for trying it out.
     <figure class="medium"><img src="img/en/mail-reminder.jpg" alt=""><figcaption>Reminder to project leads</figcaption></figure></li>
   <li><strong>Recipients in To/CC become participants</strong> (can be turned off) – for new tickets and replies to mails from Helfi.Space, not when a reply is matched only by the key in the subject.</li>
   <li><strong>Retention:</strong> “Delete processed emails after … days” (default: never). Only the folder for processed emails is cleaned, never the inbox.</li>
@@ -696,8 +710,8 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p><em>Administration → Users</em> lists all accounts with origin (local, AD, SSO, email contact), role, 2FA status and last sign-in. Here you create local users, change roles (“Role locked” prevents AD groups from overriding them), deactivate accounts and reset 2FA. Self-registered accounts are marked; if approval is switched on under <em>Security → Registration and forgotten passwords</em>, new accounts show “Awaiting approval” with an <strong>Approve</strong> button.</p>
 <p>The <strong>role</strong> is <em>User</em> or <em>Administrator</em>. What someone works on in projects on top of that is set in the project and only shown here under the role, e.g. “Works on: IT (lead)” or “Works on: IT (group Helpdesk)” (<a href="#project-rights">Who works on a project's tickets?</a>).</p>
 <figure class="medium"><img src="img/en/admin-users-sees.jpg" alt=""><figcaption>Under the role: which projects someone works on</figcaption></figure>
-<p><strong>Automatic sign-out</strong> (<em>Administration → Security</em>): period without activity for everyone (default 12 hours from <code>HELFI_SESSION_HOURS</code>), for admins (default 60 minutes) and optionally for access from outside – the shortest applicable one counts. Two minutes before, Helfi asks “Still there?”; whoever keeps working stays signed in. Optional: “Sign out when the browser is closed”.</p>
-<p><strong>Registration and forgotten passwords</strong> (<em>Administration → Security</em>, registration off by default): external people create a local account with the role “User” themselves; the email address is confirmed via a link, and an existing email contact becomes the account with its requests. Optional: allowed mail domains and approval by an admin. “Forgot password” applies by default to local accounts with the role “User”, optionally to all local accounts or not at all. Both require outgoing mail.</p>
+<p><strong>Automatic sign-out</strong> (<em>Administration → Sign-in &amp; security → Two-factor &amp; sessions</em>): period without activity for everyone (default 12 hours from <code>HELFI_SESSION_HOURS</code>), for admins (default 60 minutes) and optionally for access from outside – the shortest applicable one counts. Two minutes before, Helfi asks “Still there?”; whoever keeps working stays signed in. Optional: “Sign out when the browser is closed”.</p>
+<p><strong>Registration and forgotten passwords</strong> (<em>Administration → Sign-in &amp; security → Registration</em>, registration off by default): external people create a local account with the role “User” themselves; the email address is confirmed via a link, and an existing email contact becomes the account with its requests. Optional: allowed mail domains and approval by an admin. “Forgot password” applies by default to local accounts with the role “User”, optionally to all local accounts or not at all. Both require outgoing mail.</p>
 <p><strong>AI</strong> (<em>Administration → AI</em>, off by default): address of an OpenAI-compatible API (e.g. Ollama: <code>http://&lt;host&gt;:11434/v1</code>) and optionally an API key (stored encrypted). The <strong>installed models are fetched automatically</strong> and offered in a list – for Ollama with parameter count, quantisation and size, cloud models in a group of their own. Embedding models are hidden; if a model is missing, use <em>Reload</em> or <em>Other model …</em>. Recommended for production is a self-hosted model in your own network; for cloud models or external addresses the page points out that ticket content leaves the house. Internal notes are only sent if switched on; attachments never. <em>Test</em> checks the connection.</p>
 <p>Under <strong>Functions</strong> you switch <em>Summary</em>, <em>Reply suggestion</em> and <em>Rewrite</em> and <em>Knowledge articles</em> (on by default) and <em>Detect component</em> and <em>Detect duplicates</em> (off by default) one by one. For detection you choose <em>Suggest</em> or <em>Assign automatically</em>. Below is the <strong>hit rate</strong> of components: accepted suggestions and automatic ones nobody changed, against corrected and dismissed ones; <em>Detect duplicates</em> has a hit rate of its own next to it. With a cloud model, <em>Detect component</em> sends the title and description of every new ticket without a rule match to the provider, <em>Detect duplicates</em> also the title and description (the first 1500 characters each) of up to 8 possible originals – the page points it out.</p>
 <figure class="medium"><img src="img/en/ai-functions.jpg" alt=""><figcaption>Switching AI functions one by one, with hit rate</figcaption></figure>
@@ -705,7 +719,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <figure><img src="img/en/admin-users.jpg" alt=""><figcaption>User management</figcaption></figure>
 
 <h2 id="design">Appearance</h2>
-<p><em>Administration → General → Appearance</em></p>
+<p><em>Administration → Appearance → Name, language &amp; design</em></p>
 <figure class="medium"><img src="img/en/admin-brand.jpg" alt=""><figcaption>Logo, main colour and header with preview</figcaption></figure>
 <ul>
   <li><strong>Logo</strong> as PNG or SVG (512 KB at most) for header, sign-in page and browser tab. SVGs with scripts or external references are rejected.</li>
@@ -714,7 +728,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 </ul>
 
 <h2 id="signinpage">Sign-in page</h2>
-<p><em>Administration → General → Sign-in page</em>: your own heading, a welcome text in German and English (e.g. how to get help in an emergency) and your own label for the user name field (“Windows user name”). Text only: <code>**bold**</code>, links and email addresses become clickable, HTML is never executed.</p>
+<p><em>Administration → Appearance → Name, language &amp; design → Sign-in page</em>: your own heading, a welcome text in German and English (e.g. how to get help in an emergency) and your own label for the user name field (“Windows user name”). Text only: <code>**bold**</code>, links and email addresses become clickable, HTML is never executed.</p>
 <figure><img src="img/en/admin-login.jpg" alt=""><figcaption>Customising the sign-in page with preview</figcaption></figure>
 
 <h2 id="import">Import from another ticket system</h2>

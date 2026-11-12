@@ -87,6 +87,8 @@ test('Admin: shared canned response for one project', { skip }, async () => {
   const { p, errors } = await page('admin');
   await p.goto(`${S.base}/admin/templates`);
   await p.click('.section-head .btn-primary');
+  // The dialog focuses the name field shortly after opening – wait for it, else typing can land there
+  await p.waitForFunction(() => document.activeElement?.matches('#template-form input'));
   await p.fill('#template-form input', 'Heizung');
   await p.fill('#template-form textarea', 'Bitte Thermostat prüfen.');
   await p.check('#template-form input[type=checkbox]');
@@ -94,8 +96,12 @@ test('Admin: shared canned response for one project', { skip }, async () => {
   await p.waitForFunction(() => document.querySelectorAll('#template-form select option').length > 1);
   await sel.selectOption(String(HM.id));
   await p.click('.modal button[type=submit]');
+  await p.waitForSelector('.toast >> text=Gespeichert');
+  await p.waitForSelector('#template-form', { state: 'detached' });
+  assert.equal(S.db.prepare("SELECT project_id FROM canned_responses WHERE title='Heizung'").get().project_id, HM.id);
+  // Freshly loaded list shows the project (independent of a re-render while the dialog was open)
+  await p.goto(`${S.base}/admin/templates`);
   await p.waitForSelector('.template-row >> text=Heizung');
   await p.waitForSelector('.template-row .template-project >> text=Haustechnik');
-  assert.equal(S.db.prepare("SELECT project_id FROM canned_responses WHERE title='Heizung'").get().project_id, HM.id);
   assert.deepEqual(errors, []);
 });

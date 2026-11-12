@@ -435,7 +435,7 @@
   <li><strong>Ändern</strong> – anlegen, bearbeiten, verschieben, löschen, Versionen, Rückmeldungen, Kommentare als erledigt markieren – dürfen nur die Personen des Projekts, auch bei öffentlichen Artikeln. Bei Artikeln anderer Projekte fehlen die Knöpfe dafür.</li>
   <li><strong>Unterseiten erben das Projekt</strong> ihrer übergeordneten Seite; im Editor steht dann „Projekt: … (vom übergeordneten Artikel)“. Verschiebst du eine Seite unter eine Seite eines anderen Projekts, wandert sie samt Unterseiten mit – dafür musst du in beiden Projekten arbeiten.</li>
   <li>Arbeitest du in mehreren Projekten, wählst du beim neuen Artikel das <strong>Projekt</strong>. In der Liste filtern die Projekt-Chips oben.</li>
-  <li>Artikel von vor dem Update gehören zum <strong>Standardprojekt</strong> <span class="role role-admin">Admin</span> (<em>Administration → Allgemein</em>). Ein Admin stellt sie bei Bedarf im Editor auf ein anderes Projekt um; die Unterseiten folgen.</li>
+  <li>Artikel von vor dem Update gehören zum <strong>Standardprojekt</strong> <span class="role role-admin">Admin</span> (<em>Administration → Projekte</em>). Ein Admin stellt sie bei Bedarf im Editor auf ein anderes Projekt um; die Unterseiten folgen.</li>
 </ul>
 <figure><img src="img/de/kb-project-editor.jpg" alt=""><figcaption>Neuer Artikel: Projekt wählen</figcaption></figure>
 <p><strong>Beispiel-Artikel:</strong> Ist die Wissensdatenbank noch leer, übernimmt <em>Beispiele</em> fertige Musterartikel – etwa „So meldest du ein Problem richtig“, „VPN einrichten“ oder „Kennwort ändern oder vergessen“. Sie zeigen, wie ein guter Artikel aufgebaut ist, und werden <strong>intern</strong> angelegt: Ersetze die Angaben in eckigen Klammern durch eure eigenen und stelle sie dann auf öffentlich.</p>
@@ -504,8 +504,8 @@
 <p><span class="role role-admin">Admin</span> <strong>CSV-Import</strong> aus der Inventarisierung: Die erste Zeile enthält die Spaltennamen (Name/Hostname, Typ, Standort, IP-Adresse, Seriennummer, Hersteller, Modell, Benutzer, Status – deutsch oder englisch). Werte wie „Notebook“ oder „Switch“ werden der passenden Art zugeordnet. Vorhandene Namen werden aktualisiert. Löschen können nur Administratoren, und nur, solange keine Tickets verknüpft sind; sonst „ausgemustert“ setzen.</p>
 
 <h2 id="zufriedenheit">Zufriedenheitsumfrage <span class="role role-admin">Admin</span></h2>
-<p>Einschalten unter <em>Administration → E-Mail → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Melder die Bewertungslinks (<a href="#bewerten">2.12</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
-<figure class="medium"><img src="img/de/admin-mail-survey.jpg" alt=""><figcaption>Administration → E-Mail mit der Zufriedenheitsumfrage</figcaption></figure>
+<p>Einschalten unter <em>Administration → Tickets → Allgemein → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Melder die Bewertungslinks (<a href="#bewerten">2.12</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
+<figure class="medium"><img src="img/de/admin-survey.jpg" alt=""><figcaption>Administration → Tickets → Allgemein: Zufriedenheitsumfrage</figcaption></figure>
 
 <h2 id="kennzahlen">ITIL-Kennzahlen</h2>
 <p>Unter <em>Berichte</em> folgen auf die Bearbeiter-Statistik (<a href="#berichte">3.9</a>) weitere Kennzahlen für denselben Zeitraum:</p>
@@ -569,6 +569,20 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <h2 id="ersteinrichtung">Ersteinrichtung</h2>
 <p>Beim ersten Aufruf von <code>HELFI_BASE_URL</code> startet der Einrichtungsassistent. Er fragt nach dem <strong>Einrichtungscode</strong> aus dem Container-Protokoll (<code>docker compose logs helfi</code>) und legt den <strong>lokalen Administrator</strong> und das erste Projekt an. Danach geht es direkt zur AD-Einrichtung.</p>
 
+<h3 id="admin-aufbau">Aufbau der Administration</h3>
+<p><em>Administration</em> ist nach Themen gegliedert; auf dem Handy steht oben eine Auswahlliste mit denselben Gruppen.</p>
+<table>
+  <tr><th style="width:26%">Gruppe</th><th>Bereiche</th></tr>
+  <tr><td><strong>Organisation</strong></td><td>Projekte (mit Standardprojekt), Komponenten, Benutzer</td></tr>
+  <tr><td><strong>Tickets</strong></td><td>Allgemein (Benutzer dürfen Tickets anlegen, Erinnerung an Projektverantwortliche, Zufriedenheitsumfrage), Service Level, Change, Servicekatalog, Antwortvorlagen</td></tr>
+  <tr><td><strong>E-Mail</strong></td><td>Posteingang (Abruf, Eingangsprojekt, Absender-Regeln, Schutz vor Mail-Schleifen), Postausgang (Versand, Benachrichtigungen)</td></tr>
+  <tr><td><strong>Anmeldung &amp; Sicherheit</strong></td><td>Active Directory, Single Sign-on, Zwei-Faktor &amp; Sitzungen, Registrierung</td></tr>
+  <tr><td><strong>Erscheinungsbild</strong></td><td>Name, Sprache &amp; Design (mit Anmeldeseite)</td></tr>
+  <tr><td><strong>System</strong></td><td>KI, Import, System (Info, Sicherungen, Notfallzugang)</td></tr>
+</table>
+<figure><img src="img/de/admin-overview.jpg" alt=""><figcaption>Administration mit den Gruppen links, hier Tickets → Allgemein</figcaption></figure>
+<p>Alte Adressen aus Lesezeichen (<code>/admin/general</code>, <code>/admin/security</code>, <code>/admin/mail</code>) führen an die neue Stelle.</p>
+
 <h2 id="ad">Active Directory</h2>
 <p><em>Administration → Active Directory</em></p>
 <figure><img src="img/de/admin-ldap.jpg" alt=""><figcaption>Einstellungen für Active Directory</figcaption></figure>
@@ -595,7 +609,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <p><strong>Stabil über die AD-Kennung (empfohlen):</strong> Unter <em>Claim mit AD-Kennung</em> den Claim eintragen, der <code>objectSid</code> oder <code>objectGUID</code> enthält – bei Entra ID <code>onprem_sid</code> (optionaler Claim), bei Keycloak/Authentik ein eigenes Mapping. Dann wird nur noch darüber zusammengeführt, nicht über frei wählbare Namen. Mit Dienstkonto wird das AD-Konto bei jeder SSO-Anmeldung geprüft (deaktiviert, Gruppe, Rolle); ist das AD nicht erreichbar, bricht die SSO-Anmeldung ab.</p>
 
 <h2 id="2fa">Zwei-Faktor-Anmeldung und Netze</h2>
-<p><em>Administration → Sicherheit</em></p>
+<p><em>Administration → Anmeldung &amp; Sicherheit → Zwei-Faktor &amp; Sitzungen</em></p>
 <figure class="medium"><img src="img/de/admin-security-full.jpg" alt=""><figcaption>Zwei-Faktor-Pflicht, interne Netze und eigener Internetanschluss</figcaption></figure>
 <table>
   <tr><th style="width:36%">Einstellung</th><th>Auswahl</th></tr>
@@ -612,7 +626,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 </ul>
 
 <h2 id="email">E-Mail</h2>
-<p><em>Administration → E-Mail</em></p>
+<p><em>Administration → E-Mail → Posteingang</em> (Abruf, Eingangsprojekt, Absender-Regeln, Schutz vor Mail-Schleifen) und <em>Postausgang</em> (Versand, Benachrichtigungen)</p>
 <figure><img src="img/de/admin-mail-1.jpg" alt=""><figcaption>Postfach abrufen (IMAP)</figcaption></figure>
 <ul>
   <li><strong>Postfach abrufen (IMAP):</strong> Server, Benutzer und Kennwort des Helpdesk-Postfachs. Neue Mails werden Tickets, Antworten werden Kommentare. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben – empfohlen ist ein eigener Ordner. Übersprungene Mails und Unzustellbarkeitsberichte bleiben gelesen im Posteingang und werden nicht automatisch gelöscht. Verarbeitete Mails bekommen ein eigenes Kennzeichen; wird das Postfach parallel in Outlook gelesen, gehen sie trotzdem nicht verloren (wenn der Mailserver eigene Kennzeichen kann, sonst besser nicht parallel lesen).</li>
@@ -624,7 +638,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Absender ist immer das Ticketsystem</strong> – nie die Adresse eines Bearbeiters, keine persönlichen Signaturen. Damit der Melder weiß, wer ihn betreut, enden Antwort- und Erledigt-Mails mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei. Im Browser heißt das Feld für Benutzer ebenfalls „Ihr Ansprechpartner“.</li>
   <li><strong>Absender im Active Directory nachschlagen:</strong> Unbekannte Absender werden im AD gesucht und gleich als AD-Benutzer angelegt. Sonst werden sie <em>E-Mail-Kontakte</em>; melden sie sich später an, gehören ihnen ihre Tickets.</li>
   <li><strong>Benachrichtigungen:</strong> einzeln abschaltbar – Eingangsbestätigung, Antworten und Erledigt an Melder und Teilnehmer, Zuweisung an Bearbeiter, Mail an neu hinzugefügte Teilnehmer und an Personen, die mit <strong>@</strong> erwähnt werden.</li>
-  <li><strong>Erinnerung an Projektverantwortliche:</strong> Wer nicht jeden Tag ins Ticketsystem schaut, verpasst sonst neue Tickets. Unter <em>Nach Tagen ohne Bearbeiter</em> eine Zahl eintragen (0 = aus), dann bekommen Leitung und Vertretung jedes Projekts einmal am Tag zur eingestellten Uhrzeit (auf Wunsch nur Montag bis Freitag) eine Sammelmail: alle offenen Tickets, die seit so vielen Tagen niemandem zugewiesen sind, mit Link zu jedem Ticket und zur fertig gefilterten Liste. Hat ein Projekt weder Leitung noch Vertretung, geht die Mail an alle Admins. Ist nichts liegen geblieben, kommt keine Mail. <em>Jetzt prüfen und senden</em> verschickt sofort – gut zum Ausprobieren.
+  <li><strong>Erinnerung an Projektverantwortliche</strong> (<em>Administration → Tickets → Allgemein</em>): Wer nicht jeden Tag ins Ticketsystem schaut, verpasst sonst neue Tickets. Unter <em>Nach Tagen ohne Bearbeiter</em> eine Zahl eintragen (0 = aus), dann bekommen Leitung und Vertretung jedes Projekts einmal am Tag zur eingestellten Uhrzeit (auf Wunsch nur Montag bis Freitag) eine Sammelmail: alle offenen Tickets, die seit so vielen Tagen niemandem zugewiesen sind, mit Link zu jedem Ticket und zur fertig gefilterten Liste. Hat ein Projekt weder Leitung noch Vertretung, geht die Mail an alle Admins. Ist nichts liegen geblieben, kommt keine Mail. <em>Jetzt prüfen und senden</em> verschickt sofort – gut zum Ausprobieren.
     <figure class="medium"><img src="img/de/mail-reminder.jpg" alt=""><figcaption>Erinnerung an Projektverantwortliche</figcaption></figure></li>
   <li><strong>Empfänger in An/CC werden Teilnehmer</strong> (abschaltbar) – bei neuen Tickets und bei Antworten auf Mails von Helfi.Space, nicht bei Zuordnung nur über die Nummer im Betreff.</li>
   <li><strong>Aufbewahrung:</strong> „Verarbeitete Mails löschen nach … Tagen“ (Standard: nie). Gelöscht wird nur im Ordner für verarbeitete Mails, nie im Posteingang.</li>
@@ -696,8 +710,8 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten und setzt die 2FA zurück. Selbst registrierte Konten sind gekennzeichnet; ist unter <em>Sicherheit → Registrierung und Kennwort vergessen</em> die Freigabe eingeschaltet, steht bei neuen Konten „Wartet auf Freigabe“ mit dem Knopf <strong>Freigeben</strong>.</p>
 <p>Die <strong>Rolle</strong> ist <em>Benutzer</em> oder <em>Administrator</em>. Was jemand darüber hinaus in Projekten bearbeitet, wird im Projekt festgelegt und steht hier nur zur Info unter der Rolle, z. B. „Bearbeitet: IT (Leitung)“ oder „Bearbeitet: IT (Gruppe Helpdesk)“ (<a href="#projektrechte">Wer bearbeitet die Tickets eines Projekts?</a>).</p>
 <figure class="medium"><img src="img/de/admin-users-sees.jpg" alt=""><figcaption>Unter der Rolle steht, welche Projekte jemand bearbeitet</figcaption></figure>
-<p><strong>Automatische Abmeldung</strong> (<em>Administration → Sicherheit</em>): Frist ohne Aktivität für alle (Standard 12 Stunden aus <code>HELFI_SESSION_HOURS</code>), für Admins (Standard 60 Minuten) und optional für Zugriffe von außen – es gilt die kürzeste passende. Zwei Minuten vor Ablauf fragt Helfi „Noch da?“; wer weiterarbeitet, bleibt angemeldet. Optional: „Beim Schließen des Browsers abmelden“.</p>
-<p><strong>Registrierung und Kennwort vergessen</strong> (<em>Administration → Sicherheit</em>, Registrierung standardmäßig aus): Externe legen sich selbst ein lokales Konto mit der Rolle „Benutzer“ an; die E-Mail-Adresse wird per Link bestätigt, ein vorhandener E-Mail-Kontakt wird dabei mit seinen Anfragen zum Konto. Optional: erlaubte Mail-Domains und Freigabe durch einen Admin. „Kennwort vergessen“ gilt standardmäßig für lokale Konten mit der Rolle „Benutzer“, wahlweise für alle lokalen Konten oder gar nicht. Beides braucht den E-Mail-Versand.</p>
+<p><strong>Automatische Abmeldung</strong> (<em>Administration → Anmeldung &amp; Sicherheit → Zwei-Faktor &amp; Sitzungen</em>): Frist ohne Aktivität für alle (Standard 12 Stunden aus <code>HELFI_SESSION_HOURS</code>), für Admins (Standard 60 Minuten) und optional für Zugriffe von außen – es gilt die kürzeste passende. Zwei Minuten vor Ablauf fragt Helfi „Noch da?“; wer weiterarbeitet, bleibt angemeldet. Optional: „Beim Schließen des Browsers abmelden“.</p>
+<p><strong>Registrierung und Kennwort vergessen</strong> (<em>Administration → Anmeldung &amp; Sicherheit → Registrierung</em>, Registrierung standardmäßig aus): Externe legen sich selbst ein lokales Konto mit der Rolle „Benutzer“ an; die E-Mail-Adresse wird per Link bestätigt, ein vorhandener E-Mail-Kontakt wird dabei mit seinen Anfragen zum Konto. Optional: erlaubte Mail-Domains und Freigabe durch einen Admin. „Kennwort vergessen“ gilt standardmäßig für lokale Konten mit der Rolle „Benutzer“, wahlweise für alle lokalen Konten oder gar nicht. Beides braucht den E-Mail-Versand.</p>
 <p><strong>KI</strong> (<em>Administration → KI</em>, standardmäßig aus): Adresse einer OpenAI-kompatiblen Schnittstelle (z. B. Ollama: <code>http://&lt;host&gt;:11434/v1</code>) und optional ein API-Schlüssel (verschlüsselt gespeichert). Die <strong>installierten Modelle werden automatisch abgerufen</strong> und stehen in einer Auswahlliste – bei Ollama mit Parameterzahl, Quantisierung und Größe, Cloud-Modelle in einer eigenen Gruppe. Embedding-Modelle sind ausgeblendet; fehlt ein Modell, hilft <em>Neu laden</em> oder <em>Anderes Modell eingeben …</em>. Für den Echtbetrieb empfiehlt sich ein selbst gehostetes Modell im eigenen Netz; bei Cloud-Modellen oder externen Adressen weist die Seite darauf hin, dass Ticketinhalte das Haus verlassen. Interne Notizen werden nur gesendet, wenn eingeschaltet; Anhänge nie. <em>Testen</em> prüft die Verbindung.</p>
 <p>Unter <strong>Funktionen</strong> schaltest du <em>Zusammenfassung</em>, <em>Antwortvorschlag</em> und <em>Umformulieren</em> und <em>Wissensartikel</em> (standardmäßig an) sowie <em>Komponente erkennen</em> und <em>Duplikate erkennen</em> (standardmäßig aus) einzeln. Für die Erkennung wählst du <em>Vorschlagen</em> oder <em>Automatisch zuordnen</em>. Darunter steht die <strong>Trefferquote</strong> der Komponenten: übernommene Vorschläge und automatisch gesetzte, die niemand geändert hat, gegen korrigierte und verworfene; für <em>Duplikate erkennen</em> steht eine eigene Trefferquote daneben. Mit einem Cloud-Modell gehen für <em>Komponente erkennen</em> Titel und Beschreibung jedes neuen Tickets ohne Regel-Treffer an den Anbieter, für <em>Duplikate erkennen</em> zusätzlich Titel und Beschreibung (je die ersten 1500 Zeichen) von bis zu 8 möglichen Originalen – die Seite weist darauf hin.</p>
 <figure class="medium"><img src="img/de/ai-functions.jpg" alt=""><figcaption>KI-Funktionen einzeln schalten, mit Trefferquote</figcaption></figure>
@@ -705,7 +719,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 <figure><img src="img/de/admin-users.jpg" alt=""><figcaption>Benutzerverwaltung</figcaption></figure>
 
 <h2 id="design">Erscheinungsbild</h2>
-<p><em>Administration → Allgemein → Erscheinungsbild</em></p>
+<p><em>Administration → Erscheinungsbild → Name, Sprache &amp; Design</em></p>
 <figure class="medium"><img src="img/de/admin-brand.jpg" alt=""><figcaption>Logo, Hauptfarbe und Kopfzeile mit Vorschau</figcaption></figure>
 <ul>
   <li><strong>Logo</strong> als PNG oder SVG (höchstens 512 KB) für Kopfzeile, Anmeldeseite und Browser-Tab. SVGs mit Skripten oder externen Verweisen werden abgelehnt.</li>
@@ -714,7 +728,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 </ul>
 
 <h2 id="anmeldeseite">Anmeldeseite</h2>
-<p><em>Administration → Allgemein → Anmeldeseite</em>: eigene Überschrift, Begrüßungstext auf Deutsch und Englisch (z. B. wie man im Notfall Hilfe bekommt) und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: <code>**fett**</code>, Links und Mailadressen werden anklickbar, HTML wird nie ausgeführt.</p>
+<p><em>Administration → Erscheinungsbild → Name, Sprache &amp; Design → Anmeldeseite</em>: eigene Überschrift, Begrüßungstext auf Deutsch und Englisch (z. B. wie man im Notfall Hilfe bekommt) und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: <code>**fett**</code>, Links und Mailadressen werden anklickbar, HTML wird nie ausgeführt.</p>
 <figure><img src="img/de/admin-login.jpg" alt=""><figcaption>Anmeldeseite anpassen mit Vorschau</figcaption></figure>
 
 <h2 id="import">Import aus einem anderen Ticketsystem</h2>

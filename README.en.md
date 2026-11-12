@@ -91,9 +91,24 @@ helfi.firma.local {
 
 ---
 
+## Administration layout
+
+*Administration* is grouped by topic (on phones as a select list with the same groups):
+
+| Group | Sections |
+|---|---|
+| **Organisation** | Projects (with default project), components, users |
+| **Tickets** | General (users may create tickets, reminder to project leads, satisfaction survey), service level, change, service catalog, reply templates |
+| **Email** | Incoming (fetching, inbox project, sender rules, mail loop protection), outgoing (sending, notifications) |
+| **Sign-in & security** | Active Directory, single sign-on, two-factor & sessions, registration |
+| **Appearance** | Name, language & design (incl. sign-in page) |
+| **System** | AI, import, system (info, backups, emergency access) |
+
+Old addresses from bookmarks (`/admin/general`, `/admin/security`, `/admin/mail`) lead to the new place.
+
 ## Appearance (corporate design)
 
-*Administration → General → Appearance*:
+*Administration → Appearance → Name, language & design*:
 
 - **Logo** as PNG or SVG (512 KB at most). It replaces the logo in the header, on the sign-in page and in the browser tab. SVGs with scripts or references to external content are rejected. The logo is stored in the data folder under `brand/` and is included in backups.
 - **Title next to the logo** can be hidden if the logo already contains the name.
@@ -103,7 +118,7 @@ helfi.firma.local {
 
 ## Customizing the sign-in page
 
-*Administration → General → Sign-in page*: your own heading (e.g. "Help center"), welcome text in German and optionally English, e.g. how to get help, and your own label for the user name field ("Windows user name"). Text only: `**bold**`, links and email addresses become clickable, HTML is never executed. A preview shows the result right away.
+*Administration → Appearance → Name, language & design → Sign-in page*: your own heading (e.g. "Help center"), welcome text in German and optionally English, e.g. how to get help, and your own label for the user name field ("Windows user name"). Text only: `**bold**`, links and email addresses become clickable, HTML is never executed. A preview shows the result right away.
 
 ## AI assistance (optional)
 
@@ -127,7 +142,7 @@ Agents can have tickets summarized and replies suggested, polished, shortened or
 
 ## Self-registration and forgotten passwords
 
-*Administration → Security → Registration and forgotten passwords* (registration is off by default)
+*Administration → Sign-in & security → Registration* (registration is off by default)
 
 Without AD or SSO, external people simply send an email and are kept as an email contact; they cannot sign in with it. With **self-registration** they create a local account themselves via "Create account" on the sign-in page (role "User") and then also see their requests in the browser.
 
@@ -163,7 +178,7 @@ Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users
 
 ## Two-factor sign-in (2FA)
 
-*Administration → Security*
+*Administration → Sign-in & security → Two-factor & sessions*
 
 Default: **on the internal network a password is enough, from outside a second factor is required.** That is a 6-digit code from an authenticator app such as Microsoft Authenticator, Google Authenticator, Aegis or 2FAS. The requirement can be set separately per role:
 
@@ -180,12 +195,12 @@ Example: reporters without a code, agents with a code from outside, administrato
 - **Behind a reverse proxy** its address must be in `HELFI_TRUST_PROXY`. Otherwise Helfi.Space only sees the proxy and, to be safe, treats every request as external. Admins then get a notice.
 - **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Exception: after an SSO sign-in whose second factor was checked by the identity provider ("SSO sign-ins count as second factor"). Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Security* can allow "first-time setup from outside too".
 - **Sessions:** if you signed in at the office without a code and later use the same browser from home, you have to sign in again with a code there. Every session ends at the latest 30 days after sign-in, even with constant use.
-- **Automatic sign-out** (*Administration → Security*): whoever does nothing for a while (no clicks, no typing) is signed out – everyone after `HELFI_SESSION_HOURS` (default 12 hours) or the value set there, admins after 60 minutes by default, optionally shorter for access from outside the company network; the shortest applicable period counts. Two minutes before, Helfi asks "Still there?". As long as someone works, including typing a long reply, the session continues. Optionally the sign-in ends when the browser is closed.
+- **Automatic sign-out** (*Administration → Sign-in & security → Two-factor & sessions*): whoever does nothing for a while (no clicks, no typing) is signed out – everyone after `HELFI_SESSION_HOURS` (default 12 hours) or the value set there, admins after 60 minutes by default, optionally shorter for access from outside the company network; the shortest applicable period counts. Two minutes before, Helfi asks "Still there?". As long as someone works, including typing a long reply, the session continues. Optionally the sign-in ends when the browser is closed.
 - **Lost phone:** sign in with a recovery code. Alternatively, an admin resets 2FA under *Users → Reset 2FA*, and the person sets it up again at the office.
 - **Applies to** local accounts and Active Directory sign-ins. For **SSO**, *Security → SSO sign-in as second factor* decides whether the sign-in at the identity provider is enough:
   - **Only if the provider reports MFA** (default): the token must show a multi-factor sign-in, i.e. `amr` with e.g. `mfa`, `otp` or `hwk` (Entra ID: `mfa`), or one of the `acr` values entered under *Single sign-on → acr values for MFA* (e.g. Keycloak level `2`). Otherwise Helfi.Space asks for its own code.
   - **Always** or **Never** (then always its own code as well).
-  - Installations with SSO enabled keep their previous behaviour (“Always”) on update; *Security* then shows a notice with the recommendation.
+  - Installations with SSO enabled keep their previous behaviour (“Always”) on update; *Two-factor & sessions* then shows a notice with the recommendation.
 - Docker note: with some Docker setups all requests seem to come from the Docker gateway, e.g. with rootless Docker or IPv6. That address therefore only counts as internal if it is listed on its own.
 
 ![Two-factor sign-in settings](docs/images/2fa-en.png)
@@ -207,11 +222,11 @@ Example: reporters without a code, agents with a code from outside, administrato
 
 ## Email
 
-*Administration → Email*
+*Administration → Email → Incoming* (fetching, inbox project, sender rules, mail loop protection) and *Outgoing* (sending, notifications)
 
 - **Polling a mailbox (IMAP):** enter server, user and password of the help desk mailbox. New mails become tickets (including attachments up to 20 MB each and up to 30 attachments; anything not taken over is noted in the ticket; mails over 80 MB are skipped and flagged in the mailbox). Replies to mails from Helfi.Space and replies from participants with `[IT-123]` in the subject become comments, quoted history is cut off. If the reporter replies to a waiting or resolved ticket, it is reopened – unless it was rejected or closed as a duplicate: then the reply becomes an internal note and the ticket stays closed (an agent reopens it if needed). Out-of-office notes and automatic mails are ignored. Processed mails are marked as read or moved to a folder. Skipped mails (automatically generated, hourly limit, account disabled, no valid sender, own address, rule "Ignore") and delivery failure reports stay in the inbox, marked as read; they are not moved to the processed-mail folder and therefore not deleted automatically either.
 - **Which project? – via the components:** a new mail to the central mailbox is compared with the components of **all projects** (sender, keywords in subject and text). The project of the matching component gets the ticket – with this component, assigned to nobody. “Heating in room 12 cold” thus lands in facilities with the component “Heating & air conditioning”. No mailbox per project is needed. A sender rule with a project takes precedence.
-- **No component matches:** the ticket lands in the **inbox project** (*Administration → Email → Inbox project*, otherwise the default project; marked “Inbox” in *Projects*). Its lead and deputy sort it with *Move* and get the reminder mail if it is left lying. With the AI function *Detect component* switched on, the AI chooses from the components of all projects for such mails – as a suggestion (“Facilities / Heating & air conditioning – accept?”) or directly; accepted, the ticket moves there.
+- **No component matches:** the ticket lands in the **inbox project** (*Administration → Email → Incoming → Inbox project*, otherwise the default project; marked “Inbox” in *Projects*). Its lead and deputy sort it with *Move* and get the reminder mail if it is left lying. With the AI function *Detect component* switched on, the AI chooses from the components of all projects for such mails – as a suggestion (“Facilities / Heating & air conditioning – accept?”) or directly; accepted, the ticket moves there.
 - **In the wrong place?** Agents move a ticket into **any** project (details → project or multiple selection), also into one they do not work on themselves; afterwards they no longer see it there.
 - **Sending (SMTP):** ideally use the same address as the mailbox as sender, so replies land back in the ticket.
 - **Internal notes** never go out by email.
@@ -227,8 +242,8 @@ Example: reporters without a code, agents with a code from outside, administrato
 - **Mail loop protection** (e.g. with monitoring systems, printers, backup software):
   - Delivery failure reports (Exchange, Postfix, …) and read receipts never become tickets or comments and are never answered.
   - If a report belongs to a mail from Helfi.Space, the ticket gets an internal note "delivery failed".
-  - The affected address gets no mail for 7 days. Only addresses from real header lines of the report (`X-Failed-Recipients`) or from its `message/delivery-status` part are blocked, never addresses from the mail text – and only if the report refers to a mail Helfi.Space sent to exactly that address (a forged report blocks nothing otherwise). The list is under *Administration → Email → Blocked recipients*, where an address can also be released early.
-  - **Sender rules** (address or pattern like `*@zabbix.firma.local`): "Create ticket, never reply", optionally into a separate project, or "Ignore". Automatically generated emails (header `Auto-Submitted`, `Precedence: bulk`, sender `noreply@…`), as sent by Proxmox, NAS systems or monitoring, are only accepted with the rule "Create ticket, never reply". Without a rule they are skipped. *Administration → Email* lists the recently skipped emails with sender and reason.
+  - The affected address gets no mail for 7 days. Only addresses from real header lines of the report (`X-Failed-Recipients`) or from its `message/delivery-status` part are blocked, never addresses from the mail text – and only if the report refers to a mail Helfi.Space sent to exactly that address (a forged report blocks nothing otherwise). The list is under *Administration → Email → Incoming → Blocked recipients*, where an address can also be released early.
+  - **Sender rules** (address or pattern like `*@zabbix.firma.local`): "Create ticket, never reply", optionally into a separate project, or "Ignore". Automatically generated emails (header `Auto-Submitted`, `Precedence: bulk`, sender `noreply@…`), as sent by Proxmox, NAS systems or monitoring, are only accepted with the rule "Create ticket, never reply". Without a rule they are skipped. *Administration → Email → Incoming* lists the recently skipped emails with sender and reason.
 - Senders without an account are kept as *email contacts*. If they later sign in via AD or SSO with the same address, their tickets are taken over.
 - **Look up senders in AD** (default: on, requires AD sign-in with a service account): Helfi.Space searches unknown senders in AD. It checks `mail`, `userPrincipalName` and the alias addresses in `proxyAddresses`, and skips disabled accounts. With exactly one match, the person is created as an AD user right away, with the role from their groups, as if they had signed in. An existing email contact is taken over. Not found, ambiguous or AD unreachable: they become an email contact as before. Unknown addresses are not looked up again for one hour. A mail still never grants agent rights.
 - **Retention:** "Delete processed mail after … days" (default 0 = never, otherwise at least 7). Once a day, older mails in the processed-mail folder are permanently deleted, at most 500 per run. Nothing is ever deleted in the inbox. If no separate folder is set, Helfi.Space deletes nothing. The content stays in the tickets.
@@ -262,13 +277,13 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
   - **From AD:** from 3 characters on, agents also see people from AD (marked “AD”), searched by name, logon name and email addresses including aliases. The chosen person is created or updated as an AD user, with email address and role from AD; an existing email contact is taken over. A typed email address is looked up in AD as well. People whose groups do not allow them to use Helfi.Space are added as an email contact. If AD is unreachable, only existing people are shown. Can be turned off under *Administration → Active Directory → Suggest participants from AD*; requires the service account.
   - Reporters and participants can add colleagues who have an account, but no arbitrary addresses.
   - At most 20 per ticket.
-- **By email:** anyone in *To* or *CC* of a new mail or of a reply to a mail from Helfi.Space automatically becomes a participant (not when a reply is matched only by the number in the subject). This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email*.
+- **By email:** anyone in *To* or *CC* of a new mail or of a reply to a mail from Helfi.Space automatically becomes a participant (not when a reply is matched only by the number in the subject). This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email → Incoming*.
 - **What participants can do:**
   - see the ticket, also under *My requests* with the filter "I am a participant"
   - comment and attach files on the web or by replying to a mail
 - **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
-- **Reminder to project leads** (*Administration → Email*, off by default): once a day at the set time, the lead and deputy of each project get one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without lead and deputy it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
+- **Reminder to project leads** (*Administration → Tickets → General*, off by default): once a day at the set time, the lead and deputy of each project get one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without lead and deputy it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
@@ -438,7 +453,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
   - **Create, edit, move, delete**, versions, feedback and marking comments as done: only the project's people (and admins) – also for public articles. So IT does not change facilities' articles and vice versa.
   - **Subpages inherit the project** of their parent page. Moving a page below a page of another project takes it there with its subpages (you need to work on both projects for this). You change the project of a top-level page in the editor; its subpages follow.
   - Working on several projects, you choose the project for a new article; in the list, chips filter by project.
-  - Articles from before the update belong to the **default project** (*Administration → General*).
+  - Articles from before the update belong to the **default project** (*Administration → Projects*).
 - **Editor:** edit in the final look with a toolbar: headings, bold/italic/underline/strikethrough, bulleted list, numbered list, checklist, quote, code block, info panel (note, tip, warning), table, divider, link (also to tickets like `IT-42` or articles `KB-3`), emoji and images. Images go in via Ctrl+V, drag & drop or button, with size and caption. Markdown shortcuts while typing (`# `, `- `, `1. `, `[] `, `> `, ```` ``` ````, `---`), keyboard shortcuts (Ctrl+B/I/U/K/E/S). Pasting from Word or web pages keeps headings, lists, tables and links; images from external addresses are not taken over. The browser keeps unsaved changes as a draft. Stored as plain Markdown-style text, never HTML.
 - **Table of contents** in the article view from three headings on.
 - **Versions:** every save is a version (with an optional change note). *Version n · History* on the article lists all versions; two of them can be compared word by word (removed red, added green), older ones viewed and restored – this creates a new version, the history stays complete.
@@ -477,7 +492,7 @@ A lean register of IT equipment and services (CI register), for agents only: *De
 
 ## Satisfaction survey
 
-Switch it on under *Administration → Email → Satisfaction survey* (default: off).
+Switch it on under *Administration → Tickets → General → Satisfaction survey* (default: off).
 
 - **In the “Resolved” email** the reporter gets five links from “very satisfied” to “very dissatisfied”. One click is enough, no sign-in needed. On the page they can still change the stars and optionally write a comment. Request participants get no links.
 - **In the ticket** signed-in reporters can rate as well. Agents see the rating and comment at the top of the ticket; changes of the stars appear in the history.

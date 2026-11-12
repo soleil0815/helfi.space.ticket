@@ -1,4 +1,4 @@
-// Administration: general, projects, users, Active Directory, SSO, email, system
+// Administration, grouped by topic: organisation, tickets, email, sign-in & security, appearance, system
 import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
@@ -13,33 +13,33 @@ import { catalogAdminPage } from './catalog.js';
 import { componentsAdminPage } from './components.js';
 import { peoplePicker } from '../peoplepicker.js';
 
-const SECTIONS = [
-  ['general', 'admin.general', 'settings'],
-  ['security', 'admin.security', 'shield'],
-  ['projects', 'admin.projects', 'board'],
-  ['components', 'admin.components', 'list'],
-  ['users', 'admin.users', 'users'],
-  ['ldap', 'admin.ldap', 'server'],
-  ['sso', 'admin.sso', 'key'],
-  ['mail', 'admin.mail', 'mail'],
-  ['ai', 'admin.ai', 'sparkle'],
-  ['sla', 'admin.sla', 'chart'],
-  ['change', 'admin.change', 'refresh'],
-  ['catalog', 'admin.catalog', 'inbox'],
-  ['templates', 'admin.templates', 'comment'],
-  ['import', 'admin.import', 'download'],
-  ['system', 'admin.system', 'info'],
+// Groups with their sections: [id, label, icon]
+const GROUPS = [
+  ['admin.group.org', [['projects', 'admin.projects', 'board'], ['components', 'admin.components', 'list'], ['users', 'admin.users', 'users']]],
+  ['admin.group.tickets', [['tickets', 'admin.tickets', 'settings'], ['sla', 'admin.sla', 'chart'], ['change', 'admin.change', 'refresh'], ['catalog', 'admin.catalog', 'inbox'], ['templates', 'admin.templates', 'comment']]],
+  ['admin.group.mail', [['mail-in', 'admin.mailIn', 'inbox'], ['mail-out', 'admin.mailOut', 'mail']]],
+  ['admin.group.login', [['ldap', 'admin.ldap', 'server'], ['sso', 'admin.sso', 'key'], ['mfa', 'admin.mfa', 'lock'], ['registration', 'admin.registration', 'user']]],
+  ['admin.group.look', [['appearance', 'admin.appearance', 'sparkle']]],
+  ['admin.group.system', [['ai', 'admin.ai', 'sparkle'], ['import', 'admin.import', 'download'], ['system', 'admin.system', 'info']]],
 ];
+const SECTIONS = GROUPS.flatMap(([, list]) => list);
+// Addresses up to 1.43 (bookmarks, links in older mails and manuals) lead to the new place
+const MOVED = { general: 'appearance', security: 'mfa', mail: 'mail-in' };
 
 export async function renderAdmin(content, section) {
-  if (!SECTIONS.some(([id]) => id === section)) section = 'general';
+  if (MOVED[section]) { navigate(`/admin/${MOVED[section]}${location.search}${location.hash}`, { replace: true }); return; }
+  if (!SECTIONS.some(([id]) => id === section)) section = 'projects';
   const body = h('div.admin-body', h('div.loading', t('app.loading')));
+  // Smartphone: select list with the same groups instead of the column
+  const mobileNav = h('select.admin-nav-select', { 'aria-label': t('admin.section'), onchange: (e) => navigate(`/admin/${e.target.value}`) },
+    GROUPS.map(([g, list]) => h('optgroup', { label: t(g) }, list.map(([id, label]) => h('option', { value: id, selected: id === section }, t(label))))));
   mount(content,
     h('div.page-head', h('h1', t('admin.title'))),
     h('div.admin',
-      h('nav.admin-nav', SECTIONS.map(([id, label, ic]) => h('a', { href: `/admin/${id}`, 'data-link': '', class: id === section ? 'active' : '' }, icon(ic), t(label)))),
-      // Smartphone: select list instead of column
-      select(SECTIONS.map(([id, label]) => [id, t(label)]), section, { class: 'admin-nav-select', 'aria-label': t('admin.section'), onchange: (e) => navigate(`/admin/${e.target.value}`) }),
+      h('nav.admin-nav', { 'aria-label': t('admin.title') }, GROUPS.map(([g, list]) => h('div.admin-nav-group',
+        h('div.admin-nav-head', t(g)),
+        list.map(([id, label, ic]) => h('a', { href: `/admin/${id}`, 'data-link': '', class: id === section ? 'active' : '', 'aria-current': id === section ? 'page' : null }, icon(ic), t(label)))))),
+      mobileNav,
       body));
 
   if (section === 'projects') return projectsPage(body);
@@ -52,7 +52,11 @@ export async function renderAdmin(content, section) {
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };
-  const pages = { general: generalPage, security: securityPage, ldap: ldapPage, sso: ssoPage, mail: mailPage, ai: aiPage, sla: (b, x) => slaPage(b, x, { saveBar, saveKeys, bindCheck }), change: (b, x) => changeAdminPage(b, x, { saveBar, saveKeys }) };
+  const pages = {
+    appearance: appearancePage, tickets: ticketsPage, mfa: securityPage, registration: registrationPage, ldap: ldapPage, sso: ssoPage,
+    'mail-in': mailInPage, 'mail-out': mailOutPage, ai: aiPage,
+    sla: (b, x) => slaPage(b, x, { saveBar, saveKeys, bindCheck }), change: (b, x) => changeAdminPage(b, x, { saveBar, saveKeys }),
+  };
   pages[section](body, s, { redirectUri });
 }
 
@@ -94,18 +98,46 @@ function showResult(el, ok, ...content) {
   mount(el, icon(ok ? 'check' : 'warning'), h('div', ...content));
 }
 
-// ---------- General ----------
-function generalPage(body, s) {
+// ---------- Appearance: name, language, design, sign-in page ----------
+function appearancePage(body, s) {
   mount(body,
     h('section.panel',
-      h('h2', t('admin.general')),
+      h('h2', t('admin.nameLanguage')),
       field(t('general.title'), bindInput(s, 'general.title', { maxLength: 60 })),
-      field(t('general.defaultProject'), bindSelect(s, 'general.defaultProject', [['', '—'], ...state.projects.map((p) => [p.key, `${p.name} (${p.key})`])]), t('general.defaultProjectHint')),
       field(t('general.defaultLanguage'), bindSelect(s, 'general.defaultLanguage', [['de', 'Deutsch'], ['en', 'English']]), t('general.defaultLanguageHint')),
-      field(t('general.allowSelfService'), bindCheck(s, 'general.allowSelfService')),
-      saveBar(() => saveKeys(s, ['general.']))),
+      saveBar(() => saveKeys(s, ['general.title', 'general.defaultLanguage']))),
     designPanel(s),
     loginPagePanel(s));
+}
+
+// ---------- Tickets: who may create, reminder to the project lead, satisfaction survey ----------
+function ticketsPage(body, s) {
+  mount(body,
+    h('section.panel',
+      h('h2', t('admin.ticketsTitle')),
+      field(t('general.allowSelfService'), bindCheck(s, 'general.allowSelfService')),
+      saveBar(() => saveKeys(s, ['general.allowSelfService']))),
+    h('section.panel.reminder-settings',
+      h('h2', t('reminder.title')),
+      h('p.muted.small', t('reminder.hint')),
+      h('div.grid-2',
+        field(t('reminder.days'), bindInput(s, 'reminder.unassignedDays', { type: 'number', min: 0, max: 60 }), t('reminder.daysHint')),
+        field(t('reminder.time'), bindInput(s, 'reminder.time', { type: 'time' }))),
+      field(t('reminder.weekdaysOnly'), bindCheck(s, 'reminder.weekdaysOnly')),
+      saveBar(() => saveKeys(s, ['reminder.']), h('button.btn', {
+        type: 'button', 'data-reminder-run': '',
+        onclick: async (e) => {
+          const btn = e.currentTarget; btn.disabled = true;
+          try { await saveKeys(s, ['reminder.']); const r = await api.admin.runReminder(); toast(r.mails ? t('reminder.sent', r) : t('reminder.none'), r.mails ? 'success' : 'info'); }
+          catch (ex) { toast(ex.message, 'error'); } finally { btn.disabled = false; }
+        },
+      }, icon('mail'), t('reminder.runNow')))),
+    h('section.panel',
+      h('h2', t('survey.adminTitle')),
+      h('p.muted.small', t('survey.adminHint')),
+      field(t('survey.enabled'), bindCheck(s, 'survey.enabled')),
+      field(t('survey.days'), bindInput(s, 'survey.days', { type: 'number', min: 1, max: 90 })),
+      saveBar(() => saveKeys(s, ['survey.']))));
 }
 
 // ---------- Branding: logo, main colour, header ----------
@@ -287,8 +319,11 @@ async function securityPage(body, s) {
       field(t('mfa.ssoSecondFactor'), bindSelect(s, 'mfa.ssoSecondFactor', ['confirmed', 'always', 'never'].map((v) => [v, t(`mfa.sso.${v}`)])), t('mfa.ssoSecondFactorHint')),
       s['oidc.enabled'] && s['mfa.ssoSecondFactor'] === 'always' ? h('div.hint-box.hint-warn', icon('warning'), h('p', t('mfa.ssoAlwaysWarn'))) : null,
       saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })),
-    sessionPanel(s),
-    registrationPanel(s, netInfo.levels));
+    sessionPanel(s));
+}
+async function registrationPage(body, s) {
+  const netInfo = await api.admin.mfaNetwork();
+  mount(body, registrationPanel(s, netInfo.levels));
 }
 
 // Automatic sign-out after inactivity (minutes; 0 = everyone: HELFI_SESSION_HOURS, others: not shorter)
@@ -445,6 +480,7 @@ async function projectsPage(body) {
   };
   mount(body, h('section.panel',
     h('div.section-head', h('h2', t('admin.projects')), h('button.btn.btn-primary', { type: 'button', onclick: () => projectDialog() }, icon('plus'), t('projects.new'))),
+    defaultProjectField(),
     h('p.muted', t('projects.pageHint')),
     h('table.data',
       h('thead', h('tr', h('th', t('projects.key')), h('th', t('projects.name')), h('th', t('projects.lead')), h('th', t('projects.agents')), h('th', t('projects.openTickets')), h('th', ''))),
@@ -460,6 +496,18 @@ async function projectsPage(body) {
           !p.archived ? h('a.btn.btn-subtle.small', { href: `/admin/components?project=${p.key}`, 'data-link': '' }, t('admin.components')) : null,
           h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { await api.updateProject(p.id, { archived: !p.archived }); await reloadBase(); projectsPage(body); } }, p.archived ? t('projects.unarchive') : t('projects.archive')),
           projects.length > 1 ? h('button.btn-icon.small', { type: 'button', title: t('projects.delete'), 'aria-label': t('projects.delete'), onclick: () => removeProject(p) }, icon('trash')) : null)))))));
+}
+
+/** Default project (tickets without a project, catalog fallback, knowledge articles from before 1.43) – saved on change */
+function defaultProjectField() {
+  const box = h('div.default-project');
+  api.admin.settings().then(({ settings }) => {
+    const s = { 'general.defaultProject': settings['general.defaultProject'] || '' };
+    mount(box, field(t('general.defaultProject'),
+      bindSelect(s, 'general.defaultProject', [['', '—'], ...state.projects.filter((p) => !p.archived).map((p) => [p.key, `${p.name} (${p.key})`])], () => saveKeys(s, ['general.defaultProject'])),
+      t('general.defaultProjectHint')));
+  }).catch(() => {});
+  return box;
 }
 
 // ---------- Users ----------
@@ -917,9 +965,8 @@ function aiPage(body, s) {
         }, t('app.test')))));
 }
 
-async function mailPage(body, s) {
+async function mailInPage(body, s) {
   const imapRes = result();
-  const smtpRes = result();
   const status = h('div.muted.small');
   const drawStatus = (st) => {
     if (!st?.lastRun) return mount(status, '');
@@ -936,9 +983,6 @@ async function mailPage(body, s) {
   api.admin.system().then((sys) => drawStatus(sys.imap)).catch(() => {});
 
   const imapPort = bindInput(s, 'imap.port', { type: 'number' });
-  const smtpPort = bindInput(s, 'smtp.port', { type: 'number' });
-  const testTo = h('input', { type: 'email', value: state.user.email || '' });
-
   mount(body,
     h('section.panel',
       h('h2', t('mail.incoming')),
@@ -964,7 +1008,15 @@ async function mailPage(body, s) {
       status,
       saveBar(() => saveKeys(s, ['imap.']),
         h('button.btn', { type: 'button', onclick: async () => { const r = await api.admin.testImap(pick(s, 'imap.')); showResult(imapRes, r.ok, r.ok ? t('mail.testOk', r) : r.error); } }, t('app.test')),
-        h('button.btn', { type: 'button', onclick: async () => { const r = await api.admin.pollImap(); drawStatus(r.status); } }, icon('refresh'), t('mail.pollNow')))),
+        h('button.btn', { type: 'button', onclick: async () => { const r = await api.admin.pollImap(); drawStatus(r.status); } }, icon('refresh'), t('mail.pollNow')))));
+  body.append(loopPanel(s));
+}
+
+function mailOutPage(body, s) {
+  const smtpRes = result();
+  const smtpPort = bindInput(s, 'smtp.port', { type: 'number' });
+  const testTo = h('input', { type: 'email', value: state.user.email || '' });
+  mount(body,
     h('section.panel',
       h('h2', t('mail.outgoing')),
       h('p.muted', t('mail.outgoingIntro')),
@@ -978,32 +1030,12 @@ async function mailPage(body, s) {
       field(t('mail.verifyTls'), bindCheck(s, 'smtp.verifyTls')),
       h('h3', t('mail.notifications')),
       ['reporterOnCreate', 'reporterOnComment', 'reporterOnDone', 'assignee', 'participantAdded', 'mention'].map((k) => field(t(`mail.notify.${k}`), bindCheck(s, `notify.${k}`))),
-      h('div.reminder-settings',
-      h('h3', t('reminder.title')),
-      h('p.muted.small', t('reminder.hint')),
-      h('div.grid-2',
-        field(t('reminder.days'), bindInput(s, 'reminder.unassignedDays', { type: 'number', min: 0, max: 60 }), t('reminder.daysHint')),
-        field(t('reminder.time'), bindInput(s, 'reminder.time', { type: 'time' }))),
-      field(t('reminder.weekdaysOnly'), bindCheck(s, 'reminder.weekdaysOnly')),
-      h('div.field', h('button.btn', {
-        type: 'button', 'data-reminder-run': '',
-        onclick: async (e) => {
-          const btn = e.currentTarget; btn.disabled = true;
-          try { await saveKeys(s, ['reminder.']); const r = await api.admin.runReminder(); toast(r.mails ? t('reminder.sent', r) : t('reminder.none'), r.mails ? 'success' : 'info'); }
-          catch (ex) { toast(ex.message, 'error'); } finally { btn.disabled = false; }
-        },
-      }, icon('mail'), t('reminder.runNow')))),
-      h('h3', t('survey.adminTitle')),
-      h('p.muted.small', t('survey.adminHint')),
-      field(t('survey.enabled'), bindCheck(s, 'survey.enabled')),
-      field(t('survey.days'), bindInput(s, 'survey.days', { type: 'number', min: 1, max: 90 })),
       h('div.grid-2', field(t('mail.testTo'), testTo), h('div.field.field-btn', h('button.btn', {
         type: 'button',
         onclick: async () => { const r = await api.admin.testSmtp(pick(s, 'smtp.'), testTo.value); showResult(smtpRes, r.ok, r.ok ? t('mail.testSent') : r.error); },
       }, icon('mail'), t('mail.sendTest')))),
       smtpRes,
-      saveBar(() => saveKeys(s, ['smtp.', 'notify.', 'reminder.', 'survey.']))));
-  body.append(loopPanel(s));
+      saveBar(() => saveKeys(s, ['smtp.', 'notify.']))));
 }
 
 // ---------- System ----------

@@ -200,7 +200,7 @@ export async function route() {
     if (state.isAgent && (path === '/cis' || path.startsWith('/cis/'))) return await renderCmdb(content, params, path);
     if (path === '/summary' && state.isAgent) return await renderSummary(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
-    if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'general');
+    if (path.startsWith('/admin') && state.isAdmin) return await renderAdmin(content, path.split('/')[2] || 'projects');
     if (path === '/profile') return renderProfile(content);
     if (path === '/news') return await renderNews(content);
     mount(content, h('div.empty-state', h('h2', '404'), h('a', { href: '/', 'data-link': '' }, '←')));
@@ -329,7 +329,7 @@ function layout(content, path) {
       nav('/kb', t('kb.title'), 'file', path.startsWith('/kb')),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
-      state.isAdmin ? nav('/admin/mail', t('nav.channelsMail'), 'mail', path === '/admin/mail') : null,
+      state.isAdmin ? nav('/admin/mail-in', t('nav.channelsMail'), 'mail', path === '/admin/mail-in') : null,
       state.isAdmin ? h('div.sidebar-label', t('nav.admin')) : null,
       state.isAdmin ? nav('/admin', t('app.settings'), 'settings', path.startsWith('/admin')) : null,
       sidebarFoot(),
