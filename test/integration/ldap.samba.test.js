@@ -109,9 +109,9 @@ test('Find sender by email: primary address, UPN, secondary address, not disable
     ]);
   } finally { await adm.unbind().catch(() => {}); }
 
-  const max = await ldap.findByEmail(cfg, 'M.Muster@firma.local');
+  const max = await ldap.findByEmail({ ...cfg, projectGroups: [{ id: 9, key: 'IT', group: 'Helfi-Bearbeiter' }] }, 'M.Muster@firma.local');
   assert.equal(max.username, 'm.muster');
-  assert.equal(max.groups.agent, true);
+  assert.deepEqual(max.groups.projects, [9], 'project group also in the sender lookup');
   assert.ok(max.externalId);
 
   const upn = await ldap.findByEmail(cfg, 'k.kunde@firma.local');
@@ -145,9 +145,9 @@ test('Search people (participants from AD) and fetch by objectGUID', { skip }, a
   assert.ok((await ldap.searchPeople(cfg, 'firma.local', { limit: 2 })).length <= 2, 'limit');
 
   // The GUID from the search must return the same person as the login (externalId)
-  const got = await ldap.findByGuid(cfg, byName[0].externalId);
+  const got = await ldap.findByGuid({ ...cfg, projectGroups: [{ id: 9, key: 'IT', group: 'Helfi-Bearbeiter' }] }, byName[0].externalId);
   assert.equal(got.username, 'm.muster');
-  assert.equal(got.groups.agent, true);
+  assert.deepEqual(got.groups.projects, [9]);
   const login = await ldap.authenticate(cfg, 'm.muster', 'Muster!Pass2026');
   assert.equal(login.externalId, byName[0].externalId, 'same ID as at login');
   assert.equal(await ldap.findByGuid(cfg, '00'.repeat(16)), null);
