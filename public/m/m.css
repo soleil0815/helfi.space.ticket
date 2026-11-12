@@ -299,6 +299,13 @@ body.m a:hover { text-decoration: none; }
 .m-mail-note .m-link { padding: 4px 0; min-height: 36px; font-size: 13px; }
 /* Original email in a sheet: almost full height, the formatted mail always on white */
 .m-sheet-mail { height: calc(100% - 48px - var(--safe-t)); }
+.m-sheet-image { height: calc(100% - 48px - var(--safe-t)); }
+.m-sheet-image .m-sheet-body { padding: 0; display: flex; }
+.m-image-view { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; background: #161A1D; cursor: zoom-in; -webkit-overflow-scrolling: touch; }
+.m-image-view-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.m-image-view.zoomed { display: block; cursor: zoom-out; }
+.m-image-view.zoomed .m-image-view-img { max-width: none; max-height: none; }
+.m-sheet-image .m-sheet-foot { display: flex; justify-content: center; }
 .m-sheet-mail .mail-switch { display: inline-flex; gap: 2px; background: var(--m-bg, #F1F2F4); border-radius: 8px; padding: 2px; margin-bottom: 10px; }
 .m-sheet-mail .mail-switch-btn { border: 0; background: none; font: inherit; font-size: 14px; color: var(--text-subtle); padding: 6px 14px; border-radius: 6px; min-height: 36px; }
 .m-sheet-mail .mail-switch-btn[aria-pressed="true"] { background: var(--m-card); color: var(--text); box-shadow: 0 1px 2px #091E4240; }

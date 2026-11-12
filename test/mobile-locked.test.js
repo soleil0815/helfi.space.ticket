@@ -87,6 +87,54 @@ test('Original email opens in a sheet inside the app, sandboxed, with formatted/
   await c.close();
 });
 
+// 1×1 PNG
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+test('Images open in a sheet inside the app (attachment and picture in a reply), back closes it', { skip }, async () => {
+  // attachment and an image embedded in a reply
+  const form = new FormData();
+  form.append('files', new Blob([PNG], { type: 'image/png' }), 'drucker-display.png');
+  const up = await fetch(`${S.base}/api/tickets/${key}/attachments`, { method: 'POST', headers: { cookie: S.admin.cookie(), 'X-Helfi-Request': '1' }, body: form });
+  assert.equal(up.status, 201);
+  const [attId] = (await up.json()).ids;
+  const form2 = new FormData();
+  form2.append('files', new Blob([PNG], { type: 'image/png' }), 'screenshot.png');
+  form2.append('draft', '1');
+  const up2 = await fetch(`${S.base}/api/tickets/${key}/attachments`, { method: 'POST', headers: { cookie: S.admin.cookie(), 'X-Helfi-Request': '1' }, body: form2 });
+  const [inlineId] = (await up2.json()).ids;
+  assert.equal((await S.admin('POST', `/api/tickets/${key}/comments`, { body: `Hier ein Bild:\n\n![Fehlermeldung](/api/attachments/${inlineId})` })).status, 201);
+
+  const { c, p, errors } = await phone({ installed: true });
+  await p.goto(`${S.base}/m/t/${key}`);
+  await ready(p);
+  const att = p.locator(`.m-page:not(.m-leaving) a.m-att-img[href="/api/attachments/${attId}"]`);
+  await att.waitFor();
+  await att.tap();
+  const sheet = p.locator('.m-sheet-image');
+  await sheet.waitFor();
+  assert.equal(await sheet.locator('h2').textContent(), 'drucker-display.png');
+  assert.equal(await sheet.locator('img.m-image-view-img').getAttribute('src'), `/api/attachments/${attId}`);
+  assert.equal(await sheet.locator(`a[href="/api/attachments/${attId}?download=1"]`).count(), 1, 'download button');
+  assert.match(new URL(p.url()).pathname, new RegExp(`^/m/t/${key}$`), 'still in the app');
+  // tap zooms, tap again back
+  await sheet.locator('.m-image-view').tap();
+  assert.ok(await sheet.locator('.m-image-view.zoomed').count());
+  await p.goBack();
+  await sheet.waitFor({ state: 'detached' });
+  assert.match(new URL(p.url()).pathname, new RegExp(`^/m/t/${key}$`));
+  // picture inside a reply
+  const inline = p.locator(`.m-page:not(.m-leaving) a[href="/api/attachments/${inlineId}"]`).first();
+  await inline.scrollIntoViewIfNeeded();
+  await inline.tap();
+  await sheet.waitFor();
+  assert.equal(await sheet.locator('img.m-image-view-img').getAttribute('src'), `/api/attachments/${inlineId}`);
+  await sheet.getByRole('button', { name: 'Schließen' }).tap();
+  await sheet.waitFor({ state: 'detached' });
+  assert.equal(c.pages().length, 1, 'no new page or tab');
+  assert.deepEqual(errors, []);
+  await c.close();
+});
+
 test('Installed app: no way into the desktop UI (ticket menu, knowledge base, Me page)', { skip }, async () => {
   const { c, p, errors } = await phone({ installed: true });
   await p.goto(`${S.base}/m/t/${key}`);
