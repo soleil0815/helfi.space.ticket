@@ -83,7 +83,7 @@ test('Suggest mode: only when no rule matched; accept sets component and lead', 
   assert.equal((await karl('POST', `/api/tickets/${tk.key}/component-suggestion/accept`)).status, 403);
   const r = await anna('POST', `/api/tickets/${tk.key}/component-suggestion/accept`);
   assert.equal(r.body.ticket.component.name, 'VPN');
-  assert.equal(r.body.ticket.assignee.id, S.ids.anna, 'lead gets it');
+  assert.equal(r.body.ticket.assignee, null, 'accepting assigns nobody');
   full = (await anna('GET', `/api/tickets/${tk.key}`)).body.ticket;
   assert.equal(full.componentSuggestion, undefined);
   const cl = full.activity.find((a) => a.action === 'classified');
@@ -111,7 +111,7 @@ test('Auto mode: set directly, marked as by AI; a later change counts as correct
   await idle();
   let full = (await anna('GET', `/api/tickets/${tk.key}`)).body.ticket;
   assert.equal(full.component.name, 'VPN');
-  assert.equal(full.assignee.id, S.ids.anna);
+  assert.equal(full.assignee, null, 'auto mode assigns nobody');
   const cl = full.activity.find((a) => a.action === 'classified');
   assert.deepEqual([cl.field, cl.oldValue, cl.user], ['ai', 'test-model', null]);
   let st = (await admin('GET', '/api/admin/ai/stats')).body.classify;

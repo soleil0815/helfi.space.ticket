@@ -215,19 +215,10 @@ export function createTickets(db, users) {
     };
   }
 
-  /** Who gets a ticket of this component: the lead, or the deputy if the lead is not assignable */
-  function leadFor(component) {
-    const leadId = component.lead_id ?? component.leadId;
-    const deputyId = component.deputy_id ?? component.deputyId;
-    const pid = component.project_id ?? component.projectId;
-    if (leadId && isAssignable(leadId, pid)) return { id: leadId, role: 'lead' };
-    if (deputyId && isAssignable(deputyId, pid)) return { id: deputyId, role: 'deputy' };
-    return null;
-  }
 
   /**
    * Set the component from outside the normal update (AI): history entry "classified" with the
-   * source, and – like the rules at creation – the lead gets the ticket if nobody is assigned yet.
+   * source. Nobody is assigned (the component's person is for information only).
    * userId: who accepted a suggestion (null = automatic). Returns the ticket (agent view).
    */
   function applyComponent(ticketId, componentId, { kind = 'ai', detail = '', userId = null, backfill = false } = {}) {
@@ -238,7 +229,6 @@ export function createTickets(db, users) {
     if (!any) throw new HttpError(400, 'err.badRequest', 'componentId');
     const target = any.projectId !== row.project_id ? projects.get(any.projectId) : null;
     const component = components.forProject(any.projectId, componentId);
-    let assigned = null;
     db.transaction(() => {
       if (target) {
         moveToProject(row, target, userId);
@@ -249,22 +239,14 @@ export function createTickets(db, users) {
         }
         row = rawById(row.id);
       }
-      // Sorting existing tickets afterwards: only the component and the history entry –
-      // the "updated" time stays (lists keep their order) and nobody gets the ticket assigned
+      // Only the component and the history entry – nobody is ever assigned automatically (the
+      // component's person is shown for information; the project's agents take tickets themselves).
+      // Sorting existing tickets afterwards: the "updated" time stays (lists keep their order).
       if (backfill) db.prepare('UPDATE tickets SET component_id=? WHERE id=?').run(component.id, row.id);
       else db.prepare("UPDATE tickets SET component_id=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(component.id, row.id);
       logActivity(row.id, userId, 'classified', kind, detail, component.name);
-      if (!row.assignee_id && !backfill) {
-        assigned = leadFor(component);
-        if (assigned) {
-          db.prepare('UPDATE tickets SET assignee_id=? WHERE id=?').run(assigned.id, row.id);
-          logActivity(row.id, null, 'autoAssigned', assigned.role, component.name, users.byId(assigned.id)?.display_name || '');
-        }
-      }
     })();
-    const t = ticketOut(rawById(row.id));
-    if (assigned) emitLater('assigned', { ticket: t, user: null });
-    return t;
+    return ticketOut(rawById(row.id));
   }
 
   /** Assign only to active agents/admins – of this project (projectId) */
@@ -444,9 +426,8 @@ export function createTickets(db, users) {
         match = matchComponent(components.active(project.id), { title, description: str(data.description, 100000), sender });
         if (match) component = match.component;
       }
-      let assigneeId = agent && int(data.assigneeId) && isAssignable(int(data.assigneeId), project.id) ? int(data.assigneeId) : null;
-      const autoAssigned = !assigneeId && component ? leadFor(component) : null;
-      if (autoAssigned) assigneeId = autoAssigned.id;
+      // Assigned only by hand (an agent who picks someone) – never automatically
+      const assigneeId = agent && int(data.assigneeId) && isAssignable(int(data.assigneeId), project.id) ? int(data.assigneeId) : null;
       const number = db.prepare('UPDATE projects SET next_number=next_number+1 WHERE id=? RETURNING next_number-1 n').get(project.id).n;
       const minRank = db.prepare("SELECT COALESCE(MIN(rank),0) r FROM tickets WHERE project_id=? AND status='open'").get(project.id).r;
       const info = db.prepare(`INSERT INTO tickets(project_id,number,title,description,type,status,priority,reporter_id,reporter_email,reporter_name,assignee_id,labels,due_date,source,rank,component_id)
@@ -465,7 +446,6 @@ export function createTickets(db, users) {
       if (onBehalf) logActivity(info.lastInsertRowid, user.id, 'createdFor', null, null, users.byId(reporterId)?.display_name || '');
       // History: which rule decided (kind = keywords/sender, detail = words or pattern)
       if (match) logActivity(info.lastInsertRowid, null, 'classified', match.kind, reasonDetail(match), component.name);
-      if (autoAssigned) logActivity(info.lastInsertRowid, null, 'autoAssigned', autoAssigned.role, component.name, users.byId(autoAssigned.id)?.display_name || '');
       return info.lastInsertRowid;
     })();
     const t = ticketOut(rawById(id));
