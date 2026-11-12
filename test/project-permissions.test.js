@@ -1,6 +1,7 @@
-// Project rights: agents work on all projects (default, the behaviour so far) or only on selected ones.
-// For tickets of other projects an agent limited to projects is a normal user: their own requests only,
-// no internal notes, no history, no agent tools – and nothing of those projects in counts and reports.
+// Project rights are set in the project: its lead, its agent group (AD/SSO) and people added by hand
+// work on its tickets – whatever their role. Agents and admins work on all projects. For tickets of
+// other projects such a person is a normal user: their own requests only, no internal notes, no
+// history, no agent tools – and nothing of those projects in counts and reports.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -13,7 +14,7 @@ before(async () => {
   ({ projectAccessFromGroups, roleFromGroups } = await import('../src/users.js'));
   ({ agentOn, agentProjects } = await import('../src/auth/access.js'));
   ita = await S.user('ita', 'agent');
-  hma = await S.user('hma', 'agent');
+  hma = await S.user('hma', 'user');
   karl = await S.user('karl', 'user');
   const p = await S.admin('POST', '/api/projects', { key: 'HM', name: 'Haustechnik' });
   assert.equal(p.status, 201);
@@ -26,15 +27,15 @@ before(async () => {
   keys.hmOwnIt = (await hma('POST', '/api/tickets', { title: 'Mein Laptop startet nicht', projectId: IT })).body.ticket.key;
   await S.admin('POST', `/api/tickets/${keys.hmOwnIt}/comments`, { body: 'Kennwort für den Testzugang: geheimwort42', internal: true });
   await S.admin('POST', `/api/tickets/${keys.hmOwnIt}/comments`, { body: 'Wir schauen es uns an.' });
-  // hma: agent of HM only
-  const r = await S.admin('PATCH', `/api/users/${S.ids.hma}`, { agentScope: 'projects', projectIds: [HM] });
+  // hma (role user): added to HM by hand → works on HM only
+  const r = await S.admin('PUT', `/api/projects/${HM}/agents`, { members: [{ userId: S.ids.hma }] });
   assert.equal(r.status, 200);
-  assert.equal(r.body.user.agentScope, 'projects');
+  assert.deepEqual(r.body.members.map((m) => m.id), [S.ids.hma]);
+  assert.equal((await hma('GET', '/api/me')).body.user.role, 'agent', 'acts as an agent (of HM)');
 });
 after(() => S.stop());
 
-test('Existing and new agents work on all projects (nothing changes on update)', async () => {
-  assert.equal(S.db.prepare('SELECT agent_scope FROM users WHERE id=?').get(S.ids.ita).agent_scope, 'all');
+test('Agents work on all projects (nothing changes on update)', async () => {
   const list = (await ita('GET', '/api/tickets')).body.tickets.map((x) => x.key);
   for (const k of Object.values(keys)) assert.ok(list.includes(k), k);
   const d = (await ita('GET', `/api/tickets/${keys.hm}`)).body.ticket;
@@ -181,73 +182,77 @@ test('Major incidents in the notice bar: only their projects', async () => {
   assert.ok(bootIt.majorIncidents.some((m) => m.key === keys.itSecret));
 });
 
-test('Admin: agents of a project (group + by hand), user list shows what someone sees', async () => {
+test('Admin: lead, group and people are set in the project – the role under Users does not matter', async () => {
   assert.equal((await hma('GET', `/api/projects/${HM}/agents`)).status, 403);
-  let r = await S.admin('PUT', `/api/projects/${IT}/agents`, { agentGroup: 'IT-Helpdesk', userIds: [S.ids.hma] });
+  // lead of IT: a plain user who now works on IT
+  let r = await S.admin('PUT', `/api/projects/${IT}/agents`, { lead: { userId: S.ids.karl }, agentGroup: 'IT-Helpdesk', members: [{ userId: S.ids.hma }] });
   assert.equal(r.status, 200);
+  assert.equal(r.body.lead.id, S.ids.karl);
   assert.equal(r.body.agentGroup, 'IT-Helpdesk');
-  assert.deepEqual(r.body.agents.map((a) => [a.id, a.source]), [[S.ids.hma, 'manual']]);
-  // now hma sees IT tickets too
+  assert.deepEqual(r.body.members.map((m) => m.id), [S.ids.hma]);
+  assert.equal(S.db.prepare('SELECT lead_id FROM projects WHERE id=?').get(IT).lead_id, S.ids.karl);
+  assert.equal((await karl('GET', `/api/tickets/${keys.itOther}`)).body.ticket.agentView, true, 'the lead works on IT');
   assert.equal((await hma('GET', `/api/tickets/${keys.itOther}`)).status, 200);
-  const users = (await S.admin('GET', '/api/users?all=1')).body.users;
-  const h = users.find((u) => u.username === 'hma');
-  assert.equal(h.agentScope, 'projects');
-  assert.deepEqual(h.projects.map((p) => p.key).sort(), ['HM', 'IT']);
-  // only agents may be assigned by hand
-  assert.equal((await S.admin('PUT', `/api/projects/${IT}/agents`, { agentGroup: '', userIds: [S.ids.karl] })).status, 400);
-  r = await S.admin('PUT', `/api/projects/${IT}/agents`, { agentGroup: '', userIds: [] });
-  assert.equal(r.body.agents.length, 0);
+  // admin list: base role stays "user", the projects are shown with how
+  const list = (await S.admin('GET', '/api/users?all=1')).body.users;
+  const k = list.find((u) => u.username === 'karl');
+  assert.equal(k.role, 'user');
+  assert.deepEqual(k.projects.map((p) => [p.key, p.source]), [['IT', 'lead']]);
+  const projects = (await S.admin('GET', '/api/projects?all=1')).body.projects;
+  const it = projects.find((p) => p.key === 'IT');
+  assert.equal(it.lead.id, S.ids.karl);
+  assert.equal(it.agentGroup, 'IT-Helpdesk');
+  assert.equal(it.memberCount, 1);
+  // changing someone's account does not touch their project rights, and never stores the effective role
+  assert.equal((await S.admin('PATCH', `/api/users/${S.ids.karl}`, { roleLocked: true })).body.user.role, 'user');
+  assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(S.ids.karl).role, 'user', 'never written back as agent');
+  assert.equal(S.db.prepare('SELECT lead_id FROM projects WHERE id=?').get(IT).lead_id, S.ids.karl);
+  // email contacts and unknown people cannot be added
+  const contact = S.ctx.users.contactForEmail('extern@example.org', 'Extern');
+  assert.equal((await S.admin('PUT', `/api/projects/${IT}/agents`, { members: [{ userId: contact.id }] })).status, 400);
+  assert.equal((await S.admin('PUT', `/api/projects/${IT}/agents`, { lead: { userId: 99999 } })).status, 400);
+  // removing lead and people takes the rights away at once
+  r = await S.admin('PUT', `/api/projects/${IT}/agents`, { lead: null, agentGroup: '', members: [] });
+  assert.equal(r.body.lead, null);
+  assert.equal(r.body.members.length, 0);
   assert.equal((await hma('GET', `/api/tickets/${keys.itOther}`)).status, 404);
-  // changing the scope by hand locks the role (groups do not overwrite it)
-  assert.equal(S.db.prepare('SELECT role_locked FROM users WHERE id=?').get(S.ids.hma).role_locked, 1);
+  assert.equal((await karl('GET', `/api/tickets/${keys.itOther}`)).body.ticket.agentView, false, 'karl is its reporter again only');
+  // the lead set via PATCH counts as well
+  await S.admin('PATCH', `/api/projects/${HM}`, { leadId: S.ids.karl });
+  assert.equal((await karl('GET', '/api/projects')).body.projects.find((p) => p.key === 'HM').agent, true);
+  await S.admin('PATCH', `/api/projects/${HM}`, { leadId: null });
+  assert.equal((await karl('GET', '/api/projects')).body.projects.find((p) => p.key === 'HM').agent, false);
 });
 
-test('Groups: project groups make agents of those projects, never demote, follow every sign-in', async () => {
+test('Groups: the agent group of a project gives rights there only, follows every sign-in, never changes the role', async () => {
   const cfg = { adminGroup: 'Admins', agentGroup: 'IT-Team', projectGroups: [{ id: IT, key: 'IT', group: 'IT-Helpdesk' }, { id: HM, key: 'HM', group: 'Haustechnik' }] };
-  assert.deepEqual(projectAccessFromGroups({ admin: false, agent: true, projects: [HM] }, cfg), { scope: 'all', projects: [HM] });
-  assert.deepEqual(projectAccessFromGroups({ admin: false, agent: false, projects: [HM] }, cfg), { scope: 'projects', projects: [HM] });
-  assert.deepEqual(projectAccessFromGroups({ admin: false, agent: false, projects: [] }, cfg), { scope: null, projects: [] });
-  // no project groups configured: nothing from groups
-  assert.deepEqual(projectAccessFromGroups({ admin: false, agent: false, projects: [HM] }, { agentGroup: 'x' }), { scope: null, projects: [] });
-  // the role from groups stays as before
-  assert.equal(roleFromGroups({ admin: false, agent: false, projects: [HM] }, cfg), 'user');
+  assert.deepEqual(projectAccessFromGroups({ admin: false, agent: false, projects: [HM] }, cfg), { projects: [HM] });
+  assert.deepEqual(projectAccessFromGroups({ admin: false, agent: false, projects: [HM] }, { agentGroup: 'x' }), { projects: [] }, 'no project groups configured');
+  assert.equal(roleFromGroups({ admin: false, agent: false, projects: [HM] }, cfg), 'user', 'the role is not touched');
 
-  const up = (name, groups, role = roleFromGroups(groups, cfg)) => S.ctx.users.upsertExternal({
-    source: 'ldap', username: name, displayName: name, email: `${name}@firma.local`, externalId: `guid-${name}`, role, access: projectAccessFromGroups(groups, cfg),
+  const up = (name, groups) => S.ctx.users.upsertExternal({
+    source: 'ldap', username: name, displayName: name, email: `${name}@firma.local`, externalId: `guid-${name}`, role: roleFromGroups(groups, cfg), access: projectAccessFromGroups(groups, cfg),
   });
-  // only in "Haustechnik": agent of HM only
+  // only in "Haustechnik": a user who works on HM
   let u = up('hausmeister', { admin: false, agent: false, user: true, projects: [HM] });
-  assert.equal(u.role, 'agent');
-  assert.equal(u.agent_scope, 'projects');
+  assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(u.id).role, 'user');
   assert.deepEqual(agentProjects(u), [HM]);
   assert.equal(agentOn(u, IT), false);
-  // later also in the general agent group: all projects
+  // an old general agent group no longer gives anything
   u = up('hausmeister', { admin: false, agent: true, user: true, projects: [HM] });
-  assert.equal(u.agent_scope, 'all');
-  assert.equal(agentProjects(u), null);
-  // out of every group: back to user, group rows gone
+  assert.deepEqual(agentProjects(u), [HM]);
+  // out of every group: no project rows from groups anymore
   u = up('hausmeister', { admin: false, agent: false, user: true, projects: [] });
   assert.equal(u.role, 'user');
+  assert.deepEqual(agentProjects(u), []);
   assert.equal(S.db.prepare("SELECT COUNT(*) n FROM project_agents WHERE user_id=? AND source='group'").get(u.id).n, 0);
-  // a project group never demotes an admin
-  u = up('chefin', { admin: true, agent: false, user: true, projects: [] });
-  assert.equal(u.role, 'admin');
-  S.db.prepare('UPDATE users SET role_locked=0 WHERE id=?').run(u.id);
+  // an admin in a project group stays admin
   u = up('chefin', { admin: true, agent: false, user: true, projects: [HM] });
   assert.equal(u.role, 'admin');
-  // without admin/agent groups (role from groups: null): the project group still makes users agents
-  const cfg2 = { projectGroups: cfg.projectGroups };
-  const r2 = S.ctx.users.upsertExternal({ source: 'ldap', username: 'gast', displayName: 'Gast', email: 'gast@firma.local', externalId: 'guid-gast', role: roleFromGroups({ projects: [IT] }, cfg2), access: projectAccessFromGroups({ projects: [IT] }, cfg2) });
-  assert.equal(r2.role, 'agent');
-  assert.deepEqual(agentProjects(r2), [IT]);
-  // … but does not restrict an agent made by hand (all projects)
-  S.db.prepare("UPDATE users SET role='agent', agent_scope='all' WHERE username='hausmeister'").run();
-  u = S.ctx.users.upsertExternal({ source: 'ldap', username: 'hausmeister', displayName: 'hausmeister', email: 'hausmeister@firma.local', externalId: 'guid-hausmeister', role: roleFromGroups({ projects: [HM] }, cfg2), access: projectAccessFromGroups({ projects: [HM] }, cfg2) });
-  assert.equal(u.agent_scope, 'all');
-  // locked role: groups keep their rows, scope stays as set by hand
-  S.db.prepare("UPDATE users SET role_locked=1, agent_scope='projects' WHERE username='hausmeister'").run();
+  // locked role: the group rows are still synced (project rights are not a role)
+  S.db.prepare("UPDATE users SET role_locked=1 WHERE username='hausmeister'").run();
   u = up('hausmeister', { admin: false, agent: true, user: true, projects: [IT] });
-  assert.equal(u.agent_scope, 'projects');
+  assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(u.id).role, 'user', 'locked: agent group ignored');
   assert.deepEqual(agentProjects(u), [IT]);
 });
 
@@ -260,9 +265,61 @@ test('Changing the project group drops the memberships of the old one', async ()
 });
 
 test('A forgotten project list denies instead of revealing', () => {
-  const u = { id: 1, role: 'agent', agent_scope: 'projects' };
-  assert.deepEqual(agentProjects(u), []);
+  const u = { id: 1, role: 'user' };
+  assert.deepEqual(agentProjects(u), [], 'user row not loaded: no projects');
   assert.equal(agentOn(u, IT), false);
-  assert.equal(agentOn({ id: 2, role: 'admin', agent_scope: 'projects' }, IT), true);
-  assert.equal(agentOn({ id: 3, role: 'user' }, IT), false);
+  assert.equal(agentOn({ id: 2, role: 'admin' }, IT), true);
+  assert.equal(agentOn({ id: 3, role: 'agent' }, IT), true);
+});
+
+test('Deputy: works on the project and gets the reminder mail together with the lead', async () => {
+  const r = await S.admin('PUT', `/api/projects/${HM}/agents`, { lead: { userId: S.ids.karl }, deputy: { userId: S.ids.hma } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deputy.id, S.ids.hma);
+  assert.equal((await S.admin('GET', '/api/projects?all=1')).body.projects.find((p) => p.key === 'HM').deputy.id, S.ids.hma);
+  const hm = (await S.admin('GET', '/api/users?all=1')).body.users.find((u) => u.username === 'hma');
+  assert.ok(hm.projects.some((p) => p.key === 'HM' && p.source === 'deputy'));
+  const sent = [];
+  const mailer = S.ctx.mailer;
+  const orig = { enabled: mailer.enabled, send: mailer.send };
+  mailer.enabled = () => true; mailer.send = async (m) => { sent.push(m.to); return true; };
+  try {
+    S.db.prepare("UPDATE tickets SET created_at='2020-01-01T00:00:00.000Z', assignee_id=NULL WHERE project_id=?").run(HM);
+    S.ctx.settings.set('reminder.unassignedDays', 1);
+    await S.ctx.reminders.check({ force: true });
+    const hmMails = sent.filter((to) => ['karl@firma.local', 'hma@firma.local'].includes(to));
+    assert.deepEqual(hmMails.sort(), ['hma@firma.local', 'karl@firma.local']);
+  } finally { Object.assign(mailer, orig); S.ctx.settings.set('reminder.unassignedDays', 0); }
+  // removing the deputy takes the rights from that role away
+  await S.admin('PUT', `/api/projects/${HM}/agents`, { lead: null, deputy: null });
+  assert.equal(S.db.prepare("SELECT COUNT(*) n FROM project_agents WHERE project_id=? AND source IN ('lead','deputy')").get(HM).n, 0);
+});
+
+test('Migration 42: agents limited to projects (1.40) become users with the same projects, leads get theirs', async () => {
+  const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
+  const { openDatabase } = await import('../src/db.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-m42-'));
+  try {
+    const file = path.join(dir, 'h.sqlite');
+    let d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });
+    const add = (n, role, scope = 'all') => d.prepare("INSERT INTO users(username,display_name,role,source,agent_scope) VALUES(?,?,?,'local',?)").run(n, n, role, scope).lastInsertRowid;
+    const scoped = add('scoped', 'agent', 'projects');
+    const full = add('full', 'agent');
+    const lead = add('lead', 'user');
+    const pid = d.prepare("INSERT INTO projects(key,name,lead_id) VALUES('HM','HM',?)").run(lead).lastInsertRowid;
+    d.prepare("INSERT INTO project_agents(project_id,user_id,source) VALUES(?,?,'manual')").run(pid, scoped);
+    d.prepare("INSERT OR REPLACE INTO settings(key,value,secret) VALUES('ldap.agentGroup','\"Helfi-Bearbeiter\"',0)").run();
+    d.exec('ALTER TABLE projects DROP COLUMN deputy_id');
+    d.prepare("UPDATE meta SET value='41' WHERE key='schema_version'").run();
+    d.close();
+    d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });
+    const role = (id) => d.prepare('SELECT role FROM users WHERE id=?').get(id).role;
+    assert.equal(role(scoped), 'user');
+    assert.equal(role(full), 'user', 'no role "agent" any more – the admin assigns the projects');
+    assert.equal(d.prepare("SELECT COUNT(*) n FROM settings WHERE key='ldap.agentGroup'").get().n, 0, 'general agent group gone');
+    assert.ok(d.prepare('PRAGMA table_info(projects)').all().some((c) => c.name === 'deputy_id'));
+    assert.ok(d.prepare("SELECT 1 FROM project_agents WHERE project_id=? AND user_id=? AND source='manual'").get(pid, scoped), 'keeps the project');
+    assert.ok(d.prepare("SELECT 1 FROM project_agents WHERE project_id=? AND user_id=? AND source='lead'").get(pid, lead), 'lead works on it');
+    d.close();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

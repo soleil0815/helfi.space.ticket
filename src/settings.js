@@ -100,7 +100,6 @@ export const DEFAULTS = {
   'ldap.emailAttr': 'mail',
   'ldap.nestedGroups': true,
   'ldap.adminGroup': '',
-  'ldap.agentGroup': '',
   'ldap.userGroup': '', // empty = all users may sign in
   'ldap.timeoutMs': 8000,
   'ldap.peopleSearch': true, // search AD when adding participants (agents only, needs service account)
@@ -116,7 +115,6 @@ export const DEFAULTS = {
   'oidc.mergeDomain': '', // e.g. firma.local: "m.muster@firma.local" = AD account "m.muster"; empty = never merge
   'oidc.groupsClaim': 'groups',
   'oidc.adminGroup': '',
-  'oidc.agentGroup': '',
   'oidc.autoRedirect': false,
   'oidc.allowCreate': true,
   'oidc.mfaAcr': '', // acr values that count as MFA (comma-separated), in addition to amr

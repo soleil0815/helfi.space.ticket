@@ -44,7 +44,7 @@ test('migration 40 ends existing plaintext sessions, so ids in older backups are
     let d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });
     const uid = d.prepare("INSERT INTO users(username, display_name, role, source) VALUES('max','Max','user','local')").run().lastInsertRowid;
     d.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at,auth_method,last_seen) VALUES('plain-token-0001',?,?,?,'local',?)").run(uid, Date.now() + 3600e3, Date.now(), Date.now());
-    d.exec('DROP INDEX idx_project_agents_user; DROP TABLE project_agents; ALTER TABLE projects DROP COLUMN agent_group; ALTER TABLE users DROP COLUMN agent_scope;');
+    d.exec('ALTER TABLE projects DROP COLUMN deputy_id; DROP INDEX idx_project_agents_user; DROP TABLE project_agents; ALTER TABLE projects DROP COLUMN agent_group; ALTER TABLE users DROP COLUMN agent_scope;');
     d.prepare("UPDATE meta SET value='39' WHERE key='schema_version'").run();
     d.close();
     d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });

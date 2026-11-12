@@ -134,15 +134,21 @@ test('Merging via AD ID: AD account, checked against AD at every login', async (
     assert.deepEqual(await adAccountFor(S.ctx, { sid: 'S-1-5-21-1-2-3-1201' }), { denied: 'notInGroup' });
     delete dir['S-1-5-21-1-2-3-1201'];
     assert.deepEqual(await adAccountFor(S.ctx, { sid: 'S-1-5-21-1-2-3-1201' }), { denied: 'noAccount' }, 'known, but gone from AD');
-    // Role follows the AD groups
-    settings.set('ldap.agentGroup', 'Helfi-Bearbeiter');
-    dir['S-1-5-21-1-2-3-1300'].groups = { user: true, agent: true, admin: false };
-    assert.equal((await adAccountFor(S.ctx, { sid: 'S-1-5-21-1-2-3-1300' })).user.role, 'agent');
+    // Project rights follow the AD groups (the project's agent group): works on that project
+    settings.set('ldap.adminGroup', 'Helfi-Admins');
+    S.db.prepare("UPDATE projects SET agent_group='Helfi-Bearbeiter' WHERE key='IT'").run();
+    dir['S-1-5-21-1-2-3-1300'].groups = { user: true, admin: false, projects: [S.db.prepare("SELECT id FROM projects WHERE key='IT'").get().id] };
+    const viaGroup = (await adAccountFor(S.ctx, { sid: 'S-1-5-21-1-2-3-1300' })).user;
+    assert.equal(viaGroup.role, 'agent', 'acts as agent of IT');
+    assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(viaGroup.id).role, 'user', 'stored role stays user');
+    dir['S-1-5-21-1-2-3-1300'].groups = { user: true, admin: true, projects: [] };
+    assert.equal((await adAccountFor(S.ctx, { sid: 'S-1-5-21-1-2-3-1300' })).user.role, 'admin');
   } finally {
     S.ctx.directory = saved;
     settings.set('ldap.enabled', false);
     settings.set('ldap.userGroup', '');
-    settings.set('ldap.agentGroup', '');
+    settings.set('ldap.adminGroup', '');
+    S.db.prepare("UPDATE projects SET agent_group='' WHERE key='IT'").run();
   }
 });
 
@@ -317,7 +323,7 @@ async function migrateFrom23(setup) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'helfi-m24-'));
   const file = path.join(dir, 'h.sqlite');
   let d = await mod.db.openDatabase(file, { appVersion: '1.12.0', backupDir: path.join(dir, 'b') });
-  d.exec("DROP INDEX idx_project_agents_user; DROP TABLE project_agents; ALTER TABLE projects DROP COLUMN agent_group; ALTER TABLE users DROP COLUMN agent_scope; DROP TABLE duplicate_suggestions; DROP INDEX idx_tickets_resolution; ALTER TABLE tickets DROP COLUMN duplicate_of; ALTER TABLE tickets DROP COLUMN resolution; ALTER TABLE component_suggestions DROP COLUMN backfill; ALTER TABLE mail_messages DROP COLUMN recipient; ALTER TABLE users DROP COLUMN theme; ALTER TABLE kb_comments DROP COLUMN format; ALTER TABLE comments DROP COLUMN format; DROP TABLE component_suggestions; DROP TABLE saved_filters; DROP INDEX idx_tickets_component; ALTER TABLE tickets DROP COLUMN component_id; DROP TABLE components; DROP TABLE kb_feedback; DROP TABLE kb_votes; DROP TABLE comment_mentions; ALTER TABLE sessions DROP COLUMN last_seen; DROP TABLE ai_summaries; DROP TABLE account_tokens; ALTER TABLE users DROP COLUMN approval_pending; ALTER TABLE users DROP COLUMN self_registered; DROP INDEX idx_users_ad_sid; ALTER TABLE users DROP COLUMN ad_sid; DROP TRIGGER users_news_seen; ALTER TABLE users DROP COLUMN news_seen; ALTER TABLE mail_messages DROP COLUMN agent_only; DROP TABLE ticket_fts; CREATE VIRTUAL TABLE ticket_fts USING fts5(title, public_text, internal_text, people, tokenize='trigram'); DELETE FROM settings WHERE key='mfa.ssoSecondFactor';");
+  d.exec("ALTER TABLE projects DROP COLUMN deputy_id; DROP INDEX idx_project_agents_user; DROP TABLE project_agents; ALTER TABLE projects DROP COLUMN agent_group; ALTER TABLE users DROP COLUMN agent_scope; DROP TABLE duplicate_suggestions; DROP INDEX idx_tickets_resolution; ALTER TABLE tickets DROP COLUMN duplicate_of; ALTER TABLE tickets DROP COLUMN resolution; ALTER TABLE component_suggestions DROP COLUMN backfill; ALTER TABLE mail_messages DROP COLUMN recipient; ALTER TABLE users DROP COLUMN theme; ALTER TABLE kb_comments DROP COLUMN format; ALTER TABLE comments DROP COLUMN format; DROP TABLE component_suggestions; DROP TABLE saved_filters; DROP INDEX idx_tickets_component; ALTER TABLE tickets DROP COLUMN component_id; DROP TABLE components; DROP TABLE kb_feedback; DROP TABLE kb_votes; DROP TABLE comment_mentions; ALTER TABLE sessions DROP COLUMN last_seen; DROP TABLE ai_summaries; DROP TABLE account_tokens; ALTER TABLE users DROP COLUMN approval_pending; ALTER TABLE users DROP COLUMN self_registered; DROP INDEX idx_users_ad_sid; ALTER TABLE users DROP COLUMN ad_sid; DROP TRIGGER users_news_seen; ALTER TABLE users DROP COLUMN news_seen; ALTER TABLE mail_messages DROP COLUMN agent_only; DROP TABLE ticket_fts; CREATE VIRTUAL TABLE ticket_fts USING fts5(title, public_text, internal_text, people, tokenize='trigram'); DELETE FROM settings WHERE key='mfa.ssoSecondFactor';");
   d.prepare("UPDATE meta SET value='23' WHERE key='schema_version'").run();
   setup(d);
   d.close();

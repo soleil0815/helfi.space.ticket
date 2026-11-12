@@ -135,7 +135,7 @@ export function claimsToUser(claims, cfg) {
     displayName: claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(' ') || rawName,
     email,
     externalId: `${claims.iss || ''}|${claims.sub}`,
-    groups: { admin: has(cfg.adminGroup), agent: has(cfg.agentGroup), projects: (cfg.projectGroups || []).filter((pg) => has(pg.group)).map((pg) => pg.id) },
+    groups: { admin: has(cfg.adminGroup), projects: (cfg.projectGroups || []).filter((pg) => has(pg.group)).map((pg) => pg.id) },
     trustName,
     // Only verified addresses may be stored and merged with email contacts (and their tickets)
     // – or the address equals the trusted login name

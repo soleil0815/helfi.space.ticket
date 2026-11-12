@@ -5,6 +5,7 @@ import path from 'node:path';
 import { paths } from './config.js';
 import { HttpError, notFound, forbidden, str, isoDate, int } from './lib/http.js';
 import { isAgent, agentOn, agentProjects, projectScopeSql } from './auth/session.js';
+import { AGENT_OF_PROJECT } from './auth/access.js';
 import { userRef } from './users.js';
 import { createSearch } from './search.js';
 import { log } from './lib/log.js';
@@ -32,8 +33,7 @@ export const MAX_PARTICIPANTS = 20;
 export const MAX_DUPLICATE_CHAIN = 20;
 const MAX_OFFSET = 1e9; // list offset (far beyond any real ticket count)
 
-/** SQL (users u): agent of the project given as the one parameter – admins, agents of all projects, its agents */
-export const AGENT_OF_PROJECT = "(u.role='admin' OR (u.role='agent' AND (u.agent_scope<>'projects' OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=?))))";
+export { AGENT_OF_PROJECT };
 
 /** Name for people without the agent role: a display name that is just a mail address
  *  (email contacts, mail clients without a name) is shortened to "local@…". */
@@ -65,12 +65,18 @@ export function createTickets(db, users) {
   const agentFor = (user, row) => !!user && agentOn(user, row.project_id);
 
   // ---------- Projects ----------
-  /** Project lead: existing users only, otherwise 400 instead of a foreign key error */
+  /** Project lead: an existing account (no email contact), otherwise 400 instead of a foreign key error */
   function validLead(id) {
     if (id === null || id === undefined || id === '') return null;
     const n = int(id);
-    if (!n || !users.byId(n)) throw new HttpError(400, 'err.badRequest', 'leadId');
+    const u = n ? users.byId(n) : null;
+    if (!u || u.source === 'email') throw new HttpError(400, 'err.badRequest', 'leadId');
     return n;
+  }
+  /** Lead and deputy work on the project's tickets (source 'lead' / 'deputy') */
+  function syncLead(projectId, leadId, source = 'lead') {
+    db.prepare('DELETE FROM project_agents WHERE project_id=? AND source=?').run(projectId, source);
+    if (leadId) db.prepare('INSERT OR IGNORE INTO project_agents(project_id, user_id, source) VALUES(?,?,?)').run(projectId, leadId, source);
   }
 
   const projects = {
@@ -81,6 +87,20 @@ export function createTickets(db, users) {
         (SELECT COUNT(*) FROM tickets t WHERE t.project_id=p.id) ticket_count
         FROM projects p WHERE ${includeArchived ? '1' : 'archived=0'} AND ${ps.sql} ORDER BY name`).all(...ps.args).map(projectOut);
     },
+    /** For admins: Map projectId → { agentGroup, lead, deputy: { id, displayName } | null, memberCount } */
+    peopleSummary() {
+      const out = new Map();
+      for (const p of db.prepare(`SELECT p.id, p.agent_group, p.lead_id, u.display_name lead_name, p.deputy_id, d.display_name deputy_name,
+          (SELECT COUNT(*) FROM project_agents pa WHERE pa.project_id=p.id AND pa.source='manual') members
+        FROM projects p LEFT JOIN users u ON u.id=p.lead_id LEFT JOIN users d ON d.id=p.deputy_id`).all()) {
+        out.set(p.id, {
+          agentGroup: p.agent_group || '', memberCount: p.members,
+          lead: p.lead_id ? { id: p.lead_id, displayName: p.lead_name } : null,
+          deputy: p.deputy_id ? { id: p.deputy_id, displayName: p.deputy_name } : null,
+        });
+      }
+      return out;
+    },
     get(idOrKey) {
       const p = db.prepare('SELECT * FROM projects WHERE id=? OR key=?').get(int(idOrKey) || 0, str(idOrKey, 20));
       return p || null;
@@ -89,20 +109,31 @@ export function createTickets(db, users) {
       key = str(key, 20).trim().toUpperCase();
       if (!KEY_RE.test(key)) throw new HttpError(400, 'err.projectKey');
       if (db.prepare('SELECT 1 FROM projects WHERE key=?').get(key)) throw new HttpError(409, 'err.projectKeyTaken');
+      const lead = validLead(leadId);
       const info = db.prepare('INSERT INTO projects(key,name,description,lead_id) VALUES(?,?,?,?)')
-        .run(key, str(name, 120) || key, str(description, 2000), validLead(leadId));
+        .run(key, str(name, 120) || key, str(description, 2000), lead);
+      syncLead(info.lastInsertRowid, lead);
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(info.lastInsertRowid));
     },
-    update(id, { name, description, leadId, archived }) {
+    update(id, { name, description, leadId, deputyId, archived }) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(id);
       if (!p) throw notFound();
-      db.prepare('UPDATE projects SET name=?, description=?, lead_id=?, archived=? WHERE id=?').run(
-        name !== undefined ? (str(name, 120).trim() || p.name) : p.name,
-        description !== undefined ? str(description, 2000) : p.description,
-        leadId !== undefined ? validLead(leadId) : p.lead_id,
-        archived !== undefined ? (archived ? 1 : 0) : p.archived,
-        id,
-      );
+      const lead = leadId !== undefined ? validLead(leadId) : p.lead_id;
+      const deputy = deputyId !== undefined ? validLead(deputyId) : p.deputy_id;
+      db.transaction(() => {
+        db.prepare('UPDATE projects SET name=?, description=?, lead_id=?, archived=? WHERE id=?').run(
+          name !== undefined ? (str(name, 120).trim() || p.name) : p.name,
+          description !== undefined ? str(description, 2000) : p.description,
+          lead,
+          archived !== undefined ? (archived ? 1 : 0) : p.archived,
+          id,
+        );
+        if (lead !== p.lead_id) syncLead(id, lead);
+        if (deputy !== p.deputy_id) {
+          db.prepare('UPDATE projects SET deputy_id=? WHERE id=?').run(deputy, id);
+          syncLead(id, deputy, 'deputy');
+        }
+      })();
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(id));
     },
     /**

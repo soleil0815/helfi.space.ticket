@@ -413,24 +413,15 @@ export function createApi(ctx) {
   }));
 
   r.patch('/users/:id', requireRole('admin'), wrap(async (req, res) => {
-    const u = users.byId(int(req.params.id));
+    // the stored row: its role is the base role (rights from projects are not a role)
+    const u = users.rawById(int(req.params.id));
     if (!u) throw notFound();
     const role = req.body.role !== undefined ? oneOf(req.body.role, ['admin', 'agent', 'user'], u.role) : u.role;
     const active = req.body.active !== undefined ? (req.body.active ? 1 : 0) : u.active;
     if (u.role === 'admin' && u.active && (role !== 'admin' || !active) && users.countActiveAdmins(u.id) === 0) {
       throw new HttpError(400, 'err.lastAdmin');
     }
-    // Project rights: all projects or only selected ones (manual assignment; project groups add more)
-    const agentScope = req.body.agentScope !== undefined ? oneOf(req.body.agentScope, ['all', 'projects'], u.agent_scope) : u.agent_scope;
-    let projectIds = null;
-    if (req.body.projectIds !== undefined) {
-      if (!Array.isArray(req.body.projectIds) || req.body.projectIds.length > 500) throw new HttpError(400, 'err.badRequest', 'projectIds');
-      projectIds = [...new Set(req.body.projectIds.map((x) => int(x)).filter(Boolean))];
-      for (const pid of projectIds) if (!tickets.projects.get(pid)) throw new HttpError(400, 'err.badRequest', 'projectIds');
-    }
-    // A changed role or scope stays as set here (AD/SSO groups do not overwrite it)
-    const changedByHand = (req.body.role !== undefined && role !== u.role) || agentScope !== u.agent_scope;
-    const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (changedByHand ? 1 : u.role_locked);
+    const roleLocked = req.body.roleLocked !== undefined ? (req.body.roleLocked ? 1 : 0) : (req.body.role !== undefined && role !== u.role ? 1 : u.role_locked);
     // Validate everything first, then save in one transaction (no partial save on errors)
     let newHash = null;
     let approvedNow = false;
@@ -448,17 +439,12 @@ export function createApi(ctx) {
       // Activating or deactivating ends the wait for approval of a self-registered account
       if (req.body.active !== undefined) db.prepare('UPDATE users SET approval_pending=0 WHERE id=?').run(u.id);
       if (u.approval_pending && active) approvedNow = true;
-      db.prepare('UPDATE users SET role=?, active=?, role_locked=?, agent_scope=?, display_name=? WHERE id=?').run(
-        role, active, roleLocked, agentScope,
+      db.prepare('UPDATE users SET role=?, active=?, role_locked=?, display_name=? WHERE id=?').run(
+        role, active, roleLocked,
         req.body.displayName !== undefined ? str(req.body.displayName, 120).trim() || u.display_name : u.display_name,
         u.id,
       );
       if (email !== undefined) users.setEmail(u.id, email);
-      if (projectIds) {
-        db.prepare("DELETE FROM project_agents WHERE user_id=? AND source='manual'").run(u.id);
-        const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) VALUES(?,?,'manual')");
-        for (const pid of projectIds) add.run(pid, u.id);
-      }
       if (newHash) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
     })();
     if (newHash || !active) sessions.destroyAllForUser(u.id);
@@ -471,14 +457,16 @@ export function createApi(ctx) {
       log.info(`Self-registered account "${u.username}" approved by ${req.user.username}`);
       ctx.selfService.notifyApproved(users.byId(u.id));
     }
-    res.json({ user: publicUser(users.byId(u.id)) });
+    res.json({ user: publicUser(users.rawById(u.id)) });
   }));
 
   // ---------- Projects ----------
   r.get('/projects', (req, res) => {
     // agent: the asking person works on this project (switcher, board); everyone may file requests anywhere
+    const admin = req.user.role === 'admin';
+    const extra = admin ? tickets.projects.peopleSummary() : null;
     const list = tickets.projects.list(req.query.all === '1' && isAgent(req.user))
-      .map((p) => ({ ...p, agent: agentOn(req.user, p.id) }));
+      .map((p) => ({ ...p, agent: agentOn(req.user, p.id), ...(admin ? extra.get(p.id) : {}) }));
     res.json({ projects: list });
   });
   r.post('/projects', requireRole('admin'), wrap(async (req, res) => {
@@ -490,43 +478,70 @@ export function createApi(ctx) {
     res.json({ project: tickets.projects.update(int(req.params.id), { name: req.body.name, description: req.body.description, leadId: req.body.leadId !== undefined ? int(req.body.leadId) : undefined, archived: req.body.archived }) });
   }));
 
-  // Agents of a project (admins): project group (AD/SSO) and people assigned by hand
-  const projectAgents = (p) => ({
-    agentGroup: p.agent_group || '',
-    agents: db.prepare(`SELECT u.id, u.display_name, u.username, u.role, u.agent_scope, pa.source FROM project_agents pa JOIN users u ON u.id=pa.user_id
-      WHERE pa.project_id=? ORDER BY lower(u.display_name), pa.source`).all(p.id)
-      .map((u) => ({ id: u.id, displayName: u.display_name, username: u.username, role: u.role, agentScope: u.agent_scope, source: u.source })),
-  });
+  // People of a project (admins): lead, agent group (AD/SSO) and people added by hand – they work on
+  // the project's tickets whatever their role
+  const person = (u) => (u ? { id: u.id, displayName: u.display_name, username: u.username, email: u.email || '', role: u.role } : null);
+  const projectPeople = (p) => {
+    const rows = db.prepare(`SELECT u.*, pa.source FROM project_agents pa JOIN users u ON u.id=pa.user_id
+      WHERE pa.project_id=? ORDER BY lower(u.display_name)`).all(p.id);
+    return {
+      lead: person(p.lead_id ? users.rawById(p.lead_id) : null),
+      deputy: person(p.deputy_id ? users.rawById(p.deputy_id) : null),
+      agentGroup: p.agent_group || '',
+      members: rows.filter((r) => r.source === 'manual').map(person),
+      viaGroup: rows.filter((r) => r.source === 'group').map(person),
+    };
+  };
+  /** { userId } (existing account, no email contact) | { adId } (from AD, created on first use) */
+  async function projectPerson(choice) {
+    let u = null;
+    if (choice?.userId !== undefined) u = users.rawById(int(choice.userId) || 0);
+    else if (typeof choice?.adId === 'string' && /^[0-9a-f]{32}$/i.test(choice.adId)) {
+      if (!adPeopleOn()) throw forbidden();
+      u = await personFromAd({ adId: choice.adId });
+    }
+    if (!u || !u.active || u.source === 'email') throw new HttpError(400, 'err.badRequest', 'person');
+    return u;
+  }
   r.get('/projects/:id/agents', requireRole('admin'), (req, res) => {
     const p = tickets.projects.get(int(req.params.id) || 0);
     if (!p) throw notFound();
-    res.json(projectAgents(p));
+    res.json(projectPeople(p));
   });
-  r.put('/projects/:id/agents', requireRole('admin'), (req, res) => {
+  // { lead?: choice | null, deputy?: choice | null, agentGroup?: text, members?: [choice] } – what is given is replaced
+  r.put('/projects/:id/agents', requireRole('admin'), wrap(async (req, res) => {
     const p = tickets.projects.get(int(req.params.id) || 0);
     if (!p) throw notFound();
-    const group = str(req.body?.agentGroup, 500).trim();
-    const ids = Array.isArray(req.body?.userIds) ? [...new Set(req.body.userIds.map((x) => int(x)).filter(Boolean))].slice(0, 500) : null;
-    if (ids) {
-      for (const id of ids) {
-        const u = users.byId(id);
-        // only agents (admins work on every project anyway)
-        if (!u || u.role !== 'agent') throw new HttpError(400, 'err.badRequest', 'userIds');
-      }
+    const b = req.body || {};
+    const group = b.agentGroup !== undefined ? str(b.agentGroup, 500).trim() : null;
+    let lead;
+    if (b.lead !== undefined) lead = b.lead ? await projectPerson(b.lead) : null;
+    let deputy;
+    if (b.deputy !== undefined) deputy = b.deputy ? await projectPerson(b.deputy) : null;
+    let members = null;
+    if (b.members !== undefined) {
+      if (!Array.isArray(b.members) || b.members.length > 500) throw new HttpError(400, 'err.badRequest', 'members');
+      members = [];
+      for (const c of b.members) members.push(await projectPerson(c)); // eslint-disable-line no-await-in-loop
     }
     db.transaction(() => {
-      db.prepare('UPDATE projects SET agent_group=? WHERE id=?').run(group, p.id);
-      // Another group: the memberships of the old one no longer count (renewed at the next sign-in)
-      if (group.toLowerCase() !== String(p.agent_group || '').toLowerCase()) db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='group'").run(p.id);
-      if (ids) {
+      if (group !== null) {
+        db.prepare('UPDATE projects SET agent_group=? WHERE id=?').run(group, p.id);
+        // Another group: the memberships of the old one no longer count (renewed at the next sign-in)
+        if (group.toLowerCase() !== String(p.agent_group || '').toLowerCase()) db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='group'").run(p.id);
+      }
+      if (lead !== undefined || deputy !== undefined) {
+        tickets.projects.update(p.id, { leadId: lead === undefined ? undefined : (lead ? lead.id : null), deputyId: deputy === undefined ? undefined : (deputy ? deputy.id : null) });
+      }
+      if (members) {
         db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='manual'").run(p.id);
         const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) VALUES(?,?,'manual')");
-        for (const id of ids) add.run(p.id, id);
+        for (const u of members) add.run(p.id, u.id);
       }
     })();
-    log.info(`Agents of project ${p.key} changed by ${req.user.username}`, { group: !!group, people: ids ? ids.length : undefined });
-    res.json(projectAgents(tickets.projects.get(p.id)));
-  });
+    log.info(`People of project ${p.key} changed by ${req.user.username}`, { lead: lead !== undefined, deputy: deputy !== undefined, group: group !== null, people: members ? members.length : undefined });
+    res.json(projectPeople(tickets.projects.get(p.id)));
+  }));
 
   r.delete('/projects/:id', requireRole('admin'), wrap(async (req, res) => {
     const p = tickets.projects.get(int(req.params.id) || 0);

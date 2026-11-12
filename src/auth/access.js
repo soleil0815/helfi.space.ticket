@@ -1,17 +1,19 @@
 // Role and project rights of a person – without dependencies, so every module can use it.
-// Agents either work on all projects (agent_scope 'all', admins always) or only on the projects
-// listed in project_agents (agent_scope 'projects'): for tickets of other projects they are a user.
+// The role decides the base: admins and agents work on every project, users on none. On top of that
+// a project gives rights: its lead, the members of its agent group (AD/SSO) and people added by hand
+// (table project_agents) work on its tickets – whatever their role. A user with such projects acts as
+// an agent of exactly those projects; for tickets of every other project they stay a user.
 
 export const isAgent = (user) => user && (user.role === 'agent' || user.role === 'admin');
 
 /**
- * Projects an agent works on: null = all projects (admins, agents with "all projects"),
- * otherwise the list of project ids (empty for non-agents). Agents limited to projects whose
- * list was not loaded (withProjects) get none – a forgotten load denies instead of revealing.
+ * Projects an agent works on: null = all projects (admins, agents), otherwise the list of project ids
+ * (empty for users without projects). A person whose projects were not loaded (withProjects) gets
+ * none – a forgotten load denies instead of revealing.
  */
 export function agentProjects(user) {
   if (!isAgent(user)) return [];
-  if (user.role === 'admin' || user.agent_scope !== 'projects') return null;
+  if (user.role === 'admin' || (user.role === 'agent' && user.projectAgent !== true)) return null;
   return Array.isArray(user.projectIds) ? user.projectIds : [];
 }
 
@@ -28,11 +30,24 @@ export function projectScopeSql(user, col = 't.project_id') {
   return { sql: `${col} IN (SELECT value FROM json_each(?))`, args: [JSON.stringify(p)] };
 }
 
-/** Loads the projects of an agent limited to projects (user row from the database). Returns the row. */
+/** SQL (users u): may work on the project given as the one parameter – admins, agents, its people */
+export const AGENT_OF_PROJECT = "(u.role IN ('admin','agent') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=?))";
+
+/**
+ * Loads the projects of a user (row from the database) and returns the row. A user with projects
+ * (lead, project group, added by hand) becomes an agent of those projects for this request:
+ * role 'agent', projectAgent true, projectIds = their projects. Never write such a row back.
+ */
 export function withProjects(db, user) {
-  if (user && user.role === 'agent' && user.agent_scope === 'projects') {
+  if (user && user.role === 'user' && user.active !== 0) {
     const ids = db.prepare('SELECT DISTINCT project_id FROM project_agents WHERE user_id=? ORDER BY project_id').all(user.id).map((r) => r.project_id);
-    Object.defineProperty(user, 'projectIds', { value: ids, enumerable: false, configurable: true, writable: true });
+    if (ids.length) {
+      const hidden = (k, v) => Object.defineProperty(user, k, { value: v, enumerable: false, configurable: true, writable: true });
+      hidden('baseRole', 'user');
+      hidden('projectAgent', true);
+      hidden('projectIds', ids);
+      user.role = 'agent';
+    }
   }
   return user;
 }

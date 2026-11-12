@@ -131,6 +131,10 @@ select { height: 36px; padding: 0 8px; }
 .check-row .block { display: block; }
 ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .user-sees { margin-top: 2px; }
+.member-list { margin-bottom: 8px; }
+.member-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.member-row:last-child { border-bottom: 0; }
+h3.form-section { font-size: 14px; margin: 20px 0 4px; }
 .check-inline { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
 .grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0 16px; }

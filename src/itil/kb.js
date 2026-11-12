@@ -293,7 +293,7 @@ export function createKb(db, tickets) {
     if (!isAgent(user)) throw forbidden();
     const row = tickets.load(user, key);
     if (!agentOn(user, row.project_id)) throw forbidden();
-    const lastReply = db.prepare(`SELECT c.body FROM comments c JOIN users u ON u.id=c.author_id WHERE c.ticket_id=? AND c.internal=0 AND u.role IN ('agent','admin') ORDER BY c.created_at DESC LIMIT 1`).get(row.id);
+    const lastReply = db.prepare(`SELECT c.body FROM comments c JOIN users u ON u.id=c.author_id WHERE c.ticket_id=? AND c.internal=0 AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents pa WHERE pa.project_id=(SELECT project_id FROM tickets WHERE id=c.ticket_id))) ORDER BY c.created_at DESC LIMIT 1`).get(row.id);
     const f = row.type === 'problem' ? db.prepare("SELECT name, value FROM ticket_fields WHERE ticket_id=? AND name IN ('rootCause','workaround')").all(row.id) : [];
     const field = (n) => f.find((x) => x.name === n)?.value || '';
     const parts = [];

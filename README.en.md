@@ -27,7 +27,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Self-registration and "forgot password"** for local accounts (self-registration off by default, "forgot password" on for user accounts by default), optionally only for certain domains and with approval
 - **Automatic sign-out when idle,** stricter for admins and access from outside if desired, with a "Still there?" prompt
 - **Knowledge articles with 👍/👎 rating** and feedback on what was missing – articles that need rework at a glance
-- **Roles:** administrator, agent, user. Users only see their own requests. **Agents per project:** someone only responsible for facilities never sees IT tickets – via an AD/SSO project group or by hand ([Project rights](#project-rights)).
+- **Roles:** administrator (may do and sets up everything) and user (only sees their own requests). **Who works on tickets is set in the project:** lead, deputy, agent group from AD/SSO and single people – someone only responsible for facilities never sees IT tickets ([Project rights](#project-rights)).
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
 - **Dark mode:** choose *System* (follows the device), *Light* or *Dark* under *Theme* in the user menu – on phones under *Me → Theme*. The choice is stored with the account on all devices, also with a custom brand colour.
@@ -147,11 +147,11 @@ Without AD or SSO, external people simply send an email and are kept as an email
    - Windows: `certlm.msc` → Personal → Certificates → the DC's certificate → Details → Thumbprint (SHA-256 via PowerShell: `Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, @{n='SHA256';e={$_.GetCertHashString('SHA256')}}`)
    - Samba: `openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256`
 3. Enter a **service account**, e.g. `svc-helfi@firma.local` (a normal domain account, no special rights needed). Without a service account, Helfi.Space searches with the account that is signing in and then checks the password once more against the found account (so another account's UPN never leads to the wrong sign-in).
-4. Enter the **groups** for administrators and agents, e.g. `Helfi-Admins` and `Helfi-Agents` (name or full DN; a name is searched in the whole domain, so the group may live in a different OU than the users). Nested groups are taken into account. Optionally, an "allowed users" group restricts who may sign in at all (admins and agents always may). If a group name is ambiguous (same name in several OUs), no role is assigned and the log says so – enter the full DN in that case.
+4. Enter the **admin group**, e.g. `Helfi-Admins` (name or full DN; a name is searched in the whole domain, so the group may live in a different OU than the users). Nested groups are taken into account. Optionally, an "allowed users" group restricts who may sign in at all (admins and members of a project group always may). Who works on which tickets is set in each project ([Project rights](#project-rights)). If a group name is ambiguous (same name in several OUs), no role is assigned and the log says so – enter the full DN in that case.
 5. **Test connection**, ideally with a test sign-in. If the base DN is empty, it is taken from the AD. If there is a Microsoft certification authority (AD CS), the test finds it and offers to accept it too. Renewed DC certificates then stay valid automatically.
 6. **Enable AD sign-in** and save.
 
-Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users are created on their first sign-in. Their role follows from their groups at every sign-in, unless an admin has locked it under *Users* with "fixed role". If an admin changes a role by hand, it is locked automatically. In addition every project can have a **project group** (see [Project rights](#project-rights)); *Test connection* also shows these groups and, with a test sign-in, the person's projects.
+Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users are created on their first sign-in. Their role follows from their groups at every sign-in, unless an admin has locked it under *Users* with "fixed role". If an admin changes a role by hand, it is locked automatically. In addition every project can have an **agent group** of its own (see [Project rights](#project-rights)); *Test connection* also shows these groups and, with a test sign-in, the person's projects.
 
 **Good to know**
 
@@ -196,7 +196,7 @@ Example: reporters without a code, agents with a code from outside, administrato
 
 1. Create an app or client at your provider and enter the displayed address as redirect URI: `https://helfi.firma.local/auth/oidc/callback`.
 2. Enter issuer URL, client ID and client secret, then **Test**.
-   - **Microsoft Entra ID:** `https://login.microsoftonline.com/<tenant ID>/v2.0`. Add the groups claim under *Token configuration*. The token then contains group IDs, and you enter those IDs as admin/agent group.
+   - **Microsoft Entra ID:** `https://login.microsoftonline.com/<tenant ID>/v2.0`. Add the groups claim under *Token configuration*. The token then contains group IDs, and you enter those IDs as admin group or as a project's agent group.
    - **ADFS (Windows Server):** `https://adfs.firma.local/adfs`, application group "Server application accessing a web API". Issue the `groups` claim via a claim rule.
    - **Keycloak:** `https://keycloak.firma.local/realms/<realm>`, mapper "Group Membership" with claim `groups`.
 3. Optionally enable "redirect straight to SSO". The normal sign-in page stays reachable at `/login?local=1`, e.g. for the emergency admin.
@@ -265,7 +265,7 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
   - comment and attach files on the web or by replying to a mail
 - **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
-- **Reminder to project leads** (*Administration → Email*, off by default): once a day at the set time, the lead of each project gets one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without a lead (or if the lead is not an agent of the project) it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
+- **Reminder to project leads** (*Administration → Email*, off by default): once a day at the set time, the lead and deputy of each project get one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without lead and deputy it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
@@ -275,16 +275,17 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 
 ## Project rights
 
-By default agents work on **all projects** – as before, nothing changes with the update. With several departments (e.g. IT and facilities) this can be narrowed: an agent for **selected projects only** sees and works on their tickets only. For every other project they are a normal user: there they only see their own requests (or those they take part in), without internal notes, history and agent tools.
+Who works on a project's tickets is set **in the project** (*Administration → Projects → Edit*, also when creating it) – not in the user management:
 
-- **Project group (AD/SSO):** *Administration → Projects → Agents* – e.g. `IT-Helpdesk` for the IT project. Members of the group become agents of this project on sign-in; several groups = several projects. Whoever is also in the general agent group stays responsible for all projects. A project group never turns anyone into a plain user or removes admin rights. Membership is checked at every sign-in; when the group is changed, the old memberships stop counting at once.
-- **By hand:** tick agents in the same window, or choose “All projects” / “These projects only” under *Users → Change projects*. This sets “Role locked”, so AD groups do not overwrite it.
-- **At a glance:** under each role *Users* shows what the person sees, e.g. “Sees: IT, HM – via group IT-Helpdesk”.
-- **Restricted everywhere:** ticket lists, search (internal notes of other projects find nothing), board, queues and counts, summary, reports, SLA, problems, changes, major incidents, links, device history, AI functions, @-mentions in internal notes and assigning (only to agents of the project). Moving is only possible into one's own projects; a ticket moved into a project its assignee does not work on is unassigned afterwards.
-- **Shared:** knowledge base, reply templates, devices & services and the people search.
-- **Admins** always work on all projects.
+- **Lead** and optionally **deputy:** one person each (search by name; with AD also people who have never signed in). Both work on the tickets and get the reminder mail.
+- **Agent group (AD/SSO):** e.g. `Helpdesk`. All members work on this project's tickets. Membership is checked at every sign-in; when the group is changed, the old memberships stop counting at once.
+- **More agents:** single people in addition, e.g. without an AD account.
 
-Example: enter the project group `IT-Helpdesk` for the IT project and put the IT accounts in it, facilities likewise with `Facilities`. Whoever works in both departments joins both groups.
+There are only two roles: **administrator** (sees and may do everything and decides who works on what) and **user** (own requests – plus the projects where one is lead, deputy, group member or added by hand). Under the role *Users* shows for information what someone works on, e.g. “Works on: IT (lead)”. There is no general agent group for all projects any more; after updating to this version, enter each project's group.
+
+For every other project one is a normal user: only one's own requests (or those one takes part in), without internal notes, history and agent tools. Restricted everywhere: ticket lists, search (internal notes of other projects find nothing), board, queues and counts, summary, reports, SLA, problems, changes, major incidents, links, device history, AI functions, @-mentions in internal notes and assigning (only to people working on the project). Moving is only possible into one's own projects. Shared are the knowledge base, reply templates, devices & services and the people search.
+
+Example: create the project IT, agent group `Helpdesk`, yourself as lead and a colleague as deputy – done.
 
 ## Rejecting and duplicates
 
