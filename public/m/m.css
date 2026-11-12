@@ -698,6 +698,7 @@ body.m a:hover { text-decoration: none; }
 /* "＋" chooser */
 .m-tiles { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .m-tiles-head { margin: 14px 4px 0; }
+.m-tiles-sub { margin: 6px 4px 0; font-size: 13px; font-weight: 600; color: var(--text-subtle); }
 .m-tile {
   display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 14px 12px 14px 16px; background: var(--m-card);
   border-radius: var(--m-radius); box-shadow: 0 1px 2px #091E4214; color: var(--text); text-decoration: none !important;

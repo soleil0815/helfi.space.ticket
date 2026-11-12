@@ -784,6 +784,16 @@ input.num { width: 100px; }
 .ci-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .ci-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 14px; padding: 2px 4px 2px 10px; font-size: 13px; background: var(--surface); }
 .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-width: 1100px; }
+.catalog-group { margin-bottom: 24px; }
+.catalog-group-title { font-size: 16px; margin: 0 0 10px; }
+.catalog-admin-group + .catalog-admin-group { margin-top: 18px; }
+.catalog-manage .panel { border: 1px solid var(--border); border-radius: 4px; padding: 20px 24px 8px; max-width: 1100px; }
+.catalog-admin-group table.data { display: table; table-layout: fixed; }
+.catalog-admin-group td:nth-child(1) { width: 36px; }
+.catalog-admin-group td:nth-child(3) { width: 120px; }
+.catalog-admin-group td:nth-child(4) { width: 170px; }
+.catalog-admin-group td:nth-child(5) { width: 110px; }
+.approver-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .catalog-card { display: flex; gap: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 14px; color: var(--text); background: var(--surface); }
 .catalog-card:hover { box-shadow: var(--shadow-overlay); text-decoration: none; }
 .catalog-emoji { font-size: 28px; line-height: 1; }
