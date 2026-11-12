@@ -1,4 +1,4 @@
-// Components: per project, keywords/sender rules, lead/deputy assignment, ticket field, filter, report
+// Components: per project, keywords/sender rules, responsible person (information only – never assigned automatically), ticket field, filter, report
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from './helpers/server.js';
@@ -61,27 +61,25 @@ test('Admins manage components; agents read them, users not at all', async () =>
   assert.equal((await admin('POST', `/api/projects/${project.id}/components/test`, { title: 'Kaffee' })).body.component, null);
 });
 
-test('New ticket: component by keywords, lead assigned, history shows the reason', async () => {
+test('New ticket: component by keywords, nobody assigned automatically, history shows the reason', async () => {
   const tk = (await karl('POST', '/api/tickets', { title: 'VPN bricht ab', description: 'FortiClient meldet Fehler' })).body.ticket;
   assert.equal(tk.component, null, 'users do not see the component');
   const full = (await anna('GET', `/api/tickets/${tk.key}`)).body.ticket;
   assert.deepEqual(full.component, { id: vpn.id, name: 'VPN & Fernzugriff' });
-  assert.equal(full.assignee.id, S.ids.anna);
+  assert.equal(full.assignee, null, 'the responsible person is not assigned – agents take tickets themselves');
   const cl = full.activity.find((a) => a.action === 'classified');
   assert.deepEqual([cl.field, cl.oldValue, cl.newValue], ['keywords', 'vpn, forticlient', 'VPN & Fernzugriff']);
-  const as = full.activity.find((a) => a.action === 'autoAssigned');
-  assert.deepEqual([as.field, as.oldValue, as.newValue], ['lead', 'VPN & Fernzugriff', 'anna']);
+  assert.ok(!full.activity.some((a) => a.action === 'autoAssigned'));
 });
 
-test('Inactive lead → deputy; explicit assignee is kept; no match → nothing', async () => {
+test('Inactive lead: nobody assigned either; an assignee chosen by hand is kept; no match → nothing', async () => {
   await admin('PATCH', `/api/users/${S.ids.anna}`, { active: false });
   let tk = (await karl('POST', '/api/tickets', { title: 'Homeoffice VPN' })).body.ticket;
   let full = (await bert('GET', `/api/tickets/${tk.key}`)).body.ticket;
-  assert.equal(full.assignee.id, S.ids.bert, 'deputy');
-  assert.equal(full.activity.find((a) => a.action === 'autoAssigned').field, 'deputy');
+  assert.equal(full.assignee, null, 'not the deputy either');
   await admin('PATCH', `/api/users/${S.ids.anna}`, { active: true });
   tk = (await bert('POST', '/api/tickets', { title: 'Toner leer', assigneeId: S.ids.anna })).body.ticket;
-  assert.deepEqual([tk.component.name, tk.assignee.id], ['Drucker', S.ids.anna], 'agent choice wins over the lead');
+  assert.deepEqual([tk.component.name, tk.assignee.id], ['Drucker', S.ids.anna], 'an agent who picks someone by hand');
   tk = (await karl('POST', '/api/tickets', { title: 'Kaffeemaschine' })).body.ticket;
   full = (await bert('GET', `/api/tickets/${tk.key}`)).body.ticket;
   assert.equal(full.component, null);
