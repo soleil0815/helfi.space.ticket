@@ -326,6 +326,7 @@
 <ul>
   <li><strong>Platzhalter</strong> werden beim Einfügen ersetzt: <code>{melder}</code>, <code>{ticket}</code>, <code>{titel}</code>, <code>{bearbeiter}</code>.</li>
   <li><strong>Neue Vorlage:</strong> Text im Kommentarfeld schreiben und <em>Als Vorlage speichern</em> wählen. Persönliche Vorlagen verwaltest du im <em>Profil</em>, Vorlagen für alle pflegen Admins unter <em>Administration → Antwortvorlagen</em>.</li>
+  <li><strong>Vorlage für ein Projekt</strong> <span class="role role-admin">Admin</span>: Eine Vorlage für alle kann zu einem Projekt gehören. Dann sehen sie nur dessen Bearbeiter, und nur in dessen Tickets – die Haustechnik bekommt beim IT-Ticket keine Heizungs-Vorlagen angeboten. Ohne Projekt gilt sie für alle.</li>
   <li><strong>Beispiele übernehmen</strong> <span class="role role-admin">Admin</span>: Unter <em>Administration → Antwortvorlagen</em> legt <em>Beispiele</em> zehn häufige Antworten für alle an – von „Eingang bestätigen“ bis „Gelöst – bitte bestätigen“ –, auf Deutsch oder Englisch und mit Platzhaltern. Danach nach Belieben anpassen.</li>
 </ul>
 
@@ -425,8 +426,18 @@
 <figure><img src="img/de/admin-change.jpg" alt=""><figcaption>Administration → Change</figcaption></figure>
 
 <h2 id="wissen">Wissensdatenbank</h2>
-<p><em>Wissen</em> sammelt Anleitungen und Lösungen. Artikel sind <strong>intern</strong> (nur Bearbeiter) oder <strong>öffentlich</strong> (alle Angemeldeten, auch als Vorschlag beim Melden). Die Suche gewichtet Treffer im Titel höher. Aus einem gelösten Ticket legt <strong>Wissensartikel</strong> oben im Ticket einen Entwurf an; vor dem Veröffentlichen persönliche Angaben entfernen. Ab drei Überschriften zeigt die Artikelansicht rechts ein Inhaltsverzeichnis.</p>
-<figure><img src="img/de/itil-kb.jpg" alt=""><figcaption>Wissensdatenbank mit Kategorien</figcaption></figure>
+<p><em>Wissen</em> sammelt Anleitungen und Lösungen. Artikel sind <strong>intern</strong> (nur die Personen des Projekts) oder <strong>öffentlich</strong> (alle Angemeldeten, auch als Vorschlag beim Melden). Die Suche gewichtet Treffer im Titel höher. Aus einem gelösten Ticket legt <strong>Wissensartikel</strong> oben im Ticket einen Entwurf an; vor dem Veröffentlichen persönliche Angaben entfernen. Ab drei Überschriften zeigt die Artikelansicht rechts ein Inhaltsverzeichnis.</p>
+<figure><img src="img/de/itil-kb.jpg" alt=""><figcaption>Wissensdatenbank mit Projekten und Kategorien</figcaption></figure>
+<h3>Artikel je Projekt</h3>
+<p>Jeder Artikel gehört zu einem Projekt, z. B. IT oder Haustechnik:</p>
+<ul>
+  <li><strong>Öffentliche</strong> Artikel lesen und kommentieren alle Angemeldeten. <strong>Interne</strong> sehen nur die Personen des Projekts und Admins – auch nicht in Suche, Seitenbaum, Kategorien oder Bildern.</li>
+  <li><strong>Ändern</strong> – anlegen, bearbeiten, verschieben, löschen, Versionen, Rückmeldungen, Kommentare als erledigt markieren – dürfen nur die Personen des Projekts, auch bei öffentlichen Artikeln. Bei Artikeln anderer Projekte fehlen die Knöpfe dafür.</li>
+  <li><strong>Unterseiten erben das Projekt</strong> ihrer übergeordneten Seite; im Editor steht dann „Projekt: … (vom übergeordneten Artikel)“. Verschiebst du eine Seite unter eine Seite eines anderen Projekts, wandert sie samt Unterseiten mit – dafür musst du in beiden Projekten arbeiten.</li>
+  <li>Arbeitest du in mehreren Projekten, wählst du beim neuen Artikel das <strong>Projekt</strong>. In der Liste filtern die Projekt-Chips oben.</li>
+  <li>Artikel von vor dem Update gehören zum <strong>Standardprojekt</strong> <span class="role role-admin">Admin</span> (<em>Administration → Allgemein</em>). Ein Admin stellt sie bei Bedarf im Editor auf ein anderes Projekt um; die Unterseiten folgen.</li>
+</ul>
+<figure><img src="img/de/kb-project-editor.jpg" alt=""><figcaption>Neuer Artikel: Projekt wählen</figcaption></figure>
 <p><strong>Beispiel-Artikel:</strong> Ist die Wissensdatenbank noch leer, übernimmt <em>Beispiele</em> fertige Musterartikel – etwa „So meldest du ein Problem richtig“, „VPN einrichten“ oder „Kennwort ändern oder vergessen“. Sie zeigen, wie ein guter Artikel aufgebaut ist, und werden <strong>intern</strong> angelegt: Ersetze die Angaben in eckigen Klammern durch eure eigenen und stelle sie dann auf öffentlich.</p>
 <figure class="medium"><img src="img/de/examples-kb.jpg" alt=""><figcaption>Ein übernommener Beispiel-Artikel</figcaption></figure>
 <h3>Bewertung und Rückmeldungen</h3>
@@ -639,7 +650,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 </ul>
 <figure class="small"><img src="img/de/admin-project-agents.jpg" alt=""><figcaption>Projekt bearbeiten: Leitung, Vertretung, Bearbeiter-Gruppe und weitere Bearbeiter</figcaption></figure>
 <p>Mit der Rolle „Benutzer“ bearbeitet man die Tickets der Projekte, in denen man Leitung, Vertretung, Gruppenmitglied oder weiterer Bearbeiter ist. Administratoren sehen und bearbeiten alle Projekte. Für alle anderen Projekte ist man ein normaler Benutzer: Man sieht dort nur seine eigenen Anfragen (und die, an denen man beteiligt ist) – ohne interne Notizen, Verlauf und Bearbeiter-Werkzeuge.</p>
-<p><strong>Eingeschränkt wird überall:</strong> Ticketlisten und Board, Suche (interne Notizen fremder Projekte finden nichts), Warteschlangen und Zähler, Zusammenfassung, Berichte, SLA, Probleme, Changes und Major Incidents, Verknüpfungen, der Ticket-Verlauf eines Geräts, KI-Funktionen und @-Erwähnungen in internen Notizen. Zuweisen geht nur an Personen, die das Projekt bearbeiten, Verschieben nur in eigene Projekte; wird ein Ticket in ein Projekt verschoben, das der Zugewiesene nicht bearbeitet, ist es danach niemandem zugewiesen. <strong>Gemeinsam bleiben</strong> Wissensdatenbank, Antwortvorlagen, Geräte &amp; Dienste und die Personensuche.</p>
+<p><strong>Eingeschränkt wird überall:</strong> Ticketlisten und Board, Suche (interne Notizen fremder Projekte finden nichts), Warteschlangen und Zähler, Zusammenfassung, Berichte, SLA, Probleme, Changes und Major Incidents, Verknüpfungen, der Ticket-Verlauf eines Geräts, KI-Funktionen und @-Erwähnungen in internen Notizen. Zuweisen geht nur an Personen, die das Projekt bearbeiten, Verschieben nur in eigene Projekte; wird ein Ticket in ein Projekt verschoben, das der Zugewiesene nicht bearbeitet, ist es danach niemandem zugewiesen. Auch <a href="#wissen">Wissensdatenbank</a> und <a href="#vorlagen">Antwortvorlagen</a> sind nach Projekten getrennt. <strong>Gemeinsam bleiben</strong> Geräte &amp; Dienste und die Personensuche.</p>
 <p><strong>Beispiel:</strong> Projekt IT anlegen, Bearbeiter-Gruppe <code>Helpdesk</code>, dich als Leitung und eine Kollegin als Vertretung – fertig. Die Haustechnik bekommt ein eigenes Projekt mit der Gruppe <code>Haustechnik</code>.</p>
 <p><strong>Nach dem Update auf diese Version:</strong> Eine allgemeine Bearbeiter-Gruppe für alle Projekte und die Rolle „Bearbeiter“ gibt es nicht mehr – bisherige Bearbeiter sind Benutzer. Trag bei jedem Projekt seine Bearbeiter-Gruppe (und Leitung) ein; dann bearbeiten sie wieder ihre Tickets.</p>
 

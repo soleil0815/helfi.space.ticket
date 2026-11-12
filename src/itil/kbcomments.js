@@ -42,6 +42,8 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
   function setResolved(user, cid, resolved) {
     if (!isAgent(user)) throw forbidden();
     const c = load(user, cid);
+    // Only the article's project people mark comments as done (others may still read and comment public articles)
+    if (!kb.canEdit(user, c.article_id)) throw forbidden();
     db.prepare("UPDATE kb_comments SET resolved=?, resolved_by=?, resolved_at=CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END WHERE id=?")
       .run(resolved ? 1 : 0, resolved ? user.id : null, resolved ? 1 : 0, c.id);
     return out(db.prepare(`${SELECT} WHERE c.id=?`).get(c.id), user);

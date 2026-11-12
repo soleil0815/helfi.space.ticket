@@ -71,7 +71,7 @@ export function createItilRoutes(ctx) {
 
   // ---------- Knowledge base (read: all signed-in users, public articles; write: agents) ----------
   r.get('/kb', (req, res) => {
-    let articles = kb.search(req.user, str(req.query.q, 200), { category: str(req.query.category, 60) });
+    let articles = kb.search(req.user, str(req.query.q, 200), { category: str(req.query.category, 60), project: str(req.query.project, 10) });
     if (req.user.role !== 'user') {
       const open = kbComments.openCounts();
       const votes = kbVotes.all();
@@ -82,7 +82,8 @@ export function createItilRoutes(ctx) {
         articles = articles.filter((a) => a.rating.down > 0).sort((x, y) => need(y) - need(x) || y.rating.down - x.rating.down);
       }
     }
-    res.json({ articles, categories: kb.categories(req.user) });
+    // projects: with articles readable for the user (filter); writable: where the user may create articles
+    res.json({ articles, categories: kb.categories(req.user, { project: str(req.query.project, 10) }), ...kb.projects(req.user) });
   });
   // Comments
   r.get('/kb/:id/comments', (req, res) => res.json({ comments: kbComments.list(req.user, req.params.id) }));
@@ -116,6 +117,7 @@ export function createItilRoutes(ctx) {
     fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
   r.get('/kb/tree', (req, res) => res.json({ tree: kb.tree(req.user) }));
+  r.get('/kb/projects', (req, res) => res.json(kb.projects(req.user)));
   r.patch('/kb/:id/parent', requireRole('agent'), (req, res) => res.json({ article: kb.move(req.user, req.params.id, req.body?.parentId ?? null) }));
   r.get('/kb/:id/bundle', (req, res) => res.json({ articles: kb.bundle(req.user, req.params.id) }));
   // Templates (before /kb/:id, otherwise "templates" would be an article ID)

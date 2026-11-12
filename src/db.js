@@ -844,6 +844,24 @@ export const MIGRATIONS = [
     DELETE FROM settings WHERE key IN ('ldap.agentGroup', 'oidc.agentGroup');
     `,
   },
+  {
+    id: 43,
+    name: 'Wissensdatenbank und Antwortvorlagen je Projekt',
+    sql: `
+    -- Every knowledge article belongs to a project: public ones are read by everyone signed in,
+    -- internal ones only by the project's people; only they edit. Existing articles go to the
+    -- default project (Administration → General), otherwise the first project.
+    ALTER TABLE kb_articles ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+    UPDATE kb_articles SET project_id = COALESCE(
+      (SELECT p.id FROM projects p JOIN settings s ON s.key='general.defaultProject'
+        WHERE json_valid(s.value) AND p.key = json_extract(s.value, '$')),
+      (SELECT MIN(id) FROM projects WHERE archived=0),
+      (SELECT MIN(id) FROM projects));
+    CREATE INDEX idx_kb_articles_project ON kb_articles(project_id);
+    -- Shared canned responses optionally for one project (NULL = for everyone)
+    ALTER TABLE canned_responses ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

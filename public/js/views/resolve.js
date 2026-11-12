@@ -32,7 +32,7 @@ export function openDoneDialog({ keys, tk = null, onDone }) {
     const at = ta.selectionStart ?? ta.value.length;
     ta.value = ta.value.slice(0, at) + text + ta.value.slice(ta.selectionEnd ?? at);
     ta.focus();
-  }) }, icon('comment'), t('canned.toolbar'));
+  }, { projectId: tk?.projectId }) }, icon('comment'), t('canned.toolbar'));
   const err = h('div.form-error', { role: 'alert', hidden: true });
   const ok = h('button.btn.btn-primary', { type: 'submit', form: 'done-form', 'data-done-submit': '' }, icon('check'), t('done.btn'));
   const dlg = modal(t(many ? 'done.titleMany' : 'done.title', { n: keys.length, key: keys[0] }),
@@ -83,7 +83,7 @@ export function openResolveDialog({ kind, keys, tk = null, original: preset = ''
     const at = reason.selectionStart ?? reason.value.length;
     reason.value = reason.value.slice(0, at) + text + reason.value.slice(reason.selectionEnd ?? at);
     reason.focus();
-  }) }, icon('comment'), t('canned.toolbar'));
+  }, { projectId: tk?.projectId }) }, icon('comment'), t('canned.toolbar'));
   const picker = kind === 'duplicate' ? ticketPicker(many ? null : keys[0], { forKeys: keys }) : null;
   if (picker && preset) picker.input.value = preset;
   const addToOriginal = h('input', { type: 'checkbox' });
