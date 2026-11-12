@@ -12,6 +12,16 @@ export function renderProfile(content) {
     onchange: (e) => setLanguage(e.target.value || null),
   });
 
+  // Activity in the ticket: newest or oldest first (saved in the account, applies on every device)
+  const order = select([['newest', t('ticket.order.newest')], ['oldest', t('ticket.order.oldest')]], u.activityOrder || 'newest', {
+    'data-activity-order-pref': '',
+    onchange: async (e) => {
+      const prev = u.activityOrder;
+      try { await api.updateMe({ activityOrder: e.target.value }); u.activityOrder = e.target.value; toast(t('app.saved'), 'success'); }
+      catch (ex) { e.target.value = prev || 'newest'; toast(ex.message, 'error'); }
+    },
+  });
+
   let pwForm = null;
   if (u.source === 'local' && u.hasPassword) {
     const cur = h('input', { type: 'password', autocomplete: 'current-password', required: true });
@@ -76,7 +86,8 @@ export function renderProfile(content) {
         h('div.muted', u.username, u.email ? ` · ${u.email}` : ''),
         h('div.profile-tags', h('span.badge', t(`role.${u.role}`)), h('span.badge', t(`profile.source.${u.source}`))))),
     personal,
-    h('section.panel', h('h2', t('app.language')), field(t('app.language'), lang)),
+    h('section.panel', h('h2', t('profile.display')), field(t('app.language'), lang),
+      field(t('profile.activityOrder'), order, t('profile.activityOrderHint'))),
     mfaPanel,
     pwForm,
     state.isAgent ? (() => { const tp = templatesPanel({ shared: false }); tp.id = 'templates'; return tp; })() : null,

@@ -257,6 +257,7 @@ export function createApi(ctx) {
       newHash = hashPassword(pw);
     }
     if (req.body.theme !== undefined && !['system', 'light', 'dark'].includes(req.body.theme)) throw new HttpError(400, 'err.badRequest', 'theme');
+    if (req.body.activityOrder !== undefined && !['newest', 'oldest'].includes(req.body.activityOrder)) throw new HttpError(400, 'err.badRequest', 'activityOrder');
     db.transaction(() => {
       if (req.body.language !== undefined) {
         db.prepare('UPDATE users SET language=? WHERE id=?').run(req.body.language ? normalizeLang(req.body.language) : null, u.id);
@@ -264,6 +265,10 @@ export function createApi(ctx) {
       if (req.body.theme !== undefined) {
         // NULL = system (follows the device)
         db.prepare('UPDATE users SET theme=? WHERE id=?').run(req.body.theme === 'system' ? null : req.body.theme, u.id);
+      }
+      if (req.body.activityOrder !== undefined) {
+        // NULL = newest first (the default)
+        db.prepare('UPDATE users SET activity_order=? WHERE id=?').run(req.body.activityOrder === 'oldest' ? 'oldest' : null, u.id);
       }
       if (displayName) db.prepare('UPDATE users SET display_name=? WHERE id=?').run(displayName, u.id);
       if (email) {

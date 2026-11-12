@@ -161,13 +161,33 @@ export async function renderTicket(content, key) {
     const items = [];
     if (tab !== 'history') for (const c of tk.comments) items.push({ at: c.createdAt, el: commentEl(c) });
     if (tab !== 'comments') for (const a of tk.activity) items.push({ at: a.createdAt, el: historyEl(a) });
-    items.sort((a, b) => (a.at < b.at ? 1 : -1)); // newest first
+    // Order per person (profile or the switch here): newest first (default) or oldest first like a chat
+    const oldest = () => state.user.activityOrder === 'oldest';
+    items.sort((a, b) => (a.at < b.at ? 1 : -1));
+    if (oldest()) items.reverse();
 
-    return h('section.ticket-section',
-      h('h3', t('ticket.activity')),
-      tabs,
-      tab !== 'history' ? composer() : null,
-      items.length ? h('div.activity', items.map((i) => i.el)) : h('p.muted', t('ticket.noComments')));
+    const list = items.length ? h('div.activity', items.map((i) => i.el)) : h('p.muted', t('ticket.noComments'));
+    const box = tab !== 'history' ? composer() : null;
+    const orderBtn = h('button.btn.btn-subtle.small.activity-order', { type: 'button', 'data-activity-order': '' });
+    const section = h('section.ticket-section', h('h3', t('ticket.activity')), h('div.activity-bar', tabs, orderBtn));
+    // The reply box sits where the newest entry is: on top, or below the list with oldest first.
+    // Switching only reorders – a reply already being written stays as it is.
+    const place = () => {
+      const old = oldest();
+      mount(orderBtn, icon('arrow-down', old ? '' : 'flip'), t(old ? 'ticket.order.oldest' : 'ticket.order.newest'));
+      orderBtn.title = t('ticket.order.switch');
+      if (box) { if (old) section.append(list, box); else section.append(box, list); } else section.append(list);
+    };
+    orderBtn.addEventListener('click', async () => {
+      const prev = state.user.activityOrder;
+      state.user.activityOrder = oldest() ? 'newest' : 'oldest';
+      if (list.classList.contains('activity')) list.replaceChildren(...[...list.children].reverse());
+      place();
+      try { await api.updateMe({ activityOrder: state.user.activityOrder }); }
+      catch (e) { state.user.activityOrder = prev; toast(e.message, 'error'); }
+    });
+    place();
+    return section;
   }
 
   function commentEl(c) {
