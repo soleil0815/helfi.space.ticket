@@ -449,13 +449,15 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 
 ## Service catalog
 
-Standard requests with their own form, e.g. “New employee”, “Software request” or “Access to a network drive”. Create them under *Administration → Service catalog*.
+Standard requests with their own form, e.g. “New employee”, “Software request” or “Access to a network drive”. Every offering belongs to a **project**; requests from it land there.
 
+- **Who maintains the catalog:** admins under *Administration → Service catalog*, and the **lead and deputy** of a project via *Service catalog → Manage catalog* – they see and change only the offerings of their own project. Other agents of the project may not change the catalog.
+- **Grouped by project:** the overview shows the offerings per project (alphabetically). Offerings from before projects appear under **Not yet assigned to a project** (users see “More offerings” there). They are still offered – requests land in the default project – but are **not moved automatically**: the admin opens them and chooses the project. Offerings of an archived project appear there too.
 - **Form:** fields of type text, multi-line, choice, check box or date, each optionally required. The answers appear neatly in the ticket description (type *Request*).
 - **Request a service** in the sidebar shows all offers as tiles to users and agents.
-- **Approval (optional):** per offer you decide who has to agree and whether one approval is enough or everybody has to agree. Approvers can be people without the agent role, such as managers; they then only see the requests they decide on. They get an email and find open decisions under **My approvals**.
+- **Approval (optional):** per offer you decide who has to agree and whether one approval is enough or everybody has to agree. You add approvers via the people search; they can be people without the agent role, such as managers; they then only see the requests they decide on. They get an email and find open decisions under **My approvals**.
 - **Result:** the decision is added to the ticket as a reply, so the reporter also gets it by email. A rejection closes the request.
-- **Take over examples:** *Examples* creates typical offers with a ready form – new employee, employee leaving, install software, access to a drive or folder, order hardware, Wi-Fi for guests, distribution list or shared mailbox – in German or English. They start **switched off**: check fields, project and approvers, then switch them on.
+- **Take over examples (admins):** *Examples* creates typical offers with a ready form – new employee, employee leaving, install software, access to a drive or folder, order hardware, Wi-Fi for guests, distribution list or shared mailbox – in German or English. They start **switched off** and without a project: choose the project, check fields and approvers, then switch them on.
 
 ## Devices & services
 

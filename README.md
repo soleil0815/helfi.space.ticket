@@ -449,13 +449,15 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 
 ## Servicekatalog
 
-Standardanfragen mit eigenem Formular, z. B. „Neuer Mitarbeiter“, „Software-Wunsch“ oder „Zugang zu einem Laufwerk“. Angelegt werden sie unter *Administration → Servicekatalog*.
+Standardanfragen mit eigenem Formular, z. B. „Neuer Mitarbeiter“, „Software-Wunsch“ oder „Zugang zu einem Laufwerk“. Jedes Angebot gehört zu einem **Projekt**; Anfragen daraus landen dort.
 
+- **Wer pflegt den Katalog:** Admins unter *Administration → Servicekatalog*, außerdem **Leitung und Vertretung** eines Projekts über *Servicekatalog → Katalog verwalten* – sie sehen und ändern nur die Angebote ihres eigenen Projekts. Andere Bearbeiter des Projekts dürfen den Katalog nicht ändern.
+- **Nach Projekt gruppiert:** Die Übersicht zeigt die Angebote je Projekt (alphabetisch). Angebote aus der Zeit vor den Projekten stehen unter **Noch keinem Projekt zugeordnet** (Benutzer sehen dort „Weitere Angebote“). Sie werden weiter angeboten – Anfragen landen im Standardprojekt –, aber **nicht automatisch** verschoben: Der Admin öffnet sie und wählt das Projekt. Angebote eines archivierten Projekts erscheinen dort ebenfalls.
 - **Formular:** Felder vom Typ Text, mehrzeilig, Auswahl, Häkchen oder Datum, jeweils optional als Pflichtfeld. Die Antworten stehen übersichtlich in der Beschreibung des Tickets (Typ *Anfrage*).
 - **Service anfordern** in der Seitenleiste zeigt Benutzern und Bearbeitern alle Angebote als Kacheln.
-- **Genehmigung (optional):** Pro Angebot legst du fest, wer zustimmen muss und ob eine Zustimmung genügt oder alle zustimmen müssen. Genehmiger dürfen auch Personen ohne Bearbeiter-Rolle sein, etwa Vorgesetzte; sie sehen dann nur die Anfragen, über die sie entscheiden. Sie bekommen eine Mail und finden offene Entscheidungen unter **Meine Genehmigungen**.
+- **Genehmigung (optional):** Pro Angebot legst du fest, wer zustimmen muss und ob eine Zustimmung genügt oder alle zustimmen müssen. Genehmigende fügst du über die Personensuche hinzu; das dürfen auch Personen ohne Bearbeiter-Rolle sein, etwa Vorgesetzte; sie sehen dann nur die Anfragen, über die sie entscheiden. Sie bekommen eine Mail und finden offene Entscheidungen unter **Meine Genehmigungen**.
 - **Ergebnis:** Die Entscheidung kommt als Antwort ins Ticket, der Melder bekommt sie also auch per Mail. Eine Ablehnung schließt die Anfrage.
-- **Beispiele übernehmen:** *Beispiele* legt typische Angebote mit fertigem Formular an – neue Mitarbeiterin/neuer Mitarbeiter, Ausscheiden, Software installieren, Zugriff auf Laufwerk oder Ordner, Hardware bestellen, WLAN für Gäste, Verteiler oder Gruppenpostfach – auf Deutsch oder Englisch. Sie sind zunächst **ausgeschaltet**: Felder, Projekt und Genehmigende prüfen, dann einschalten.
+- **Beispiele übernehmen (Admins):** *Beispiele* legt typische Angebote mit fertigem Formular an – neue Mitarbeiterin/neuer Mitarbeiter, Ausscheiden, Software installieren, Zugriff auf Laufwerk oder Ordner, Hardware bestellen, WLAN für Gäste, Verteiler oder Gruppenpostfach – auf Deutsch oder Englisch. Sie sind zunächst **ausgeschaltet** und noch keinem Projekt zugeordnet: Projekt wählen, Felder und Genehmigende prüfen, dann einschalten.
 
 ## Geräte & Dienste
 

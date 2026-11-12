@@ -324,7 +324,7 @@ function layout(content, path) {
       nav('/board', t('nav.board'), 'board', path === '/board'),
       ...VIEWS.filter((v) => !v.when || v.when(state.boot)).map((v) => countedNav(queueHref(v, p?.key), t(v.label), v.icon, path === '/issues' && activeQueue?.id === v.id, v.count)),
       nav('/changes', t('change.calendar'), 'board', path === '/changes'),
-      state.boot.hasCatalog ? nav('/catalog', t('catalog.title'), 'inbox', path.startsWith('/catalog')) : null,
+      (state.boot.hasCatalog || state.boot.catalogManage) ? nav('/catalog', t('catalog.title'), 'inbox', path.startsWith('/catalog')) : null,
       nav('/cis', t('ci.title'), 'server', path.startsWith('/cis')),
       nav('/kb', t('kb.title'), 'file', path.startsWith('/kb')),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),

@@ -60,9 +60,23 @@ export async function renderNew(page) {
     h('p.m-intro', t('m.new.intro')),
     h('div.m-tiles',
       tile('/m/new/report', '🛠️', t('m.new.report'), t('m.new.reportText'), null, 'm-tile-report'),
+      // Offerings grouped by project (sorted by the server; without a project last)
       h('h2.m-section-title.m-tiles-head', t('m.new.catalog')),
-      items.map((x) => tile(`/m/new/c/${x.id}`, x.emoji || '📦', x.title, x.description,
-        x.needsApproval ? h('span.m-tile-approval', icon('shield'), t('catalog.needsApproval')) : null))));
+      groups(items).map((g, i, all) => [
+        all.length > 1 || g.project ? h('h3.m-tiles-sub', g.project ? g.project.name : t('catalog.other')) : null,
+        g.items.map((x) => tile(`/m/new/c/${x.id}`, x.emoji || '📦', x.title, x.description,
+          x.needsApproval ? h('span.m-tile-approval', icon('shield'), t('catalog.needsApproval')) : null))])));
+}
+
+function groups(items) {
+  const out = [];
+  for (const x of items) {
+    const key = x.project?.key || '';
+    let g = out.find((y) => y.key === key);
+    if (!g) out.push(g = { key, project: x.project, items: [] });
+    g.items.push(x);
+  }
+  return out;
 }
 
 // ---------- Report a problem ----------

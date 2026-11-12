@@ -153,7 +153,7 @@
 <div class="note"><p>Die Ersteinrichtung geht aus Sicherheitsgründen normalerweise nur im <strong>Firmennetz</strong> (außer nach einer SSO-Anmeldung, deren zweiten Faktor der Identitätsanbieter geprüft hat). So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. <strong>Handy verloren?</strong> Mit einem Wiederherstellungscode anmelden oder die IT bitten, die 2FA zurückzusetzen.</p></div>
 
 <h2 id="katalog">Service anfordern</h2>
-<p>Für häufige Wünsche gibt es fertige Formulare, z. B. „Neuer Mitarbeiter“ oder „Software-Wunsch“: <em>Service anfordern</em> in der Seitenleiste. Ein Klick auf eine Kachel öffnet das Formular; Pflichtfelder sind mit * markiert. Nach dem Absenden landest du im neuen Ticket.</p>
+<p>Für häufige Wünsche gibt es fertige Formulare, z. B. „Neuer Mitarbeiter“ oder „Software-Wunsch“: <em>Service anfordern</em> in der Seitenleiste. Die Angebote sind nach Abteilung (Projekt) gruppiert, z. B. IT und Haustechnik. Ein Klick auf eine Kachel öffnet das Formular; Pflichtfelder sind mit * markiert. Nach dem Absenden landest du im neuen Ticket.</p>
 <figure><img src="img/de/itil-catalog.jpg" alt=""><figcaption>Servicekatalog aus Sicht eines Benutzers</figcaption></figure>
 <figure><img src="img/de/itil-catalog-form.jpg" alt=""><figcaption>Formular „Neuer Mitarbeiter“ – diese Anfrage muss genehmigt werden</figcaption></figure>
 <p>Steht bei einem Angebot „mit Genehmigung“, muss erst jemand zustimmen, z. B. deine Vorgesetzte. Den Stand siehst du oben im Ticket.</p>
@@ -474,10 +474,16 @@
 <h3>Drucken und PDF</h3>
 <p><strong>Drucken / PDF</strong> am Artikel öffnet den Druckdialog; dort „Als PDF speichern“ wählen. Gedruckt werden nur Titel, Pfad, Stand und Inhalt, ohne Seitenumbrüche mitten in Bildern, Tabellen oder Infoboxen. Hat der Artikel Unterseiten, kannst du <strong>mit allen Unterseiten</strong> drucken: Es entsteht ein Dokument mit Inhaltsverzeichnis, jede Seite beginnt auf einem neuen Blatt – zum Beispiel ein komplettes Onboarding-Handbuch.</p>
 
-<h2 id="servicekatalog">Servicekatalog einrichten <span class="role role-admin">Admin</span></h2>
-<p>Unter <em>Administration → Servicekatalog</em> legst du Angebote an: Bezeichnung, Emoji, Beschreibung, Projekt und Formularfelder (Text, mehrzeilig, Auswahl, Häkchen, Datum; jeweils optional Pflicht). Optional wählst du Genehmiger, auch ohne Bearbeiter-Rolle, und ob eine oder alle Zustimmungen nötig sind. Anfragen werden Tickets vom Typ <em>Anfrage</em>; die Antworten stehen in der Beschreibung. Wie Benutzer den Katalog sehen, steht in <a href="#katalog">2.9</a>.</p>
-<figure><img src="img/de/admin-catalog.jpg" alt=""><figcaption>Administration → Servicekatalog</figcaption></figure>
-<p><strong>Beispiele übernehmen:</strong> <em>Beispiele</em> legt typische Angebote mit fertigem Formular an, z. B. „Neue Mitarbeiterin / neuer Mitarbeiter“, „Software installieren“ oder „WLAN-Zugang für Gäste“ – auf Deutsch oder Englisch. Sie sind zunächst <strong>ausgeschaltet</strong>, damit Benutzer sie erst sehen, wenn du Felder, Projekt und Genehmigende geprüft und sie eingeschaltet hast.</p>
+<h2 id="servicekatalog">Servicekatalog einrichten <span class="role role-admin">Admin</span> <span class="role role-agent">Projektleitung</span></h2>
+<p>Jedes Angebot gehört zu einem <strong>Projekt</strong>; Anfragen daraus landen dort. Ein Angebot hat Bezeichnung, Emoji, Beschreibung, Projekt und Formularfelder (Text, mehrzeilig, Auswahl, Häkchen, Datum; jeweils optional Pflicht). Optional fügst du über die Personensuche Genehmigende hinzu, auch ohne Bearbeiter-Rolle, und legst fest, ob eine oder alle Zustimmungen nötig sind. Anfragen werden Tickets vom Typ <em>Anfrage</em>; die Antworten stehen in der Beschreibung. Wie Benutzer den Katalog sehen, steht in <a href="#katalog">2.9</a>.</p>
+<ul>
+  <li><strong>Admins</strong> pflegen alle Angebote unter <em>Administration → Servicekatalog</em>.</li>
+  <li><strong>Leitung und Vertretung eines Projekts</strong> öffnen <em>Servicekatalog → Katalog verwalten</em>. Sie sehen dort nur die Angebote ihres Projekts und können nur dafür Angebote anlegen, ändern und löschen. Andere Bearbeiter des Projekts sehen den Knopf nicht.</li>
+  <li><strong>Noch keinem Projekt zugeordnet:</strong> Angebote aus der Zeit vor den Projekten (und die eines archivierten Projekts) stehen beim Admin in einem eigenen Abschnitt. Sie werden weiter angeboten, Anfragen landen im Standardprojekt. Verschoben wird nichts automatisch: Angebot öffnen, Projekt wählen, speichern.</li>
+</ul>
+<figure><img src="img/de/admin-catalog.jpg" alt=""><figcaption>Administration → Servicekatalog, nach Projekt gruppiert</figcaption></figure>
+<figure><img src="img/de/catalog-manage-lead.jpg" alt=""><figcaption>Die Leitung der Haustechnik legt ein Angebot an – nur für ihr Projekt, Genehmigende über die Personensuche</figcaption></figure>
+<p><strong>Beispiele übernehmen</strong> <span class="role role-admin">Admin</span>: <em>Beispiele</em> legt typische Angebote mit fertigem Formular an, z. B. „Neue Mitarbeiterin / neuer Mitarbeiter“, „Software installieren“ oder „WLAN-Zugang für Gäste“ – auf Deutsch oder Englisch. Sie sind zunächst <strong>ausgeschaltet</strong> und noch keinem Projekt zugeordnet, damit Benutzer sie erst sehen, wenn du Projekt, Felder und Genehmigende geprüft und sie eingeschaltet hast.</p>
 <figure class="medium"><img src="img/de/examples-catalog.jpg" alt=""><figcaption>Beispiel-Angebote auswählen</figcaption></figure>
 
 <h2 id="geraete">Geräte &amp; Dienste</h2>

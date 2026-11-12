@@ -7,20 +7,46 @@ export const FIELD_TYPES = ['text', 'textarea', 'select', 'checkbox', 'date'];
 
 export function createCatalog(db, tickets, approvals, fieldsStore, settings, { mailer = null, users = null, baseUrl = '', t = null } = {}) {
   const parse = (j, d) => { try { const v = JSON.parse(j); return v ?? d; } catch { return d; } };
-  const out = (r, admin = false) => ({
-    id: r.id, title: r.title, description: r.description, emoji: r.emoji, fields: parse(r.fields, []),
-    needsApproval: !!r.approver_ids, active: !!r.active,
-    ...(admin ? { projectKey: r.project_key, approverIds: r.approver_ids.split(',').map(Number).filter(Boolean), approvalMode: r.approval_mode, sort: r.sort } : {}),
-  });
+  const projectByKey = (key) => (key ? db.prepare('SELECT id, key, name FROM projects WHERE key=? AND archived=0').get(key) : null);
+  /**
+   * Projects whose service offerings this person may create and edit: admins all active projects,
+   * otherwise only those they lead or stand in for. Other agents of a project may not.
+   */
+  function manageable(user) {
+    if (!user) return [];
+    if (user.role === 'admin') return db.prepare('SELECT id, key, name FROM projects WHERE archived=0 ORDER BY name').all();
+    return db.prepare('SELECT id, key, name FROM projects WHERE archived=0 AND (lead_id=? OR deputy_id=?) ORDER BY name').all(user.id, user.id);
+  }
+  const managedKeys = (user) => new Set(manageable(user).map((p) => p.key));
+  /** May edit this row: admins always, leads/deputies only offerings of their own projects */
+  const canEdit = (user, r, keys = managedKeys(user)) => user?.role === 'admin' || (!!projectByKey(r.project_key) && keys.has(r.project_key));
+  const approverRefs = (ids) => ids.map((x) => users?.byId(x)).filter(Boolean).map((u) => ({ id: u.id, displayName: u.display_name }));
+  const out = (r, manage = false) => {
+    const p = projectByKey(r.project_key);
+    const approverIds = r.approver_ids.split(',').map(Number).filter(Boolean);
+    return {
+      id: r.id, title: r.title, description: r.description, emoji: r.emoji, fields: parse(r.fields, []),
+      needsApproval: !!r.approver_ids, active: !!r.active,
+      // Project for grouping; null = not yet assigned to any project (or the project is archived/gone)
+      project: p ? { key: p.key, name: p.name } : null,
+      ...(manage ? { projectKey: p ? p.key : '', approverIds, approvers: approverRefs(approverIds), approvalMode: r.approval_mode, sort: r.sort, canEdit: true } : {}),
+    };
+  };
+  const byProject = (a, b) => (a.project ? 0 : 1) - (b.project ? 0 : 1) || String(a.project?.name || '').localeCompare(String(b.project?.name || '')) || 0;
 
+  /** all: management view – admins everything, leads/deputies the offerings of their projects */
   function list(user, { all = false } = {}) {
-    const admin = all && user.role === 'admin';
-    return db.prepare(`SELECT * FROM catalog_items ${admin ? '' : 'WHERE active=1'} ORDER BY sort, title`).all().map((r) => out(r, admin));
+    const keys = managedKeys(user);
+    const manage = all && (user.role === 'admin' || keys.size > 0);
+    let rows = db.prepare(`SELECT * FROM catalog_items ${manage ? '' : 'WHERE active=1'} ORDER BY sort, title`).all();
+    if (manage) rows = rows.filter((r) => canEdit(user, r, keys));
+    return rows.map((r) => out(r, manage)).sort(byProject);
   }
   function get(user, id) {
     const r = db.prepare('SELECT * FROM catalog_items WHERE id=?').get(int(id) || 0);
-    if (!r || (!r.active && user.role !== 'admin')) throw notFound();
-    return out(r, user.role === 'admin');
+    const edit = !!r && canEdit(user, r);
+    if (!r || (!r.active && !edit)) throw notFound();
+    return out(r, edit);
   }
 
   function cleanFields(list) {
@@ -35,23 +61,33 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
     });
   }
   function save(user, id, data) {
-    if (user.role !== 'admin') throw forbidden();
+    const keys = managedKeys(user);
+    if (user.role !== 'admin' && !keys.size) throw forbidden();
+    const existing = id ? db.prepare('SELECT * FROM catalog_items WHERE id=?').get(int(id) || 0) : null;
+    if (id && !existing) throw notFound();
+    if (existing && !canEdit(user, existing, keys)) throw forbidden();
     const title = str(data.title, 120).trim();
     if (!title) throw new HttpError(400, 'err.titleRequired');
+    // Project: leads/deputies only their own; admins may leave it open (sorted in later)
+    const key = str(data.projectKey, 10).toUpperCase();
+    if (key && !projectByKey(key)) throw new HttpError(400, 'err.catalogProject');
+    if (user.role !== 'admin' && !key) throw new HttpError(400, 'err.catalogProject');
+    if (user.role !== 'admin' && !keys.has(key)) throw forbidden();
     const approverIds = (Array.isArray(data.approverIds) ? data.approverIds : []).map(Number).filter((x) => users?.byId(x)?.active);
-    const vals = [title, str(data.description, 4000), str(data.emoji, 16), str(data.projectKey, 10).toUpperCase(), JSON.stringify(cleanFields(data.fields)),
+    const vals = [title, str(data.description, 4000), str(data.emoji, 16), key, JSON.stringify(cleanFields(data.fields)),
       approverIds.join(','), data.approvalMode === 'all' ? 'all' : 'any', data.active === false ? 0 : 1, int(data.sort) || 0];
-    if (id) {
-      if (!db.prepare('SELECT 1 FROM catalog_items WHERE id=?').get(int(id))) throw notFound();
-      db.prepare('UPDATE catalog_items SET title=?, description=?, emoji=?, project_key=?, fields=?, approver_ids=?, approval_mode=?, active=?, sort=? WHERE id=?').run(...vals, int(id));
-      return get(user, id);
+    if (existing) {
+      db.prepare('UPDATE catalog_items SET title=?, description=?, emoji=?, project_key=?, fields=?, approver_ids=?, approval_mode=?, active=?, sort=? WHERE id=?').run(...vals, existing.id);
+      return get(user, existing.id);
     }
     const nid = db.prepare('INSERT INTO catalog_items(title, description, emoji, project_key, fields, approver_ids, approval_mode, active, sort) VALUES(?,?,?,?,?,?,?,?,?)').run(...vals).lastInsertRowid;
     return get(user, nid);
   }
   function remove(user, id) {
-    if (user.role !== 'admin') throw forbidden();
-    db.prepare('DELETE FROM catalog_items WHERE id=?').run(int(id) || 0);
+    const r = db.prepare('SELECT * FROM catalog_items WHERE id=?').get(int(id) || 0);
+    if (!r) return;
+    if (!canEdit(user, r)) throw forbidden();
+    db.prepare('DELETE FROM catalog_items WHERE id=?').run(r.id);
   }
 
   /** Request from the catalog: validate answers, create ticket, request approval if needed */
@@ -122,5 +158,5 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
     return { approval: { state, items: approvals.current(row.id).items, mode: fieldOf(row.id, 'approvalMode') || 'any', canDecide: state === 'pending' && approvals.isPendingApprover(row.id, user.id) } };
   });
 
-  return { list, get, save, remove, order, decide, fieldOf };
+  return { list, get, save, remove, order, decide, fieldOf, manageable };
 }

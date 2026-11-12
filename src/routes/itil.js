@@ -163,11 +163,15 @@ export function createItilRoutes(ctx) {
   r.post('/tickets/:key/cis', requireRole('agent'), (req, res) => res.json({ cis: cmdb.link(req.user, req.params.key, req.body || {}) }));
   r.delete('/tickets/:key/cis/:id', requireRole('agent'), (req, res) => res.json({ cis: cmdb.unlink(req.user, req.params.key, req.params.id) }));
 
-  r.get('/catalog', (req, res) => res.json({ items: catalog.list(req.user, { all: req.query.all === '1' }) }));
+  r.get('/catalog', (req, res) => res.json({
+    items: catalog.list(req.user, { all: req.query.all === '1' }),
+    // Projects whose offerings this person may manage (admins: all; leads/deputies: their own)
+    manageProjects: catalog.manageable(req.user).map((p) => ({ key: p.key, name: p.name })),
+  }));
   r.get('/catalog/:id', (req, res) => res.json({ item: catalog.get(req.user, req.params.id) }));
-  r.post('/catalog', requireRole('admin'), wrap(async (req, res) => res.status(201).json({ item: catalog.save(req.user, null, req.body || {}) })));
-  r.put('/catalog/:id', requireRole('admin'), wrap(async (req, res) => res.json({ item: catalog.save(req.user, req.params.id, req.body || {}) })));
-  r.delete('/catalog/:id', requireRole('admin'), (req, res) => { catalog.remove(req.user, req.params.id); res.json({ ok: true }); });
+  r.post('/catalog', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ item: catalog.save(req.user, null, req.body || {}) })));
+  r.put('/catalog/:id', requireRole('agent'), wrap(async (req, res) => res.json({ item: catalog.save(req.user, req.params.id, req.body || {}) })));
+  r.delete('/catalog/:id', requireRole('agent'), (req, res) => { catalog.remove(req.user, req.params.id); res.json({ ok: true }); });
   r.post('/catalog/:id/order', wrap(async (req, res) => res.status(201).json({ ticket: catalog.order(req.user, req.params.id, req.body?.answers || {}) })));
 
   // ---------- Major Incident ----------
