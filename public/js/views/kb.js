@@ -14,6 +14,14 @@ import { examplesButton } from './examples.js';
 
 const visBadge = (v) => h(`span.badge.kb-${v}`, t(`kb.vis.${v}`));
 
+/** Project select for top-level pages: the projects the user writes into (current one kept even if not among them) */
+function projectPicker(writable, currentId) {
+  const opts = writable.map((p) => [p.id, p.name]);
+  const cur = currentId && opts.some(([v]) => v === currentId) ? currentId : opts[0]?.[0] ?? '';
+  const el = select(opts, cur, { id: 'kb-project', 'aria-label': t('kb.f.project') });
+  return { el, value: () => Number(el.value) || null };
+}
+
 export async function renderKb(content, params, path) {
   const m = /^\/kb\/(\d+)(\/edit)?$/.exec(path);
   if (path === '/kb/new') {
@@ -40,21 +48,20 @@ async function list(content, params) {
   const tab = agent && ['known', 'templates'].includes(params.get('tab')) ? params.get('tab') : 'articles';
   const q = params.get('q') || '';
   const cat = params.get('category') || '';
+  const proj = params.get('project') || '';
   const sort = agent && params.get('sort') === 'needsWork' ? 'needsWork' : '';
   const search = h('input.kb-search', { type: 'search', value: q, placeholder: t('kb.searchHint'), 'aria-label': t('kb.search') });
   const results = h('div.kb-results', h('div.loading', t('app.loading')));
   const go = (patch) => {
-    const p = new URLSearchParams({ ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(sort ? { sort } : {}), ...(tab === 'known' ? { tab } : {}), ...patch });
+    const p = new URLSearchParams({ ...(q ? { q } : {}), ...(cat ? { category: cat } : {}), ...(proj ? { project: proj } : {}), ...(sort ? { sort } : {}), ...(tab === 'known' ? { tab } : {}), ...patch });
     for (const [k, v] of [...p]) if (!v) p.delete(k);
     navigate(`/kb${p.toString() ? `?${p}` : ''}`, { replace: true });
   };
   let timer;
   search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => go({ q: search.value.trim() }), 300); });
+  const newActions = h('div.actions');
   mount(content,
-    h('div.page-head', h('h1', t('kb.title')),
-      agent ? h('div.actions',
-        examplesButton('kb', () => navigate(location.pathname + location.search, { replace: true })),
-        h('a.btn.btn-primary', { href: '/kb/new', 'data-link': '' }, icon('plus'), t('kb.new'))) : null),
+    h('div.page-head', h('h1', t('kb.title')), agent ? newActions : null),
     agent ? h('div.tabs.kb-tabs',
       h('a.tab', { href: '/kb', 'data-link': '', class: tab === 'articles' ? 'active' : '' }, t('kb.articles')),
       h('a.tab', { href: '/kb?tab=known', 'data-link': '', class: tab === 'known' ? 'active' : '' }, t('kb.knownErrors')),
@@ -87,26 +94,38 @@ async function list(content, params) {
       h('div.kb-card-meta', t(`status.${k.status}`)))) : h('p.muted', t('kb.noKnown')));
     return;
   }
-  const [{ articles, categories }, { tree }] = await Promise.all([api.kb({ q, category: cat, ...(sort ? { sort } : {}) }), q || cat || sort ? { tree: [] } : api.kbTree()]);
-  // Start page: page tree + recently changed; for a search, category or "needs rework" the result list
-  const overview = !q && !cat && !sort && tree.length;
+  const [{ articles, categories, projects = [], writable = [] }, { tree }] = await Promise.all([api.kb({ q, category: cat, project: proj, ...(sort ? { sort } : {}) }), q || cat || proj || sort ? { tree: [] } : api.kbTree()]);
+  // New article only for agents of at least one project (they write into their own projects)
+  if (agent && writable.length) {
+    mount(newActions,
+      examplesButton('kb', () => navigate(location.pathname + location.search, { replace: true })),
+      h('a.btn.btn-primary', { href: '/kb/new', 'data-link': '' }, icon('plus'), t('kb.new')));
+  }
+  // Start page: page tree + recently changed; for a search, category, project or "needs rework" the result list
+  const overview = !q && !cat && !proj && !sort && tree.length;
+  const projLink = (key) => { const p = new URLSearchParams({ ...(q ? { q } : {}), ...(key ? { project: key } : {}) }); return `/kb${p.toString() ? `?${p}` : ''}`; };
   // Rating for agents: 👍 n · 👎 n (nothing while no one has voted)
   const rated = (a) => (agent && a.rating && (a.rating.up || a.rating.down) ? h('span.kb-card-rating', { title: t('kb.rate.summary', { up: a.rating.up, down: a.rating.down }) }, `👍 ${a.rating.up} · 👎 ${a.rating.down}`) : null);
   mount(results,
+    // Departments (projects): only when there is more than one
+    projects.length > 1 ? h('div.kb-cats.kb-projects', { role: 'group', 'aria-label': t('kb.f.project') },
+      h('a.chip', { href: projLink(''), 'data-link': '', class: !proj ? 'active' : '' }, t('kb.allProjects')),
+      projects.map((p) => h('a.chip', { href: projLink(p.key), 'data-link': '', class: p.key === proj ? 'active' : '', 'data-project': p.key }, p.name))) : null,
     categories.length || agent ? h('div.kb-cats',
-      h('a.chip', { href: '/kb', 'data-link': '', class: !cat && !sort ? 'active' : '' }, t('kb.allCategories')),
-      categories.map((c) => h('a.chip', { href: `/kb?category=${encodeURIComponent(c.name)}`, 'data-link': '', class: c.name === cat ? 'active' : '' }, c.name, h('span.count', c.count))),
+      // Categories within the chosen project
+      h('a.chip', { href: projLink(proj), 'data-link': '', class: !cat && !sort ? 'active' : '' }, t('kb.allCategories')),
+      categories.map((c) => h('a.chip', { href: `/kb?${new URLSearchParams({ ...(proj ? { project: proj } : {}), category: c.name })}`, 'data-link': '', class: c.name === cat ? 'active' : '' }, c.name, h('span.count', c.count))),
       agent ? h('a.chip.kb-needs-work', { href: '/kb?sort=needsWork', 'data-link': '', class: sort ? 'active' : '', title: t('kb.rate.needsWorkHint') }, '👎 ', t('kb.rate.needsWork')) : null) : null,
     overview ? h('div.kb-overview',
       h('section.kb-overview-tree', treeHead(tree, null), treeNav(tree)),
       h('section.kb-overview-recent', h('h3', t('kb.recent')), articles.slice(0, 8).map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
         h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
         a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
-        h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))))) : null,
+        h('div.kb-card-meta', [projects.length > 1 ? a.project?.name : '', a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))))) : null,
     overview ? null : articles.length ? articles.map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
       h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
       a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
-      h('div.kb-card-meta', [a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))) : h('p.muted', sort ? t('kb.rate.noneNeedsWork') : q ? t('kb.noResults') : t('kb.empty')));
+      h('div.kb-card-meta', [projects.length > 1 ? a.project?.name : '', a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))) : h('p.muted', sort ? t('kb.rate.noneNeedsWork') : q ? t('kb.noResults') : t('kb.empty')));
 }
 
 const reloadPage = () => navigate(location.pathname + location.search, { replace: true });
@@ -114,30 +133,37 @@ const reloadPage = () => navigate(location.pathname + location.search, { replace
 /** Page tree header; agents can create a folder here */
 function treeHead(tree, currentId) {
   return h('div.kb-tree-title', icon('ed-toc'), h('span', t('kb.tree.title')), h('span.spacer'),
-    state.isAgent ? h('button.btn.btn-subtle.small.kb-folder-btn', { type: 'button', onclick: () => folderDialog(tree, currentId) }, icon('plus'), t('kb.tree.newFolder')) : null);
+    state.isAgent && state.agentProjects?.length !== 0 ? h('button.btn.btn-subtle.small.kb-folder-btn', { type: 'button', onclick: () => folderDialog(tree, currentId) }, icon('plus'), t('kb.tree.newFolder')) : null);
 }
 
 /** “Located under” select: indented, optionally without an article and its subpages */
 function parentOptions(tree, excludeId = null) {
   const opts = [['', t('kb.tree.noParent')]];
-  const walk = (nodes, depth) => { for (const n of nodes) { if (n.id === excludeId) continue; opts.push([n.id, `${'\u2003'.repeat(depth)}${n.title}`]); walk(n.children, depth + 1); } };
+  // Only pages of the user's projects can take subpages (the subpage gets their project)
+  const walk = (nodes, depth) => { for (const n of nodes) { if (n.id === excludeId) continue; if (n.canEdit !== false) opts.push([n.id, `${'\u2003'.repeat(depth)}${n.title}`]); walk(n.children, depth + 1); } };
   walk(tree, 0);
   return opts;
 }
 
 /** Folder = short collection page without its own text; its subpages are listed */
-function folderDialog(tree, parentId) {
+async function folderDialog(tree, parentId) {
   const name = h('input', { maxLength: 200, placeholder: t('kb.tree.folderHint') });
-  const under = select(parentOptions(tree), parentId || '');
+  const opts = parentOptions(tree);
+  const under = select(opts, opts.some(([v]) => v === parentId) ? parentId : '');
   const vis = select([['public', t('kb.vis.public')], ['internal', t('kb.vis.internal')]], 'public');
-  const dlg = modal(t('kb.tree.newFolder'), h('div', h('p.muted.small', t('kb.tree.folderIntro')), field(t('kb.tree.folderName'), name), field(t('kb.tree.parent'), under), field(t('kb.f.visibility'), vis)), {
+  const { writable = [] } = await api.kbProjects().catch(() => ({}));
+  const proj = projectPicker(writable, null);
+  const projField = field(t('kb.f.project'), proj.el);
+  const syncProj = () => { projField.hidden = !!under.value; };
+  under.addEventListener('change', syncProj); syncProj();
+  const dlg = modal(t('kb.tree.newFolder'), h('div', h('p.muted.small', t('kb.tree.folderIntro')), field(t('kb.tree.folderName'), name), field(t('kb.tree.parent'), under), projField, field(t('kb.f.visibility'), vis)), {
     footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')),
       h('button.btn.btn-primary', {
         type: 'button',
         onclick: async () => {
           if (!name.value.trim()) { name.focus(); return; }
           try {
-            await api.kbCreate({ title: name.value, body: '', visibility: vis.value, parentId: Number(under.value) || null, note: t('kb.tree.folderNote') });
+            await api.kbCreate({ title: name.value, body: '', visibility: vis.value, parentId: Number(under.value) || null, projectId: under.value ? null : proj.value(), note: t('kb.tree.folderNote') });
             dlg.close(); toast(t('kb.tree.folderCreated'), 'success'); reloadPage();
           } catch (e) { toast(e.message, 'error'); }
         },
@@ -175,10 +201,12 @@ function treeNav(nodes, currentId = null, openIds = new Set()) {
         remember();
       },
     }, icon('chevron-down')) : h('span.kb-tree-dot');
+    const own = canDrag && n.canEdit !== false;
     const row = h(`div.kb-tree-row${n.id === currentId ? '.current' : ''}`, toggle,
-      h('a', { href: `/kb/${n.id}`, 'data-link': '', 'aria-current': n.id === currentId ? 'page' : null, draggable: canDrag ? 'true' : 'false' }, n.title),
+      h('a', { href: `/kb/${n.id}`, 'data-link': '', 'aria-current': n.id === currentId ? 'page' : null, draggable: own ? 'true' : 'false' }, n.title),
       state.isAgent && n.visibility === 'internal' ? h('span.kb-tree-lock', { title: t('kb.vis.internal') }, icon('lock')) : null);
-    if (canDrag) {
+    // Only the project's people move its pages, and only into pages of their projects
+    if (own) {
       row.addEventListener('dragstart', (e) => { dragId = n.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(n.id)); root.classList.add('dragging'); });
       row.addEventListener('dragend', () => { dragId = null; root.classList.remove('dragging'); });
       dropZone(row, n.id);
@@ -195,6 +223,8 @@ function treeNav(nodes, currentId = null, openIds = new Set()) {
 async function article(content, id) {
   const [{ article: a }, { tree }] = await Promise.all([api.kbArticle(id, true), api.kbTree()]);
   const agent = state.isAgent;
+  // Edit, subpage, delete, history: only the article's project people
+  const mine = agent && a.canEdit;
   const side = h('aside.kb-tree-side', treeHead(tree, a.id), treeNav(tree, a.id, new Set([...a.path.map((x) => x.id), a.id])));
   const treeBtn = h('button.btn.btn-subtle.kb-tree-btn', { type: 'button', onclick: () => side.classList.toggle('open') }, icon('ed-toc'), t('kb.tree.pages'));
   const printMenu = (e) => {
@@ -213,9 +243,9 @@ async function article(content, id) {
           h('div.actions',
             treeBtn,
             h('button.btn.btn-subtle', { type: 'button', title: t('kb.print.title'), onclick: printMenu }, icon('download'), h('span.btn-label', t('kb.print.title'))),
-            agent ? h('a.btn.btn-subtle', { href: `/kb/new?parent=${a.id}`, 'data-link': '', title: t('kb.tree.addChild') }, icon('plus'), h('span.btn-label', t('kb.tree.child'))) : null,
-            agent ? h('a.btn', { href: `/kb/${a.id}/edit`, 'data-link': '' }, t('app.edit')) : null,
-            agent ? h('button.btn.btn-subtle', {
+            mine ? h('a.btn.btn-subtle', { href: `/kb/new?parent=${a.id}`, 'data-link': '', title: t('kb.tree.addChild') }, icon('plus'), h('span.btn-label', t('kb.tree.child'))) : null,
+            mine ? h('a.btn', { href: `/kb/${a.id}/edit`, 'data-link': '' }, t('app.edit')) : null,
+            mine ? h('button.btn.btn-subtle', {
               type: 'button', 'aria-label': t('app.delete'),
               onclick: async () => {
                 if (!confirm(a.children.length ? t('kb.tree.deleteConfirm', { n: a.children.length }) : t('kb.deleteConfirm'))) return;
@@ -223,11 +253,12 @@ async function article(content, id) {
               },
             }, icon('trash')) : null)),
         h('div.kb-meta', agent ? visBadge(a.visibility) : null,
+          a.project ? h('a.chip.kb-project', { href: `/kb?project=${encodeURIComponent(a.project.key)}`, 'data-link': '', title: t('kb.f.project') }, a.project.name) : null,
           a.category ? h('a.chip', { href: `/kb?category=${encodeURIComponent(a.category)}`, 'data-link': '' }, a.category) : null,
           h('span.muted', t('kb.updated', { when: fmtDate(a.updatedAt), who: a.author || '—' })),
           agent && a.sourceTicket ? h('span.muted.no-print', ' · ', t('kb.source'), ' ', h('a', { href: `/browse/${a.sourceTicket}`, 'data-link': '' }, a.sourceTicket)) : null,
           agent ? h('span.muted.no-print', ` · ${t('kb.views', { n: a.views })}`) : null,
-          agent && a.version ? h('span.muted.no-print', ' · ', h('a', { href: `/kb/${a.id}/history`, 'data-link': '' }, t('kb.ver.link', { v: a.version }))) : null),
+          mine && a.version ? h('span.muted.no-print', ' · ', h('a', { href: `/kb/${a.id}/history`, 'data-link': '' }, t('kb.ver.link', { v: a.version }))) : null),
         articleBody(a.body),
         a.children.length ? h('section.kb-children', h('h3', t('kb.tree.children')),
           h('ul', a.children.map((c) => h('li', h('a', { href: `/kb/${c.id}`, 'data-link': '' }, c.title), agent && c.visibility === 'internal' ? h('span.badge.kb-internal', t('kb.vis.internal')) : null)))) : null,
@@ -266,7 +297,7 @@ function commentsSection(a) {
       h('div.kb-cm-head', h('strong', c.author?.displayName || '—'), h('span.muted', { title: fmtDate(c.createdAt) }, relTime(c.createdAt)),
         c.resolved ? h('span.badge.kb-public', t('kb.cm.doneBy', { who: c.resolvedBy || '—' })) : null,
         h('span.spacer'),
-        state.isAgent ? h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { try { await api.kbCommentResolve(c.id, !c.resolved); await load(); } catch (e) { toast(e.message, 'error'); } } }, c.resolved ? t('kb.cm.reopen') : [icon('check'), t('kb.cm.done')]) : null,
+        state.isAgent && a.canEdit ? h('button.btn.btn-subtle.small', { type: 'button', onclick: async () => { try { await api.kbCommentResolve(c.id, !c.resolved); await load(); } catch (e) { toast(e.message, 'error'); } } }, c.resolved ? t('kb.cm.reopen') : [icon('check'), t('kb.cm.done')]) : null,
         c.canDelete ? h('button.btn-icon.small', { type: 'button', title: t('app.delete'), 'aria-label': t('app.delete'), onclick: async () => { if (!confirm(t('kb.cm.deleteConfirm'))) return; try { await api.kbCommentDelete(c.id); await load(); } catch (e) { toast(e.message, 'error'); } } }, icon('trash')) : null),
       commentView(c)));
   async function load() {
@@ -352,7 +383,7 @@ async function editor(content, opts = {}) {
   const { id = null, fromKey = null } = opts;
   const tplMode = opts.templateEdit !== undefined;
   const tplId = tplMode && opts.templateEdit !== 'new' ? opts.templateEdit : null;
-  let a = { title: '', body: '', visibility: 'internal', category: '', description: '', parentId: opts.parent || null };
+  let a = { title: '', body: '', visibility: 'internal', category: '', description: '', parentId: opts.parent || null, projectId: null };
   if (id) a = (await api.kbArticle(id)).article;
   else if (fromKey) { const { draft } = await api.kbDraft(fromKey); a = { ...a, ...draft }; }
   else if (tplId) { const { template } = await api.kbTemplate(tplId); a = { ...a, ...template }; }
@@ -361,11 +392,24 @@ async function editor(content, opts = {}) {
     if (kind === 'builtin') a.body = builtinTemplates().find((x) => x.id === ref)?.body || '';
     if (kind === 'tpl') { try { a.body = (await api.kbTemplate(ref)).template.body; } catch { /* template gone → empty */ } }
   }
-  const [{ categories }, { tree }] = tplMode ? [{ categories: [] }, { tree: [] }] : await Promise.all([api.kb({}), api.kbTree()]);
+  const [{ categories, writable = [] }, { tree }] = tplMode ? [{ categories: [] }, { tree: [] }] : await Promise.all([api.kb({}), api.kbTree()]);
   // Parent article select: indented, without the article itself and its subpages
-  const parentSel = select(parentOptions(tree, id), a.parentId || '', { class: 'kb-parent', id: 'kb-parent' });
+  const pOpts = parentOptions(tree, id);
+  const parentSel = select(pOpts, pOpts.some(([v]) => v === a.parentId) ? a.parentId : '', { class: 'kb-parent', id: 'kb-parent' });
+  // Project: chosen for top-level pages; subpages take the one of their parent
+  const project = projectPicker(writable, a.project?.id ?? a.projectId ?? null);
+  const projInfo = h('span.muted.small.kb-project-inherit');
+  const nodeOf = (pid) => { let f = null; const walk = (ns) => { for (const n of ns) { if (n.id === pid) f = n; else walk(n.children); } }; walk(tree); return f; };
+  const syncProject = () => {
+    const parent = Number(parentSel.value) || null;
+    project.el.hidden = !!parent;
+    const p = parent ? writable.find((x) => x.id === nodeOf(parent)?.projectId) : null;
+    projInfo.textContent = parent ? t('kb.projectInherited', { name: p?.name || '—' }) : '';
+  };
+  parentSel.addEventListener('change', syncProject);
+  syncProject();
   const key = tplMode ? `helfi.kbtpl.${tplId || 'new'}` : draftKey(id, fromKey);
-  const original = { title: a.title, body: a.body, category: a.category, visibility: a.visibility, description: a.description || '', parentId: a.parentId || null };
+  const original = { title: a.title, body: a.body, category: a.category, visibility: a.visibility, description: a.description || '', parentId: Number(parentSel.value) || null, projectId: project.value() };
 
   const title = h('input.kb-title-input', { value: a.title, maxLength: tplMode ? 120 : 200, required: true, placeholder: tplMode ? t('kb.tpl.name') : t('kb.f.titleHint'), 'aria-label': t('kb.f.title') });
   const cat = h('input', { id: 'kb-cat', value: a.category, maxLength: 60, list: 'kb-cats', placeholder: t('kb.f.categoryHint') });
@@ -377,11 +421,11 @@ async function editor(content, opts = {}) {
   const status = h('span.kb-save-state.muted.small');
   const note = id ? h('input.kb-note', { maxLength: 200, placeholder: t('kb.notePlaceholder'), 'aria-label': t('kb.note') }) : null;
 
-  const current = () => ({ title: title.value, body: ed.getValue(), category: cat.value, visibility, description: desc.value, parentId: Number(parentSel.value) || null });
+  const current = () => ({ title: title.value, body: ed.getValue(), category: cat.value, visibility, description: desc.value, parentId: Number(parentSel.value) || null, projectId: Number(parentSel.value) ? null : project.value() });
   const dirty = () => {
     const c = current();
     return c.title !== original.title || c.body.trim() !== String(original.body || '').trim()
-      || (tplMode ? c.description !== original.description : (c.category !== original.category || c.visibility !== original.visibility || c.parentId !== original.parentId));
+      || (tplMode ? c.description !== original.description : (c.category !== original.category || c.visibility !== original.visibility || c.parentId !== original.parentId || (!c.parentId && c.projectId !== original.projectId)));
   };
   let draftTimer;
   const onEdit = () => {
@@ -401,6 +445,7 @@ async function editor(content, opts = {}) {
   if (kbAi) ed.toolbar.prepend(kbAi.button, h('span.kb-tb-sep'));
   for (const el of [title, cat, desc]) el.addEventListener('input', onEdit);
   parentSel.addEventListener('change', onEdit);
+  project.el.addEventListener('change', onEdit);
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ed.focus(); } });
 
   let saving = false;
@@ -417,7 +462,10 @@ async function editor(content, opts = {}) {
         navigate('/kb?tab=templates', { force: true });
         return;
       }
-      const data = { ...current(), sourceTicket: a.sourceTicket || null, note: note?.value || '' };
+      const c = current();
+      const data = { ...c, sourceTicket: a.sourceTicket || null, note: note?.value || '' };
+      // Without a parent the chosen project; with a parent the server takes the parent's
+      if (c.parentId) delete data.projectId;
       const r = id ? await api.kbUpdate(id, data) : await api.kbCreate(data);
       writeDraft(key, null);
       ed.destroy();
@@ -464,7 +512,8 @@ async function editor(content, opts = {}) {
       a.sourceTicket && !id ? h('p.muted.small', t('kb.fromTicket', { key: a.sourceTicket })) : null,
       title,
       tplMode ? h('div.kb-edit-meta', desc) : h('div.kb-edit-meta',
-        h('div.kb-meta-field', h('label', { for: 'kb-parent' }, icon('ed-toc'), t('kb.tree.parent')), parentSel),
+        h('div.kb-meta-field', h('label', { for: 'kb-parent' }, icon('ed-toc'), t('kb.tree.parent')), parentSel, projInfo),
+        h('div.kb-meta-field', { hidden: writable.length < 2 && !id ? true : null }, h('label', { for: 'kb-project' }, t('kb.f.project')), project.el),
         h('div.kb-meta-field', h('label', { for: 'kb-cat' }, t('kb.f.category')), cat, dl),
         h('div.kb-meta-field', h('label', t('kb.f.visibility')), h('div.kb-vis-row', visRow, h('span.muted.small.kb-vis-hint', t(`kb.visHint.${visibility}`))))),
       kbAi?.note,

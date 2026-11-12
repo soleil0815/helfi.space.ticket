@@ -1,6 +1,8 @@
-// Knowledge base: articles internal (agents only) or public (all signed-in users).
+// Knowledge base: every article belongs to a project. Public articles are read by everyone signed in,
+// internal ones only by the project's people (and admins); only the project's people edit, move
+// and delete – also public articles. Subpages always have the project of their parent.
 import { HttpError, notFound, forbidden, str, int } from '../lib/http.js';
-import { isAgent, agentOn } from '../auth/session.js';
+import { isAgent, agentOn, agentProjects } from '../auth/session.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -35,23 +37,41 @@ const IMG_TOKEN = /\/api\/kb\/images\/([A-Za-z0-9_-]{16,64})/g;
 const STOP = new Set(['der', 'die', 'das', 'und', 'oder', 'ein', 'eine', 'nicht', 'mit', 'im', 'in', 'am', 'an', 'auf', 'ist', 'the', 'and', 'or', 'a', 'an', 'not', 'is', 'to', 'of', 'mein', 'meine', 'my', 'geht', 'kein', 'keine']);
 
 export function createKb(db, tickets) {
+  /** Works on the project: admins always; articles without a project (none existed) only admins */
+  const member = (user, projectId) => !!user && isAgent(user) && agentOn(user, projectId);
+  const canRead = (user, a) => a.visibility === 'public' || member(user, a.project_id);
+  const raw = (id) => db.prepare('SELECT * FROM kb_articles WHERE id=?').get(int(id) || 0);
+  /** Project for a new top-level article when none was chosen: the user's first one, for admins the default project */
+  function fallbackProject(user) {
+    const mine = agentProjects(user);
+    if (Array.isArray(mine) && mine.length) return mine[0];
+    const def = db.prepare("SELECT value FROM settings WHERE key='general.defaultProject'").get()?.value;
+    let key = '';
+    try { key = JSON.parse(def || '""'); } catch { /* not set */ }
+    return db.prepare('SELECT id FROM projects WHERE key=? AND archived=0').get(String(key || ''))?.id
+      ?? db.prepare('SELECT MIN(id) id FROM projects WHERE archived=0').get()?.id ?? null;
+  }
+  /** Project (and with it the whole subtree below the article) changes – subpages inherit */
+  const setSubtreeProject = (id, projectId) => db.prepare(`WITH RECURSIVE sub(id) AS (SELECT ? UNION SELECT a.id FROM kb_articles a JOIN sub ON a.parent_id=sub.id)
+    UPDATE kb_articles SET project_id=? WHERE id IN (SELECT id FROM sub)`).run(id, projectId);
   const out = (a, withBody = true) => ({
     id: a.id, title: a.title, ...(withBody ? { body: a.body } : { excerpt: plainText(a.body).slice(0, 180) }),
     visibility: a.visibility, category: a.category, views: a.views, updatedAt: a.updated_at, createdAt: a.created_at,
     author: a.u_name || null, sourceTicket: a.t_key || null, version: a.version ?? undefined, parentId: a.parent_id ?? null,
+    project: a.project_id ? { id: a.project_id, key: a.pj_key, name: a.pj_name } : null,
   });
-  const SELECT = `SELECT a.*, u.display_name u_name, (p.key || '-' || t.number) t_key,
+  const SELECT = `SELECT a.*, u.display_name u_name, (p.key || '-' || t.number) t_key, pj.key pj_key, pj.name pj_name,
     (SELECT MAX(version) FROM kb_versions v WHERE v.article_id=a.id) version FROM kb_articles a
+    LEFT JOIN projects pj ON pj.id=a.project_id
     LEFT JOIN users u ON u.id=COALESCE(a.updated_by, a.created_by)
     LEFT JOIN tickets t ON t.id=a.source_ticket_id LEFT JOIN projects p ON p.id=t.project_id`;
 
   const words = (q) => [...new Set(String(q || '').toLowerCase().split(/[^\p{L}\p{N}-]+/u).filter((w) => w.length >= 3 && !STOP.has(w)))].slice(0, 8);
 
   /** Search: matches in the title count more than in the text */
-  function search(user, q = '', { category = '', limit = 50 } = {}) {
-    const agent = isAgent(user);
-    const rows = db.prepare(`${SELECT} WHERE (? OR a.visibility='public') ${category ? 'AND a.category=?' : ''} ORDER BY a.updated_at DESC`)
-      .all(agent ? 1 : 0, ...(category ? [category] : []));
+  function search(user, q = '', { category = '', project = '', limit = 50 } = {}) {
+    const rows = db.prepare(`${SELECT} WHERE (? OR a.visibility='public') ${category ? 'AND a.category=?' : ''} ${project ? 'AND pj.key=?' : ''} ORDER BY a.updated_at DESC`)
+      .all(isAgent(user) ? 1 : 0, ...(category ? [category] : []), ...(project ? [project] : [])).filter((a) => canRead(user, a));
     const w = words(q);
     if (!w.length) return rows.slice(0, limit).map((a) => out(a, false));
     return rows.map((a) => {
@@ -63,26 +83,24 @@ export function createKb(db, tickets) {
 
   function get(user, id, { count = false } = {}) {
     const a = db.prepare(`${SELECT} WHERE a.id=?`).get(int(id) || 0);
-    if (!a || (a.visibility !== 'public' && !isAgent(user))) throw notFound();
+    if (!a || !canRead(user, a)) throw notFound();
     if (count) db.prepare('UPDATE kb_articles SET views=views+1 WHERE id=?').run(a.id);
     const t = treeIndex(user);
     // Path only via visible ancestors; only visible subpages
     const path = []; for (let p = t.parentOf(a.id); p; p = t.parentOf(p)) path.unshift({ id: p, title: t.byId.get(p).title });
     const children = t.childrenOf(a.id).map((c) => ({ id: c.id, title: c.title, visibility: c.visibility }));
-    return { ...out(a), parentId: t.parentOf(a.id), path, children };
+    return { ...out(a), parentId: t.parentOf(a.id), path, children, canEdit: member(user, a.project_id) };
   }
 
   // ---------- Page tree ----------
   /** Visible articles with "effective" parent: nearest visible ancestor (users do not see internal pages) */
   function treeIndex(user) {
-    const agent = isAgent(user);
-    const all = db.prepare('SELECT id, title, parent_id, visibility, category, updated_at FROM kb_articles').all();
-    const raw = new Map(all.map((x) => [x.id, x]));
-    const visible = (x) => agent || x.visibility === 'public';
-    const byId = new Map(all.filter(visible).map((x) => [x.id, x]));
+    const all = db.prepare('SELECT id, title, parent_id, visibility, category, updated_at, project_id FROM kb_articles').all();
+    const rawById = new Map(all.map((x) => [x.id, x]));
+    const byId = new Map(all.filter((x) => canRead(user, x)).map((x) => [x.id, x]));
     const parentOf = (id) => {
       const seen = new Set();
-      for (let p = raw.get(id)?.parent_id; p && !seen.has(p); p = raw.get(p)?.parent_id) { seen.add(p); if (byId.has(p)) return p; }
+      for (let p = rawById.get(id)?.parent_id; p && !seen.has(p); p = rawById.get(p)?.parent_id) { seen.add(p); if (byId.has(p)) return p; }
       return null;
     };
     const kids = new Map();
@@ -93,7 +111,11 @@ export function createKb(db, tickets) {
   /** whole tree for navigation: [{ id, title, visibility, children: […] }] */
   function tree(user) {
     const t = treeIndex(user);
-    const build = (id, depth) => t.childrenOf(id).map((x) => ({ id: x.id, title: x.title, visibility: x.visibility, children: depth < 20 ? build(x.id, depth + 1) : [] }));
+    // projectId/canEdit: the editor offers only pages of the user's projects as parent
+    const build = (id, depth) => t.childrenOf(id).map((x) => ({
+      id: x.id, title: x.title, visibility: x.visibility, projectId: x.project_id, canEdit: member(user, x.project_id),
+      children: depth < 20 ? build(x.id, depth + 1) : [],
+    }));
     return build(null, 0);
   }
   /** Article with all (visible) subpages in reading order – for printing */
@@ -107,17 +129,38 @@ export function createKb(db, tickets) {
   }
   /** only change the position in the tree (dragging in the page tree) – no new version */
   function move(user, id, parentId) {
-    if (!isAgent(user)) throw forbidden();
-    get(user, id);
-    const parent = checkParent(user, id, parentId);
-    db.prepare('UPDATE kb_articles SET parent_id=? WHERE id=?').run(parent, int(id));
+    const a = editable(user, id);
+    relocate(user, a, parentId);
     return get(user, id);
   }
-  /** validate new parent: must exist, must not be the article itself or one of its descendants */
+  /** Article the user may change (else 404 if invisible, 403 if only readable) */
+  function editable(user, id) {
+    get(user, id);
+    const a = raw(id);
+    if (!member(user, a.project_id)) throw forbidden();
+    return a;
+  }
+  /** New position in the tree; under another project's page the article (and its subpages) takes that project */
+  function relocate(user, a, parentId, projectId = undefined) {
+    const parent = checkParent(user, a.id, parentId);
+    let target = a.project_id;
+    if (parent) target = raw(parent).project_id;
+    else if (projectId !== undefined && int(projectId)) target = int(projectId);
+    if (target !== a.project_id) {
+      if (!db.prepare('SELECT 1 FROM projects WHERE id=?').get(target)) throw new HttpError(400, 'err.kbProject');
+      if (!member(user, target)) throw forbidden();
+    }
+    db.transaction(() => {
+      if (parent !== a.parent_id) db.prepare('UPDATE kb_articles SET parent_id=? WHERE id=?').run(parent, a.id);
+      if (target !== a.project_id) setSubtreeProject(a.id, target);
+    })();
+  }
+  /** validate new parent: must exist and be the user's to write into, must not be the article itself or one of its descendants */
   function checkParent(user, id, parentId) {
     if (!parentId) return null;
-    const p = db.prepare('SELECT id FROM kb_articles WHERE id=?').get(int(parentId));
-    if (!p) throw new HttpError(400, 'err.kbParent');
+    const p = db.prepare('SELECT id, project_id, visibility FROM kb_articles WHERE id=?').get(int(parentId));
+    if (!p || !canRead(user, p)) throw new HttpError(400, 'err.kbParent');
+    if (!member(user, p.project_id)) throw forbidden();
     if (id) {
       const seen = new Set();
       for (let x = p.id; x; x = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(x)?.parent_id) {
@@ -141,8 +184,12 @@ export function createKb(db, tickets) {
     let source = null;
     if (data.sourceTicket) source = tickets.load(user, data.sourceTicket).id;
     const parent = checkParent(user, null, data.parentId);
-    const id = db.prepare('INSERT INTO kb_articles(title, body, visibility, category, source_ticket_id, created_by, updated_by, parent_id) VALUES(?,?,?,?,?,?,?,?)')
-      .run(d.title, d.body, d.visibility, d.category, source, user.id, user.id, parent).lastInsertRowid;
+    // Subpages inherit the parent's project; otherwise the chosen one (or the user's first)
+    const projectId = parent ? raw(parent).project_id : (int(data.projectId) || fallbackProject(user));
+    if (!projectId || !db.prepare('SELECT 1 FROM projects WHERE id=?').get(projectId)) throw new HttpError(400, 'err.kbProject');
+    if (!member(user, projectId)) throw forbidden();
+    const id = db.prepare('INSERT INTO kb_articles(title, body, visibility, category, source_ticket_id, created_by, updated_by, parent_id, project_id) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run(d.title, d.body, d.visibility, d.category, source, user.id, user.id, parent, projectId).lastInsertRowid;
     if (source) tickets.logActivity(source, user.id, 'kbCreated', null, null, `KB-${id}`);
     addVersion(id, d, user, str(data.note, 200).trim());
     claimImages(id, d.body);
@@ -151,14 +198,11 @@ export function createKb(db, tickets) {
 
   function update(user, id, data) {
     if (!isAgent(user)) throw forbidden();
+    const a = editable(user, id);
     const cur = get(user, id);
     const d = clean(data);
-    // Moving within the tree is not a content change → no version
-    if ('parentId' in data) {
-      const parent = checkParent(user, id, data.parentId);
-      const rawParent = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(int(id)).parent_id;
-      if (parent !== rawParent) db.prepare('UPDATE kb_articles SET parent_id=? WHERE id=?').run(parent, int(id));
-    }
+    // Moving within the tree or to another project is not a content change → no version
+    if ('parentId' in data || 'projectId' in data) relocate(user, a, 'parentId' in data ? data.parentId : a.parent_id, data.projectId);
     // saved unchanged → no new version, no new date
     if (d.title === cur.title && d.body === cur.body && d.category === cur.category && d.visibility === cur.visibility) return get(user, id);
     db.transaction(() => {
@@ -183,14 +227,12 @@ export function createKb(db, tickets) {
   });
   /** History of an article (agents only) */
   function versions(user, id) {
-    if (!isAgent(user)) throw forbidden();
-    get(user, id);
+    editable(user, id);
     return db.prepare('SELECT v.*, u.display_name u_name FROM kb_versions v LEFT JOIN users u ON u.id=v.author_id WHERE v.article_id=? ORDER BY v.version DESC')
       .all(int(id)).map((v) => versionOut(v, false));
   }
   function version(user, id, nr) {
-    if (!isAgent(user)) throw forbidden();
-    get(user, id);
+    editable(user, id);
     const v = db.prepare('SELECT v.*, u.display_name u_name FROM kb_versions v LEFT JOIN users u ON u.id=v.author_id WHERE v.article_id=? AND v.version=?').get(int(id), int(nr) || 0);
     if (!v) throw notFound();
     return versionOut(v, true);
@@ -232,8 +274,7 @@ export function createKb(db, tickets) {
   }
 
   function remove(user, id) {
-    if (!isAgent(user)) throw forbidden();
-    get(user, id);
+    editable(user, id);
     const imgs = db.prepare('SELECT token FROM kb_images WHERE article_id=?').all(int(id));
     db.transaction(() => {
       // Subpages move up one level
@@ -279,14 +320,30 @@ export function createKb(db, tickets) {
   }
   /** Serve an image: internal articles and drafts for agents only */
   function imageFile(user, token) {
-    const i = db.prepare('SELECT i.*, a.visibility FROM kb_images i LEFT JOIN kb_articles a ON a.id=i.article_id WHERE i.token=?').get(str(token, 80));
+    const i = db.prepare('SELECT i.*, a.visibility, a.project_id FROM kb_images i LEFT JOIN kb_articles a ON a.id=i.article_id WHERE i.token=?').get(str(token, 80));
     if (!i) throw notFound();
-    if (!isAgent(user) && (!i.article_id || i.visibility !== 'public')) throw notFound();
+    // Drafts (not saved yet): agents; otherwise whoever may read the article
+    if (i.article_id ? !canRead(user, i) : !isAgent(user)) throw notFound();
     return { path: imgPath(i.token), mime: i.mime, filename: i.filename };
   }
 
-  const categories = (user) => db.prepare(`SELECT category, COUNT(*) n FROM kb_articles WHERE category<>'' AND (? OR visibility='public') GROUP BY category ORDER BY category`)
-    .all(isAgent(user) ? 1 : 0).map((r) => ({ name: r.category, count: r.n }));
+  function categories(user, { project = '' } = {}) {
+    const n = new Map();
+    const rows = db.prepare(`SELECT a.category, a.visibility, a.project_id FROM kb_articles a LEFT JOIN projects p ON p.id=a.project_id WHERE a.category<>'' ${project ? 'AND p.key=?' : ''}`).all(...(project ? [project] : []));
+    for (const a of rows) if (canRead(user, a)) n.set(a.category, (n.get(a.category) || 0) + 1);
+    return [...n].sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)).map(([name, count]) => ({ name, count }));
+  }
+  /** Projects with articles the user can read (filter in the list) and those the user may write into */
+  function projects(user) {
+    const seen = new Map();
+    for (const a of db.prepare('SELECT a.visibility, a.project_id, p.key, p.name FROM kb_articles a JOIN projects p ON p.id=a.project_id').all()) {
+      if (canRead(user, a) && !seen.has(a.project_id)) seen.set(a.project_id, { id: a.project_id, key: a.key, name: a.name });
+    }
+    const writable = isAgent(user) ? db.prepare('SELECT id, key, name FROM projects WHERE archived=0 ORDER BY name').all().filter((p) => member(user, p.id)) : [];
+    return { projects: [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)), writable };
+  }
+  /** May change the article (comments marked done, rating notes, versions) */
+  const canEdit = (user, id) => { try { editable(user, id); return true; } catch { return false; } };
 
   /** Suggestion for a new knowledge article from a ticket */
   function draftFromTicket(user, key) {
@@ -301,8 +358,8 @@ export function createKb(db, tickets) {
     if (field('rootCause')) parts.push(`**Ursache / Cause:** ${field('rootCause')}`);
     if (field('workaround')) parts.push(`**Workaround:** ${field('workaround')}`);
     if (lastReply) parts.push(`**Lösung / Solution:**\n${lastReply.body.trim()}`);
-    return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}` };
+    return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}`, projectId: row.project_id };
   }
 
-  return { search, get, tree, bundle, move, create, update, remove, categories, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
+  return { search, get, tree, bundle, move, create, update, remove, categories, projects, canEdit, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
 }

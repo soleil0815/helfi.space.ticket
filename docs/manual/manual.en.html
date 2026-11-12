@@ -326,6 +326,7 @@
 <ul>
   <li><strong>Placeholders</strong> are replaced on insertion: <code>{reporter}</code>, <code>{ticket}</code>, <code>{title}</code>, <code>{agent}</code>.</li>
   <li><strong>New template:</strong> write the text in the comment field and choose <em>Save as template</em>. Personal templates are managed in your <em>Profile</em>; templates for everyone are maintained by admins under <em>Administration → Reply templates</em>.</li>
+  <li><strong>Template for one project</strong> <span class="role role-admin">admin</span>: a template for everyone can belong to a project. Then only its agents see it, and only in its tickets – facilities are not offered heating templates in an IT ticket. Without a project it is for everyone.</li>
   <li><strong>Take over examples</strong> <span class="role role-admin">admin</span>: under <em>Administration → Reply templates</em>, <em>Examples</em> creates ten frequent replies for everyone – from “Confirm receipt” to “Solved – please confirm” –, in German or English and with placeholders. Adapt them as you like afterwards.</li>
 </ul>
 
@@ -425,8 +426,18 @@
 <figure><img src="img/en/admin-change.jpg" alt=""><figcaption>Administration → Change</figcaption></figure>
 
 <h2 id="knowledge">Knowledge base</h2>
-<p><em>Knowledge</em> collects guides and solutions. Articles are <strong>internal</strong> (agents only) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing. From three headings on, the article view shows a table of contents on the right.</p>
-<figure><img src="img/en/itil-kb.jpg" alt=""><figcaption>Knowledge base with categories</figcaption></figure>
+<p><em>Knowledge</em> collects guides and solutions. Articles are <strong>internal</strong> (only the project's people) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing. From three headings on, the article view shows a table of contents on the right.</p>
+<figure><img src="img/en/itil-kb.jpg" alt=""><figcaption>Knowledge base with projects and categories</figcaption></figure>
+<h3>Articles per project</h3>
+<p>Every article belongs to a project, e.g. IT or Facilities:</p>
+<ul>
+  <li><strong>Public</strong> articles are read and commented on by everyone signed in. <strong>Internal</strong> ones are seen only by the project's people and admins – not in search, page tree, categories or images either.</li>
+  <li><strong>Changing</strong> – create, edit, move, delete, versions, feedback, marking comments as done – is for the project's people only, also for public articles. Articles of other projects lack these buttons.</li>
+  <li><strong>Subpages inherit the project</strong> of their parent page; the editor then shows “Project: … (from the parent article)”. If you move a page below a page of another project, it goes there with its subpages – you need to work on both projects for this.</li>
+  <li>Working on several projects, you choose the <strong>project</strong> for a new article. In the list, the project chips at the top filter.</li>
+  <li>Articles from before the update belong to the <strong>default project</strong> <span class="role role-admin">admin</span> (<em>Administration → General</em>). An admin switches them to another project in the editor if needed; the subpages follow.</li>
+</ul>
+<figure><img src="img/en/kb-project-editor.jpg" alt=""><figcaption>New article: choosing the project</figcaption></figure>
 <p><strong>Example articles:</strong> if the knowledge base is still empty, <em>Examples</em> takes over ready sample articles – such as “How to report a problem well”, “Setting up VPN” or “Changing or forgetting your password”. They show how a good article is built and are created <strong>internal</strong>: replace the details in square brackets with your own and then make them public.</p>
 <figure class="medium"><img src="img/en/examples-kb.jpg" alt=""><figcaption>A taken-over example article</figcaption></figure>
 <h3>Rating and feedback</h3>
@@ -639,7 +650,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 </ul>
 <figure class="small"><img src="img/en/admin-project-agents.jpg" alt=""><figcaption>Editing a project: lead, deputy, agent group and more agents</figcaption></figure>
 <p>With the role “User” people work on the tickets of the projects where they are lead, deputy, group member or added by hand. Administrators see and work on all projects. For every other project one is a normal user: there one only sees one's own requests (and those one takes part in) – without internal notes, history and agent tools.</p>
-<p><strong>Restricted everywhere:</strong> ticket lists and board, search (internal notes of other projects find nothing), queues and counts, summary, reports, SLA, problems, changes and major incidents, links, the ticket history of a device, AI functions and @-mentions in internal notes. Tickets can only be assigned to people working on the project and only be moved into one's own projects; a ticket moved into a project its assignee does not work on is unassigned afterwards. <strong>Shared</strong> are the knowledge base, reply templates, devices &amp; services and the people search.</p>
+<p><strong>Restricted everywhere:</strong> ticket lists and board, search (internal notes of other projects find nothing), queues and counts, summary, reports, SLA, problems, changes and major incidents, links, the ticket history of a device, AI functions and @-mentions in internal notes. Tickets can only be assigned to people working on the project and only be moved into one's own projects; a ticket moved into a project its assignee does not work on is unassigned afterwards. The <a href="#knowledge">knowledge base</a> and <a href="#templates">reply templates</a> are separated by project too. <strong>Shared</strong> are devices &amp; services and the people search.</p>
 <p><strong>Example:</strong> create the project IT, agent group <code>Helpdesk</code>, yourself as lead and a colleague as deputy – done. Facilities get a project of their own with the group <code>Facilities</code>.</p>
 <p><strong>After updating to this version:</strong> there is no general agent group for all projects and no “Agent” role any more – former agents are users. Enter each project's agent group (and lead); then they work on their tickets again.</p>
 

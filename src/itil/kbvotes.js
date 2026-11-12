@@ -58,6 +58,7 @@ export function createKbVotes(db, kb) {
   function feedback(user, articleId) {
     if (!isAgent(user)) throw forbidden();
     const a = kb.get(user, articleId);
+    if (!kb.canEdit(user, a.id)) throw forbidden();
     const rows = db.prepare(`SELECT f.id, f.body, f.archived, f.created_at, u.display_name, u.username FROM kb_feedback f
       LEFT JOIN users u ON u.id=f.user_id WHERE f.article_id=? ORDER BY f.created_at DESC, f.id DESC LIMIT 500`).all(a.id);
     const out = (r) => ({ id: r.id, body: r.body, createdAt: r.created_at, author: r.display_name || r.username || null });
@@ -68,6 +69,7 @@ export function createKbVotes(db, kb) {
   function reset(user, articleId) {
     if (!isAgent(user)) throw forbidden();
     const a = kb.get(user, articleId);
+    if (!kb.canEdit(user, a.id)) throw forbidden();
     db.transaction(() => {
       db.prepare('DELETE FROM kb_votes WHERE article_id=?').run(a.id);
       db.prepare('UPDATE kb_feedback SET archived=1 WHERE article_id=? AND archived=0').run(a.id);

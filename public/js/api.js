@@ -100,6 +100,7 @@ export const api = {
   changeTemplates: () => request('GET', '/api/changes/templates'),
   kbImage: (file) => { const fd = new FormData(); fd.append('file', file, file.name || 'bild.png'); return request('POST', '/api/kb/images', fd); },
   kb: (f) => request('GET', `/api/kb${qs(f)}`),
+  kbProjects: () => request('GET', '/api/kb/projects'),
   kbSuggest: (q) => request('GET', `/api/kb/suggest${qs({ q })}`),
   kbArticle: (id, view = false) => request('GET', `/api/kb/${id}${view ? '?view=1' : ''}`),
   kbCreate: (d) => request('POST', '/api/kb', d),

@@ -286,7 +286,7 @@ Who works on a project's tickets is set **in the project** (*Administration → 
 
 There are only two roles: **administrator** (sees and may do everything and decides who works on what) and **user** (own requests – plus the projects where one is lead, deputy, group member or added by hand). Under the role *Users* shows for information what someone works on, e.g. “Works on: IT (lead)”. There is no general agent group for all projects any more; after updating to this version, enter each project's group.
 
-For every other project one is a normal user: only one's own requests (or those one takes part in), without internal notes, history and agent tools. Restricted everywhere: ticket lists, search (internal notes of other projects find nothing), board, queues and counts, summary, reports, SLA, problems, changes, major incidents, links, device history, AI functions, @-mentions in internal notes and assigning (only to people working on the project). Moving is only possible into one's own projects. Shared are the knowledge base, reply templates, devices & services and the people search.
+For every other project one is a normal user: only one's own requests (or those one takes part in), without internal notes, history and agent tools. Restricted everywhere: ticket lists, search (internal notes of other projects find nothing), board, queues and counts, summary, reports, SLA, problems, changes, major incidents, links, device history, AI functions, @-mentions in internal notes and assigning (only to people working on the project). Moving is only possible into one's own projects. The knowledge base and reply templates are separated by project too (see there); shared are devices & services and the people search.
 
 Example: create the project IT, agent group `Helpdesk`, yourself as lead and a colleague as deputy – done.
 
@@ -432,7 +432,13 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 
 *Knowledge* in the sidebar; for users it is called *Help & knowledge*.
 
-- **Articles** with title, category and formatted content. Visibility **internal** (agents only) or **public** (everyone signed in).
+- **Articles** with title, category and formatted content. Visibility **internal** (only the project's people) or **public** (everyone signed in).
+- **Per project:** every article belongs to a project (e.g. IT or Facilities).
+  - **Public** articles are read and commented on by everyone signed in, **internal** ones only by the project's people and admins – not in search, page tree, categories or images either.
+  - **Create, edit, move, delete**, versions, feedback and marking comments as done: only the project's people (and admins) – also for public articles. So IT does not change facilities' articles and vice versa.
+  - **Subpages inherit the project** of their parent page. Moving a page below a page of another project takes it there with its subpages (you need to work on both projects for this). You change the project of a top-level page in the editor; its subpages follow.
+  - Working on several projects, you choose the project for a new article; in the list, chips filter by project.
+  - Articles from before the update belong to the **default project** (*Administration → General*).
 - **Editor:** edit in the final look with a toolbar: headings, bold/italic/underline/strikethrough, bulleted list, numbered list, checklist, quote, code block, info panel (note, tip, warning), table, divider, link (also to tickets like `IT-42` or articles `KB-3`), emoji and images. Images go in via Ctrl+V, drag & drop or button, with size and caption. Markdown shortcuts while typing (`# `, `- `, `1. `, `[] `, `> `, ```` ``` ````, `---`), keyboard shortcuts (Ctrl+B/I/U/K/E/S). Pasting from Word or web pages keeps headings, lists, tables and links; images from external addresses are not taken over. The browser keeps unsaved changes as a draft. Stored as plain Markdown-style text, never HTML.
 - **Table of contents** in the article view from three headings on.
 - **Versions:** every save is a version (with an optional change note). *Version n · History* on the article lists all versions; two of them can be compared word by word (removed red, added green), older ones viewed and restored – this creates a new version, the history stays complete.
@@ -440,7 +446,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 - **Page tree:** articles can sit below other articles (*Located under* in the editor, *Subpage* on the article, on a PC by dragging in the page tree; *New folder* creates a collection page without text of its own), at any depth. The start page shows the tree and recently changed articles; each article shows its path, the tree on the left (on phones behind *Pages*) and its subpages. Users only see public pages; a public page below an internal one moves up a level for them. Deleting moves subpages up one level. Moving creates no new version.
 - **Print / PDF:** own print layout (title, path, date and content only; no breaks inside images, tables or info panels). With subpages you get one document with a table of contents, each page starting on a new sheet. Choose “Save as PDF” in the print dialog.
 - **"Was this article helpful?"** 👍/👎 below every article, on desktop and phone: one vote per account, clicking again withdraws it. After 👎 people can briefly say what was missing – only agents see that (*Feedback* on the article). Agents see the rating in the article list; the *Needs rework* filter shows articles with 👎 votes, most first. After reworking, *Reset rating* sets the votes back to zero; the notes are kept as earlier feedback.
-- **Comments:** anyone who can see an article can comment on it (including users on public articles). The author and last editor get an email, agents mark comments as done, your own can be deleted. The article list shows open comments.
+- **Comments:** anyone who can see an article can comment on it (including users on public articles). The author and last editor get an email, the project's people mark comments as done, your own can be deleted. The article list shows open comments.
 - **Search** in title and content, title matches first; filter by category. Read count per article for agents.
 - **Suggestions when reporting:** as a user types the summary in the “Create ticket” dialog, matching public articles appear (“Maybe this already helps”). They open without losing the report.
 - **From a ticket:** *Knowledge article* in a ticket creates a draft with description, last reply and, for problems, root cause and workaround. Remove personal details before publishing. The ticket history links to the article.
@@ -511,7 +517,7 @@ For replies that are always the same (e.g. "Please restart your computer"):
 - **Placeholders:** `{reporter}`, `{ticket}`, `{title}`, `{agent}` (German `{melder}`, `{titel}`, `{bearbeiter}`) are replaced when inserting.
 - **Create:**
   - Write a text in the comment box and choose **Save as template**.
-  - Admins manage templates for everyone under *Administration → Reply templates*.
+  - Admins manage templates for everyone under *Administration → Reply templates*. Optionally such a template belongs to a **project**: then only its agents see it, and only in its tickets. Without a project it is for everyone.
   - Every agent manages personal templates in their *profile*; only they can see them.
 - **Take over examples:** under *Administration → Reply templates*, *Examples* creates ten frequent replies for everyone (confirm receipt, more details needed, please restart, password reset, arrange remote session, waiting for vendor, hardware ordered, known outage, solved – please confirm, closing without reply) with placeholders, in German (formal) or English. Existing ones with the same title are skipped.
 

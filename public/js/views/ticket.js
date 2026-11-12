@@ -240,6 +240,7 @@ export async function renderTicket(content, key) {
       onclick: (e) => {
         field.remember();
         openTemplatePicker(e.currentTarget, insertTemplate, {
+          projectId: tk.projectId,
           footer: [{
             label: t('canned.saveAs'), icon: icon('plus'),
             onClick: () => { if (field.isEmpty()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: field.getValue() }); },

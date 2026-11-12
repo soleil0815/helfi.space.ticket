@@ -13,7 +13,7 @@ export function openBroadcast(tk, refresh) {
     const err = h('div.form-error', { role: 'alert', hidden: true });
     const tpl = h('button.btn.btn-subtle.small', {
       type: 'button',
-      onclick: (e) => openTemplatePicker(e.currentTarget, (x) => { text.value = fillPlaceholders(x.body, tk); }),
+      onclick: (e) => openTemplatePicker(e.currentTarget, (x) => { text.value = fillPlaceholders(x.body, tk); }, { projectId: tk?.projectId }),
     }, icon('comment'), t('canned.insert'));
     const dlg = modal(t('major.broadcastTitle'), h('form#major-form', {
       onsubmit: async (e) => {

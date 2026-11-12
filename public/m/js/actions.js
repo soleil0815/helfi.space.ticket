@@ -171,6 +171,8 @@ export function openCannedSheet(tk, onPick, onClose, { raw = false } = {}) {
   let items = null;
   const draw = () => {
     if (!items) return;
+    // Shared templates of another project do not fit this ticket
+    if (tk?.projectId) items = items.filter((x) => !x.project || x.project.id === tk.projectId);
     const q = input.value.trim().toLowerCase();
     // Matches in the name before matches in the text (as on the desktop)
     const score = (x) => {

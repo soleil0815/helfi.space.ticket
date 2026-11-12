@@ -44,7 +44,8 @@ export function ratingBox(a, { compact = false } = {}) {
   }
 
   function draw(justVoted = false) {
-    const agent = state.isAgent;
+    // Notes and reset: only the article's project people (a.canEdit)
+    const agent = state.isAgent && a.canEdit !== false;
     mount(box,
       h('div.kb-rate-row',
         h('span.kb-rate-q', t('kb.rate.question')),

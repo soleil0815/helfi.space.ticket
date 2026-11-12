@@ -459,6 +459,7 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .template-list { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
 .template-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .template-main { flex: 1; min-width: 0; }
+.template-main .template-project { margin-left: 8px; vertical-align: 1px; }
 .template-actions { display: flex; gap: 4px; flex: none; }
 .menu-item.active { background: var(--blue-subtle); color: var(--blue); border-left-color: var(--blue); }
 .menu-sep { height: 1px; background: var(--border); margin: 6px 0; }
