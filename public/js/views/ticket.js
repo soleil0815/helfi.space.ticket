@@ -60,6 +60,12 @@ export async function renderTicket(content, key) {
   const save = async (patch) => {
     try {
       tk = { ...tk, ...(await api.updateTicket(tk.key, patch)).ticket };
+      // Moved to a project the person does not work on: it is gone from their view – back to the list
+      if (patch.projectId && !state.isAgentOf(tk.projectId)) {
+        toast(t('ticket.movedAway', { key: tk.key, project: tk.projectName }), 'success');
+        navigate('/issues');
+        return;
+      }
       // New key after project change → update URL
       if (content.isConnected && location.pathname !== `/browse/${tk.key}`) history.replaceState({}, '', `/browse/${tk.key}`);
       await refresh();
@@ -478,8 +484,9 @@ export async function renderTicket(content, key) {
           tk.componentSuggestion ? suggestionBox() : null)) : null,
         detailRow(t('ticket.labels'), labels),
         detailRow(t('ticket.dueDate'), due),
-        detailRow(t('ticket.project'), agent && state.agentProjects.length > 1
-          ? pick(tk.projectId, state.agentProjects.map((p) => [p.id, `${p.name} (${p.key})`]), (v) => save({ projectId: v }), () => h('span', tk.projectName))
+        // Any project: a ticket in the wrong place goes where it belongs
+        detailRow(t('ticket.project'), agent && state.projects.length > 1
+          ? pick(tk.projectId, state.projects.map((p) => [p.id, `${p.name} (${p.key})`]), (v) => save({ projectId: v }), () => h('span', tk.projectName))
           : h('span', tk.projectName)),
         detailRow(t('ticket.source'), h('span.person', icon(tk.source === 'email' ? 'mail' : (tk.source === 'jira' || tk.source === 'import' ? 'download' : 'globe')), h('span', t(`source.${tk.source}`)))),
       ),

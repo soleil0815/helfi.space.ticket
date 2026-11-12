@@ -113,10 +113,21 @@ export function createComponents(db, users) {
   /** Active components of a project for matching (in order) */
   function active(projectId) {
     return db.prepare('SELECT * FROM components WHERE project_id=? AND archived=0 ORDER BY position, id').all(projectId).map((c) => ({
-      id: c.id, name: c.name, description: c.description, leadId: c.lead_id, deputyId: c.deputy_id,
+      id: c.id, name: c.name, description: c.description, leadId: c.lead_id, deputyId: c.deputy_id, projectId: c.project_id,
       keywords: c.keywords ? c.keywords.split('\n') : [], senders: c.senders ? c.senders.split('\n') : [],
     }));
   }
+  /** Active components of all active projects (with project) – incoming mails are routed by them */
+  function activeAll() {
+    return db.prepare(`SELECT c.*, p.key project_key, p.name project_name FROM components c JOIN projects p ON p.id=c.project_id
+      WHERE c.archived=0 AND p.archived=0 ORDER BY p.key, c.position, c.id`).all().map((c) => ({
+      id: c.id, name: c.name, description: c.description, leadId: c.lead_id, deputyId: c.deputy_id, projectId: c.project_id,
+      projectKey: c.project_key, projectName: c.project_name,
+      keywords: c.keywords ? c.keywords.split('\n') : [], senders: c.senders ? c.senders.split('\n') : [],
+    }));
+  }
+  /** Component by id (active, of an active project) or null */
+  function activeById(id) { return activeAll().find((c) => c.id === (int(id) || 0)) || null; }
   function get(id) { return out(raw(id)); }
 
   /** Component of this project (active) or 400 – for ticket create/update */
@@ -216,7 +227,7 @@ export function createComponents(db, users) {
     return { component: { id: m.component.id, name: m.component.name }, kind: m.kind, detail: reasonDetail(m), score: m.score };
   }
 
-  return { list, active, get, forProject, create, update, remove, reorder, addExamples, test, examples: () => EXAMPLES };
+  return { list, active, activeAll, activeById, get, forProject, create, update, remove, reorder, addExamples, test, examples: () => EXAMPLES };
 }
 
 // ---------- Examples to take over ----------
@@ -251,13 +262,21 @@ export const EXAMPLES = [
     key: 'facility', de: 'Haustechnik', en: 'Facilities',
     items: [
       { key: 'fac.heating', de: { name: 'Heizung & Klima', description: 'Heizung, Lüftung, Klimaanlage, Raumtemperatur' }, en: { name: 'Heating & air conditioning', description: 'Heating, ventilation, air conditioning, room temperature' },
-        keywords: ['heizung', 'heating', 'heizkörper', 'radiator', 'klima', 'klimaanlage', 'air conditioning', 'lüftung', 'ventilation', 'zu kalt', 'too cold', 'zu warm', 'too warm', 'temperatur'] },
+        keywords: ['heizung', 'heating', 'heizkörper', 'radiator', 'thermostat', 'klima', 'klimaanlage', 'air conditioning', 'lüftung', 'ventilation', 'zu kalt', 'too cold', 'zu warm', 'too warm', 'temperatur', 'kalt im', 'friere', 'warm im', 'zugluft', 'fenster klemmt'] },
       { key: 'fac.electric', de: { name: 'Elektrik & Licht', description: 'Steckdosen, Beleuchtung, Sicherungen, Stromausfall' }, en: { name: 'Electrics & lighting', description: 'Sockets, lighting, fuses, power cuts' },
-        keywords: ['steckdose', 'socket', 'licht', 'light', 'lampe', 'lamp', 'beleuchtung', 'lighting', 'strom', 'stromausfall', 'power cut', 'fuse'] },
+        keywords: ['steckdose', 'socket', 'licht', 'light', 'lampe', 'lamp', 'leuchte', 'leuchtmittel', 'glühbirne', 'bulb', 'neonröhre', 'beleuchtung', 'lighting', 'strom', 'stromausfall', 'power cut', 'sicherung', 'fuse', 'fi-schalter', 'verlängerungskabel', 'kabeltrommel', 'jalousie', 'rollladen', 'blinds'] },
       { key: 'fac.locks', de: { name: 'Schließanlage & Schlüssel', description: 'Schlüssel, Transponder, Türen, Zutrittsrechte' }, en: { name: 'Locks & keys', description: 'Keys, transponders, doors, access rights' },
-        keywords: ['schlüssel', 'key', 'transponder', 'chip', 'schließanlage', 'locking system', 'tür', 'door', 'türschloss', 'zutritt', 'access card', 'ausweis', 'badge'] },
+        keywords: ['schlüssel', 'transponder', 'schließanlage', 'locking system', 'schließzylinder', 'tür', 'door', 'türschloss', 'türöffner', 'klemmt', 'zutritt', 'access card', 'ausweis', 'badge', 'schließfach', 'locker', 'ausgesperrt', 'locked out'] },
       { key: 'fac.rooms', de: { name: 'Räume & Möbel', description: 'Büros, Besprechungsräume, Möbel, Umzüge, Reinigung' }, en: { name: 'Rooms & furniture', description: 'Offices, meeting rooms, furniture, moves, cleaning' },
-        keywords: ['büro', 'besprechungsraum', 'meeting room', 'möbel', 'furniture', 'stuhl', 'chair', 'schreibtisch', 'umzug', 'office move', 'reinigung', 'cleaning'] },
+        keywords: ['büro', 'besprechungsraum', 'meeting room', 'raumbuchung', 'möbel', 'furniture', 'stuhl', 'chair', 'bürostuhl', 'schreibtisch', 'desk', 'regal', 'shelf', 'schrank', 'cupboard', 'umzug', 'office move', 'aufbauen', 'abbauen'] },
+      { key: 'fac.water', de: { name: 'Sanitär & Wasser', description: 'Toiletten, Waschbecken, Wasserhähne, Rohre, Wasserschaden' }, en: { name: 'Plumbing & water', description: 'Toilets, sinks, taps, pipes, water damage' },
+        keywords: ['toilette', 'toilet', 'wc', 'klo', 'waschbecken', 'sink', 'wasserhahn', 'tap', 'faucet', 'abfluss', 'drain', 'verstopft', 'blocked', 'rohr', 'pipe', 'leck', 'leak', 'tropft', 'dripping', 'wasserschaden', 'water damage', 'warmwasser', 'hot water', 'spülmaschine', 'dishwasher', 'kaffeemaschine', 'coffee machine'] },
+      { key: 'fac.cleaning', de: { name: 'Reinigung & Abfall', description: 'Reinigung, Hygieneartikel, Müll, Entsorgung' }, en: { name: 'Cleaning & waste', description: 'Cleaning, hygiene supplies, rubbish, disposal' },
+        keywords: ['reinigung', 'cleaning', 'putzen', 'sauber', 'dreckig', 'dirty', 'verschmutzt', 'müll', 'rubbish', 'garbage', 'trash', 'mülleimer', 'abfall', 'waste', 'entsorgung', 'disposal', 'seife', 'soap', 'papierhandtücher', 'paper towels', 'toilettenpapier', 'toilet paper', 'ungeziefer', 'pests'] },
+      { key: 'fac.building', de: { name: 'Gebäude & Außenanlagen', description: 'Aufzug, Fenster, Dach, Parkplatz, Fahrradständer, Winterdienst' }, en: { name: 'Building & grounds', description: 'Lift, windows, roof, car park, bike racks, winter service' },
+        keywords: ['aufzug', 'fahrstuhl', 'lift', 'elevator', 'fenster', 'window', 'dach', 'roof', 'decke', 'ceiling', 'wand', 'wall', 'boden', 'floor', 'parkplatz', 'car park', 'parking', 'tiefgarage', 'fahrrad', 'bike', 'winterdienst', 'schnee', 'snow', 'glatteis', 'ice', 'garten', 'hecke', 'rasen'] },
+      { key: 'fac.safety', de: { name: 'Sicherheit & Brandschutz', description: 'Rauchmelder, Feuerlöscher, Notausgänge, Alarmanlage, Erste Hilfe' }, en: { name: 'Safety & fire protection', description: 'Smoke detectors, fire extinguishers, emergency exits, alarm system, first aid' },
+        keywords: ['rauchmelder', 'smoke detector', 'feuerlöscher', 'fire extinguisher', 'brandschutz', 'fire protection', 'brandmelder', 'fire alarm', 'notausgang', 'emergency exit', 'fluchtweg', 'escape route', 'alarmanlage', 'alarm system', 'einbruch', 'burglary', 'erste hilfe', 'first aid', 'verbandskasten', 'defibrillator', 'notbeleuchtung'] },
     ],
   },
   {
@@ -268,7 +287,11 @@ export const EXAMPLES = [
       { key: 'adm.purchase', de: { name: 'Beschaffung', description: 'Bestellungen von Hardware, Software und Zubehör' }, en: { name: 'Procurement', description: 'Ordering hardware, software and accessories' },
         keywords: ['bestellung', 'purchase order', 'bestellen', 'beschaffung', 'procurement', 'purchase', 'kaufen', 'buy', 'angebot', 'quote', 'rechnung', 'invoice', 'neues gerät', 'new device'] },
       { key: 'adm.people', de: { name: 'Personal / On-/Offboarding', description: 'Neue und ausscheidende Mitarbeitende, Namensänderungen, Abteilungswechsel' }, en: { name: 'People / on-/offboarding', description: 'New and leaving staff, name changes, department moves' },
-        keywords: ['onboarding', 'offboarding', 'neuer mitarbeiter', 'neue mitarbeiterin', 'new employee', 'new starter', 'eintritt', 'austritt', 'leaver', 'ausscheiden', 'namensänderung', 'name change', 'abteilungswechsel', 'praktikant'] },
+        keywords: ['onboarding', 'offboarding', 'neuer mitarbeiter', 'neue mitarbeiterin', 'new employee', 'new starter', 'eintritt', 'austritt', 'leaver', 'ausscheiden', 'namensänderung', 'name change', 'abteilungswechsel', 'praktikant', 'hilfskraft', 'gastwissenschaftler', 'visiting researcher', 'vertragsende', 'elternzeit', 'parental leave'] },
+      { key: 'adm.finance', de: { name: 'Finanzen & Reisekosten', description: 'Rechnungen, Reisekosten, Erstattungen, Kostenstellen' }, en: { name: 'Finance & travel expenses', description: 'Invoices, travel expenses, reimbursements, cost centres' },
+        keywords: ['reisekosten', 'travel expenses', 'dienstreise', 'business trip', 'erstattung', 'reimbursement', 'abrechnung', 'kostenstelle', 'cost centre', 'cost center', 'buchhaltung', 'accounting', 'zahlung', 'payment', 'mahnung', 'reminder notice', 'budget', 'drittmittel'] },
+      { key: 'adm.events', de: { name: 'Veranstaltungen & Medientechnik', description: 'Seminare, Tagungen, Beamer, Mikrofone, Videokonferenzen in Räumen' }, en: { name: 'Events & media technology', description: 'Seminars, conferences, projectors, microphones, room video conferencing' },
+        keywords: ['veranstaltung', 'event', 'tagung', 'konferenz', 'conference', 'seminar', 'workshop', 'catering', 'beamer', 'projector', 'leinwand', 'screen', 'mikrofon', 'microphone', 'lautsprecher', 'speaker', 'videokonferenz', 'video conference', 'hybrid', 'raumtechnik', 'medientechnik'] },
     ],
   },
 ];

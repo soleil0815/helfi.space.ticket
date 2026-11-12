@@ -231,11 +231,24 @@ export function createTickets(db, users) {
    * userId: who accepted a suggestion (null = automatic). Returns the ticket (agent view).
    */
   function applyComponent(ticketId, componentId, { kind = 'ai', detail = '', userId = null, backfill = false } = {}) {
-    const row = rawById(ticketId);
+    let row = rawById(ticketId);
     if (!row) throw notFound();
-    const component = components.forProject(row.project_id, componentId);
+    // A component of another project (mail routing, AI over all projects): the ticket moves there
+    const any = components.activeById(componentId);
+    if (!any) throw new HttpError(400, 'err.badRequest', 'componentId');
+    const target = any.projectId !== row.project_id ? projects.get(any.projectId) : null;
+    const component = components.forProject(any.projectId, componentId);
     let assigned = null;
     db.transaction(() => {
+      if (target) {
+        moveToProject(row, target, userId);
+        // The assignee must work on the new project
+        if (row.assignee_id && !isAssignable(row.assignee_id, target.id)) {
+          db.prepare('UPDATE tickets SET assignee_id=NULL WHERE id=?').run(row.id);
+          logActivity(row.id, userId, 'changed', 'assignee', row.a_name, null);
+        }
+        row = rawById(row.id);
+      }
       // Sorting existing tickets afterwards: only the component and the history entry –
       // the "updated" time stays (lists keep their order) and nobody gets the ticket assigned
       if (backfill) db.prepare('UPDATE tickets SET component_id=? WHERE id=?').run(component.id, row.id);
@@ -488,8 +501,9 @@ export function createTickets(db, users) {
     let target = null;
     if (data.projectId !== undefined && agent) {
       target = projects.get(data.projectId);
-      // Only into projects the agent works on (others: as if they did not exist)
-      if (!target || target.archived || !agentOn(user, target.id)) throw notFound();
+      // Into any active project – a ticket in the wrong place goes where it belongs (also to a project
+      // the agent does not work on; they then see it like any other foreign ticket)
+      if (!target || target.archived) throw notFound();
     }
     const finalProject = target ? target.id : row.project_id;
     if (data.assigneeId !== undefined) {
