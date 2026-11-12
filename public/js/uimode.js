@@ -66,6 +66,10 @@ export function takeDesktopOnce() {
 export function mobileUrlFor(pathname, search = '') {
   const q = new URLSearchParams(search);
   if (pathname === '/login') return `/m/login${search}`;
+  if (pathname === '/portal') return '/m/portal';
+  let d = /^\/portal\/([A-Za-z0-9]+)$/.exec(pathname);
+  if (d) return `/m/portal/${d[1]}`;
+  if (pathname === '/requests' && !q.toString()) return '/m/requests';
   if (pathname === '/' || pathname === '/my' || pathname === '/requests' || pathname === '/issues') {
     const term = (q.get('q') || '').trim();
     return term ? `/m/tickets?q=${encodeURIComponent(term)}` : '/m/';
@@ -89,6 +93,10 @@ export function desktopUrlFor(pathname, search = '') {
   if (p === '/m') return '/';
   if (p === '/m/login') return `/login${search}`;
   if (p === '/m/tickets') return `/issues${search}`;
+  if (p === '/m/portal') return '/portal';
+  if (p === '/m/requests') return '/requests';
+  const d = /^\/m\/portal\/([A-Za-z0-9]+)$/.exec(p);
+  if (d) return `/portal/${d[1]}`;
   let m = /^\/m\/t\/([^/]+)$/.exec(p);
   if (m) return `/browse/${m[1]}`;
   if (p === '/m/kb') return '/kb';

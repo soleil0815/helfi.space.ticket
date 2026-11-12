@@ -862,6 +862,19 @@ export const MIGRATIONS = [
     ALTER TABLE canned_responses ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
     `,
   },
+  {
+    id: 44,
+    name: 'Portal: Abteilungen',
+    sql: `
+    -- How a project appears in the users' portal (shown by default, so the portal is not empty after the update)
+    ALTER TABLE projects ADD COLUMN portal_show INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE projects ADD COLUMN portal_desc TEXT NOT NULL DEFAULT '';
+    ALTER TABLE projects ADD COLUMN portal_intro TEXT NOT NULL DEFAULT '';
+    ALTER TABLE projects ADD COLUMN portal_icon TEXT NOT NULL DEFAULT '';
+    ALTER TABLE projects ADD COLUMN portal_color TEXT NOT NULL DEFAULT '';
+    ALTER TABLE projects ADD COLUMN portal_sort INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

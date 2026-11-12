@@ -27,7 +27,7 @@
     <li><a href="#overview">Overview</a>
       <ol><li><a href="#roles">Roles</a></li><li><a href="#terms">Statuses, types and priorities</a></li><li><a href="#layout">The interface</a></li></ol></li>
     <li><a href="#users">For everyone: signing in and making requests</a>
-      <ol><li><a href="#signin">Signing in</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li><li><a href="#catalog">Requesting a service</a></li><li><a href="#approving">Approving</a></li><li><a href="#help-knowledge">Help &amp; knowledge</a></li><li><a href="#rating">Rating</a></li><li><a href="#smartphone">On a smartphone</a></li></ol></li>
+      <ol><li><a href="#signin">Signing in</a></li><li><a href="#portal">The portal</a></li><li><a href="#report">Reporting a problem</a></li><li><a href="#myrequests">My requests</a></li><li><a href="#reply">Replies and files</a></li><li><a href="#participants">Request participants</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profile">Profile, language and password</a></li><li><a href="#2fa-setup">Setting up two-factor authentication</a></li><li><a href="#catalog">Requesting a service</a></li><li><a href="#approving">Approving</a></li><li><a href="#help-knowledge">Help &amp; knowledge</a></li><li><a href="#rating">Rating</a></li><li><a href="#smartphone">On a smartphone</a></li></ol></li>
     <li><a href="#agents">For agents</a>
       <ol><li><a href="#queues">Queues and summary</a></li><li><a href="#board">Board</a></li><li><a href="#list">Ticket list and filters</a></li><li><a href="#saved-filters">Saved filters</a></li><li><a href="#ticket">Working on a ticket</a></li><li><a href="#formatting">Formatting replies</a></li><li><a href="#notes">Replies and internal notes</a></li><li><a href="#mentions">Mentioning colleagues (@)</a></li><li><a href="#html-mails">HTML emails</a></li><li><a href="#templates">Reply templates</a></li><li><a href="#ai">AI assistance</a></li><li><a href="#bulk">Several tickets at once</a></li><li><a href="#reports">Reports</a></li><li><a href="#shortcuts">Keyboard shortcuts</a></li><li><a href="#never-delete">Tickets are never deleted</a></li></ol></li>
     <li><a href="#itil">IT service management (ITIL)</a>
@@ -91,10 +91,21 @@
 <p>Open the address your IT gave you, e.g. <code>https://helfi.firma.local</code>. With Active Directory you sign in with your Windows account – as <code>m.muster</code>, <code>FIRMA\m.muster</code> or <code>m.muster@firma.local</code>. If single sign-on is set up, there is an additional button such as “Sign in with company account”, or you are redirected right away.</p>
 <figure class="medium"><img src="img/en/login.jpg" alt=""><figcaption>Sign-in page with a custom welcome text</figcaption></figure>
 <p><strong>Without a company account:</strong> if “Create account” appears below the sign-in, you can create an account yourself: enter name, email address and password and open the link in the confirmation email. If you have sent requests by email before, use the same address – they then appear in the account. You sign in with the email address. “Forgot password?” sends you a link to set a new password.</p>
-<p>When you sign in <strong>from outside the company network</strong>, Helfi.Space may additionally ask for a 6-digit code from your authenticator app, depending on the settings (see <a href="#2fa-setup">2.8</a>).</p>
+<p>When you sign in <strong>from outside the company network</strong>, Helfi.Space may additionally ask for a 6-digit code from your authenticator app, depending on the settings (see <a href="#2fa-setup">2.9</a>).</p>
 
 <p><strong>Automatic sign-out:</strong> whoever does nothing for a while is signed out for security reasons. Two minutes before, Helfi.Space asks “Still there?” – <em>Keep working</em> simply continues. As long as you click or type, you stay signed in.</p>
 <figure class="small"><img src="img/en/idle.jpg" alt=""><figcaption>Two minutes before the automatic sign-out</figcaption></figure>
+
+<h2 id="portal">The portal</h2>
+<p>After signing in you land in the <strong>portal</strong>. It has everything on one page:</p>
+<ul>
+  <li><strong>Search:</strong> type what you need help with, e.g. “heating”. Matching offerings from the service catalog and guides of all departments appear below.</li>
+  <li><strong>My requests:</strong> three counters – <em>In progress</em>, <em>Waiting for you</em> (someone asked you a question) and <em>Done</em> – and your latest requests. A click on a counter shows the matching list.</li>
+  <li><strong>Departments:</strong> e.g. IT, Facilities or Administration as tiles. A department's page lists its offerings, its frequent questions and <strong>Report something else</strong> – the request then goes straight to that department.</li>
+</ul>
+<figure><img src="img/en/portal-start.jpg" alt=""><figcaption>The portal: search, my requests and the departments</figcaption></figure>
+<figure><img src="img/en/portal-dept.jpg" alt=""><figcaption>The facilities page with notice, offerings and frequent questions</figcaption></figure>
+<p>Links from emails always take you straight to the ticket or article, not to the portal. <em>Portal</em> in the sidebar takes you back at any time. Whether users start in the portal or in <em>My requests</em> is set by the admin (<a href="#portal-setup">Setting up the portal</a>).</p>
 
 <h2 id="report">Reporting a problem</h2>
 <p>There are two ways:</p>
@@ -174,7 +185,8 @@
 <figure class="medium"><img src="img/en/itil-rating.jpg" alt=""><figcaption>Rating page after one click in the email</figcaption></figure>
 
 <h2 id="smartphone">On a smartphone</h2>
-<p>On a phone Helfi.Space opens automatically in its own interface that works like an app. At the bottom there is a bar with <strong>Requests</strong> (agents: <em>My work</em> and <em>Tickets</em>), the round <strong>＋</strong>, <strong>Knowledge</strong> and <strong>Me</strong>. Pages slide in from the right; go back with the arrow at the top left, a swipe from the left edge or the back key. Pull lists down to refresh them.</p>
+<p>On a phone Helfi.Space opens automatically in its own interface that works like an app. At the bottom there is a bar with <strong>Portal</strong> and <strong>Requests</strong> (agents: <em>My work</em> and <em>Tickets</em>), the round <strong>＋</strong>, <strong>Knowledge</strong> and <strong>Me</strong>. Pages slide in from the right; go back with the arrow at the top left, a swipe from the left edge or the back key. Pull lists down to refresh them.</p>
+<figure class="phone"><img src="img/en/m-portal.jpg" alt=""><figcaption>The portal on the phone</figcaption></figure>
 <figure><img src="img/en/mobile-app-1.jpg" alt=""><figcaption>My requests, a ticket with the reply bar and the ＋ with the service catalog</figcaption></figure>
 <ul>
   <li><strong>Report a problem:</strong> ＋ → <em>Report a problem</em>. Enter a title and description, use <strong>Take photo</strong> to open the camera or <strong>File</strong> to attach pictures and documents. While you type the title, Helfi.Space shows matching help articles – maybe the solution is already there. <em>Submit</em> creates the request and opens it. What you have not sent yet is kept as long as the tab is open.</li>
@@ -485,8 +497,18 @@
 <h3>Print and PDF</h3>
 <p><strong>Print / PDF</strong> on the article opens the print dialog; choose “Save as PDF” there. Only title, path, date and content are printed, without page breaks inside images, tables or info panels. If the article has subpages you can print <strong>with all subpages</strong>: you get one document with a table of contents, each page starting on a new sheet – for example a complete onboarding handbook.</p>
 
+<h3 id="portal-setup">Setting up the portal <span class="role role-admin">admin</span></h3>
+<p>Every project appears in the <a href="#portal">portal</a> as a department. In the project dialog (<em>Administration → Projects → Edit</em>) under <em>In the portal</em> you set:</p>
+<ul>
+  <li><strong>Show in the portal as a department:</strong> on for all projects after the update; off for projects users should not see (e.g. a pure inbox project).</li>
+  <li><strong>Short description</strong> for the tile, <strong>notice</strong> at the top of the department page (e.g. an emergency number; without a notice the short description is shown), <strong>symbol</strong>, <strong>colour</strong> and <strong>order</strong> (smaller numbers first).</li>
+</ul>
+<figure class="medium"><img src="img/en/admin-project-portal.jpg" alt=""><figcaption>Project dialog: the “In the portal” section</figcaption></figure>
+<p><strong>Start page for users</strong> (<em>Administration → Tickets → General</em>): <em>Portal</em> (default) or <em>My requests</em>. This only applies when the start page is opened directly; links from emails always lead straight to their target. Agents and admins always land at the tickets.</p>
+<figure class="medium"><img src="img/en/admin-user-start.jpg" alt=""><figcaption>Start page for users</figcaption></figure>
+
 <h2 id="servicecatalog">Setting up the service catalog <span class="role role-admin">admin</span> <span class="role role-agent">project lead</span></h2>
-<p>Every offering belongs to a <strong>project</strong>; requests from it land there. An offering has a name, emoji, description, project and form fields (text, multi-line, choice, check box, date; each optionally required). Optionally you add approvers via the people search, also without the agent role, and decide whether one or all approvals are needed. Requests become tickets of type <em>Request</em>; the answers appear in the description. How users see the catalog is described in <a href="#catalog">2.9</a>.</p>
+<p>Every offering belongs to a <strong>project</strong>; requests from it land there. An offering has a name, emoji, description, project and form fields (text, multi-line, choice, check box, date; each optionally required). Optionally you add approvers via the people search, also without the agent role, and decide whether one or all approvals are needed. Requests become tickets of type <em>Request</em>; the answers appear in the description. How users see the catalog is described in <a href="#catalog">2.10</a>.</p>
 <ul>
   <li><strong>Admins</strong> maintain all offerings under <em>Administration → Service catalog</em>.</li>
   <li><strong>The lead and deputy of a project</strong> open <em>Service catalog → Manage catalog</em>. There they see only their project's offerings and can create, change and delete offerings only for it. Other agents of the project do not see the button.</li>
@@ -504,7 +526,7 @@
 <p><span class="role role-admin">admin</span> <strong>CSV import</strong> from your inventory tool: the first line contains the column names (name/hostname, type, location, IP address, serial number, vendor, model, user, status – German or English). Values like “Notebook” or “Switch” are mapped to the matching kind. Existing names are updated. Only administrators can delete an entry, and only while no tickets are linked; otherwise set it to “retired”.</p>
 
 <h2 id="satisfaction">Satisfaction survey <span class="role role-admin">admin</span></h2>
-<p>Switch it on under <em>Administration → Tickets → General → Satisfaction survey</em>. The “Resolved” email to the reporter then contains the rating links (<a href="#rating">2.12</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
+<p>Switch it on under <em>Administration → Tickets → General → Satisfaction survey</em>. The “Resolved” email to the reporter then contains the rating links (<a href="#rating">2.13</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
 <figure class="medium"><img src="img/en/admin-survey.jpg" alt=""><figcaption>Administration → Tickets → General: satisfaction survey</figcaption></figure>
 
 <h2 id="kpis">ITIL key figures</h2>

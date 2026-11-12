@@ -1578,3 +1578,83 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .emergency-cmd { font-family: var(--mono); font-size: 12px; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; overflow-x: auto; margin: 8px 0 12px; }
 .emergency-log { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
 .emergency-panel h3 { font-size: 13px; margin: 8px 0 4px; }
+
+/* ---------- Portal (users' start page, departments) ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.portal-hero { max-width: 1040px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+.portal-hero h1 { margin: 0 0 6px; font-size: 26px; font-weight: 600; }
+.portal-search-label { font-size: 13px; color: var(--text-subtle); }
+.portal-search { display: flex; align-items: center; gap: 10px; max-width: 720px; height: 48px; padding: 0 14px; border: 2px solid var(--blue); border-radius: 6px; background: var(--surface); color: var(--text-subtlest); }
+.portal-search input { flex: 1; border: 0; outline: none; background: transparent; font-size: 16px; color: var(--text); padding: 0; height: 100%; }
+.portal-search-small { height: 42px; max-width: 560px; border-width: 1px; border-color: var(--border-strong); margin-bottom: 20px; }
+.portal-results { max-width: 720px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow-overlay); overflow: hidden; }
+.portal-results-head { padding: 8px 14px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-subtlest); border-top: 1px solid var(--border); }
+.portal-results-head:first-child { border-top: 0; }
+.portal-result { display: block; padding: 9px 14px; color: var(--text); }
+.portal-result:hover { background: var(--bg-hover); text-decoration: none; }
+.portal-result-title { font-weight: 600; }
+.portal-results-empty { margin: 0; padding: 12px 14px; }
+.portal-section { max-width: 1040px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
+.portal-section h2, .portal-dept-main h2, .portal-faq h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.portal-section-head { display: flex; align-items: baseline; gap: 12px; }
+.portal-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.portal-count { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-subtle); }
+.portal-count:hover { text-decoration: none; box-shadow: var(--shadow-overlay); }
+.portal-count-n { font-size: 26px; font-weight: 700; color: var(--blue-text); }
+.portal-count:last-child .portal-count-n { color: var(--green); }
+.portal-count-warn { background: var(--yellow-subtle); border-color: var(--yellow-bold); }
+.portal-count-warn .portal-count-n { color: var(--text); }
+.portal-recent { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.portal-recent-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 140px 120px 90px; align-items: center; gap: 14px; padding: 10px 16px; border-top: 1px solid var(--border); color: var(--text); }
+.portal-recent-row:first-child { border-top: 0; }
+.portal-recent-row:hover { background: var(--bg-hover); text-decoration: none; }
+.portal-recent-key { font-family: var(--mono); font-size: 12px; color: var(--text-subtlest); }
+.portal-recent-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-recent-dept { color: var(--text-subtlest); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-recent-when { color: var(--text-subtlest); text-align: right; }
+.portal-depts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.portal-dept { display: flex; flex-direction: column; gap: 8px; padding: 18px; min-height: 140px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.portal-dept:hover { text-decoration: none; box-shadow: var(--shadow-overlay); }
+.portal-dept-name { font-size: 16px; font-weight: 600; }
+.portal-dept-desc { color: var(--text-subtle); line-height: 1.45; }
+.portal-dept-meta { margin-top: auto; font-size: 13px; color: var(--text-subtlest); }
+.portal-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; border-radius: 8px; background: var(--pc-bg); color: var(--pc); }
+.portal-icon .icon { width: 22px; height: 22px; }
+.portal-icon-lg { width: 56px; height: 56px; border-radius: 10px; }
+.portal-icon-lg .icon { width: 28px; height: 28px; }
+.portal-c-blue { --pc: var(--blue-text); --pc-bg: var(--blue-subtle); }
+.portal-c-orange { --pc: var(--orange-text); --pc-bg: var(--orange-subtle); }
+.portal-c-green { --pc: var(--green); --pc-bg: var(--green-subtle); }
+.portal-c-purple { --pc: var(--purple-text); --pc-bg: var(--purple-subtle); }
+.portal-c-red { --pc: var(--red); --pc-bg: var(--red-subtle); }
+.portal-dept-head { display: flex; align-items: center; gap: 16px; margin: 8px 0 20px; max-width: 1040px; }
+.portal-dept-head h1 { margin: 0; font-size: 24px; font-weight: 600; }
+.portal-dept-intro { margin: 4px 0 0; color: var(--text-subtle); white-space: pre-line; }
+.portal-dept-body { display: flex; flex-wrap: wrap; gap: 28px; max-width: 1040px; }
+.portal-dept-main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.portal-offers { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.portal-offer { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.portal-offer:hover { text-decoration: none; box-shadow: var(--shadow-overlay); }
+.portal-offer-emoji { font-size: 26px; line-height: 1; }
+.portal-offer-text { display: flex; flex-direction: column; gap: 4px; }
+.portal-offer-text span { color: var(--text-subtle); line-height: 1.4; }
+.portal-offer-approval { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.portal-report { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 1040px; padding: 14px; border: 1px dashed var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.portal-report:hover { background: var(--bg-hover); }
+.portal-report-text { display: flex; flex-direction: column; gap: 2px; }
+.portal-report-text span { color: var(--text-subtle); }
+.portal-faq { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.portal-faq-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.portal-faq-list a { padding: 10px 14px; border-top: 1px solid var(--border); }
+.portal-faq-list a:first-child { border-top: 0; }
+.create-dept { margin: 0 0 4px; color: var(--text-subtle); }
+.portal-choice { display: flex; flex-wrap: wrap; gap: 8px; }
+.portal-choice button { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-subtle); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.portal-choice button[aria-pressed="true"] { border: 2px solid var(--blue); color: var(--blue-text); background: var(--blue-subtle); }
+.portal-choice .portal-swatch { border-radius: 50%; width: 32px; height: 32px; margin-top: 4px; background: var(--pc); border: 0; }
+.portal-choice .portal-swatch[aria-pressed="true"] { background: var(--pc); border: 0; outline: 3px solid var(--text); outline-offset: 2px; }
+@media (max-width: 700px) {
+  .portal-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .portal-recent-row { grid-template-columns: 60px minmax(0, 1fr) auto; }
+  .portal-recent-dept, .portal-recent-when { display: none; }
+}

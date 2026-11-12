@@ -8,7 +8,8 @@ import { state } from '/js/state.js';
 import { wantsMobile, desktopUrlFor } from '/js/uimode.js';
 import { route, startRouter, go, setRootCheck, rerender, clearCache } from './router.js';
 import { renderLogin } from './views/login.js';
-import { renderHome } from './views/home.js';
+import { renderHome, renderRequests } from './views/home.js';
+import { renderPortal, renderPortalDepartment } from './views/portal.js';
 import { renderTickets } from './views/tickets.js';
 import { renderTicket } from './views/ticket.js';
 import { renderMe, renderNews, renderMfa } from './views/me.js';
@@ -90,10 +91,13 @@ export async function signOut() {
 let tabbar; let shell;
 const TAB_DEFS = () => {
   const canCreate = state.isAgent || state.boot?.allowSelfService;
+  // Users: portal and their requests – the start page (setting) is the first tab
+  const portalFirst = state.boot?.userStart !== 'requests';
   return [
     state.isAgent
       ? { id: 'home', href: '/m/', icon: 'home', label: t('m.tab.home') }
-      : { id: 'home', href: '/m/', icon: 'inbox', label: t('m.tab.requests') },
+      : (portalFirst ? { id: 'home', href: '/m/', icon: 'home', label: t('portal.title') } : { id: 'home', href: '/m/', icon: 'inbox', label: t('m.tab.requests') }),
+    !state.isAgent ? (portalFirst ? { id: 'requests', href: '/m/requests', icon: 'inbox', label: t('m.tab.requests') } : { id: 'portal', href: '/m/portal', icon: 'home', label: t('portal.title') }) : null,
     state.isAgent ? { id: 'tickets', href: '/m/tickets?status=unresolved', icon: 'tickets', label: t('m.tab.tickets') } : null,
     canCreate ? { id: 'new', href: '/m/new', icon: 'plus', label: t('m.newTicket'), center: true } : null,
     { id: 'kb', href: '/m/kb', icon: 'book', label: t('m.tab.kb') },
@@ -149,6 +153,9 @@ function defineRoutes() {
   const always = () => true;
   route({ path: /^\/m\/login$/, bare: true, render: (page) => (state.user ? go('/m', { replace: true, anim: 'none' }) : renderLogin(page)) });
   route({ path: /^\/m$/, tab: 'home', root: always, render: authed(renderHome) });
+  route({ path: /^\/m\/requests$/, tab: 'requests', root: always, render: authed(renderRequests) });
+  route({ path: /^\/m\/portal$/, tab: 'portal', root: always, render: authed(renderPortal) });
+  route({ path: /^\/m\/portal\/([A-Za-z0-9]+)$/, parent: '/m', render: authed(renderPortalDepartment) });
   route({ path: /^\/m\/tickets$/, tab: 'tickets', root: (s) => s.isAgent, parent: '/m', render: authed(renderTickets) });
   route({ path: /^\/m\/t\/([^/]+)$/, parent: '/m', render: authed(renderTicket) });
   route({ path: /^\/m\/new$/, parent: '/m', render: authed(renderNew) });

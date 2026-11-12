@@ -27,7 +27,7 @@
     <li><a href="#ueberblick">Überblick</a>
       <ol><li><a href="#rollen">Rollen</a></li><li><a href="#begriffe">Status, Typen und Prioritäten</a></li><li><a href="#oberflaeche">Aufbau der Oberfläche</a></li></ol></li>
     <li><a href="#benutzer">Für alle: Anmelden und Anfragen stellen</a>
-      <ol><li><a href="#anmelden">Anmelden</a></li><li><a href="#melden">Ein Problem melden</a></li><li><a href="#anfragen">Meine Anfragen</a></li><li><a href="#antworten">Antworten und Dateien</a></li><li><a href="#teilnehmer">Anfrage-Teilnehmer</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profil">Profil, Sprache und Kennwort</a></li><li><a href="#2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</a></li><li><a href="#katalog">Service anfordern</a></li><li><a href="#genehmigen">Genehmigen</a></li><li><a href="#hilfe-wissen">Hilfe &amp; Wissen</a></li><li><a href="#bewerten">Bewerten</a></li><li><a href="#smartphone">Auf dem Smartphone</a></li></ol></li>
+      <ol><li><a href="#anmelden">Anmelden</a></li><li><a href="#portal">Das Portal</a></li><li><a href="#melden">Ein Problem melden</a></li><li><a href="#anfragen">Meine Anfragen</a></li><li><a href="#antworten">Antworten und Dateien</a></li><li><a href="#teilnehmer">Anfrage-Teilnehmer</a></li><li><a href="#emojis">Emojis</a></li><li><a href="#profil">Profil, Sprache und Kennwort</a></li><li><a href="#2fa-einrichten">Zwei-Faktor-Anmeldung einrichten</a></li><li><a href="#katalog">Service anfordern</a></li><li><a href="#genehmigen">Genehmigen</a></li><li><a href="#hilfe-wissen">Hilfe &amp; Wissen</a></li><li><a href="#bewerten">Bewerten</a></li><li><a href="#smartphone">Auf dem Smartphone</a></li></ol></li>
     <li><a href="#bearbeiter">Für Bearbeiter</a>
       <ol><li><a href="#warteschlangen">Warteschlangen und Zusammenfassung</a></li><li><a href="#board">Board</a></li><li><a href="#liste">Ticketliste und Filter</a></li><li><a href="#filter-speichern">Gespeicherte Filter</a></li><li><a href="#ticket">Ein Ticket bearbeiten</a></li><li><a href="#formatieren">Antworten formatieren</a></li><li><a href="#notizen">Antworten und interne Notizen</a></li><li><a href="#erwaehnen">Kollegen erwähnen (@)</a></li><li><a href="#html-mails">HTML-Mails</a></li><li><a href="#vorlagen">Antwortvorlagen</a></li><li><a href="#ki">KI-Unterstützung</a></li><li><a href="#mehrfach">Mehrere Tickets auf einmal</a></li><li><a href="#berichte">Berichte</a></li><li><a href="#kuerzel">Tastenkürzel</a></li><li><a href="#nie-loeschen">Tickets werden nie gelöscht</a></li></ol></li>
     <li><a href="#itil">IT-Service-Management (ITIL)</a>
@@ -91,10 +91,21 @@
 <p>Öffne die Adresse, die deine IT dir genannt hat, z. B. <code>https://helfi.firma.local</code>. Mit Active Directory meldest du dich mit deinem Windows-Konto an – als <code>m.muster</code>, <code>FIRMA\m.muster</code> oder <code>m.muster@firma.local</code>. Ist Single Sign-on eingerichtet, gibt es zusätzlich einen Knopf „Mit Firmenkonto anmelden“, oder du wirst direkt weitergeleitet.</p>
 <figure class="medium"><img src="img/de/login.jpg" alt=""><figcaption>Anmeldeseite mit eigenem Begrüßungstext</figcaption></figure>
 <p><strong>Ohne Firmenkonto:</strong> Steht unter dem Anmelden „Konto erstellen“, kannst du dir selbst ein Konto anlegen: Name, E-Mail-Adresse und Kennwort eingeben und den Link in der Bestätigungsmail öffnen. Hast du schon per Mail Anfragen gestellt, nimm dieselbe Adresse – sie erscheinen dann im Konto. Angemeldet wird mit der E-Mail-Adresse. „Kennwort vergessen?“ schickt dir einen Link, mit dem du ein neues Kennwort festlegst.</p>
-<p>Meldest du dich <strong>von außerhalb des Firmennetzes</strong> an, fragt Helfi.Space je nach Einstellung nach dem Kennwort zusätzlich einen 6-stelligen Code aus deiner Authenticator-App ab (siehe <a href="#2fa-einrichten">2.8</a>).</p>
+<p>Meldest du dich <strong>von außerhalb des Firmennetzes</strong> an, fragt Helfi.Space je nach Einstellung nach dem Kennwort zusätzlich einen 6-stelligen Code aus deiner Authenticator-App ab (siehe <a href="#2fa-einrichten">2.9</a>).</p>
 
 <p><strong>Automatische Abmeldung:</strong> Wer eine Weile nichts tut, wird aus Sicherheitsgründen abgemeldet. Zwei Minuten vorher fragt Helfi.Space „Noch da?“ – mit <em>Weiterarbeiten</em> geht es einfach weiter. Solange du klickst oder tippst, bleibst du angemeldet.</p>
 <figure class="small"><img src="img/de/idle.jpg" alt=""><figcaption>Zwei Minuten vor der automatischen Abmeldung</figcaption></figure>
+
+<h2 id="portal">Das Portal</h2>
+<p>Nach der Anmeldung landest du im <strong>Portal</strong>. Dort findest du alles auf einer Seite:</p>
+<ul>
+  <li><strong>Suche:</strong> Tippe ein, wobei du Hilfe brauchst, z. B. „Heizung“. Darunter erscheinen passende Angebote aus dem Servicekatalog und Anleitungen aller Abteilungen.</li>
+  <li><strong>Meine Anfragen:</strong> drei Zähler – <em>In Bearbeitung</em>, <em>Wartet auf dich</em> (jemand hat dir eine Frage gestellt) und <em>Erledigt</em> – und deine letzten Anfragen. Ein Klick auf einen Zähler zeigt die passende Liste.</li>
+  <li><strong>Abteilungen:</strong> z. B. IT, Haustechnik oder Verwaltung als Kacheln. Auf der Seite einer Abteilung stehen ihre Angebote, ihre häufigen Fragen und <strong>Anderes Anliegen melden</strong> – die Anfrage geht dann direkt an diese Abteilung.</li>
+</ul>
+<figure><img src="img/de/portal-start.jpg" alt=""><figcaption>Das Portal: Suche, Meine Anfragen und die Abteilungen</figcaption></figure>
+<figure><img src="img/de/portal-dept.jpg" alt=""><figcaption>Die Seite der Haustechnik mit Hinweis, Angeboten und häufigen Fragen</figcaption></figure>
+<p>Links aus E-Mails führen dich immer direkt zum Ticket oder Artikel, nicht ins Portal. Über <em>Portal</em> in der Seitenleiste kommst du jederzeit zurück. Ob Benutzer im Portal oder in <em>Meine Anfragen</em> starten, legt der Admin fest (<a href="#portal-einrichten">Portal einrichten</a>).</p>
 
 <h2 id="melden">Ein Problem melden</h2>
 <p>Es gibt zwei Wege:</p>
@@ -174,7 +185,8 @@
 <figure class="medium"><img src="img/de/itil-rating.jpg" alt=""><figcaption>Bewertungsseite nach einem Klick in der Mail</figcaption></figure>
 
 <h2 id="smartphone">Auf dem Smartphone</h2>
-<p>Auf dem Handy öffnet sich Helfi.Space automatisch in einer eigenen Oberfläche, die sich wie eine App bedient. Unten steht eine Leiste mit <strong>Anfragen</strong> (Bearbeiter: <em>Meine Arbeit</em> und <em>Tickets</em>), dem runden <strong>＋</strong>, <strong>Wissen</strong> und <strong>Ich</strong>. Seiten schieben sich von rechts herein; zurück geht es mit dem Pfeil oben links, mit einem Wisch vom linken Rand oder mit der Zurück-Taste. Listen ziehst du zum Aktualisieren nach unten.</p>
+<p>Auf dem Handy öffnet sich Helfi.Space automatisch in einer eigenen Oberfläche, die sich wie eine App bedient. Unten steht eine Leiste mit <strong>Portal</strong> und <strong>Anfragen</strong> (Bearbeiter: <em>Meine Arbeit</em> und <em>Tickets</em>), dem runden <strong>＋</strong>, <strong>Wissen</strong> und <strong>Ich</strong>. Seiten schieben sich von rechts herein; zurück geht es mit dem Pfeil oben links, mit einem Wisch vom linken Rand oder mit der Zurück-Taste. Listen ziehst du zum Aktualisieren nach unten.</p>
+<figure class="phone"><img src="img/de/m-portal.jpg" alt=""><figcaption>Das Portal auf dem Handy</figcaption></figure>
 <figure><img src="img/de/mobile-app-1.jpg" alt=""><figcaption>Meine Anfragen, ein Ticket mit Antwortleiste und das ＋ mit Servicekatalog</figcaption></figure>
 <ul>
   <li><strong>Problem melden:</strong> ＋ → <em>Problem melden</em>. Titel und Beschreibung eintragen, mit <strong>Foto aufnehmen</strong> direkt die Kamera nutzen oder mit <strong>Datei</strong> Bilder und Dokumente anhängen. Schon beim Tippen des Titels zeigt Helfi.Space passende Hilfeartikel – vielleicht ist die Lösung schon da. <em>Absenden</em> legt die Anfrage an und öffnet sie. Was du noch nicht abgeschickt hast, bleibt erhalten, solange der Tab offen ist.</li>
@@ -485,8 +497,18 @@
 <h3>Drucken und PDF</h3>
 <p><strong>Drucken / PDF</strong> am Artikel öffnet den Druckdialog; dort „Als PDF speichern“ wählen. Gedruckt werden nur Titel, Pfad, Stand und Inhalt, ohne Seitenumbrüche mitten in Bildern, Tabellen oder Infoboxen. Hat der Artikel Unterseiten, kannst du <strong>mit allen Unterseiten</strong> drucken: Es entsteht ein Dokument mit Inhaltsverzeichnis, jede Seite beginnt auf einem neuen Blatt – zum Beispiel ein komplettes Onboarding-Handbuch.</p>
 
+<h3 id="portal-einrichten">Portal einrichten <span class="role role-admin">Admin</span></h3>
+<p>Jedes Projekt erscheint im <a href="#portal">Portal</a> als Abteilung. Im Projekt-Dialog (<em>Administration → Projekte → Bearbeiten</em>) legst du unter <em>Im Portal</em> fest:</p>
+<ul>
+  <li><strong>Im Portal als Abteilung zeigen:</strong> nach dem Update für alle Projekte an; aus für Projekte, die Benutzer nicht sehen sollen (z. B. ein reines Eingangsprojekt).</li>
+  <li><strong>Kurzbeschreibung</strong> für die Kachel, <strong>Hinweis</strong> oben auf der Abteilungsseite (z. B. eine Notfallnummer; ohne Hinweis steht dort die Kurzbeschreibung), <strong>Symbol</strong>, <strong>Farbe</strong> und <strong>Reihenfolge</strong> (kleinere Zahlen zuerst).</li>
+</ul>
+<figure class="medium"><img src="img/de/admin-project-portal.jpg" alt=""><figcaption>Projekt-Dialog: der Abschnitt „Im Portal“</figcaption></figure>
+<p><strong>Startseite für Benutzer</strong> (<em>Administration → Tickets → Allgemein</em>): <em>Portal</em> (Standard) oder <em>Meine Anfragen</em>. Das gilt nur beim direkten Aufruf der Startseite; Links aus Mails führen immer direkt zum Ziel. Bearbeiter und Admins landen immer bei den Tickets.</p>
+<figure class="medium"><img src="img/de/admin-user-start.jpg" alt=""><figcaption>Startseite für Benutzer</figcaption></figure>
+
 <h2 id="servicekatalog">Servicekatalog einrichten <span class="role role-admin">Admin</span> <span class="role role-agent">Projektleitung</span></h2>
-<p>Jedes Angebot gehört zu einem <strong>Projekt</strong>; Anfragen daraus landen dort. Ein Angebot hat Bezeichnung, Emoji, Beschreibung, Projekt und Formularfelder (Text, mehrzeilig, Auswahl, Häkchen, Datum; jeweils optional Pflicht). Optional fügst du über die Personensuche Genehmigende hinzu, auch ohne Bearbeiter-Rolle, und legst fest, ob eine oder alle Zustimmungen nötig sind. Anfragen werden Tickets vom Typ <em>Anfrage</em>; die Antworten stehen in der Beschreibung. Wie Benutzer den Katalog sehen, steht in <a href="#katalog">2.9</a>.</p>
+<p>Jedes Angebot gehört zu einem <strong>Projekt</strong>; Anfragen daraus landen dort. Ein Angebot hat Bezeichnung, Emoji, Beschreibung, Projekt und Formularfelder (Text, mehrzeilig, Auswahl, Häkchen, Datum; jeweils optional Pflicht). Optional fügst du über die Personensuche Genehmigende hinzu, auch ohne Bearbeiter-Rolle, und legst fest, ob eine oder alle Zustimmungen nötig sind. Anfragen werden Tickets vom Typ <em>Anfrage</em>; die Antworten stehen in der Beschreibung. Wie Benutzer den Katalog sehen, steht in <a href="#katalog">2.10</a>.</p>
 <ul>
   <li><strong>Admins</strong> pflegen alle Angebote unter <em>Administration → Servicekatalog</em>.</li>
   <li><strong>Leitung und Vertretung eines Projekts</strong> öffnen <em>Servicekatalog → Katalog verwalten</em>. Sie sehen dort nur die Angebote ihres Projekts und können nur dafür Angebote anlegen, ändern und löschen. Andere Bearbeiter des Projekts sehen den Knopf nicht.</li>
@@ -504,7 +526,7 @@
 <p><span class="role role-admin">Admin</span> <strong>CSV-Import</strong> aus der Inventarisierung: Die erste Zeile enthält die Spaltennamen (Name/Hostname, Typ, Standort, IP-Adresse, Seriennummer, Hersteller, Modell, Benutzer, Status – deutsch oder englisch). Werte wie „Notebook“ oder „Switch“ werden der passenden Art zugeordnet. Vorhandene Namen werden aktualisiert. Löschen können nur Administratoren, und nur, solange keine Tickets verknüpft sind; sonst „ausgemustert“ setzen.</p>
 
 <h2 id="zufriedenheit">Zufriedenheitsumfrage <span class="role role-admin">Admin</span></h2>
-<p>Einschalten unter <em>Administration → Tickets → Allgemein → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Melder die Bewertungslinks (<a href="#bewerten">2.12</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
+<p>Einschalten unter <em>Administration → Tickets → Allgemein → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Melder die Bewertungslinks (<a href="#bewerten">2.13</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
 <figure class="medium"><img src="img/de/admin-survey.jpg" alt=""><figcaption>Administration → Tickets → Allgemein: Zufriedenheitsumfrage</figcaption></figure>
 
 <h2 id="kennzahlen">ITIL-Kennzahlen</h2>

@@ -140,6 +140,8 @@ export const api = {
   linkCi: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/cis`, d),
   unlinkCi: (key, id) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/cis/${id}`),
   catalog: (all = false) => request('GET', `/api/catalog${all ? '?all=1' : ''}`),
+  portal: () => request('GET', '/api/portal'),
+  portalDepartment: (key) => request('GET', `/api/portal/${encodeURIComponent(key)}`),
   catalogItem: (id) => request('GET', `/api/catalog/${id}`),
   catalogCreate: (d) => request('POST', '/api/catalog', d),
   catalogUpdate: (id, d) => request('PUT', `/api/catalog/${id}`, d),

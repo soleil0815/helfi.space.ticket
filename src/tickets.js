@@ -11,6 +11,7 @@ import { createSearch } from './search.js';
 import { log } from './lib/log.js';
 import { normalizeMentions } from './mentions.js';
 import { createComponents, matchComponent, reasonDetail } from './components.js';
+import { PORTAL_ICONS, PORTAL_COLORS } from './portal.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 // How a done ticket ended: solved, rejected (with a reason) or a duplicate of another ticket
@@ -115,7 +116,7 @@ export function createTickets(db, users) {
       syncLead(info.lastInsertRowid, lead);
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(info.lastInsertRowid));
     },
-    update(id, { name, description, leadId, deputyId, archived }) {
+    update(id, { name, description, leadId, deputyId, archived, portal }) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(id);
       if (!p) throw notFound();
       const lead = leadId !== undefined ? validLead(leadId) : p.lead_id;
@@ -128,6 +129,13 @@ export function createTickets(db, users) {
           archived !== undefined ? (archived ? 1 : 0) : p.archived,
           id,
         );
+        // Portal: shown or not, short description (tile), notice on the department page, icon, colour, order
+        if (portal && typeof portal === 'object') {
+          db.prepare('UPDATE projects SET portal_show=?, portal_desc=?, portal_intro=?, portal_icon=?, portal_color=?, portal_sort=? WHERE id=?').run(
+            portal.show === false ? 0 : 1, str(portal.description, 200).trim(), str(portal.intro, 1000).trim(),
+            PORTAL_ICONS.includes(portal.icon) ? portal.icon : '', PORTAL_COLORS.includes(portal.color) ? portal.color : '',
+            Math.max(-999, Math.min(999, int(portal.sort) || 0)), id);
+        }
         if (lead !== p.lead_id) syncLead(id, lead);
         if (deputy !== p.deputy_id) {
           db.prepare('UPDATE projects SET deputy_id=? WHERE id=?').run(deputy, id);
@@ -162,7 +170,10 @@ export function createTickets(db, users) {
   };
 
   function projectOut(p) {
-    return { id: p.id, key: p.key, name: p.name, description: p.description, leadId: p.lead_id, archived: !!p.archived, openCount: p.open_count ?? undefined, ticketCount: p.ticket_count ?? undefined };
+    return {
+      id: p.id, key: p.key, name: p.name, description: p.description, leadId: p.lead_id, archived: !!p.archived, openCount: p.open_count ?? undefined, ticketCount: p.ticket_count ?? undefined,
+      portal: { show: p.portal_show !== 0, description: p.portal_desc || '', intro: p.portal_intro || '', icon: p.portal_icon || '', color: p.portal_color || '', sort: p.portal_sort || 0 },
+    };
   }
 
   // ---------- Tickets ----------

@@ -696,7 +696,9 @@ export function openCreateDialog(defaults = {}) {
   },
   err,
   agent ? keep(reporter.el) : null,
-  state.projects.length > 1 ? h('div.grid-2', field(t('create.project'), project), field(t('create.type'), type)) : field(t('create.type'), type),
+  // From a department in the portal the project is fixed – shown, not selectable
+  defaults.lockProject ? h('p.create-dept', { 'data-locked-project': '' }, t('create.toProject', { name: state.projects.find((x) => x.id === Number(project.value))?.name || '' })) : null,
+  state.projects.length > 1 && !defaults.lockProject ? h('div.grid-2', field(t('create.project'), project), field(t('create.type'), type)) : field(t('create.type'), type),
   field(t('create.summary'), summary),
   kbSuggestions(summary),
   field(t('create.description'), withEmoji(desc)),
