@@ -72,7 +72,12 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     const save = { run: (...a) => saveStmt.run(...a, backfill ? 1 : 0) };
     const row = tickets.rawById(ticketId);
     if (!row || row.component_id || !on()) return null; // set meanwhile (by hand) or switched off
-    const comps = tickets.components.active(row.project_id);
+    // A mail no component matched landed in the inbox project: the AI chooses from the components of
+    // all projects – the ticket then moves to the chosen one's project (named "Project / Component")
+    const inbox = tickets.projects.get(settings.get('imap.project') || settings.get('general.defaultProject') || '');
+    const all = !backfill && row.source === 'email' && inbox && row.project_id === inbox.id;
+    let comps = all ? tickets.components.activeAll() : tickets.components.active(row.project_id);
+    if (all && new Set(comps.map((c) => c.projectId)).size > 1) comps = comps.map((c) => ({ ...c, name: `${c.projectName} / ${c.name}` }));
     if (!comps.length) return null;
     const cfg = ai.config();
     const answer = await ai.timed('classify', `${row.project_key}-${row.number}`, cfg, () => ai.chat(classifyMessages(comps, row), { maxTokens: 300, cfg }));

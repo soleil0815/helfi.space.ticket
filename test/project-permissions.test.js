@@ -133,8 +133,8 @@ test('Assignment: only agents of the ticket\'s project; moving clears an assigne
   assert.equal((await hma('GET', '/api/users?project=IT')).status, 404);
   const hmAgents = (await hma('GET', '/api/users?project=HM')).body.users.map((u) => u.username);
   assert.ok(hmAgents.includes('hma') && hmAgents.includes('ita') && hmAgents.includes('admin'));
-  // hma cannot move tickets into IT
-  assert.equal((await hma('PATCH', `/api/tickets/${keys.hm}`, { projectId: IT })).status, 404);
+  // moving into any active project is allowed (see mail-routing.test.js) – not into an unknown one
+  assert.equal((await hma('PATCH', `/api/tickets/${keys.hm}`, { projectId: 99999 })).status, 404);
   // admin moves the HM ticket (assigned to hma) to IT: assignee removed
   const moved = await S.admin('PATCH', `/api/tickets/${keys.hm}`, { projectId: IT });
   assert.equal(moved.status, 200);

@@ -465,8 +465,10 @@ export function createApi(ctx) {
     // agent: the asking person works on this project (switcher, board); everyone may file requests anywhere
     const admin = req.user.role === 'admin';
     const extra = admin ? tickets.projects.peopleSummary() : null;
+    // Inbox project: new mails no component matched land here (E-Mail settings, else the default project)
+    const inboxKey = String(settings.get('imap.project') || settings.get('general.defaultProject') || '').toUpperCase();
     const list = tickets.projects.list(req.query.all === '1' && isAgent(req.user))
-      .map((p) => ({ ...p, agent: agentOn(req.user, p.id), ...(admin ? extra.get(p.id) : {}) }));
+      .map((p) => ({ ...p, agent: agentOn(req.user, p.id), ...(admin ? { ...extra.get(p.id), inbox: p.key === inboxKey } : {}) }));
     res.json({ projects: list });
   });
   r.post('/projects', requireRole('admin'), wrap(async (req, res) => {

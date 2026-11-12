@@ -342,7 +342,7 @@ export function ticketTable(tickets, { requests = false, sort, onSort, compact =
       ]),
       menu(t('list.priority'), PRIOS.map((x) => ({ label: t(`priority.${x}`), icon: priorityIcon(x), onClick: () => run({ changes: { priority: x } }) }))),
       componentMenu(),
-      state.agentProjects.length > 1 ? menu(t('bulk.move'), state.agentProjects.map((p) => ({ label: `${p.name} (${p.key})`, onClick: () => run({ changes: { projectId: p.id } }, t('bulk.moveConfirm', { n: sel.size, key: p.key })) }))) : null,
+      state.projects.length > 1 ? menu(t('bulk.move'), state.projects.map((p) => ({ label: `${p.name} (${p.key})`, onClick: () => run({ changes: { projectId: p.id } }, t('bulk.moveConfirm', { n: sel.size, key: p.key })) }))) : null,
       h('span.spacer'),
       h('button.btn.btn-subtle', { type: 'button', onclick: () => { sel.clear(); sync(); } }, t('bulk.clear')));
   }

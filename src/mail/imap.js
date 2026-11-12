@@ -8,6 +8,7 @@ import { roleFromGroups, projectAccessFromGroups, withProjectGroups } from '../u
 import { agentOn, agentProjects } from '../auth/access.js';
 import { ticketKeyFromSubject, cleanSubject, stripQuotedReply, isAutomated, isEmail, deliveryReport } from './parse.js';
 import { parseRules, matchRule } from './rules.js';
+import { matchComponent } from '../components.js';
 import { sanitizeMailHtml, resolveCids } from './html.js';
 
 export const MAX_NEW_TICKETS_PER_HOUR = 20;
@@ -368,11 +369,18 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
         remember.run(messageId, existingId);
         return { action: 'comment', ticketId: existingId, messageId };
       }
-      const projectKey = (rule?.project && tickets.projects.get(rule.project) ? rule.project : '') || cfg.project || settings.get('general.defaultProject');
+      const title = cleanSubject(parsed.subject) || '(ohne Betreff / no subject)';
+      const description = withNote(text);
+      // Which project: a sender rule with a project, otherwise the best-matching component of all
+      // projects (keywords, sender) – nothing matches: the inbox project (cfg.project / default),
+      // whose people sort it by hand (the AI may suggest one, see ai-classify.js)
+      const ruled = rule?.project && tickets.projects.get(rule.project) ? rule.project : '';
+      const routed = ruled ? null : matchComponent(tickets.components.activeAll(), { title, description, sender: fromAddr });
+      const projectKey = ruled || routed?.component.projectKey || cfg.project || settings.get('general.defaultProject');
       const project = projectKey ? tickets.projects.get(projectKey) : null;
       const ticket = tickets.create(sender, {
-        title: cleanSubject(parsed.subject) || '(ohne Betreff / no subject)',
-        description: withNote(text),
+        title,
+        description,
         projectId: project?.id,
         type: 'request',
       }, { source: 'email', reporterEmail: fromAddr, reporterName: from?.name || null, reporterId: sender.id, messageId });
