@@ -98,7 +98,7 @@ helfi.firma.local {
 | Gruppe | Bereiche |
 |---|---|
 | **Organisation** | Projekte (mit Standardprojekt), Komponenten, Benutzer |
-| **Tickets** | Allgemein (Benutzer dürfen Tickets anlegen, Erinnerung an Projektverantwortliche, Zufriedenheitsumfrage), Service Level, Change, Servicekatalog, Antwortvorlagen |
+| **Tickets** | Allgemein (Benutzer dürfen Tickets anlegen, Startseite für Benutzer, Erinnerung an Projektverantwortliche, Zufriedenheitsumfrage), Service Level, Change, Servicekatalog, Antwortvorlagen |
 | **E-Mail** | Posteingang (Abruf, Eingangsprojekt, Absender-Regeln, Schutz vor Mail-Schleifen), Postausgang (Versand, Benachrichtigungen) |
 | **Anmeldung & Sicherheit** | Active Directory, Single Sign-on, Zwei-Faktor & Sitzungen, Registrierung |
 | **Erscheinungsbild** | Name, Sprache & Design (inkl. Anmeldeseite) |
@@ -468,6 +468,18 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 - **Bekannte Fehler:** Reiter mit allen Problemen, die als bekannter Fehler markiert sind, samt Workaround.
 - **Beispiel-Artikel:** *Beispiele* (Bearbeiter) übernimmt fertige Musterartikel – „So meldest du ein Problem richtig“, „VPN einrichten“, „Drucker hinzufügen“, „Kennwort ändern oder vergessen“, „Abwesenheitsnotiz einrichten“ – auf Deutsch oder Englisch. Sie werden **intern** angelegt: Angaben in eckigen Klammern anpassen, dann öffentlich machen.
 
+## Portal für Benutzer
+
+Benutzer landen beim Aufruf der Startseite im **Portal** (`/portal`), ähnlich dem Kundenportal von Jira – nur mit Anmeldung.
+
+- **Oben:** Begrüßung und eine Suche über die Angebote des Servicekatalogs und die öffentlichen Anleitungen aller Abteilungen.
+- **Meine Anfragen:** drei Zähler – *In Bearbeitung*, *Wartet auf dich* (Status „Wartet“, also eine offene Rückfrage) und *Erledigt* – und die letzten eigenen Anfragen. Ein Klick auf einen Zähler öffnet die gefilterte Liste.
+- **Abteilungen:** jedes Projekt mit „Im Portal zeigen“ als Kachel mit Symbol, Farbe, Kurzbeschreibung und der Zahl der Angebote und Anleitungen.
+- **Abteilungsseite** (`/portal/<projekt>`, z. B. `/portal/hm`): optionaler Hinweis oben (z. B. eine Notfallnummer), die Angebote der Abteilung, **Anderes Anliegen melden** (das Ticket landet fest in diesem Projekt) und rechts die häufigsten öffentlichen Artikel.
+- **Einrichten** <sup>Admin</sup>: im Projekt-Dialog unter *Im Portal* – anzeigen ja/nein, Kurzbeschreibung, Hinweis, Symbol, Farbe und Reihenfolge. Nach dem Update sind alle Projekte sichtbar; Symbol und Kurzbeschreibung lohnt es sich nachzutragen.
+- **Startseite für Benutzer** (*Administration → Tickets → Allgemein*): *Portal* (Standard) oder *Meine Anfragen* wie bisher. Gilt nur beim direkten Aufruf der Startseite – Links aus Mails führen immer direkt zum Ticket, zur Genehmigung oder zum Artikel. **Bearbeiter und Admins** landen immer bei den Tickets; das Portal erreichen sie über *Portal* in der Seitenleiste.
+- **Handy:** In der App ist das Portal der erste Reiter, daneben *Anfragen*; die Abteilungsseite führt mit *Anderes Anliegen melden* zum Melden-Formular mit vorgewähltem Projekt.
+
 ## Servicekatalog
 
 Standardanfragen mit eigenem Formular, z. B. „Neuer Mitarbeiter“, „Software-Wunsch“ oder „Zugang zu einem Laufwerk“. Jedes Angebot gehört zu einem **Projekt**; Anfragen daraus landen dort.
@@ -503,7 +515,7 @@ Einschalten unter *Administration → Tickets → Allgemein → Zufriedenheitsum
 
 Auf dem Handy öffnet sich Helfi.Space automatisch in einer eigenen, app-artigen Oberfläche (unter `/m`). Tablets und Computer bekommen weiter die gewohnte Ansicht.
 
-- **Unten eine Tab-Leiste:** *Meine Arbeit* bzw. *Anfragen*, *Tickets* (Bearbeiter), der runde **＋**-Knopf, *Wissen* und *Ich*. Seiten schieben sich wie in einer App herein; Zurück per Knopf, Wisch vom linken Rand oder Zurück-Taste. Listen lassen sich nach unten ziehen zum Aktualisieren.
+- **Unten eine Tab-Leiste:** *Meine Arbeit* (Bearbeiter) bzw. *Portal* und *Anfragen* (Benutzer, siehe [Portal](#portal-für-benutzer)), *Tickets* (Bearbeiter), der runde **＋**-Knopf, *Wissen* und *Ich*. Seiten schieben sich wie in einer App herein; Zurück per Knopf, Wisch vom linken Rand oder Zurück-Taste. Listen lassen sich nach unten ziehen zum Aktualisieren.
 - **Melden (＋):** Problem melden mit Titel, Beschreibung, **Foto aufnehmen** oder **Datei**; Bearbeiter wählen zusätzlich Projekt, Typ und Priorität (wie am PC). Schon beim Tippen des Titels schlägt Helfi.Space passende Wissensartikel vor. Gibt es einen Servicekatalog, stehen seine Angebote als große Kacheln daneben – mit allen Feldarten, Pflichtfeldern und Genehmigung. Ein nicht abgeschickter Entwurf bleibt erhalten, bis der Tab geschlossen wird.
 - **Ticket:** Kommentare wie ein Chat, Antwortleiste unten mit Fotos und Dateien; Bearbeiter blenden über *Alle* auch den Verlauf (Status, Zuweisungen …) ein – das Handy merkt sich die Wahl. Bearbeiter schreiben auch interne Notizen, nutzen Vorlagen, ändern Status, Bearbeiter, Priorität, Typ und Teilnehmer, verknüpfen Tickets und genehmigen Anfragen. Titel und Beschreibung ändern Bearbeiter und der Melder selbst.
 - **Wissen:** Suche, Kategorien, *Zuletzt angesehen*, *Meistgelesen* und der Seitenbaum zum Durchklicken. Artikel mit Inhaltsverzeichnis, seitlich scrollenden Tabellen und Kommentaren. Bearbeitet werden Artikel am PC (*Im Desktop bearbeiten*). Benutzer sehen nur öffentliche Artikel.

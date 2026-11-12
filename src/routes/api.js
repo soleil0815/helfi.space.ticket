@@ -87,6 +87,8 @@ export function createApi(ctx) {
         ...(req.user ? {} : ctx.selfService.status()),
       },
       allowSelfService: settings.get('general.allowSelfService'),
+      // Start page for users (agents and admins always land in the backend)
+      userStart: settings.get('general.userStart') === 'requests' ? 'requests' : 'portal',
       defaultLanguage: settings.get('general.defaultLanguage'),
       // mode: requirement for this account (always/external/internal/off); without sign-in "external" applies to everyone
       mfa: {
@@ -479,7 +481,7 @@ export function createApi(ctx) {
     res.status(201).json({ project: p });
   }));
   r.patch('/projects/:id', requireRole('admin'), wrap(async (req, res) => {
-    res.json({ project: tickets.projects.update(int(req.params.id), { name: req.body.name, description: req.body.description, leadId: req.body.leadId !== undefined ? int(req.body.leadId) : undefined, archived: req.body.archived }) });
+    res.json({ project: tickets.projects.update(int(req.params.id), { name: req.body.name, description: req.body.description, leadId: req.body.leadId !== undefined ? int(req.body.leadId) : undefined, archived: req.body.archived, portal: req.body.portal }) });
   }));
 
   // People of a project (admins): lead, agent group (AD/SSO) and people added by hand – they work on

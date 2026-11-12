@@ -265,7 +265,8 @@ test('Sign-in with two-factor code; first-time setup happens on the phone', { sk
     await p.fill('input.m-code', totpAt(setup.secret, currentStep()));
     await p.waitForURL((u) => u.pathname === '/m/');
     await ready(p);
-    assert.equal(await p.textContent('.m-page:not(.m-leaving) .m-title'), 'Meine Anfragen');
+    // Users land in the portal (start page setting, default)
+    assert.equal(await p.textContent('.m-page:not(.m-leaving) .m-title'), 'Hallo max, wie können wir helfen?');
     await close();
     assert.deepEqual(errors, []);
 
@@ -331,16 +332,17 @@ test('Agent home: counter chips and assigned tickets', { skip }, async () => {
 test('User home: own requests with filter chips, no agent counters', { skip }, async () => {
   const { p, errors, close } = await open('eva');
   await p.goto(`${S.base}/requests`);
-  await p.waitForURL('**/m/');
+  await p.waitForURL('**/m/requests');
   await ready(p);
   assert.equal(await p.textContent('.m-title'), 'Meine Anfragen');
   assert.equal(await p.locator('.m-stat').count(), 0);
-  assert.deepEqual(await p.$$eval('.m-tabbar .m-tab', (x) => x.map((tb) => tb.textContent.trim() || tb.querySelector('button')?.getAttribute('aria-label'))), ['Anfragen', 'Neues Ticket', 'Wissen', 'Ich']);
+  // Portal first (start page), then the requests
+  assert.deepEqual(await p.$$eval('.m-tabbar .m-tab', (x) => x.map((tb) => tb.textContent.trim() || tb.querySelector('button')?.getAttribute('aria-label'))), ['Portal', 'Anfragen', 'Neues Ticket', 'Wissen', 'Ich']);
   // Eva only takes part in IT-1
   assert.deepEqual(await p.$$eval('.m-ticket', (x) => x.map((c) => c.dataset.key)), ['IT-1']);
   await p.locator('.m-chip', { hasText: 'Erledigt' }).tap();
   await p.waitForSelector('.m-empty');
-  assert.equal(path(p), '/m/?filter=done');
+  assert.equal(path(p), '/m/requests?filter=done');
   await p.locator('.m-chip', { hasText: 'Ich bin Teilnehmer' }).tap();
   await p.waitForSelector('.m-ticket[data-key="IT-1"]');
   assert.deepEqual(errors, []);

@@ -89,7 +89,9 @@ export async function renderReport(page, ctx, { replaceTitle = false } = {}) {
   const projects = state.projects || [];
   const types = typesFor(agent);
   const v = {
-    projectId: projects.some((p) => p.id === draft.projectId) ? draft.projectId : (state.project?.id || projects[0]?.id || null),
+    // From a department in the portal: ?project=KEY
+    projectId: projects.find((p) => p.key === String(ctx.params?.get('project') || '').toUpperCase())?.id
+      ?? (projects.some((p) => p.id === draft.projectId) ? draft.projectId : (state.project?.id || projects[0]?.id || null)),
     type: types.includes(draft.type) ? draft.type : (agent ? 'task' : 'request'),
     priority: PRIOS.includes(draft.priority) ? draft.priority : 'medium',
   };

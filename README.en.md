@@ -98,7 +98,7 @@ helfi.firma.local {
 | Group | Sections |
 |---|---|
 | **Organisation** | Projects (with default project), components, users |
-| **Tickets** | General (users may create tickets, reminder to project leads, satisfaction survey), service level, change, service catalog, reply templates |
+| **Tickets** | General (users may create tickets, start page for users, reminder to project leads, satisfaction survey), service level, change, service catalog, reply templates |
 | **Email** | Incoming (fetching, inbox project, sender rules, mail loop protection), outgoing (sending, notifications) |
 | **Sign-in & security** | Active Directory, single sign-on, two-factor & sessions, registration |
 | **Appearance** | Name, language & design (incl. sign-in page) |
@@ -468,6 +468,18 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 - **Known errors:** tab with all problems marked as known error, including the workaround.
 - **Example articles:** *Examples* (agents) takes over ready sample articles – “How to report a problem well”, “Setting up VPN”, “Adding a printer”, “Changing or forgetting your password”, “Setting up an out-of-office reply” – in German or English. They are created **internal**: adapt the details in square brackets, then make them public.
 
+## Portal for users
+
+Users opening the start page land in the **portal** (`/portal`), similar to Jira's customer portal – sign-in required.
+
+- **Top:** greeting and a search across the service catalog's offerings and the public guides of all departments.
+- **My requests:** three counters – *In progress*, *Waiting for you* (status “Waiting”, i.e. an open question) and *Done* – and the latest own requests. A click on a counter opens the filtered list.
+- **Departments:** every project with “Show in the portal” as a tile with symbol, colour, short description and the number of offerings and guides.
+- **Department page** (`/portal/<project>`, e.g. `/portal/hm`): optional notice at the top (e.g. an emergency number), the department's offerings, **Report something else** (the ticket lands in this project) and the most frequent public articles on the right.
+- **Setup** <sup>admin</sup>: in the project dialog under *In the portal* – show yes/no, short description, notice, symbol, colour and order. After the update all projects are shown; adding a symbol and short description is worth it.
+- **Start page for users** (*Administration → Tickets → General*): *Portal* (default) or *My requests* as before. Only applies when the start page is opened directly – links from emails always lead straight to the ticket, approval or article. **Agents and admins** always land at the tickets; they reach the portal via *Portal* in the sidebar.
+- **Phone:** in the app the portal is the first tab, next to *Requests*; the department page's *Report something else* leads to the report form with the project preselected.
+
 ## Service catalog
 
 Standard requests with their own form, e.g. “New employee”, “Software request” or “Access to a network drive”. Every offering belongs to a **project**; requests from it land there.
@@ -503,7 +515,7 @@ Switch it on under *Administration → Tickets → General → Satisfaction surv
 
 On phones Helfi.Space opens automatically in its own app-like interface (under `/m`). Tablets and computers keep the familiar view.
 
-- **Tab bar at the bottom:** *My work* or *Requests*, *Tickets* (agents), the round **＋** button, *Knowledge* and *Me*. Pages slide in like in an app; go back with the button, a swipe from the left edge or the back key. Pull lists down to refresh.
+- **Tab bar at the bottom:** *My work* (agents) or *Portal* and *Requests* (users, see [Portal](#portal-for-users)), *Tickets* (agents), the round **＋** button, *Knowledge* and *Me*. Pages slide in like in an app; go back with the button, a swipe from the left edge or the back key. Pull lists down to refresh.
 - **Report (＋):** report a problem with title, description, **Take photo** or **File**; agents also choose project, type and priority (as on the PC). While you type the title, Helfi.Space suggests matching knowledge articles. If there is a service catalog, its offerings appear as large tiles next to it – with all field types, required fields and approval. An unsent draft is kept until the tab is closed.
 - **Ticket:** comments like a chat, reply bar at the bottom with photos and files; agents add the history (status, assignments …) via *All* – the phone remembers the choice. Agents also write internal notes, use templates, change status, assignee, priority, type and participants, link tickets and approve requests. Title and description can be changed by agents and by the reporter.
 - **Knowledge:** search, categories, *Recently viewed*, *Most read* and the page tree to browse. Articles with a table of contents, sideways-scrolling tables and comments. Articles are edited on the PC (*Edit on desktop*). Users only see public articles.

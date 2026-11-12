@@ -12,7 +12,11 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 
 export function createItilRoutes(ctx) {
   const r = express.Router();
-  const { links, major, fields, problems, changes, approvals, tickets, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports } = ctx;
+  const { links, major, fields, problems, changes, approvals, tickets, kb, kbComments, kbVotes, catalog, portal, cmdb, survey, itilReports } = ctx;
+
+  // ---------- Portal (everyone signed in) ----------
+  r.get('/portal', (req, res) => res.json(portal.overview(req.user)));
+  r.get('/portal/:key', (req, res) => res.json(portal.department(req.user, req.params.key)));
 
   // ---------- Links ----------
   r.post('/tickets/:key/links', requireRole('agent'), wrap(async (req, res) => {

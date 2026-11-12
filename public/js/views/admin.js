@@ -1,4 +1,5 @@
 // Administration, grouped by topic: organisation, tickets, email, sign-in & security, appearance, system
+import { PORTAL_ICONS, PORTAL_COLORS } from './portal-choices.js';
 import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
@@ -117,6 +118,11 @@ function ticketsPage(body, s) {
       h('h2', t('admin.ticketsTitle')),
       field(t('general.allowSelfService'), bindCheck(s, 'general.allowSelfService')),
       saveBar(() => saveKeys(s, ['general.allowSelfService']))),
+    h('section.panel.user-start',
+      h('h2', t('portal.startTitle')),
+      h('p.muted.small', t('portal.startHint')),
+      field(t('portal.startLabel'), bindSelect(s, 'general.userStart', [['portal', t('portal.startPortal')], ['requests', t('portal.startRequests')]])),
+      saveBar(() => saveKeys(s, ['general.userStart']))),
     h('section.panel.reminder-settings',
       h('h2', t('reminder.title')),
       h('p.muted.small', t('reminder.hint')),
@@ -413,6 +419,23 @@ async function projectsPage(body) {
         addIn.value = ''; drawMembers();
       },
     });
+    // In the users' portal: shown, tile text, notice on the department page, symbol, colour, order
+    const pp = { show: true, description: '', intro: '', icon: 'monitor', color: 'blue', sort: 0, ...(p?.portal || {}) };
+    if (!pp.icon) pp.icon = 'monitor';
+    if (!pp.color) pp.color = 'blue';
+    const pShow = h('input', { type: 'checkbox', checked: pp.show, 'data-portal-show': '' });
+    const pDesc = h('input', { value: pp.description, maxLength: 200, 'data-portal-desc': '' });
+    const pIntro = h('textarea', { rows: 2, maxLength: 1000 }, pp.intro);
+    const pSort = h('input', { type: 'number', value: pp.sort, min: -999, max: 999, style: { width: '110px' } });
+    const choice = (list, key, render) => {
+      const box = h('div.portal-choice', { role: 'group' });
+      const draw = () => mount(box, list.map((v) => render(v, pp[key] === v, () => { pp[key] = v; draw(); })));
+      draw();
+      return box;
+    };
+    const icons = choice(PORTAL_ICONS, 'icon', (v, on, pick) => h('button', { type: 'button', 'aria-pressed': String(on), 'aria-label': t(`portal.icon.${v}`), title: t(`portal.icon.${v}`), 'data-icon': v, onclick: pick }, icon(v)));
+    const colors = choice(PORTAL_COLORS, 'color', (v, on, pick) => h(`button.portal-swatch.portal-c-${v}`, { type: 'button', 'aria-pressed': String(on), 'aria-label': t(`portal.color.${v}`), title: t(`portal.color.${v}`), 'data-color': v, onclick: pick }));
+    const portalData = () => ({ show: pShow.checked, description: pDesc.value.trim(), intro: pIntro.value.trim(), icon: pp.icon, color: pp.color, sort: Number(pSort.value) || 0 });
     const err = h('div.form-error', { role: 'alert', hidden: true });
     const submit = h('button.btn.btn-primary', { type: 'submit', form: 'proj-form' }, p ? t('app.save') : t('app.create'));
     const dlg = modal(p ? `${p.name} (${p.key})` : t('projects.new'), h('form#proj-form', {
@@ -423,7 +446,7 @@ async function projectsPage(body) {
         try {
           let target = p;
           if (!target) target = (await api.createProject({ key: key.value.trim().toUpperCase(), name: name.value.trim(), description: desc.value })).project;
-          else await api.updateProject(p.id, { name: name.value.trim(), description: desc.value });
+          await api.updateProject(target.id, { name: name.value.trim(), description: desc.value, portal: portalData() });
           if (!leadIn.value.trim()) lead = null;
           if (!deputyIn.value.trim()) deputy = null;
           await api.setProjectAgents(target.id, { lead, deputy, agentGroup: group.value.trim(), members: members.map((m) => m.choice) });
@@ -439,7 +462,13 @@ async function projectsPage(body) {
     field(t('projects.agentGroup'), group, t('projects.agentGroupHint')),
     cur.viaGroup.length ? h('div.field', h('span.field-label', t('projects.agentsViaGroup')),
       h('ul.plain', cur.viaGroup.map((a) => h('li', h('span.person', avatar(a, 'sm'), h('span', a.displayName)))))) : null,
-    h('div.field', h('span.field-label', t('projects.members')), list, addIn, h('div.hint', t('projects.membersHint')))),
+    h('div.field', h('span.field-label', t('projects.members')), list, addIn, h('div.hint', t('projects.membersHint'))),
+    h('h3.form-section', t('portal.inPortal')),
+    h('div.field.field-check', pShow, h('label', t('portal.show'))),
+    field(t('portal.description'), pDesc, t('portal.descriptionHint')),
+    field(t('portal.intro'), pIntro, t('portal.introHint')),
+    h('div.field', h('span.field-label', t('portal.iconColor')), icons, colors),
+    field(t('portal.sort'), pSort, t('portal.sortHint'))),
     { wide: true, footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), submit] });
   };
   const removeProject = (p) => {

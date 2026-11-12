@@ -9,6 +9,7 @@ export const DEFAULTS = {
   'general.title': 'Helfi.Space',
   'general.defaultProject': '',
   'general.allowSelfService': true, // users (role "user") may create tickets
+  'general.userStart': 'portal', // start page for users opening the start page directly: portal | requests
   'general.defaultLanguage': 'de', // de | en – for emails to senders without an account
 
   // Sign-in page (text without HTML; **bold**, links and mail addresses are recognized)

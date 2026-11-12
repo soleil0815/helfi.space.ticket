@@ -1,4 +1,4 @@
-// Home tab: "My work" for agents (counters + assigned tickets), "My requests" for users.
+// Home tab: "My work" for agents (counters + assigned tickets); for users the portal or "My requests" (setting).
 import { api } from '/js/api.js';
 import { h, icon } from '/js/dom.js';
 import { t } from '/js/i18n.js';
@@ -6,10 +6,14 @@ import { state } from '/js/state.js';
 import { replaceUrl } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
 import { ticketList, chip, chipRow, section, emptyState, skeletonList } from '../ui.js';
+import { renderPortal } from './portal.js';
 
 export async function renderHome(page, ctx) {
-  return state.isAgent ? agentHome(page) : userHome(page, ctx);
+  if (state.isAgent) return agentHome(page);
+  return state.boot?.userStart === 'requests' ? userHome(page, ctx) : renderPortal(page, ctx);
 }
+/** Users' requests as their own tab (when the portal is the start page) */
+export const renderRequests = (page, ctx) => userHome(page, ctx);
 
 function majorBanners() {
   return (state.boot.majorIncidents || []).map((mi) => h('a.m-banner.m-banner-major', { href: `/m/t/${encodeURIComponent(mi.key)}`, 'data-link': '' },
@@ -48,6 +52,7 @@ async function agentHome(page) {
 
 const USER_FILTERS = [
   { id: 'open', label: 'm.req.open', params: { status: 'unresolved' } },
+  { id: 'waiting', label: 'portal.count.waiting', params: { status: 'waiting' } },
   { id: 'done', label: 'm.req.done', params: { status: 'done' } },
   { id: 'participant', label: 'm.req.participant', params: { participant: 'me' } },
 ];
@@ -62,7 +67,8 @@ async function userHome(page, ctx) {
     active: filter?.id === f.id,
     onClick: () => {
       filter = filter?.id === f.id ? null : f;
-      replaceUrl(filter ? `/m/?filter=${filter.id}` : '/m/');
+      const base = location.pathname === '/m/requests' ? '/m/requests' : '/m/';
+      replaceUrl(filter ? `${base}?filter=${filter.id}` : base);
       drawChips();
       load();
     },

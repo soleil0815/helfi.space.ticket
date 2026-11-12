@@ -21,6 +21,7 @@ import { brandLogo, brandTitle } from './brand.js';
 import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
 import { renderCatalog } from './views/catalog.js';
+import { renderPortal, userStartPath } from './views/portal.js';
 import { renderCmdb } from './views/cmdb.js';
 import { renderRate } from './views/survey.js';
 import { state } from './state.js';
@@ -187,7 +188,9 @@ export async function route() {
   const params = url.searchParams;
 
   try {
-    if (path === '/' ) return navigate(state.isAgent ? '/board' : '/requests', { replace: true });
+    // Start page: agents and admins always the backend; users the portal or their requests (setting)
+    if (path === '/') return navigate(state.isAgent ? '/board' : userStartPath(), { replace: true });
+    if (path === '/portal' || path.startsWith('/portal/')) return await renderPortal(content, path);
     if (path === '/board') return await renderBoard(content, params);
     if (path === '/issues') return await renderList(content, params);
     // Users only see their own and shared requests here anyway (participants); agents see those they reported by default
@@ -327,6 +330,7 @@ function layout(content, path) {
       (state.boot.hasCatalog || state.boot.catalogManage) ? nav('/catalog', t('catalog.title'), 'inbox', path.startsWith('/catalog')) : null,
       nav('/cis', t('ci.title'), 'server', path.startsWith('/cis')),
       nav('/kb', t('kb.title'), 'file', path.startsWith('/kb')),
+      nav('/portal', t('portal.title'), 'home', path.startsWith('/portal')),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
       state.isAdmin ? nav('/admin/mail-in', t('nav.channelsMail'), 'mail', path === '/admin/mail-in') : null,
@@ -336,6 +340,7 @@ function layout(content, path) {
     );
   } else {
     sidebar = h('aside.sidebar',
+      nav('/portal', t('portal.title'), 'home', path.startsWith('/portal')),
       nav('/requests', t('nav.myRequests'), 'inbox', path === '/requests'),
       state.boot.hasCatalog ? nav('/catalog', t('catalog.request'), 'plus', path.startsWith('/catalog')) : null,
       state.boot.pendingApprovals ? nav('/requests?approval=mine', t('nav.approvals'), 'check', false) : null,

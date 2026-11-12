@@ -15,6 +15,7 @@ import { createApprovals } from './itil/approvals.js';
 import { createChanges } from './itil/changes.js';
 import { createKb } from './itil/kb.js';
 import { createCatalog } from './itil/catalog.js';
+import { createPortal } from './portal.js';
 import { createCmdb } from './itil/cmdb.js';
 import { createSurvey } from './itil/survey.js';
 import { createItilReports } from './itil/itilReports.js';
@@ -100,6 +101,7 @@ export function createApp(db) {
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const reminders = createReminders(db, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const itilReports = createItilReports(db, sla);
+  const portal = createPortal(db, { catalog, kb });
 
   // Initial setup: one-time code, only as long as there are no users
   const setup = { token: null };
@@ -119,7 +121,7 @@ export function createApp(db) {
   const aiClassifier = createAiClassifier({ db, settings, tickets, ai });
   const examples = createExamples({ db, canned, catalog, kb });
   const aiDuplicates = createAiDuplicates({ db, tickets, ai });
-  const ctx = { links, major, sla, reminders, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, aiDuplicates, examples, ldapCertWarning: null,
+  const ctx = { links, major, sla, reminders, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, portal, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, aiDuplicates, examples, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
 
