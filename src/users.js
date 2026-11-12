@@ -17,6 +17,8 @@ export function publicUser(u) {
     language: u.language || null,
     // colour theme: system (follows the device) | light | dark
     theme: ['light', 'dark'].includes(u.theme) ? u.theme : 'system',
+    // order of the activity in the ticket: newest | oldest first
+    activityOrder: u.activity_order === 'oldest' ? 'oldest' : 'newest',
     lastLogin: u.last_login || null,
     hasPassword: !!u.password_hash,
     mfaEnabled: !!u.totp_enabled,

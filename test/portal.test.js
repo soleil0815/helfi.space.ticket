@@ -100,7 +100,7 @@ test('Migration 44: existing projects are shown in the portal', async () => {
   try {
     const file = path.join(dir, 'h.sqlite');
     let d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });
-    d.exec('ALTER TABLE projects DROP COLUMN portal_show; ALTER TABLE projects DROP COLUMN portal_desc; ALTER TABLE projects DROP COLUMN portal_intro; ALTER TABLE projects DROP COLUMN portal_icon; ALTER TABLE projects DROP COLUMN portal_color; ALTER TABLE projects DROP COLUMN portal_sort;');
+    d.exec('ALTER TABLE users DROP COLUMN activity_order; ALTER TABLE projects DROP COLUMN portal_show; ALTER TABLE projects DROP COLUMN portal_desc; ALTER TABLE projects DROP COLUMN portal_intro; ALTER TABLE projects DROP COLUMN portal_icon; ALTER TABLE projects DROP COLUMN portal_color; ALTER TABLE projects DROP COLUMN portal_sort;');
     d.prepare("INSERT INTO projects(key,name) VALUES('AA','Alt')").run();
     d.prepare("UPDATE meta SET value='43' WHERE key='schema_version'").run();
     d.close();

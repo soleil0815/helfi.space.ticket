@@ -875,6 +875,14 @@ export const MIGRATIONS = [
     ALTER TABLE projects ADD COLUMN portal_sort INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: 45,
+    name: 'Reihenfolge des Verlaufs je Person',
+    sql: `
+    -- Activity in the ticket: NULL = newest first (as before), 'oldest' = oldest first (like a chat)
+    ALTER TABLE users ADD COLUMN activity_order TEXT;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

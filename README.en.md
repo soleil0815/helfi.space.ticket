@@ -332,6 +332,13 @@ When a request comes in by phone, in passing or to another mailbox, agents enter
 - **Agents only:** users cannot enter another reporter (the server refuses). Disabled accounts cannot be chosen.
 - **On phones:** *+ → Report a problem* shows agents the *Reporter* field at the top.
 
+## Order of the activity
+
+In a ticket the activity (*Comments*, *History*, *All*) shows **newest first** by default. The button to the right of the tabs reverses the order: **oldest first**, like a chat – the reply box then sits below the latest entry. A reply already being written is kept when switching.
+
+- The choice applies **per person** to all tickets and on all devices (saved in the account); it can also be set in the *profile* under *Language and display*.
+- In the phone app the activity always stays a chat (oldest first, reply bar at the bottom).
+
 ## Formatting replies
 
 Above the comment field there is a toolbar – in tickets, in comments on knowledge articles and on phones (there it appears while writing and can be swiped sideways):

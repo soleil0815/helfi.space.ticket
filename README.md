@@ -332,6 +332,13 @@ Kommt ein Anliegen per Telefon, im Flur oder an ein anderes Postfach, erfassen B
 - **Nur Bearbeiter:** Benutzer können keinen anderen Melder eintragen (der Server lehnt das ab). Deaktivierte Konten lassen sich nicht wählen.
 - **Auf dem Handy:** *+ → Problem melden* zeigt Bearbeitern oben das Feld *Melder*.
 
+## Reihenfolge der Aktivität
+
+Im Ticket zeigt die Aktivität (*Kommentare*, *Verlauf*, *Alle*) standardmäßig **das Neueste oben**. Der Knopf rechts neben den Reitern dreht die Reihenfolge um: **Älteste oben**, wie in einem Chat – dann steht das Antwortfeld unten nach dem letzten Eintrag. Eine angefangene Antwort bleibt beim Umschalten erhalten.
+
+- Die Wahl gilt **pro Person** für alle Tickets und auf allen Geräten (gespeichert im Konto); einstellbar auch im *Profil* unter *Sprache und Darstellung*.
+- In der Handy-App bleibt die Aktivität immer ein Chat (älteste oben, Antwortleiste unten).
+
 ## Antworten formatieren
 
 Über dem Kommentarfeld liegt eine Werkzeugleiste – im Ticket, bei Kommentaren zu Wissensartikeln und auf dem Handy (dort erscheint sie beim Schreiben und lässt sich seitlich wischen):
