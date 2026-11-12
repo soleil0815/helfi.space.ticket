@@ -91,9 +91,24 @@ helfi.firma.local {
 
 ---
 
+## Aufbau der Administration
+
+*Administration* ist nach Themen gegliedert (am Handy als Auswahlliste mit denselben Gruppen):
+
+| Gruppe | Bereiche |
+|---|---|
+| **Organisation** | Projekte (mit Standardprojekt), Komponenten, Benutzer |
+| **Tickets** | Allgemein (Benutzer dürfen Tickets anlegen, Erinnerung an Projektverantwortliche, Zufriedenheitsumfrage), Service Level, Change, Servicekatalog, Antwortvorlagen |
+| **E-Mail** | Posteingang (Abruf, Eingangsprojekt, Absender-Regeln, Schutz vor Mail-Schleifen), Postausgang (Versand, Benachrichtigungen) |
+| **Anmeldung & Sicherheit** | Active Directory, Single Sign-on, Zwei-Faktor & Sitzungen, Registrierung |
+| **Erscheinungsbild** | Name, Sprache & Design (inkl. Anmeldeseite) |
+| **System** | KI, Import, System (Info, Sicherungen, Notfallzugang) |
+
+Alte Adressen aus Lesezeichen (`/admin/general`, `/admin/security`, `/admin/mail`) führen an die neue Stelle.
+
 ## Erscheinungsbild (Corporate Design)
 
-*Administration → Allgemein → Erscheinungsbild*:
+*Administration → Erscheinungsbild → Name, Sprache & Design*:
 
 - **Logo** als PNG oder SVG (höchstens 512 KB). Es ersetzt das Logo in der Kopfzeile, auf der Anmeldeseite und im Browser-Tab. SVGs mit Skripten oder Verweisen auf fremde Inhalte werden abgelehnt. Das Logo liegt im Datenordner unter `brand/` und wird mitgesichert.
 - **Titel neben dem Logo** lässt sich ausblenden, wenn das Logo den Namen schon enthält.
@@ -103,7 +118,7 @@ helfi.firma.local {
 
 ## Anmeldeseite anpassen
 
-*Administration → Allgemein → Anmeldeseite*: eigene Überschrift (z. B. „Hilfecenter“), Begrüßungstext auf Deutsch und optional Englisch, z. B. wie man Hilfe bekommt, und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: `**fett**`, Links und Mailadressen werden automatisch anklickbar, HTML wird nie ausgeführt. Eine Vorschau zeigt das Ergebnis sofort.
+*Administration → Erscheinungsbild → Name, Sprache & Design → Anmeldeseite*: eigene Überschrift (z. B. „Hilfecenter“), Begrüßungstext auf Deutsch und optional Englisch, z. B. wie man Hilfe bekommt, und eine eigene Bezeichnung für das Anmeldefeld („Windows-Anmeldename“). Nur Text: `**fett**`, Links und Mailadressen werden automatisch anklickbar, HTML wird nie ausgeführt. Eine Vorschau zeigt das Ergebnis sofort.
 
 ## KI-Unterstützung (optional)
 
@@ -127,7 +142,7 @@ Bearbeiter lassen sich Tickets zusammenfassen und Antworten vorschlagen, glätte
 
 ## Selbstregistrierung und Kennwort vergessen
 
-*Administration → Sicherheit → Registrierung und Kennwort vergessen* (Registrierung standardmäßig aus)
+*Administration → Anmeldung & Sicherheit → Registrierung* (Registrierung standardmäßig aus)
 
 Ohne AD oder SSO schreiben Externe einfach eine Mail und werden als E-Mail-Kontakt geführt; anmelden können sie sich damit nicht. Mit **Selbstregistrierung** legen sie sich über „Konto erstellen“ auf der Anmeldeseite selbst ein lokales Konto an (Rolle „Benutzer“) und sehen ihre Anfragen dann auch im Browser.
 
@@ -163,7 +178,7 @@ Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Be
 
 ## Zwei-Faktor-Anmeldung (2FA)
 
-*Administration → Sicherheit*
+*Administration → Anmeldung & Sicherheit → Zwei-Faktor & Sitzungen*
 
 Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Faktor Pflicht.** Das ist ein 6-stelliger Code aus einer Authenticator-App wie Microsoft Authenticator, Google Authenticator, Aegis oder 2FAS. Die Pflicht lässt sich getrennt nach Rolle einstellen:
 
@@ -180,12 +195,12 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 - **Hinter einem Reverse-Proxy** muss dessen Adresse in `HELFI_TRUST_PROXY` stehen. Sonst sieht Helfi.Space nur den Proxy und behandelt jeden Zugriff sicherheitshalber als extern. Admins bekommen dann einen Hinweis.
 - **Einrichten:** Jeder richtet 2FA unter *Profil → Zwei-Faktor-Anmeldung* ein: QR-Code scannen, Code eingeben, 10 Wiederherstellungscodes sichern. Aus Sicherheitsgründen geht die Ersteinrichtung nur im internen Netz, und zwar in jedem Modus. Ausnahme: nach einer SSO-Anmeldung, deren zweiten Faktor der Identitätsanbieter geprüft hat („SSO-Anmeldungen gelten als zweiter Faktor“). Ist 2FA schon eingerichtet, lässt sie sich nur mit gültigem Code abschalten und dann neu einrichten (z. B. neues Handy). So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. Wer nur von außen arbeitet, für den lässt sich unter *Sicherheit* die „Ersteinrichtung auch von außen“ erlauben.
 - **Sitzungen:** Wer sich im Büro ohne Code angemeldet hat und denselben Browser später von zu Hause nutzt, muss sich dort neu mit Code anmelden. Spätestens 30 Tage nach der Anmeldung endet jede Sitzung, auch bei ständiger Nutzung.
-- **Automatische Abmeldung** (*Administration → Sicherheit*): Wer eine Weile nichts tut (keine Klicks, keine Eingaben), wird abgemeldet – für alle nach `HELFI_SESSION_HOURS` (Standard 12 Stunden) oder dem dort eingestellten Wert, für Admins standardmäßig nach 60 Minuten, optional kürzer für Zugriffe von außerhalb des Firmennetzes; es gilt die kürzeste passende Frist. Zwei Minuten vorher fragt Helfi „Noch da?“. Solange jemand arbeitet, auch beim Tippen einer langen Antwort, läuft die Sitzung weiter. Optional endet die Anmeldung mit dem Schließen des Browsers.
+- **Automatische Abmeldung** (*Administration → Anmeldung & Sicherheit → Zwei-Faktor & Sitzungen*): Wer eine Weile nichts tut (keine Klicks, keine Eingaben), wird abgemeldet – für alle nach `HELFI_SESSION_HOURS` (Standard 12 Stunden) oder dem dort eingestellten Wert, für Admins standardmäßig nach 60 Minuten, optional kürzer für Zugriffe von außerhalb des Firmennetzes; es gilt die kürzeste passende Frist. Zwei Minuten vorher fragt Helfi „Noch da?“. Solange jemand arbeitet, auch beim Tippen einer langen Antwort, läuft die Sitzung weiter. Optional endet die Anmeldung mit dem Schließen des Browsers.
 - **Handy verloren:** Mit einem Wiederherstellungscode anmelden. Alternativ setzt ein Admin unter *Benutzer → 2FA zurücksetzen* die 2FA zurück, und die Person richtet sie im Büro neu ein.
 - **Gilt für** lokale Konten und Active-Directory-Anmeldungen. Bei **SSO** regelt *Sicherheit → SSO-Anmeldung als zweiter Faktor*, ob die Anmeldung beim Identitätsanbieter reicht:
   - **Nur wenn der Anbieter eine MFA meldet** (Standard): Das Token muss eine Mehrfaktor-Anmeldung belegen, also `amr` mit z. B. `mfa`, `otp` oder `hwk` (Entra ID: `mfa`), oder einen der unter *Single Sign-on → acr-Werte für MFA* eingetragenen `acr`-Werte (z. B. Keycloak-Stufe `2`). Sonst fragt Helfi.Space seinen eigenen Code ab.
   - **Immer** oder **Nie** (dann immer zusätzlich der eigene Code).
-  - Installationen mit aktivem SSO behalten beim Update ihr bisheriges Verhalten („Immer“); unter *Sicherheit* steht dann ein Hinweis mit der Empfehlung.
+  - Installationen mit aktivem SSO behalten beim Update ihr bisheriges Verhalten („Immer“); unter *Zwei-Faktor & Sitzungen* steht dann ein Hinweis mit der Empfehlung.
 - Docker-Hinweis: Bei manchen Docker-Setups kommen alle Zugriffe scheinbar vom Docker-Gateway, z. B. bei rootless Docker oder IPv6. Diese Adresse gilt deshalb nur als intern, wenn sie einzeln eingetragen ist.
 
 ![Einstellungen zur Zwei-Faktor-Anmeldung](docs/images/2fa-de.png)
@@ -207,11 +222,11 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 
 ## E-Mail
 
-*Administration → E-Mail*
+*Administration → E-Mail → Posteingang* (Abruf, Eingangsprojekt, Absender-Regeln, Schutz vor Mail-Schleifen) und *Postausgang* (Versand, Benachrichtigungen)
 
 - **Postfach abrufen (IMAP):** Server, Benutzer und Kennwort des Helpdesk-Postfachs eintragen. Neue Mails werden zu Tickets (inklusive Anhängen bis 20 MB je Anhang und bis zu 30 Anhängen; was nicht übernommen wird, steht als Hinweis im Ticket; Mails über 80 MB werden übersprungen und im Postfach markiert). Antworten auf Mails von Helfi.Space und Antworten Beteiligter mit `[IT-123]` im Betreff werden zu Kommentaren, zitierter Verlauf wird abgeschnitten. Antwortet der Melder auf ein wartendes oder erledigtes Ticket, wird es wieder geöffnet – außer es wurde abgelehnt oder als Duplikat geschlossen: Dann wird die Antwort eine interne Notiz und das Ticket bleibt zu (bei Bedarf öffnet es ein Bearbeiter). Abwesenheitsnotizen und automatische Mails werden ignoriert. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben. Übersprungene Mails (automatisch erzeugt, Stundengrenze, Konto deaktiviert, ohne gültigen Absender, eigene Adresse, Regel „Ignorieren“) und Unzustellbarkeitsberichte bleiben gelesen im Posteingang; sie kommen nicht in den Ordner für verarbeitete Mails und werden deshalb auch nicht automatisch gelöscht.
 - **Welches Projekt? – über die Komponenten:** Eine neue Mail an das zentrale Postfach wird mit den Komponenten **aller Projekte** verglichen (Absender, Schlagwörter in Betreff und Text). Das Projekt der passenden Komponente bekommt das Ticket – mit dieser Komponente, ohne Zuweisung. „Heizung in Raum 12 kalt“ landet so in der Haustechnik mit der Komponente „Heizung & Klima“. Ein eigenes Postfach je Projekt braucht es nicht. Eine Absender-Regel mit Projekt hat Vorrang.
-- **Passt keine Komponente:** Das Ticket landet im **Eingangsprojekt** (*Administration → E-Mail → Eingangsprojekt*, sonst das Standardprojekt; in *Projekte* mit „Eingang“ markiert). Dessen Leitung und Vertretung verteilen es per *Verschieben* und bekommen die Erinnerungsmail, falls es liegen bleibt. Ist die KI-Funktion *Komponente erkennen* an, wählt die KI für solche Mails aus den Komponenten aller Projekte – als Vorschlag („Haustechnik / Heizung & Klima – übernehmen?“) oder direkt; übernommen wird das Ticket dabei verschoben.
+- **Passt keine Komponente:** Das Ticket landet im **Eingangsprojekt** (*Administration → E-Mail → Posteingang → Eingangsprojekt*, sonst das Standardprojekt; in *Projekte* mit „Eingang“ markiert). Dessen Leitung und Vertretung verteilen es per *Verschieben* und bekommen die Erinnerungsmail, falls es liegen bleibt. Ist die KI-Funktion *Komponente erkennen* an, wählt die KI für solche Mails aus den Komponenten aller Projekte – als Vorschlag („Haustechnik / Heizung & Klima – übernehmen?“) oder direkt; übernommen wird das Ticket dabei verschoben.
 - **Falsch gelandet?** Bearbeiter verschieben ein Ticket in **jedes** Projekt (Details → Projekt oder Mehrfachauswahl), auch in eines, das sie selbst nicht bearbeiten; danach sehen sie es dort nicht mehr.
 - **Versand (SMTP):** Als Absender am besten dieselbe Adresse wie das Postfach verwenden, dann landen Antworten wieder im Ticket.
 - **Interne Notizen** gehen nie per E-Mail raus.
@@ -227,8 +242,8 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 - **Schutz vor Mail-Schleifen** (z. B. mit Monitoren, Druckern, Backup-Software):
   - Unzustellbarkeitsberichte (Exchange, Postfix, …) und Lesebestätigungen werden nie zu Tickets oder Kommentaren und nie beantwortet.
   - Gehört ein Bericht zu einer Mail von Helfi.Space, erscheint im Ticket eine interne Notiz „Zustellung fehlgeschlagen“.
-  - Die betroffene Adresse bekommt 7 Tage lang keine Mails mehr. Gesperrt werden nur Adressen aus echten Kopfzeilen des Berichts (`X-Failed-Recipients`) bzw. aus seinem Teil `message/delivery-status`, nie Adressen aus dem Mailtext – und nur, wenn der Bericht sich auf eine Mail bezieht, die Helfi.Space an genau diese Adresse geschickt hat (ein gefälschter Bericht sperrt sonst nichts). Die Liste steht unter *Administration → E-Mail → Gesperrte Empfänger*, dort lässt sich eine Adresse auch vorzeitig freigeben.
-  - **Absender-Regeln** (Adresse oder Muster wie `*@zabbix.firma.local`): „Ticket anlegen, nie antworten“, wahlweise in ein eigenes Projekt, oder „Ignorieren“. Automatisch erzeugte Mails (Kopfzeile `Auto-Submitted`, `Precedence: bulk`, Absender `noreply@…`), wie sie Proxmox, NAS-Systeme oder Monitoring verschicken, werden nur mit der Regel „Ticket anlegen, nie antworten“ angenommen. Ohne Regel werden sie übersprungen. Unter *Administration → E-Mail* steht bei den zuletzt übersprungenen Mails jeweils Absender und Grund.
+  - Die betroffene Adresse bekommt 7 Tage lang keine Mails mehr. Gesperrt werden nur Adressen aus echten Kopfzeilen des Berichts (`X-Failed-Recipients`) bzw. aus seinem Teil `message/delivery-status`, nie Adressen aus dem Mailtext – und nur, wenn der Bericht sich auf eine Mail bezieht, die Helfi.Space an genau diese Adresse geschickt hat (ein gefälschter Bericht sperrt sonst nichts). Die Liste steht unter *Administration → E-Mail → Posteingang → Gesperrte Empfänger*, dort lässt sich eine Adresse auch vorzeitig freigeben.
+  - **Absender-Regeln** (Adresse oder Muster wie `*@zabbix.firma.local`): „Ticket anlegen, nie antworten“, wahlweise in ein eigenes Projekt, oder „Ignorieren“. Automatisch erzeugte Mails (Kopfzeile `Auto-Submitted`, `Precedence: bulk`, Absender `noreply@…`), wie sie Proxmox, NAS-Systeme oder Monitoring verschicken, werden nur mit der Regel „Ticket anlegen, nie antworten“ angenommen. Ohne Regel werden sie übersprungen. Unter *Administration → E-Mail → Posteingang* steht bei den zuletzt übersprungenen Mails jeweils Absender und Grund.
 - Absender ohne Konto werden als *E-Mail-Kontakt* geführt. Melden sie sich später per AD oder SSO mit derselben Adresse an, werden ihre Tickets übernommen.
 - **Absender im AD nachschlagen** (Standard: an, braucht AD-Anmeldung mit Dienstkonto): Unbekannte Absender sucht Helfi.Space im AD. Gesucht wird in `mail`, `userPrincipalName` und den Zweitadressen in `proxyAddresses`, deaktivierte Konten nicht. Bei genau einem Treffer wird die Person gleich als AD-Benutzer angelegt, mit der Rolle aus ihren Gruppen, als hätte sie sich angemeldet. Ein vorhandener E-Mail-Kontakt wird dabei übernommen. Nicht gefunden, mehrdeutig oder AD nicht erreichbar: Sie wird wie bisher E-Mail-Kontakt. Unbekannte Adressen werden eine Stunde lang nicht erneut gesucht. Eine Mail gibt auch dann nie Bearbeiter-Rechte.
 - **Aufbewahrung:** „Verarbeitete Mails löschen nach … Tagen“ (Standard 0 = nie, sonst mindestens 7). Einmal täglich werden im Ordner für verarbeitete Mails die älteren Mails endgültig gelöscht, höchstens 500 pro Lauf. Im Posteingang wird nie gelöscht. Ist kein eigener Ordner eingetragen, löscht Helfi.Space gar nichts. Die Inhalte bleiben in den Tickets.
@@ -262,13 +277,13 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
   - **Aus dem AD:** Bearbeiter sehen ab 3 Zeichen auch Personen aus dem AD (markiert mit „AD“), gesucht in Name, Anmeldename und Mailadressen samt Zweitadressen. Wer gewählt wird, wird als AD-Benutzer angelegt bzw. aktualisiert, mit Mailadresse und Rolle aus dem AD; ein vorhandener E-Mail-Kontakt wird übernommen. Auch eine eingetippte Mailadresse wird im AD nachgeschlagen. Personen, die laut Gruppen Helfi.Space nicht nutzen dürfen, kommen als E-Mail-Kontakt dazu. Ist das AD nicht erreichbar, erscheinen nur die vorhandenen Personen. Abschaltbar unter *Administration → Active Directory → Teilnehmer aus dem AD vorschlagen*, braucht das Dienstkonto.
   - Melder und Teilnehmer können Kollegen mit eigenem Konto hinzufügen, aber keine freien Adressen.
   - Höchstens 20 je Ticket.
-- **Per E-Mail:** Wer bei einer neuen Mail oder einer Antwort auf eine Mail von Helfi.Space in *An* oder *CC* steht, wird automatisch Teilnehmer (nicht, wenn eine Antwort nur über die Nummer im Betreff zugeordnet wird). Das gilt für höchstens 10 Adressen je Mail; die eigene Helpdesk-Adresse und Bearbeiter zählen nicht mit. Abschaltbar unter *Administration → E-Mail*.
+- **Per E-Mail:** Wer bei einer neuen Mail oder einer Antwort auf eine Mail von Helfi.Space in *An* oder *CC* steht, wird automatisch Teilnehmer (nicht, wenn eine Antwort nur über die Nummer im Betreff zugeordnet wird). Das gilt für höchstens 10 Adressen je Mail; die eigene Helpdesk-Adresse und Bearbeiter zählen nicht mit. Abschaltbar unter *Administration → E-Mail → Posteingang*.
 - **Was Teilnehmer dürfen:**
   - das Ticket sehen, auch unter *Meine Anfragen* mit dem Filter „Ich bin Teilnehmer“
   - im Web oder per Antwort-Mail kommentieren und Dateien anhängen
 - **Was Teilnehmer nicht dürfen:** interne Notizen sehen, Status, Zuweisung oder Titel ändern. Vom Melder und von anderen Antwortenden sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen (das gilt auch für Genehmigende ohne Bearbeiter-Rolle und in der Personensuche).
 - **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
-- **Erinnerung an Projektverantwortliche** (*Administration → E-Mail*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommen Leitung und Vertretung jedes Projekts eine Sammelmail mit den offenen Tickets, die seit X Tagen niemandem zugewiesen sind – mit Links zu den Tickets und zur gefilterten Liste. Ohne Leitung und Vertretung geht sie an die Admins, ohne liegengebliebene Tickets kommt keine Mail. Auf Wunsch nur Montag bis Freitag; *Jetzt prüfen und senden* zum Ausprobieren.
+- **Erinnerung an Projektverantwortliche** (*Administration → Tickets → Allgemein*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommen Leitung und Vertretung jedes Projekts eine Sammelmail mit den offenen Tickets, die seit X Tagen niemandem zugewiesen sind – mit Links zu den Tickets und zur gefilterten Liste. Ohne Leitung und Vertretung geht sie an die Admins, ohne liegengebliebene Tickets kommt keine Mail. Auf Wunsch nur Montag bis Freitag; *Jetzt prüfen und senden* zum Ausprobieren.
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
@@ -438,7 +453,7 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
   - **Anlegen, bearbeiten, verschieben, löschen**, Versionen, Rückmeldungen und Kommentare als erledigt markieren: nur die Personen des Projekts (und Admins) – auch bei öffentlichen Artikeln. Die IT ändert also keine Artikel der Haustechnik und umgekehrt.
   - **Unterseiten erben das Projekt** ihrer übergeordneten Seite. Verschiebt man eine Seite unter eine Seite eines anderen Projekts, wandert sie samt Unterseiten mit (dafür muss man in beiden Projekten arbeiten). Das Projekt einer Seite der obersten Ebene stellst du im Editor um, die Unterseiten folgen.
   - Wer in mehreren Projekten arbeitet, wählt beim neuen Artikel das Projekt; in der Liste filtern Chips nach Projekt.
-  - Artikel von vor dem Update gehören zum **Standardprojekt** (*Administration → Allgemein*).
+  - Artikel von vor dem Update gehören zum **Standardprojekt** (*Administration → Projekte*).
 - **Suche** über Titel und Inhalt, Titeltreffer zuerst; Filter nach Kategorie. Lesehäufigkeit je Artikel für Bearbeiter.
 - **Editor:** Bearbeiten im fertigen Aussehen mit Werkzeugleiste: Überschriften, Fett/Kursiv/Unterstrichen/Durchgestrichen, Aufzählung, nummerierte Liste, Checkliste, Zitat, Codeblock, Infobox (Hinweis, Tipp, Warnung), Tabelle, Trennlinie, Link (auch auf Tickets wie `IT-42` oder Artikel `KB-3`), Emoji und Bilder. Bilder kommen per Strg+V, Drag & Drop oder Knopf hinein, mit Größe und Bildunterschrift. Markdown-Kürzel beim Tippen (`# `, `- `, `1. `, `[] `, `> `, ```` ``` ````, `---`), Tastenkürzel (Strg+B/I/U/K/E/S). Einfügen aus Word oder Webseiten übernimmt Überschriften, Listen, Tabellen und Links; Bilder von fremden Adressen werden nicht übernommen. Ungespeicherte Änderungen sichert der Browser als Entwurf. Gespeichert wird schlichter Text im Markdown-Stil, kein HTML.
 - **Inhaltsverzeichnis** in der Artikelansicht ab drei Überschriften.
@@ -477,7 +492,7 @@ Ein schlankes Verzeichnis der IT-Ausstattung und Dienste (CI-Verzeichnis), nur f
 
 ## Zufriedenheitsumfrage
 
-Einschalten unter *Administration → E-Mail → Zufriedenheitsumfrage* (Standard: aus).
+Einschalten unter *Administration → Tickets → Allgemein → Zufriedenheitsumfrage* (Standard: aus).
 
 - **In der „Erledigt“-Mail** bekommt der Melder fünf Links von „sehr zufrieden“ bis „sehr unzufrieden“. Ein Klick genügt, eine Anmeldung ist nicht nötig. Auf der Seite kann er die Sterne noch ändern und freiwillig einen Kommentar schreiben. Anfrage-Teilnehmer bekommen keine Links.
 - **Im Ticket** können angemeldete Melder ebenfalls bewerten. Bearbeiter sehen die Bewertung samt Kommentar oben im Ticket; Änderungen der Sterne stehen im Verlauf.
