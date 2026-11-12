@@ -68,8 +68,10 @@ export function createReports(db) {
     };
     // All active agents appear, even with 0
     // (with a project selection: the agents of these projects)
-    const ofProjects = projectId ? `AND (role='admin' OR agent_scope<>'projects' OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?))))` : '';
-    for (const u of db.prepare(`SELECT id FROM users WHERE active=1 AND role IN ('agent','admin') ${ofProjects}`).all(...pa)) row(u.id);
+    // agents, admins and the people of the projects (with a selection: of those projects)
+    const members = `id IN (SELECT user_id FROM project_agents ${projectId ? 'WHERE project_id IN (SELECT value FROM json_each(?))' : ''})`;
+    const workers = new Set(db.prepare(`SELECT id FROM users WHERE active=1 AND (role IN ('agent','admin') OR ${members})`).all(...pa).map((u) => u.id));
+    for (const id of workers) row(id);
     for (const x of resolved) Object.assign(row(x.id), { resolved: x.n, avgResolutionHours: x.hours === null ? null : Math.round(x.hours * 10) / 10 });
     for (const x of open) row(x.id).openAssigned = x.n;
     for (const x of touched) row(x.id).touched = x.n;
@@ -78,7 +80,7 @@ export function createReports(db) {
     // Only agents/admins (including former ones if they resolved something in the period) – no reporters
     const users = db.prepare(`SELECT id, display_name, username, role, active FROM users WHERE id IN (${[...byId.keys()].map(() => '?').join(',') || 'NULL'})`).all(...byId.keys());
     return users
-      .filter((u) => u.role === 'agent' || u.role === 'admin' || byId.get(u.id).resolved > 0)
+      .filter((u) => workers.has(u.id) || byId.get(u.id).resolved > 0)
       .map((u) => ({ ...byId.get(u.id), displayName: u.display_name, username: u.username, active: !!u.active }))
       .sort((a, b) => b.resolved - a.resolved || b.touched - a.touched || a.displayName.localeCompare(b.displayName));
   }

@@ -27,7 +27,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Selbstregistrierung und „Kennwort vergessen“** für lokale Konten (Selbstregistrierung standardmäßig aus, „Kennwort vergessen“ standardmäßig für Benutzer-Konten), optional nur für bestimmte Domänen und mit Freigabe
 - **Automatische Abmeldung bei Inaktivität,** für Admins und Zugriffe von außen strenger einstellbar, mit „Noch da?“-Hinweis
 - **Wissensartikel mit 👍/👎-Bewertung** und Rückmeldungen, was gefehlt hat – Artikel, die eine Überarbeitung brauchen, auf einen Blick
-- **Rollen:** Administrator, Bearbeiter, Benutzer. Benutzer sehen nur ihre eigenen Anfragen. **Bearbeiter je Projekt:** Wer nur für die Haustechnik zuständig ist, sieht keine IT-Tickets – per AD/SSO-Projektgruppe oder von Hand ([Projektrechte](#projektrechte)).
+- **Rollen:** Administrator (darf alles und richtet alles ein) und Benutzer (sieht nur seine eigenen Anfragen). **Wer Tickets bearbeitet, steht im Projekt:** Leitung, Vertretung, Bearbeiter-Gruppe aus AD/SSO und einzelne Personen – wer nur für die Haustechnik zuständig ist, sieht keine IT-Tickets ([Projektrechte](#projektrechte)).
 - **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht – einstellbar je Rolle.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
 - **Dunkelmodus:** Im Benutzermenü unter *Design* zwischen *System* (folgt dem Gerät), *Hell* und *Dunkel* wählen – am Handy unter *Ich → Design*. Die Wahl gilt für das Konto auf allen Geräten, auch mit eigener Firmenfarbe.
@@ -147,11 +147,11 @@ Ohne AD oder SSO schreiben Externe einfach eine Mail und werden als E-Mail-Konta
    - Windows: `certlm.msc` → Eigene Zertifikate → Zertifikat des DCs → Details → Fingerabdruck (SHA-256 über PowerShell: `Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, @{n='SHA256';e={$_.GetCertHashString('SHA256')}}`)
    - Samba: `openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256`
 3. **Dienstkonto** eintragen, z. B. `svc-helfi@firma.local` (normales Domänenkonto, keine besonderen Rechte nötig). Ohne Dienstkonto sucht Helfi.Space mit dem Konto, das sich gerade anmeldet, und prüft das Kennwort danach noch einmal am gefundenen Konto (so führt der UPN eines anderen Kontos nie zur falschen Anmeldung).
-4. **Gruppen** für Administratoren und Bearbeiter eintragen, z. B. `Helfi-Admins` und `Helfi-Bearbeiter` (Name oder vollständiger DN; ein Name wird in der ganzen Domäne gesucht, die Gruppe darf also in einer anderen OU liegen als die Benutzer). Verschachtelte Gruppen werden berücksichtigt. Optional lässt sich über eine Gruppe „Zugelassene Benutzer“ einschränken, wer sich überhaupt anmelden darf (Admins und Bearbeiter dürfen immer). Ist ein Gruppenname mehrdeutig (gleicher Name in mehreren OUs), wird keine Rolle vergeben und das Protokoll meldet es – dann den vollständigen DN eintragen.
+4. **Admin-Gruppe** eintragen, z. B. `Helfi-Admins` (Name oder vollständiger DN; ein Name wird in der ganzen Domäne gesucht, die Gruppe darf also in einer anderen OU liegen als die Benutzer). Verschachtelte Gruppen werden berücksichtigt. Optional lässt sich über eine Gruppe „Zugelassene Benutzer“ einschränken, wer sich überhaupt anmelden darf (Admins und Mitglieder einer Projektgruppe dürfen immer). Wer welche Tickets bearbeitet, legst du im jeweiligen Projekt fest ([Projektrechte](#projektrechte)). Ist ein Gruppenname mehrdeutig (gleicher Name in mehreren OUs), wird keine Rolle vergeben und das Protokoll meldet es – dann den vollständigen DN eintragen.
 5. **Verbindung testen**, am besten mit einer Testanmeldung. Ist der Base-DN leer, wird er dabei aus dem AD übernommen. Gibt es eine Microsoft-Zertifizierungsstelle (AD CS), findet der Test sie und bietet an, sie mit zu übernehmen. Dann bleiben auch erneuerte DC-Zertifikate automatisch gültig.
 6. **AD-Anmeldung aktivieren** und speichern.
 
-Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Benutzer werden bei der ersten Anmeldung angelegt. Ihre Rolle ergibt sich bei jeder Anmeldung aus den Gruppen, außer ein Admin hat sie unter *Benutzer* mit „Rolle fest“ gesperrt. Ändert ein Admin die Rolle von Hand, wird sie automatisch gesperrt. Zusätzlich kann jedes Projekt eine **Projektgruppe** haben (siehe [Projektrechte](#projektrechte)); *Verbindung testen* zeigt auch diese Gruppen und bei der Testanmeldung die Projekte der Person.
+Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Benutzer werden bei der ersten Anmeldung angelegt. Ihre Rolle ergibt sich bei jeder Anmeldung aus den Gruppen, außer ein Admin hat sie unter *Benutzer* mit „Rolle fest“ gesperrt. Ändert ein Admin die Rolle von Hand, wird sie automatisch gesperrt. Zusätzlich kann jedes Projekt eine eigene **Bearbeiter-Gruppe** haben (siehe [Projektrechte](#projektrechte)); *Verbindung testen* zeigt auch diese Gruppen und bei der Testanmeldung die Projekte der Person.
 
 **Gut zu wissen**
 
@@ -196,7 +196,7 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 
 1. Beim Anbieter eine App bzw. einen Client anlegen und als Umleitungs-URI die angezeigte Adresse eintragen: `https://helfi.firma.local/auth/oidc/callback`.
 2. Issuer-URL, Client-ID und Client-Geheimnis eintragen und **Testen**.
-   - **Microsoft Entra ID:** `https://login.microsoftonline.com/<Mandanten-ID>/v2.0`. Unter *Tokenkonfiguration* den Gruppenanspruch hinzufügen. Im Token stehen dann Gruppen-IDs, und diese IDs trägst du bei Admin-/Bearbeiter-Gruppe ein.
+   - **Microsoft Entra ID:** `https://login.microsoftonline.com/<Mandanten-ID>/v2.0`. Unter *Tokenkonfiguration* den Gruppenanspruch hinzufügen. Im Token stehen dann Gruppen-IDs, und diese IDs trägst du bei der Admin-Gruppe bzw. der Bearbeiter-Gruppe des Projekts ein.
    - **ADFS (Windows Server):** `https://adfs.firma.local/adfs`, Anwendungsgruppe „Serveranwendung, die auf eine Web-API zugreift“. Den Anspruch `groups` per Anspruchsregel ausgeben.
    - **Keycloak:** `https://keycloak.firma.local/realms/<Realm>`, Mapper „Group Membership“ mit Claim `groups`.
 3. Optional „direkt zu SSO weiterleiten“ einschalten. Die normale Anmeldeseite bleibt dann über `/login?local=1` erreichbar, etwa für den Notfall-Admin.
@@ -265,7 +265,7 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
   - im Web oder per Antwort-Mail kommentieren und Dateien anhängen
 - **Was Teilnehmer nicht dürfen:** interne Notizen sehen, Status, Zuweisung oder Titel ändern. Vom Melder und von anderen Antwortenden sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen (das gilt auch für Genehmigende ohne Bearbeiter-Rolle und in der Personensuche).
 - **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
-- **Erinnerung an Projektverantwortliche** (*Administration → E-Mail*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommt der Verantwortliche jedes Projekts eine Sammelmail mit den offenen Tickets, die seit X Tagen niemandem zugewiesen sind – mit Links zu den Tickets und zur gefilterten Liste. Ohne Verantwortlichen (oder wenn er kein Bearbeiter des Projekts ist) geht sie an die Admins, ohne liegengebliebene Tickets kommt keine Mail. Auf Wunsch nur Montag bis Freitag; *Jetzt prüfen und senden* zum Ausprobieren.
+- **Erinnerung an Projektverantwortliche** (*Administration → E-Mail*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommen Leitung und Vertretung jedes Projekts eine Sammelmail mit den offenen Tickets, die seit X Tagen niemandem zugewiesen sind – mit Links zu den Tickets und zur gefilterten Liste. Ohne Leitung und Vertretung geht sie an die Admins, ohne liegengebliebene Tickets kommt keine Mail. Auf Wunsch nur Montag bis Freitag; *Jetzt prüfen und senden* zum Ausprobieren.
 - **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
 - **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
 
@@ -275,16 +275,17 @@ Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. 
 
 ## Projektrechte
 
-Standardmäßig sind Bearbeiter für **alle Projekte** zuständig – so wie bisher, beim Update ändert sich nichts. Gibt es mehrere Abteilungen (z. B. IT und Haustechnik), lässt sich das einschränken: Ein Bearbeiter für **nur bestimmte Projekte** sieht und bearbeitet nur deren Tickets. Für alle anderen Projekte ist er ein normaler Benutzer: Er sieht dort nur seine eigenen Anfragen (oder solche, an denen er beteiligt ist), ohne interne Notizen, Verlauf und Bearbeiter-Werkzeuge.
+Wer die Tickets eines Projekts bearbeitet, legst du **im Projekt** fest (*Administration → Projekte → Bearbeiten*, auch beim Anlegen) – nicht in der Benutzerverwaltung:
 
-- **Projektgruppe (AD/SSO):** *Administration → Projekte → Bearbeiter* – z. B. `IT-Helpdesk` beim Projekt IT. Wer in der Gruppe ist, wird bei der Anmeldung Bearbeiter dieses Projekts; mehrere Gruppen = mehrere Projekte. Wer zusätzlich in der allgemeinen Bearbeiter-Gruppe ist, bleibt für alle Projekte zuständig. Eine Projektgruppe macht nie jemanden zum einfachen Benutzer oder nimmt Admin-Rechte weg. Die Mitgliedschaft wird bei jeder Anmeldung abgeglichen; wird die Gruppe geändert, gelten die alten Mitgliedschaften sofort nicht mehr.
-- **Von Hand:** im selben Fenster Bearbeiter ankreuzen oder unter *Benutzer → Projekte ändern* „Alle Projekte“ / „Nur diese Projekte“ wählen. Das setzt „Rolle fest“, damit AD-Gruppen es nicht überschreiben.
-- **Auf einen Blick:** In *Benutzer* steht unter jeder Rolle, was die Person sieht, z. B. „Sieht: IT, HM – über Gruppe IT-Helpdesk“.
-- **Eingeschränkt wird überall:** Ticketlisten, Suche (interne Notizen fremder Projekte finden nichts), Board, Warteschlangen und Zähler, Zusammenfassung, Berichte, SLA, Probleme, Changes, Major Incidents, Verknüpfungen, Geräte-Verlauf, KI-Funktionen, @-Erwähnungen in internen Notizen und Zuweisen (nur an Bearbeiter des Projekts). Verschieben geht nur in eigene Projekte; wird ein Ticket in ein Projekt verschoben, für das der Zugewiesene nicht zuständig ist, ist es danach niemandem zugewiesen.
-- **Gemeinsam bleiben** Wissensdatenbank, Antwortvorlagen, Geräte & Dienste und die Personensuche.
-- **Admins** sind immer für alle Projekte zuständig.
+- **Leitung** und optional **Vertretung:** je eine Person (Suche nach Name; mit AD auch Personen, die sich noch nie angemeldet haben). Beide bearbeiten die Tickets und bekommen die Erinnerungsmail.
+- **Bearbeiter-Gruppe (AD/SSO):** z. B. `Helpdesk`. Alle Mitglieder bearbeiten die Tickets dieses Projekts. Die Mitgliedschaft wird bei jeder Anmeldung abgeglichen; wird die Gruppe geändert, gelten die alten Mitgliedschaften sofort nicht mehr.
+- **Weitere Bearbeiter:** einzelne Personen zusätzlich, z. B. ohne AD-Konto.
 
-Beispiel Umstellung: Projektgruppe `IT-Helpdesk` beim Projekt IT eintragen, Konten der IT in diese Gruppe, Haustechnik entsprechend mit `Haustechnik`. Wer in beiden Abteilungen arbeitet, kommt in beide Gruppen.
+Es gibt nur zwei Rollen: **Administrator** (sieht und darf alles und legt fest, wer was bearbeitet) und **Benutzer** (eigene Anfragen – plus die Projekte, in denen man Leitung, Vertretung, Gruppenmitglied oder weiterer Bearbeiter ist). In *Benutzer* steht unter der Rolle zur Info, was jemand bearbeitet, z. B. „Bearbeitet: IT (Leitung)“. Eine allgemeine Bearbeiter-Gruppe für alle Projekte gibt es nicht mehr; nach dem Update auf diese Version trägst du bei jedem Projekt seine Gruppe ein.
+
+Für alle anderen Projekte ist man ein normaler Benutzer: nur die eigenen Anfragen (oder solche, an denen man beteiligt ist), ohne interne Notizen, Verlauf und Bearbeiter-Werkzeuge. Eingeschränkt wird überall: Ticketlisten, Suche (interne Notizen fremder Projekte finden nichts), Board, Warteschlangen und Zähler, Zusammenfassung, Berichte, SLA, Probleme, Changes, Major Incidents, Verknüpfungen, Geräte-Verlauf, KI-Funktionen, @-Erwähnungen in internen Notizen und Zuweisen (nur an Personen, die das Projekt bearbeiten). Verschieben geht nur in eigene Projekte. Gemeinsam bleiben Wissensdatenbank, Antwortvorlagen, Geräte & Dienste und die Personensuche.
+
+Beispiel: Projekt IT anlegen, Bearbeiter-Gruppe `Helpdesk`, dich als Leitung und eine Kollegin als Vertretung – fertig.
 
 ## Ablehnen und Duplikate
 

@@ -21,11 +21,14 @@ export function createReminders(db, settings, { mailer, users, baseUrl, t }) {
       WHERE t.project_id=? AND t.status<>'done' AND t.assignee_id IS NULL AND t.created_at<=? ORDER BY t.created_at, t.id`).all(projectId, before);
   }
 
-  /** Who gets the mail: the project lead (if an agent of the project), otherwise all active admins with an address. */
+  /** Who gets the mail: the project lead and the deputy (if they work on the project), otherwise all active admins with an address. */
   function recipients(project) {
-    const lead = project.lead_id ? users.byId(project.lead_id) : null;
-    // The lead must be able to open the tickets: an agent of this project
-    if (lead?.active && lead.email && agentOn(lead, project.id)) return [lead];
+    const people = [project.lead_id, project.deputy_id].filter(Boolean).map((id) => users.byId(id))
+      // they must be able to open the tickets: people of this project
+      .filter((u) => u?.active && u.email && agentOn(u, project.id));
+    const seen = new Set();
+    const uniq = people.filter((u) => !seen.has(u.id) && seen.add(u.id));
+    if (uniq.length) return uniq;
     return db.prepare("SELECT * FROM users WHERE role='admin' AND active=1 AND email IS NOT NULL AND email<>''").all();
   }
 

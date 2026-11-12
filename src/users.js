@@ -11,8 +11,6 @@ export function publicUser(u) {
     displayName: u.display_name,
     email: u.email || '',
     role: u.role,
-    // agents: 'all' projects or only 'projects' (see project_agents)
-    agentScope: u.agent_scope === 'projects' ? 'projects' : 'all',
     source: u.source,
     active: !!u.active,
     roleLocked: !!u.role_locked,
@@ -143,20 +141,15 @@ export function createUsers(db) {
   const garbledGuid = (id) => !/^[0-9a-f]{32}$/i.test(String(id)) && !String(id).includes('=');
 
   /**
-   * Project rights from AD/SSO groups (access = projectAccessFromGroups): the group rows of
-   * project_agents follow the groups on every sign-in; the scope ("all projects" / "only these")
-   * changes unless the role is locked. Project groups never demote anyone: they only make users agents.
+   * Project groups from AD/SSO (access = projectAccessFromGroups): the group rows of project_agents
+   * follow the groups at every sign-in. They give rights in those projects only and never change the role.
    */
-  function applyAccess(u, access, { roleFromGroupsSet, promoted }) {
+  function applyAccess(u, access) {
     if (!access || !u) return;
     db.transaction(() => {
       db.prepare("DELETE FROM project_agents WHERE user_id=? AND source='group'").run(u.id);
       const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) SELECT id, ?, 'group' FROM projects WHERE id=?");
       for (const pid of access.projects) add.run(u.id, pid);
-      if (u.role_locked) return;
-      if (access.scope === 'all') db.prepare("UPDATE users SET agent_scope='all' WHERE id=?").run(u.id);
-      // Only these projects: when the groups decide the role, or the project group made them an agent
-      else if (access.scope === 'projects' && (roleFromGroupsSet || promoted)) db.prepare("UPDATE users SET agent_scope='projects' WHERE id=?").run(u.id);
     })();
   }
 
@@ -197,20 +190,14 @@ export function createUsers(db) {
     if (!u) {
       if (!allowCreate) return null;
       if (byName.get(username)) throw new HttpError(409, 'err.usernameTaken');
-      // In a project group only: agent of those projects
-      const promoted = access?.scope === 'projects' && (!role || role === 'user');
       const info = db.prepare(
         'INSERT INTO users(username,display_name,email,role,source,external_id,ad_sid) VALUES(?,?,?,?,?,?,?)',
-      ).run(username, displayName || username, email || null, promoted ? 'agent' : (role || 'user'), source, externalId || null, adSid);
-      const created = byId.get(info.lastInsertRowid);
-      applyAccess(created, access, { roleFromGroupsSet: !!role, promoted });
-      return scoped(byId.get(created.id));
+      ).run(username, displayName || username, email || null, role || 'user', source, externalId || null, adSid);
+      applyAccess({ id: info.lastInsertRowid }, access);
+      return scoped(byId.get(info.lastInsertRowid));
     }
 
-    let newRole = u.role_locked || !role ? u.role : role;
-    // A project group makes users agents (of those projects) – it never demotes anyone
-    const promoted = !u.role_locked && access?.scope === 'projects' && newRole === 'user';
-    if (promoted) newRole = 'agent';
+    const newRole = u.role_locked || !role ? u.role : role;
     // Do not demote the last admin through a group change
     const safeRole = u.role === 'admin' && newRole !== 'admin' && countActiveAdmins(u.id) === 0 ? 'admin' : newRole;
     // Take over the source only if the account was an email contact or already belongs to this source
@@ -223,7 +210,7 @@ export function createUsers(db) {
     if (adopt && u.source === 'email' && u.username !== username && !byName.get(username)) {
       db.prepare('UPDATE users SET username=? WHERE id=?').run(username, u.id);
     }
-    applyAccess(u, access, { roleFromGroupsSet: !!role && !u.role_locked, promoted });
+    applyAccess(u, access);
     return scoped(byId.get(u.id));
   }
 
@@ -252,8 +239,8 @@ export function createUsers(db) {
   /** Active agents and admins – of these projects (ids), or of every project (null) */
   function agentsOf(projectIds = null) {
     if (projectIds === null) return db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all();
-    return db.prepare(`SELECT * FROM users WHERE active=1 AND (role='admin' OR (role='agent' AND (agent_scope<>'projects'
-      OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))))) ORDER BY display_name`).all(JSON.stringify(projectIds));
+    return db.prepare(`SELECT * FROM users WHERE active=1 AND (role IN ('admin','agent')
+      OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))) ORDER BY display_name`).all(JSON.stringify(projectIds));
   }
 
   /** Projects per agent (manual and via project group): Map userId → [{ id, key, name, source, group }] */
@@ -267,7 +254,7 @@ export function createUsers(db) {
     return byUser;
   }
 
-  return { all, agentsOf, projectsByUser, byAdId: (adId) => scoped(byAdId(adId)), byId: (id) => scoped(byId.get(id)), byName: (n) => scoped(byName.get(n)), byEmail: (e) => scoped(byEmail.get(e)), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
+  return { all, agentsOf, projectsByUser, rawById: (id) => byId.get(id), byAdId: (adId) => scoped(byAdId(adId)), byId: (id) => scoped(byId.get(id)), byName: (n) => scoped(byName.get(n)), byEmail: (e) => scoped(byEmail.get(e)), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
 }
 
 /** Settings of a directory (AD or SSO) plus the project groups of active projects: projectGroups [{ id, key, group }] */
@@ -279,20 +266,18 @@ export function withProjectGroups(db, cfg) {
 
 /**
  * Project rights from group membership (groups.projects: ids of the projects whose group the person
- * is in): scope 'all' (admin or agent group), 'projects' (only project groups) or null (unchanged).
+ * is in): { projects } – only when project groups are configured, otherwise none.
  */
 export function projectAccessFromGroups(groups, cfg) {
   const projects = (cfg.projectGroups || []).length ? [...new Set((groups.projects || []).map(Number))] : [];
-  let scope = null;
-  if ((cfg.adminGroup && groups.admin) || (cfg.agentGroup && groups.agent)) scope = 'all';
-  else if (projects.length) scope = 'projects';
-  return { scope, projects };
+  return { projects };
 }
 
-/** Derive the role from group membership. No groups configured → null (role stays). */
+/**
+ * Derive the role from group membership: admin group → admin, everyone else → user (who works on
+ * which project comes from the projects). No admin group configured → null (role stays).
+ */
 export function roleFromGroups(groups, cfg) {
-  if (!cfg.adminGroup && !cfg.agentGroup) return null;
-  if (cfg.adminGroup && groups.admin) return 'admin';
-  if (cfg.agentGroup && groups.agent) return 'agent';
-  return 'user';
+  if (!cfg.adminGroup) return null;
+  return groups.admin ? 'admin' : 'user';
 }

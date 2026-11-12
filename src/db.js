@@ -826,6 +826,24 @@ export const MIGRATIONS = [
     CREATE INDEX idx_project_agents_user ON project_agents(user_id);
     `,
   },
+  {
+    id: 42,
+    name: 'Projektrechte im Projekt: Leitung, Vertretung, Gruppe, Personen',
+    sql: `
+    -- Project rights are set in the project only: its lead and deputy, its agent group and people added
+    -- by hand work on its tickets. Roles are only user and admin now (admins: everything).
+    -- Agents limited to projects (1.40) keep their projects as users; agents of all projects become
+    -- users – the admin assigns the projects' groups after the update.
+    UPDATE users SET role='user' WHERE role='agent';
+    UPDATE users SET agent_scope='all';
+    ALTER TABLE projects ADD COLUMN deputy_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    -- source: lead, deputy, group (project group, synced at sign-in), manual
+    INSERT OR IGNORE INTO project_agents(project_id, user_id, source)
+      SELECT p.id, p.lead_id, 'lead' FROM projects p JOIN users u ON u.id=p.lead_id WHERE u.source<>'email';
+    -- No general agent group any more (AD and SSO): agents come from the projects
+    DELETE FROM settings WHERE key IN ('ldap.agentGroup', 'oidc.agentGroup');
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

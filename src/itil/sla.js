@@ -70,10 +70,11 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
   const targets = () => { try { return { ...DEFAULT_TARGETS, ...JSON.parse(settings.get('sla.targets') || '{}') }; } catch { return DEFAULT_TARGETS; } };
   const warnAt = () => Math.min(99, Math.max(10, Number(settings.get('sla.warnPercent')) || 80)) / 100;
 
+  // Reply from someone who works on the ticket's project (agents, admins, the project's people)
   const firstReply = db.prepare(`SELECT c.created_at FROM comments c JOIN users u ON u.id=c.author_id
-    WHERE c.ticket_id=? AND c.internal=0 AND u.role IN ('agent','admin') ORDER BY c.created_at LIMIT 1`);
+    WHERE c.ticket_id=? AND c.internal=0 AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents pa WHERE pa.project_id=(SELECT project_id FROM tickets WHERE id=c.ticket_id))) ORDER BY c.created_at LIMIT 1`);
   const statusChanges = db.prepare("SELECT old_value, new_value, created_at FROM activity WHERE ticket_id=? AND action='changed' AND field='status' ORDER BY created_at, id");
-  const reporterRole = db.prepare('SELECT role FROM users WHERE id=?');
+  const reporterWorksHere = db.prepare("SELECT 1 FROM users u WHERE u.id=? AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=?))");
 
   function clock(target, elapsed, running, nowMs, cal, warn) {
     const remaining = target - elapsed;
@@ -91,7 +92,7 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
     // Imported tickets (importer writes source='jira'; 'import' for older/other imports) have no SLA
     if (!enabled() || !SLA_TYPES.includes(row.type) || row.source === 'import' || row.source === 'jira') return null;
     // Agents' own tickets (internal work) do not count
-    if (row.reporter_id && ['agent', 'admin'].includes(reporterRole.get(row.reporter_id)?.role)) return null;
+    if (row.reporter_id && reporterWorksHere.get(row.reporter_id, row.project_id)) return null;
     const cal = calendar();
     const tg = targets()[row.priority] || DEFAULT_TARGETS.medium;
     const created = Date.parse(row.created_at);

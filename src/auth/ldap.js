@@ -276,7 +276,6 @@ export async function authenticate(cfg, rawUsername, password) {
 async function entryToUser(client, cfg, entry, fallbackName) {
   const groups = {
     admin: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.adminGroup),
-    agent: await isMember(client, cfg, entry.dn, entry.memberOf, cfg.agentGroup),
     user: cfg.userGroup ? await isMember(client, cfg, entry.dn, entry.memberOf, cfg.userGroup) : true,
     projects: [],
   };
@@ -514,7 +513,7 @@ export async function testConnection(cfg, { username, password } = {}) {
       scope: 'sub', filter: '(&(objectCategory=person)(objectClass=user))', attributes: ['dn'], sizeLimit: 5,
     }).catch((e) => (e.name === 'SizeLimitExceededError' ? { searchEntries: [1, 2, 3, 4, 5] } : Promise.reject(e)));
     result.steps.push({ ok: true, key: 'search', count: searchEntries.length });
-    for (const [role, value] of [['admin', cfg.adminGroup], ['agent', cfg.agentGroup], ['user', cfg.userGroup]]) {
+    for (const [role, value] of [['admin', cfg.adminGroup], ['user', cfg.userGroup]]) {
       if (!value) continue;
       const dn = await resolveGroupDn(client, cfg, value);
       result.steps.push({ ok: !!dn, key: 'group', role, value, dn });

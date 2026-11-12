@@ -17,8 +17,8 @@ export function createItilReports(db, sla) {
   };
   const statusChanges = db.prepare("SELECT old_value, new_value, created_at FROM activity WHERE ticket_id=? AND action='changed' AND field='status' ORDER BY created_at, id");
   const agentReplies = db.prepare(`SELECT COUNT(*) n FROM comments c JOIN users u ON u.id=c.author_id
-    WHERE c.ticket_id=? AND c.internal=0 AND u.role IN ('agent','admin')`);
-  const reporterIsAgent = db.prepare("SELECT 1 FROM users WHERE id=? AND role IN ('agent','admin')");
+    WHERE c.ticket_id=? AND c.internal=0 AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents pa WHERE pa.project_id=(SELECT project_id FROM tickets WHERE id=c.ticket_id)))`);
+  const reporterIsAgent = db.prepare("SELECT 1 FROM users u WHERE u.id=? AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=?))");
 
   /**
    * Basis: tickets (service types) set to "Resolved" in the period – according to the history.
@@ -29,7 +29,7 @@ export function createItilReports(db, sla) {
       WHERE a.action='changed' AND a.field='status' AND a.new_value='done' AND a.created_at>=? AND a.created_at<?
       AND t.type IN (${SERVICE_TYPES.map(() => '?').join(',')}) ${projectId ? 'AND t.project_id IN (SELECT value FROM json_each(?))' : ''}`)
       .all(range.fromIso, range.toIso, ...SERVICE_TYPES, ...(projectId ? [JSON.stringify(projectId)] : []))
-      .filter((t) => !(t.reporter_id && reporterIsAgent.get(t.reporter_id)));
+      .filter((t) => !(t.reporter_id && reporterIsAgent.get(t.reporter_id, t.project_id)));
   }
 
   function quality(rows, range) {

@@ -35,7 +35,8 @@ before(async () => {
   const s = ctx.settings;
   s.set('ldap.enabled', true);
   s.set('ldap.bindDn', 'CN=svc-helfi,CN=Users,DC=firma,DC=local');
-  s.set('ldap.agentGroup', 'Helfi-Bearbeiter');
+  s.set('ldap.adminGroup', 'Helfi-Admins');
+  db.prepare("UPDATE projects SET agent_group='Helfi-Bearbeiter' WHERE key='IT'").run();
   s.set('imap.project', 'IT');
 });
 after(() => { server?.close(); db?.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
@@ -44,7 +45,7 @@ const AD = {
   'm.muster@firma.local': { username: 'm.muster', displayName: 'Max Muster', email: 'm.muster@firma.local', externalId: 'guid-mm', groups: { admin: false, agent: false, user: true } },
   // Secondary address (proxyAddresses): the primary address in AD is a different one
   'erika.alt@firma.de': { username: 'e.beispiel', displayName: 'Erika Beispiel', email: 'e.beispiel@firma.local', externalId: 'guid-eb', groups: { admin: false, agent: false, user: true } },
-  'b.bearbeiter@firma.local': { username: 'b.bearbeiter', displayName: 'Bea Bearbeiter', email: 'b.bearbeiter@firma.local', externalId: 'guid-bb', groups: { admin: false, agent: true, user: true } },
+  'b.bearbeiter@firma.local': { username: 'b.bearbeiter', displayName: 'Bea Bearbeiter', email: 'b.bearbeiter@firma.local', externalId: 'guid-bb', groups: { admin: false, user: true, projects: [1] } },
   'doppelt@firma.local': { ambiguous: true },
   'gesperrt@firma.local': { username: 'gesperrt', displayName: 'Nicht zugelassen', email: 'gesperrt@firma.local', externalId: 'guid-gs', groups: { admin: false, agent: false, user: false } },
 };
@@ -140,11 +141,12 @@ test('AD unreachable: ticket is created anyway (as contact)', async () => {
   assert.equal(reporterOf(result.ticketId).source, 'email');
 });
 
-test('Agent from AD: account with role from the group, the mail itself stays a report', async () => {
+test('Agent from AD: account with its project group, the mail itself stays a report', async () => {
   const { mail } = processorWith((cfg, e) => AD[e] || null);
   const { result } = await mail('b.bearbeiter@firma.local');
   const u = reporterOf(result.ticketId);
-  assert.equal(u.role, 'agent');
+  assert.equal(u.role, 'user', 'stored role');
+  assert.ok(db.prepare("SELECT 1 FROM project_agents WHERE user_id=? AND source='group'").get(u.id), 'works on IT via its group');
   const t = db.prepare('SELECT * FROM tickets WHERE id=?').get(result.ticketId);
   assert.equal(t.assignee_id, null, 'mail assigns nothing');
   assert.equal(t.reporter_id, u.id);

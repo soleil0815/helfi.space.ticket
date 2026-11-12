@@ -50,7 +50,8 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
     return null;
   }
 
-  const agentAccount = db.prepare("SELECT 1 FROM users WHERE lower(email)=? AND role IN ('agent','admin') LIMIT 1");
+  // agents, admins and people of a project (they get assignment, SLA … mails as well)
+  const agentAccount = db.prepare("SELECT 1 FROM users WHERE lower(email)=? AND (role IN ('agent','admin') OR id IN (SELECT user_id FROM project_agents)) LIMIT 1");
 
   /** customer: mail to reporter/participants. Otherwise (assignment, SLA, approval …) and if the recipient is an
    *  agent account, the mail is recorded as "agents only" (mail_messages.agent_only):

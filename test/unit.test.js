@@ -94,10 +94,10 @@ test('Merge PEM without duplicates', () => {
 });
 
 test('Roles from groups', () => {
-  assert.equal(roleFromGroups({ admin: true, agent: true }, { adminGroup: 'A', agentGroup: 'B' }), 'admin');
-  assert.equal(roleFromGroups({ admin: false, agent: true }, { adminGroup: 'A', agentGroup: 'B' }), 'agent');
-  assert.equal(roleFromGroups({ admin: false, agent: false }, { adminGroup: 'A', agentGroup: '' }), 'user');
-  assert.equal(roleFromGroups({ admin: true }, { adminGroup: '', agentGroup: '' }), null, 'without groups: role stays');
+  assert.equal(roleFromGroups({ admin: true }, { adminGroup: 'A' }), 'admin');
+  assert.equal(roleFromGroups({ admin: false }, { adminGroup: 'A' }), 'user', 'agents come from the projects');
+  assert.equal(roleFromGroups({ admin: false, agent: true }, { adminGroup: 'A', agentGroup: 'B' }), 'user', 'an old agent group is ignored');
+  assert.equal(roleFromGroups({ admin: true }, { adminGroup: '' }), null, 'without admin group: role stays');
 });
 
 test('SSO-Claims', () => {
@@ -106,7 +106,7 @@ test('SSO-Claims', () => {
   assert.equal(u.username, 'J.Doe');
   assert.equal(u.trustName, true);
   assert.equal(u.email, 'J.Doe@firma.local');
-  assert.deepEqual(u.groups, { admin: true, agent: false, projects: [] });
+  assert.deepEqual(u.groups, { admin: true, projects: [] });
   // Project groups by name (same rules as admin/agent groups: case-insensitive)
   const withProjects = claimsToUser({ iss: 'https://idp', sub: '124', preferred_username: 'h@firma.local', groups: ['haustechnik', 'Andere'] },
     { ...cfg, projectGroups: [{ id: 3, key: 'HM', group: 'Haustechnik' }, { id: 4, key: 'IT', group: 'IT-Helpdesk' }] });

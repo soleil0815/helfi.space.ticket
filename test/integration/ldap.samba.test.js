@@ -17,7 +17,7 @@ const base = {
   baseDn: 'DC=firma,DC=local', bindDn: 'svc-helfi@firma.local', bindPassword: process.env.HELFI_TEST_LDAP_BINDPW || 'Dienst!Pass2026',
   userFilter: '(&(objectCategory=person)(objectClass=user)(sAMAccountName={{username}}))',
   usernameAttr: 'sAMAccountName', displayNameAttr: 'displayName', emailAttr: 'mail',
-  nestedGroups: true, adminGroup: 'Helfi-Admins', agentGroup: 'Helfi-Bearbeiter', userGroup: '', timeoutMs: 8000,
+  nestedGroups: true, adminGroup: 'Helfi-Admins', userGroup: '', timeoutMs: 8000,
 };
 
 test('LDAPS: fetch certificate and trust it', { skip }, async () => {
@@ -56,7 +56,7 @@ test('Login, roles from (nested) groups', { skip }, async () => {
   const max = await ldap.authenticate(cfg, 'FIRMA\\m.muster', 'Muster!Pass2026');
   assert.equal(max.username, 'm.muster');
   assert.equal(max.email, 'm.muster@firma.local');
-  assert.deepEqual(max.groups, { admin: false, agent: true, user: true, projects: [] });
+  assert.deepEqual(max.groups, { admin: false, user: true, projects: [] });
 
   const erika = await ldap.authenticate(cfg, 'e.beispiel@firma.local', 'Beispiel!Pass2026');
   assert.equal(erika.groups.admin, true, 'nested group IT-Team → Helfi-Admins');
@@ -83,7 +83,7 @@ test('Without service account: search as the user logging in', { skip }, async (
   cfg.caPem = (await ldap.fetchCertificateChain({ host, port: 636, security: 'ldaps' })).pem;
   const u = await ldap.authenticate(cfg, 'k.kunde', 'Kunde!Pass2026');
   assert.equal(u.username, 'k.kunde');
-  assert.deepEqual(u.groups, { admin: false, agent: false, user: true, projects: [] });
+  assert.deepEqual(u.groups, { admin: false, user: true, projects: [] });
   assert.equal(await ldap.authenticate(cfg, 'k.kunde', 'falsch'), null);
 });
 
@@ -109,9 +109,9 @@ test('Find sender by email: primary address, UPN, secondary address, not disable
     ]);
   } finally { await adm.unbind().catch(() => {}); }
 
-  const max = await ldap.findByEmail(cfg, 'M.Muster@firma.local');
+  const max = await ldap.findByEmail({ ...cfg, projectGroups: [{ id: 9, key: 'IT', group: 'Helfi-Bearbeiter' }] }, 'M.Muster@firma.local');
   assert.equal(max.username, 'm.muster');
-  assert.equal(max.groups.agent, true);
+  assert.deepEqual(max.groups.projects, [9], 'project group also in the sender lookup');
   assert.ok(max.externalId);
 
   const upn = await ldap.findByEmail(cfg, 'k.kunde@firma.local');
@@ -145,9 +145,9 @@ test('Search people (participants from AD) and fetch by objectGUID', { skip }, a
   assert.ok((await ldap.searchPeople(cfg, 'firma.local', { limit: 2 })).length <= 2, 'limit');
 
   // The GUID from the search must return the same person as the login (externalId)
-  const got = await ldap.findByGuid(cfg, byName[0].externalId);
+  const got = await ldap.findByGuid({ ...cfg, projectGroups: [{ id: 9, key: 'IT', group: 'Helfi-Bearbeiter' }] }, byName[0].externalId);
   assert.equal(got.username, 'm.muster');
-  assert.equal(got.groups.agent, true);
+  assert.deepEqual(got.groups.projects, [9]);
   const login = await ldap.authenticate(cfg, 'm.muster', 'Muster!Pass2026');
   assert.equal(login.externalId, byName[0].externalId, 'same ID as at login');
   assert.equal(await ldap.findByGuid(cfg, '00'.repeat(16)), null);
@@ -181,15 +181,15 @@ test('objectSid: find account by SID (SSO merging)', { skip }, async () => {
 
 test('Group given by name only is found outside the base DN (groups in their own OU)', { skip }, async () => {
   // Base DN = the users' container, the group lives in OU=Gruppen – before, only the full DN worked
-  const cfg = { ...base, baseDn: 'CN=Users,DC=firma,DC=local', agentGroup: 'Helfi-Support', adminGroup: 'helfi-admins' };
+  const cfg = { ...base, baseDn: 'CN=Users,DC=firma,DC=local', adminGroup: 'helfi-admins', projectGroups: [{ id: 5, key: 'IT', group: 'Helfi-Support' }] };
   const max = await ldap.authenticate(cfg, 'm.muster', 'Muster!Pass2026');
-  assert.equal(max.groups.agent, true, 'group name alone, group in another OU');
+  assert.deepEqual(max.groups.projects, [5], 'group name alone, group in another OU');
   const erika = await ldap.authenticate(cfg, 'e.beispiel', 'Beispiel!Pass2026');
   assert.equal(erika.groups.admin, true, 'name in other letter case, nested');
-  assert.equal(erika.groups.agent, false);
+  assert.deepEqual(erika.groups.projects, []);
   // the connection test shows the resolved DN
   const t = await ldap.testConnection(cfg);
-  const step = t.steps.find((s) => s.key === 'group' && s.role === 'agent');
+  const step = t.steps.find((s) => s.key === 'projectGroup' && s.project === 'IT');
   assert.equal(step.ok, true);
   assert.match(step.dn, /^CN=Helfi-Support,OU=Gruppen,DC=firma,DC=local$/i);
 });

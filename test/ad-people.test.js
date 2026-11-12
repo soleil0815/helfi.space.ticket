@@ -7,7 +7,7 @@ let S; let agent; let karl; let ticket;
 const GUID = { erika: 'a1'.repeat(16), max: 'b2'.repeat(16), gast: 'c3'.repeat(16), ohne: 'd4'.repeat(16) };
 const AD = [
   { username: 'e.beispiel', displayName: 'Erika Beispiel', email: 'e.beispiel@firma.local', externalId: GUID.erika, aliases: ['erika.alt@firma.local'], groups: { admin: false, agent: false, user: true } },
-  { username: 'm.muster', displayName: 'Max Muster', email: 'm.muster@firma.local', externalId: GUID.max, aliases: [], groups: { admin: false, agent: true, user: true } },
+  { username: 'm.muster', displayName: 'Max Muster', email: 'm.muster@firma.local', externalId: GUID.max, aliases: [], groups: { admin: false, user: true, projects: [1] } },
   { username: 'g.gast', displayName: 'Gerd Gast', email: 'g.gast@firma.local', externalId: GUID.gast, aliases: [], groups: { admin: false, agent: false, user: false } },
   { username: 'o.ohne', displayName: 'Olga Ohnemail', email: '', externalId: GUID.ohne, aliases: [], groups: { admin: false, agent: false, user: false } },
 ];
@@ -21,7 +21,8 @@ before(async () => {
   const s = S.ctx.settings;
   s.set('ldap.enabled', true);
   s.set('ldap.bindDn', 'CN=svc-helfi,CN=Users,DC=firma,DC=local');
-  s.set('ldap.agentGroup', 'Helfi-Bearbeiter');
+  s.set('ldap.adminGroup', 'Helfi-Admins');
+  S.db.prepare("UPDATE projects SET agent_group='Helfi-Bearbeiter' WHERE key='IT'").run();
   s.set('ldap.userGroup', 'Helfi-Benutzer');
   S.ctx.directory = {
     search: async (cfg, q) => {
@@ -93,10 +94,12 @@ test('Adding an AD person: created as AD user with email address, an existing em
   assert.equal(r.status, 200, 'already participating');
 });
 
-test('Role from the AD groups as at login', async () => {
+test('Role and project groups from AD as at login', async () => {
   const r = await agent('POST', `/api/tickets/${ticket}/participants`, { adId: GUID.max });
   assert.equal(r.status, 201);
-  assert.equal(S.ctx.users.byName('m.muster').role, 'agent');
+  const max = S.ctx.users.byName('m.muster');
+  assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(max.id).role, 'user');
+  assert.deepEqual(max.projectIds, [1], 'in the agent group of project IT');
 });
 
 test('Not allowed by groups: only as email contact; rejected without address', async () => {
