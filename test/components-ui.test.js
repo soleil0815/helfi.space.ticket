@@ -73,7 +73,8 @@ test('Agent: component in the ticket, changeable; history, list filter and colum
   assert.equal((await row.locator('.detail-value').textContent()).trim(), 'VPN & Fernzugriff');
   await p.click('.tabs .tab >> nth=1');
   await p.waitForSelector('.history >> text=Schlagwörter: vpn');
-  await p.waitForSelector('.history >> text=verantwortlich für VPN & Fernzugriff');
+  // Nobody is assigned automatically – the component's person is information only
+  assert.equal((await p.$$eval('.history', (x) => x.map((e) => e.textContent).join(' '))).includes('verantwortlich für'), false);
   // change via the dropdown
   await row.locator('.detail-pick').click();
   await p.click('.menu >> text=Drucker & Scanner');

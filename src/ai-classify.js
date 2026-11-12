@@ -133,7 +133,7 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     return { row, s };
   }
 
-  /** Accept: set the component (history "AI suggestion", lead gets the ticket if unassigned) */
+  /** Accept: set the component (history "AI suggestion"; nobody is assigned) */
   function accept(user, key) {
     const { row, s } = pending(user, key);
     decide(row.id, 'accepted', user.id);

@@ -49,11 +49,11 @@ before(async () => {
 });
 after(async () => { await S?.stop(); fake.close(); });
 
-test('A mail goes to the project of the matching component, with component and its person', async () => {
+test('A mail goes to the project of the matching component – with component, assigned to nobody', async () => {
   const t = await mail('Heizung in Raum 12 kalt', 'Der Heizkörper bleibt kalt.');
   assert.equal(t.project_key, 'HM');
   assert.equal(t.component_id, heating.id);
-  assert.equal(t.assignee_id, hmLead, 'the component person gets it');
+  assert.equal(t.assignee_id, null, 'never assigned automatically – the project\'s agents take it');
   const p = await mail('Drucker im 2. OG', 'Toner leer');
   assert.equal(p.project_key, 'IT');
   assert.equal(p.component_id, printer.id);
@@ -101,7 +101,7 @@ test('AI: a mail in the inbox picks from the components of all projects and move
     assert.equal(acc.status, 200);
     assert.equal(acc.body.ticket.projectKey, 'HM');
     assert.equal(acc.body.ticket.component.id, heating.id);
-    assert.equal(acc.body.ticket.assignee.id, hmLead);
+    assert.equal(acc.body.ticket.assignee, null);
     // auto mode: moves right away
     await S.admin('PUT', '/api/admin/settings', { settings: { 'ai.classifyMode': 'auto' } });
     const u = await mail('Zu kalt hier', '#hm');

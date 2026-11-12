@@ -58,7 +58,7 @@ test('Desktop: no summary when switched off; suggestion accepted', { skip }, asy
   await p.waitForFunction(() => !document.querySelector('.ai-suggest'));
   const row = p.locator('.detail-row', { hasText: 'Komponente' });
   assert.equal((await row.locator('.detail-pick').textContent()).trim(), 'VPN');
-  assert.equal((await S.admin('GET', `/api/tickets/${tk.key}`)).body.ticket.assignee.displayName, 'anna');
+  assert.equal((await S.admin('GET', `/api/tickets/${tk.key}`)).body.ticket.assignee, null, 'nobody assigned automatically');
   assert.deepEqual(errors, []);
 });
 
