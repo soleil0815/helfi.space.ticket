@@ -130,7 +130,8 @@ function inlineHtml(s, o) {
     .replace(/`([^`\n]{1,2000})`/g, (m, c) => keep(`<code style="background:#f1f2f4;padding:0 3px;border-radius:3px">${esc(c)}</code>`))
     .replace(ESCAPED, (m, c) => keep(esc(c)))
     .replace(MENTION_RE, (m, name) => keep(`<strong>@${esc(name)}</strong>`))
-    .replace(IMG, (m, alt) => keep(`<em>${esc(imageLabel(alt, o.lang))}</em>`))
+    // o.image(name, src): an embedded image (mail with inline pictures), else the note "[Image: name]"
+    .replace(IMG, (m, alt, src) => keep(o.image?.(String(alt).split('|')[0].trim(), src) ?? `<em>${esc(imageLabel(alt, o.lang))}</em>`))
     .replace(LINK, (m, text, href) => {
       const url = safeHref(href, o.baseUrl);
       return url ? keep(`<a href="${esc(url)}">${esc(unescape(text))}</a>`) : m;
@@ -195,7 +196,7 @@ export function mdToText(md, lang = 'de', baseUrl = '') {
 
 /** Formatted comment → HTML fragment (inline styles only: mail programs ignore style sheets) */
 export function mdToHtml(md, o = {}) {
-  const opt = { lang: o.lang || 'de', baseUrl: o.baseUrl || '' };
+  const opt = { lang: o.lang || 'de', baseUrl: o.baseUrl || '', image: o.image };
   const P = 'margin:0 0 12px';
   const render = (blocks) => blocks.map((b) => {
     if (b.type === 'para') return `<p style="${P}">${inlineHtml(b.text, opt)}</p>`;
@@ -211,6 +212,15 @@ export function mdToHtml(md, o = {}) {
     return '';
   }).join('');
   return render(parse(md));
+}
+
+/** Plain (unformatted) comment → HTML fragment: text as it is, only images through o.image */
+export function plainToHtml(text, o = {}) {
+  const tokens = [];
+  const keep = (html) => `\u0001${tokens.push(html) - 1}\u0002`;
+  const x = noMarks(text).replace(MENTION_RE, (m, name) => `@${name}`)
+    .replace(IMG, (m, alt, src) => keep(o.image?.(String(alt).split('|')[0].trim(), src) ?? esc(imageLabel(alt, o.lang || 'de'))));
+  return `<p style="margin:0 0 12px;white-space:pre-wrap">${restore(esc(x), tokens)}</p>`;
 }
 
 /**

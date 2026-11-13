@@ -348,7 +348,7 @@ Im Ticket zeigt die Aktivität (*Kommentare*, *Verlauf*, *Alle*) standardmäßig
 - **Link** (Strg+K, auch Ticketnummern wie IT-42), **Bild** (oder Strg+V), **Emoji** (auch „:)“) und **@** zum Erwähnen.
 - **Vorformulierte Antworten** rechts in der Leiste, im selben Menü *Als Vorlage speichern*. Strg+Enter speichert.
 
-Gespeichert wird Text im Format der Wissensartikel. Melder und Teilnehmer bekommen die Antwort formatiert per Mail (HTML) mit einem lesbaren Textteil ohne Sternchen. Ältere Kommentare und Mails werden unverändert angezeigt.
+Gespeichert wird Text im Format der Wissensartikel. Melder und Teilnehmer bekommen die Antwort formatiert per Mail (HTML) mit einem lesbaren Textteil ohne Sternchen. **Bilder in der Mail:** Bilder aus der Antwort kommen direkt in der Mail mit und stehen an ihrer Stelle im Text – der Empfänger muss sich dafür nicht anmelden und nichts freischalten. Bis zu 5 Bilder je Mail (PNG, JPEG, GIF, WebP, je bis 2 MB); was darüber hinausgeht, steht als Hinweis „[Bild: Name]“ in der Mail und ist im Ticket zu sehen. Bilder aus internen Notizen gehen nie an Melder oder Teilnehmer. Ältere Kommentare und Mails werden unverändert angezeigt.
 
 ## @-Erwähnungen
 
