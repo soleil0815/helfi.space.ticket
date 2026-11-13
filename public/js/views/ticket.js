@@ -170,13 +170,14 @@ export async function renderTicket(content, key) {
     const box = tab !== 'history' ? composer() : null;
     const orderBtn = h('button.btn.btn-subtle.small.activity-order', { type: 'button', 'data-activity-order': '' });
     const section = h('section.ticket-section', h('h3', t('ticket.activity')), h('div.activity-bar', tabs, orderBtn));
-    // The reply box sits where the newest entry is: on top, or below the list with oldest first.
-    // Switching only reorders – a reply already being written stays as it is.
+    // The reply box always stays on top, the entries below in the chosen order.
+    // Switching only reorders the entries – a reply already being written stays as it is.
+    if (box) section.append(box);
+    section.append(list);
     const place = () => {
       const old = oldest();
       mount(orderBtn, icon('arrow-down', old ? '' : 'flip'), t(old ? 'ticket.order.oldest' : 'ticket.order.newest'));
       orderBtn.title = t('ticket.order.switch');
-      if (box) { if (old) section.append(list, box); else section.append(box, list); } else section.append(list);
     };
     orderBtn.addEventListener('click', async () => {
       const prev = state.user.activityOrder;

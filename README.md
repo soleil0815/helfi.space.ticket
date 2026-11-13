@@ -334,7 +334,7 @@ Kommt ein Anliegen per Telefon, im Flur oder an ein anderes Postfach, erfassen B
 
 ## Reihenfolge der Aktivität
 
-Im Ticket zeigt die Aktivität (*Kommentare*, *Verlauf*, *Alle*) standardmäßig **das Neueste oben**. Der Knopf rechts neben den Reitern dreht die Reihenfolge um: **Älteste oben**, wie in einem Chat – dann steht das Antwortfeld unten nach dem letzten Eintrag. Eine angefangene Antwort bleibt beim Umschalten erhalten.
+Im Ticket zeigt die Aktivität (*Kommentare*, *Verlauf*, *Alle*) standardmäßig **das Neueste oben**. Der Knopf rechts neben den Reitern dreht die Reihenfolge um: **Älteste oben**, wie in einem Chat. Das **Antwortfeld steht immer oben**, darunter die Einträge in der gewählten Reihenfolge. Eine angefangene Antwort bleibt beim Umschalten erhalten.
 
 - Die Wahl gilt **pro Person** für alle Tickets und auf allen Geräten (gespeichert im Konto); einstellbar auch im *Profil* unter *Sprache und Darstellung*.
 - In der Handy-App bleibt die Aktivität immer ein Chat (älteste oben, Antwortleiste unten).

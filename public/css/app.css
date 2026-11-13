@@ -343,7 +343,6 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .activity-bar { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
 .activity-bar .tabs { flex: 1; }
 .activity-order .icon.flip { transform: rotate(180deg); }
-.ticket-section > .activity + .composer { margin-top: 16px; }
 .tab { border: 0; background: var(--bg-neutral); color: var(--text-subtle); font: 500 13px var(--font); padding: 4px 10px; border-radius: var(--radius); cursor: pointer; }
 .tab:hover { background: var(--bg-neutral-hover); }
 .tab.active { background: var(--blue-subtle); color: var(--blue); }
