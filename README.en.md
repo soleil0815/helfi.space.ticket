@@ -348,7 +348,7 @@ Above the comment field there is a toolbar – in tickets, in comments on knowle
 - **Link** (Ctrl+K, also ticket numbers such as IT-42), **image** (or Ctrl+V), **emoji** (also “:)”) and **@** to mention someone.
 - **Canned responses** on the right of the bar, *Save as template* in the same menu. Ctrl+Enter saves.
 
-The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. Older comments and mails are shown as before.
+The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. **Pictures in the email:** pictures in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything. Up to 5 pictures per email (PNG, JPEG, GIF, WebP, each up to 2 MB); anything beyond that appears as a note “[Image: name]” in the email and is visible in the ticket. Pictures from internal notes never go to reporters or participants. Older comments and mails are shown as before.
 
 ## @-mentions
 

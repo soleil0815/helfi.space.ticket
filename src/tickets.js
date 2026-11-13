@@ -805,6 +805,20 @@ export function createTickets(db, users) {
     return { ...a, agent, path: path.join(paths.attachments, String(a.ticket_id), a.storage_name) };
   }
 
+  // Pictures a notification mail may carry inline: of this ticket, saved (no draft), a picture type,
+  // small enough – and not from an internal note unless the mail goes to agents only
+  const MAIL_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+  const MAIL_IMAGE_MAX = 2 * 1024 * 1024;
+  function mailImage(ticketId, attId, { allowInternal = false } = {}) {
+    const a = db.prepare('SELECT * FROM attachments WHERE id=?').get(Number(attId) || 0);
+    if (!a || a.ticket_id !== ticketId || a.draft) return null;
+    if (!MAIL_IMAGE_TYPES.includes(String(a.mime).toLowerCase()) || a.size > MAIL_IMAGE_MAX) return null;
+    if (a.comment_id && !allowInternal && db.prepare('SELECT internal FROM comments WHERE id=?').get(a.comment_id)?.internal) return null;
+    const file = path.join(paths.attachments, String(a.ticket_id), a.storage_name);
+    if (!fs.existsSync(file)) return null;
+    return { id: a.id, filename: a.filename, mime: String(a.mime).toLowerCase(), path: file };
+  }
+
   function deleteAttachment(user, attId) {
     const a = attachmentFile(user, attId);
     if (!a.agent && a.uploaded_by !== user.id) throw forbidden();
@@ -1097,7 +1111,7 @@ export function createTickets(db, users) {
   return {
     search,
     events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
-    addAttachment, attachmentFile, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
+    addAttachment, attachmentFile, mailImage, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
     applyComponent, resolveAs, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, openOfType, summary,
   };
 }

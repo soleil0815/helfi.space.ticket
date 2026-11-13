@@ -6,7 +6,7 @@ import { t, normalizeLang } from '../i18n.js';
 import { log } from '../lib/log.js';
 import { parseRules, matchRule } from './rules.js';
 import { mentionsAsText } from '../mentions.js';
-import { mdToText, mdToHtml, mailHtml, MAIL_BODY } from '../markdown.js';
+import { mdToText, mdToHtml, plainToHtml, mailHtml, MAIL_BODY } from '../markdown.js';
 import { agentOn } from '../auth/access.js';
 
 export function transportOptions(cfg) {
@@ -56,7 +56,7 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
   /** customer: mail to reporter/participants. Otherwise (assignment, SLA, approval …) and if the recipient is an
    *  agent account, the mail is recorded as "agents only" (mail_messages.agent_only):
    *  replies to it become internal notes. The Message-ID does not reveal this. */
-  async function send({ to, subject, text, html = undefined, ticketId = null, inReplyTo = null, customer = false }) {
+  async function send({ to, subject, text, html = undefined, attachments = undefined, ticketId = null, inReplyTo = null, customer = false }) {
     const tr = getTransport();
     if (!tr) return false;
     const why = blocked(to);
@@ -72,6 +72,8 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
       text,
       // formatted comments additionally as HTML (the text part stays complete and readable)
       ...(html ? { html } : {}),
+      // pictures of the comment, shown inline in the HTML part (cid:)
+      ...(html && attachments?.length ? { attachments } : {}),
       messageId,
       inReplyTo: inReplyTo || undefined,
       references: inReplyTo || undefined,
@@ -105,11 +107,34 @@ export function commentAsText(comment, lang) {
   return comment.format === 'md' ? mdToText(comment.body, lang, config.baseUrl) : inlineImagesAsText(comment.body, lang);
 }
 
-/** HTML part for a formatted comment: the mail template with the comment in its place (else undefined) */
-export function commentMailHtml(comment, lang, template, vars) {
-  if (comment.format !== 'md') return undefined;
-  return mailHtml(t(lang, template, { ...vars, body: MAIL_BODY }), mdToHtml(comment.body, { lang, baseUrl: config.baseUrl }));
+const IMAGE_SRC = /^\/api\/attachments\/(\d+)$/;
+export const MAIL_IMAGES_MAX = 5;
+
+/**
+ * HTML part for a comment: the mail template with the comment in its place. Pictures in the comment
+ * travel with the mail as inline attachments (cid:) – the recipient sees them without signing in,
+ * nothing becomes reachable without sign-in. pickImage(id) decides per picture (tickets.mailImage);
+ * at most MAIL_IMAGES_MAX, the rest stay a note "[Image: name]" (the ticket link is in the mail).
+ * Plain comments without pictures: no HTML part (undefined).
+ */
+export function commentMail(comment, lang, template, vars, pickImage = () => null) {
+  const attachments = [];
+  const image = (name, src) => {
+    const m = IMAGE_SRC.exec(String(src));
+    if (!m || attachments.length >= MAIL_IMAGES_MAX) return null;
+    const a = pickImage(Number(m[1]));
+    if (!a) return null;
+    const cid = `img${a.id}.${crypto.randomBytes(8).toString('hex')}@helfi`;
+    attachments.push({ filename: a.filename, path: a.path, contentType: a.mime, cid, contentDisposition: 'inline' });
+    const alt = String(name || a.filename).replace(/[&<>"']/g, '');
+    return `<img src="cid:${cid}" alt="${alt}" style="display:block;max-width:100%;height:auto;margin:4px 0 8px;border:1px solid #dcdfe4;border-radius:4px">`;
+  };
+  const md = comment.format === 'md';
+  if (!md && !/!\[[^\]\n]*\]\(\/api\/attachments\/\d+\)/.test(comment.body || '')) return { html: undefined, attachments: [] };
+  const body = md ? mdToHtml(comment.body, { lang, baseUrl: config.baseUrl, image }) : plainToHtml(comment.body, { lang, image });
+  return { html: mailHtml(t(lang, template, { ...vars, body: MAIL_BODY }), body), attachments };
 }
+
 
 /** Attaches the notifications to the ticket events. */
 export function wireNotifications({ tickets, mailer, settings, users, survey = null }) {
@@ -163,8 +188,8 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       const lang = recipientLang(r.id);
       const built = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
       if (!built) continue; // builder decided: no mail to this recipient
-      const { subject, text, html } = built;
-      await mailer.send({ to: r.email, subject, text, html, ticketId: ticket.id, customer: true });
+      const { subject, text, html, attachments } = built;
+      await mailer.send({ to: r.email, subject, text, html, attachments, ticketId: ticket.id, customer: true });
     }
   }
 
@@ -182,7 +207,9 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
         contact: assignee ? `${t(lang, 'mail.contact', { name: assignee })}\n` : '',
         closing: t(lang, 'mail.closing', { author: user.display_name || user.username, app: appName() }),
       };
-      return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars), html: commentMailHtml(comment, lang, 'mail.comment.body', vars) };
+      // Customers: never pictures from internal notes
+      const { html, attachments } = commentMail(comment, lang, 'mail.comment.body', vars, (id) => tickets.mailImage(ticket.id, id));
+      return { subject: t(lang, 'mail.comment.subject', vars), text: t(lang, 'mail.comment.body', vars), html, attachments };
     });
   }));
 
@@ -203,7 +230,8 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
         author: user.display_name || user.username, body: commentAsText(comment, lang), link: link(ticket), app: appName(),
         kind: t(lang, internal ? 'mail.mention.inNote' : 'mail.mention.inReply'),
       };
-      await mailer.send({ to: u.email, subject: t(lang, 'mail.mention.subject', vars), text: t(lang, 'mail.mention.body', vars), html: commentMailHtml(comment, lang, 'mail.mention.body', vars), ticketId: ticket.id, customer: !agentRecipient });
+      const { html, attachments } = commentMail(comment, lang, 'mail.mention.body', vars, (aid) => tickets.mailImage(ticket.id, aid, { allowInternal: agentRecipient }));
+      await mailer.send({ to: u.email, subject: t(lang, 'mail.mention.subject', vars), text: t(lang, 'mail.mention.body', vars), html, attachments, ticketId: ticket.id, customer: !agentRecipient });
     }
   }));
 
