@@ -37,7 +37,7 @@ test('Reply with pictures: inline in the HTML part, note in the text part', asyn
   assert.equal(att.contentDisposition, 'inline');
   assert.equal(att.contentType, 'image/png');
   assert.equal(att.filename, 'drucker.png');
-  assert.match(m.html, new RegExp(`<img src="cid:${att.cid.replace(/[.]/g, '\\.')}" alt="drucker.png"`));
+  assert.ok(m.html.includes(`<img src="cid:${att.cid}" alt="drucker.png"`));
   assert.match(m.text, /\[Bild: drucker\.png\]/);
   assert.doesNotMatch(m.html, /\/api\/attachments/, 'no link that needs sign-in');
 });
@@ -115,7 +115,7 @@ test('nodemailer builds a mail with the picture embedded (Content-ID, inline)', 
   const info = await tr.sendMail({ from: 'helfi@firma.local', to: 'karl@firma.local', subject: 's', text: 't', html, attachments });
   const raw = info.message.toString();
   assert.match(raw, /multipart\/related/);
-  assert.match(raw, new RegExp(`Content-ID: <${attachments[0].cid.replace(/[.]/g, '\\.')}>`));
+  assert.ok(raw.includes(`Content-ID: <${attachments[0].cid}>`));
   assert.match(raw, /Content-Disposition: inline; filename=echt\.png/);
   assert.match(raw, /Content-Type: image\/png/);
 });
