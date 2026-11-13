@@ -1,6 +1,6 @@
 // Order of the ticket activity per person: newest first (default) or oldest first like a chat –
-// switch in the ticket and in the profile, saved in the account; the reply box moves along and
-// keeps a reply already being written.
+// switch in the ticket and in the profile, saved in the account; the reply box always stays on top
+// and keeps a reply already being written.
 // The browser part needs Playwright with Chromium (not part of the dependencies) – skipped if missing.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,7 +53,7 @@ const order = (p) => p.$$eval('.ticket-section .activity .comment', (x) => x.map
 // Is the reply box above (true) or below the list?
 const boxFirst = (p) => p.$eval('.ticket-section .activity', (list) => !!list.previousElementSibling?.classList.contains('composer'));
 
-test('Ticket: switch reverses the list, moves the reply box, keeps the draft; remembered', { skip }, async () => {
+test('Ticket: switch reverses the list, reply box stays on top, keeps the draft; remembered', { skip }, async () => {
   const { p, errors } = await page('anna');
   await p.goto(`${S.base}/browse/${key}`);
   await p.waitForSelector('[data-activity-order] >> text=Neueste oben');
@@ -66,7 +66,7 @@ test('Ticket: switch reverses the list, moves the reply box, keeps the draft; re
   await p.click('[data-activity-order]');
   await p.waitForSelector('[data-activity-order] >> text=Älteste oben');
   assert.deepEqual(await order(p), [1, 2]);
-  assert.equal(await boxFirst(p), false, 'reply box below the list');
+  assert.equal(await boxFirst(p), true, 'reply box stays on top');
   assert.match(await ed.textContent(), /Entwurf bleibt/);
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(S.db.prepare('SELECT activity_order FROM users WHERE id=?').get(S.ids.anna).activity_order, 'oldest');
@@ -74,6 +74,7 @@ test('Ticket: switch reverses the list, moves the reply box, keeps the draft; re
   await p.goto(`${S.base}/browse/${key}`);
   await p.waitForSelector('[data-activity-order] >> text=Älteste oben');
   assert.deepEqual(await order(p), [1, 2]);
+  assert.equal(await boxFirst(p), true, 'reply box on top after reloading too');
   await p.click('.tabs .tab >> text=Alle');
   await p.waitForSelector('[data-activity-order] >> text=Älteste oben');
   const times = await p.$$eval('.ticket-section .activity > *', (x) => x.length);

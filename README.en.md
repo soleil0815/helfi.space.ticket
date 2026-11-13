@@ -334,7 +334,7 @@ When a request comes in by phone, in passing or to another mailbox, agents enter
 
 ## Order of the activity
 
-In a ticket the activity (*Comments*, *History*, *All*) shows **newest first** by default. The button to the right of the tabs reverses the order: **oldest first**, like a chat – the reply box then sits below the latest entry. A reply already being written is kept when switching.
+In a ticket the activity (*Comments*, *History*, *All*) shows **newest first** by default. The button to the right of the tabs reverses the order: **oldest first**, like a chat. The **reply box always stays on top**, the entries below in the chosen order. A reply already being written is kept when switching.
 
 - The choice applies **per person** to all tickets and on all devices (saved in the account); it can also be set in the *profile* under *Language and display*.
 - In the phone app the activity always stays a chat (oldest first, reply bar at the bottom).
