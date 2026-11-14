@@ -616,7 +616,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Fetch certificate</strong>, compare the SHA-256 fingerprint with the one on the server, then <strong>Accept certificate</strong>.
     <br>Windows: <code>certlm.msc</code> → Personal → certificate of the DC. Samba: <code>openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256</code></li>
   <li>Enter a <strong>service account</strong>, e.g. <code>svc-helfi@firma.local</code> – a normal domain account without special rights.</li>
-  <li><strong>Admin group</strong>, e.g. <code>Helfi-Admins</code> (name or DN, nested groups count). Optionally a group of “Allowed users”. Who works on tickets is not set here but in each project (lead, deputy, <strong>agent group</strong> (<a href="#project-rights">Who works on a project's tickets?</a>).</li>
+  <li><strong>Admin group</strong>, e.g. <code>Helfi-Admins</code> (pre-Windows 2000 name (sAMAccountName) of a security group or full DN; display names and distribution groups do not count; nested groups count). The same applies to “Allowed users” and the projects' agent groups. Optionally a group of “Allowed users”. Who works on tickets is not set here but in each project (lead, deputy, <strong>agent group</strong> (<a href="#project-rights">Who works on a project's tickets?</a>).</li>
   <li><strong>Test connection</strong>, ideally with a test sign-in – the test also checks the projects' agent groups and, with a test sign-in, names the person's projects. An empty base DN is filled in; a Microsoft certificate authority (AD CS) that is found can be accepted too, so renewed DC certificates stay valid.</li>
   <li><strong>Enable AD sign-in</strong> and save.</li>
 </ol>
@@ -684,7 +684,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p>This is set <strong>in the project</strong> – not in the user management. <strong>Edit</strong> opens the project's settings (also when creating one):</p>
 <ul>
   <li><strong>Lead</strong> and optionally <strong>deputy:</strong> one person each, found by name or username and then picked from the list – typed text alone is not saved (with AD also people who have never signed in). Both work on the tickets and get the reminder mail.</li>
-  <li><strong>Agent group (AD/SSO):</strong> e.g. <code>Helpdesk</code>. All members work on this project's tickets. Membership is checked at every sign-in; the window shows who was in it at their last sign-in. When you change the group, the old memberships stop counting at once (until the next sign-in).</li>
+  <li><strong>Agent group (AD/SSO):</strong> e.g. <code>Helpdesk</code> (for AD the pre-Windows 2000 name of a security group or the full DN, for SSO as in the token). All members work on this project's tickets. Membership is checked at every sign-in; the window shows who was in it at their last sign-in. When you change the group, the old memberships stop counting at once (until the next sign-in).</li>
   <li><strong>More agents:</strong> single people in addition, e.g. without an AD account – add them via the search, remove them with ✕.</li>
 </ul>
 <figure class="small"><img src="img/en/admin-project-agents.jpg" alt=""><figcaption>Editing a project: lead, deputy, agent group and more agents</figcaption></figure>
@@ -874,7 +874,7 @@ docker compose exec helfi helfi-admin create notfall   # create a new local admi
   <tr><td>Lost the phone with the authenticator</td><td>Sign in with a recovery code or use <em>Users → Reset 2FA</em>; then set it up again inside the company network.</td></tr>
   <tr><td>AD sign-in stopped working, certificate notice</td><td>The DC certificate was renewed: <em>Active Directory → Fetch certificate</em> and accept it (or store the certificate authority).</td></tr>
   <tr><td>Someone does not see a project's tickets</td><td><em>Users</em> shows under the role which projects they work on. If the project is missing: check the agent group under <em>Projects → Edit</em> (<em>Test connection</em> with their sign-in shows their projects) or add them as another agent. After a group change in AD, sign out and in once.</td></tr>
-  <tr><td>An AD user’s role is wrong</td><td>Check the group membership in AD (<em>Test connection</em> shows which DN a group name resolves to); if the group name is ambiguous, enter the full DN. With “Role locked” the role from Helfi.Space applies.</td></tr>
+  <tr><td>An AD user’s role is wrong</td><td>Check the group membership in AD (<em>Test connection</em> shows which DN a group name resolves to); if the group name is ambiguous or not found, enter the pre-Windows 2000 name of a security group or the full DN. With “Role locked” the role from Helfi.Space applies.</td></tr>
   <tr><td>Notice “docker-compose.yml is outdated”</td><td><code>./update.sh</code> takes over the new file, or download it from the release.</td></tr>
   <tr><td>Helfi.Space does not start after a restore</td><td>Does <code>secret.key</code> or <code>HELFI_SECRET</code> match the database? The log (<code>docker compose logs helfi</code>) states the cause.</td></tr>
   <tr><td>Setup code lost</td><td>It is in the log: <code>docker compose logs helfi</code>.</td></tr>

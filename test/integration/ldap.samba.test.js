@@ -193,3 +193,14 @@ test('Group given by name only is found outside the base DN (groups in their own
   assert.equal(step.ok, true);
   assert.match(step.dn, /^CN=Helfi-Support,OU=Gruppen,DC=firma,DC=local$/i);
 });
+
+test('Group given by name: a distribution group is not a match (security groups only)', { skip }, async () => {
+  const cfg = { ...base, projectGroups: [{ id: 6, key: 'VT', group: 'Helfi-Verteiler' }] };
+  const max = await ldap.authenticate(cfg, 'm.muster', 'Muster!Pass2026');
+  assert.deepEqual(max.groups.projects, [], 'member of the distribution group, but no project');
+  const t = await ldap.testConnection(cfg);
+  assert.equal(t.steps.find((s) => s.key === 'projectGroup' && s.project === 'VT').ok, false);
+  // the full DN still works as before
+  const dn = { ...base, projectGroups: [{ id: 6, key: 'VT', group: 'CN=Helfi-Verteiler,CN=Users,DC=firma,DC=local' }] };
+  assert.deepEqual((await ldap.authenticate(dn, 'm.muster', 'Muster!Pass2026')).groups.projects, [6]);
+});

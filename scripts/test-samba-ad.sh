@@ -37,6 +37,9 @@ ad group addmembers Helfi-Bearbeiter m.muster
 ad ou add OU=Gruppen
 ad group add Helfi-Support --groupou=OU=Gruppen
 ad group addmembers Helfi-Support m.muster
+# Distribution group: never a match for a group given by name (only security groups count)
+ad group add Helfi-Verteiler --group-type=Distribution
+ad group addmembers Helfi-Verteiler m.muster
 
 samba -D -s "$DIR/etc/smb.conf"
 
