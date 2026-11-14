@@ -44,6 +44,8 @@ export function createPasskeys(ctx) {
   const regChallenges = new Map(); // userId → { challenge, at }
   const loginChallenges = new Map(); // id (cookie) → { challenge, at }
 
+  // Full (e.g. a flood of requests): drop the oldest entries instead of all, so sign-ins in progress go on
+  const keep = (m) => { while (m.size >= MAX_PENDING) m.delete(m.keys().next().value); };
   const cleanup = () => {
     const now = Date.now();
     for (const m of [regChallenges, loginChallenges]) for (const [k, v] of m) if (now - v.at > CHALLENGE_TTL) m.delete(k);
@@ -135,7 +137,8 @@ export function createPasskeys(ctx) {
         authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
         preferredAuthenticatorType: 'localDevice',
       });
-      if (regChallenges.size > MAX_PENDING) regChallenges.clear();
+      regChallenges.delete(u.id);
+      keep(regChallenges);
       regChallenges.set(u.id, { challenge: options.challenge, at: Date.now() });
       return options;
     },
@@ -195,7 +198,7 @@ export function createPasskeys(ctx) {
       const { rpID } = rp();
       // No allowCredentials: the device offers the passkeys it has for this site (no name needed)
       const options = await generateAuthenticationOptions({ rpID, userVerification: 'required' });
-      if (loginChallenges.size > MAX_PENDING) loginChallenges.clear();
+      keep(loginChallenges);
       const id = randomToken(24);
       loginChallenges.set(id, { challenge: options.challenge, at: Date.now() });
       res.cookie(PASSKEY_COOKIE, id, cookieOpts());

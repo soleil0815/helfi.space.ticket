@@ -16,6 +16,7 @@ import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
 import { requireAuth, requireRole, isAgent, agentOn, agentProjects, idleMinutes } from '../auth/session.js';
+import { rateLimit } from 'express-rate-limit';
 import { relyingParty } from '../auth/passkeys.js';
 import { publicUser, userRef, roleFromGroups, projectAccessFromGroups, withProjectGroups, normalizeEmail } from '../users.js';
 import * as ldap from '../auth/ldap.js';
@@ -52,6 +53,15 @@ export function createApi(ctx) {
   const upload = multer({ dest: uploadTmp, limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 10 } });
 
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+  // Requests per IP and minute for the passkey routes (on top of the failed-attempt limiter): the
+  // sign-in options are public and every call keeps a challenge in memory
+  const perMinute = (limit) => rateLimit({
+    windowMs: 60 * 1000, limit, standardHeaders: 'draft-7', legacyHeaders: false,
+    validate: { xForwardedForHeader: false }, // proxies are handled by HELFI_TRUST_PROXY
+    handler: (req, res, next) => next(new HttpError(429, 'err.tooManyAttempts')),
+  });
+  const passkeyAuthLimit = perMinute(120);
+  const passkeyMeLimit = perMinute(60);
 
   // ---------- Public ----------
   r.get('/bootstrap', (req, res) => {
@@ -204,8 +214,8 @@ export function createApi(ctx) {
   }));
 
   // Passkeys: options (challenge in a short-lived cookie), then the signed answer of the device
-  r.post('/auth/passkey/options', wrap(async (req, res) => res.json(await ctx.passkeys.loginOptions(req, res))));
-  r.post('/auth/passkey/login', wrap(async (req, res) => {
+  r.post('/auth/passkey/options', passkeyAuthLimit, wrap(async (req, res) => res.json(await ctx.passkeys.loginOptions(req, res))));
+  r.post('/auth/passkey/login', passkeyAuthLimit, wrap(async (req, res) => {
     const u = await ctx.passkeys.login(req, res, req.body?.response);
     res.json({ user: publicUser(u) });
   }));
@@ -305,11 +315,11 @@ export function createApi(ctx) {
   r.post('/me/mfa/enable', wrap(async (req, res) => res.json({ recoveryCodes: mfa.confirmSetup(req, req.user, str(req.body.code, 40)) })));
   r.post('/me/mfa/disable', wrap(async (req, res) => { mfa.disable(req, req.user, str(req.body.code, 40)); res.json({ ok: true }); }));
   // Own passkeys (src/auth/passkeys.js)
-  r.get('/me/passkeys', (req, res) => res.json(ctx.passkeys.status(req, req.user)));
-  r.post('/me/passkeys/options', wrap(async (req, res) => res.json(await ctx.passkeys.registrationOptions(req, req.user))));
-  r.post('/me/passkeys', wrap(async (req, res) => res.json({ passkey: await ctx.passkeys.register(req, req.user, req.body?.response, str(req.body?.name, 200)) })));
-  r.patch('/me/passkeys/:id', (req, res) => { ctx.passkeys.rename(req.user, int(req.params.id), str(req.body?.name, 200)); res.json({ ok: true }); });
-  r.delete('/me/passkeys/:id', (req, res) => { ctx.passkeys.remove(req.user, int(req.params.id)); res.json({ ok: true }); });
+  r.get('/me/passkeys', passkeyMeLimit, (req, res) => res.json(ctx.passkeys.status(req, req.user)));
+  r.post('/me/passkeys/options', passkeyMeLimit, wrap(async (req, res) => res.json(await ctx.passkeys.registrationOptions(req, req.user))));
+  r.post('/me/passkeys', passkeyMeLimit, wrap(async (req, res) => res.json({ passkey: await ctx.passkeys.register(req, req.user, req.body?.response, str(req.body?.name, 200)) })));
+  r.patch('/me/passkeys/:id', passkeyMeLimit, (req, res) => { ctx.passkeys.rename(req.user, int(req.params.id), str(req.body?.name, 200)); res.json({ ok: true }); });
+  r.delete('/me/passkeys/:id', passkeyMeLimit, (req, res) => { ctx.passkeys.remove(req.user, int(req.params.id)); res.json({ ok: true }); });
   r.post('/me/mfa/recovery', wrap(async (req, res) => res.json({ recoveryCodes: mfa.newRecoveryCodes(req, req.user, str(req.body.code, 40)) })));
 
   // ---------- Users ----------

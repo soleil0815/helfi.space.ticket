@@ -309,3 +309,17 @@ test('Too many attempts with one passkey are blocked', async () => {
   assert.equal(last.status, 429);
   assert.equal((await signIn(pk)).r.status, 429, 'blocked even with a valid answer');
 });
+
+test('Flood of passkey requests from one address: 429 after 120 per minute', async () => {
+  const karl = await jar().login('karl');
+  const pk = softPasskey();
+  await addPasskey(karl, pk);
+  // A sign-in in progress (challenge issued) before the flood
+  const c = jar();
+  const o = await c('POST', '/api/auth/passkey/options');
+  let last;
+  for (let i = 0; i < 130; i++) last = await jar()('POST', '/api/auth/passkey/options');
+  assert.equal(last.status, 429);
+  assert.equal(last.body.error.code, 'err.tooManyAttempts');
+  assert.equal((await c('POST', '/api/auth/passkey/login', { response: pk.signIn(o.body) })).status, 429, 'same address is blocked for the minute');
+});
