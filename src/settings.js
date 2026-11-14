@@ -81,6 +81,8 @@ export const DEFAULTS = {
   'mfa.trustSso': true, // deprecated (up to 1.12): replaced by mfa.ssoSecondFactor, migration 24 carries over the value
   // Does an SSO sign-in count as a second factor? never | confirmed (only if the provider reports MFA: amr/acr) | always
   'mfa.ssoSecondFactor': 'confirmed',
+  // Passkeys (Face ID, Touch ID, Windows Hello, device PIN) – need HTTPS; AD accounts also a service account
+  'passkeys.enabled': true,
   'general.defaultLanguage': 'de', // de | en – for emails to senders without an account
 
   // Active Directory / LDAP

@@ -325,7 +325,24 @@ async function securityPage(body, s) {
       field(t('mfa.ssoSecondFactor'), bindSelect(s, 'mfa.ssoSecondFactor', ['confirmed', 'always', 'never'].map((v) => [v, t(`mfa.sso.${v}`)])), t('mfa.ssoSecondFactorHint')),
       s['oidc.enabled'] && s['mfa.ssoSecondFactor'] === 'always' ? h('div.hint-box.hint-warn', icon('warning'), h('p', t('mfa.ssoAlwaysWarn'))) : null,
       saveBar(async () => { if (await saveKeys(s, ['mfa.'])) route(); })),
+    passkeyPanel(s, netInfo),
     sessionPanel(s));
+}
+
+// Passkeys: switch, and what is missing for them to work (HTTPS, AD service account)
+function passkeyPanel(s, netInfo) {
+  const adNoService = s['ldap.enabled'] && !s['ldap.bindDn'];
+  return h('section.panel', { 'data-passkey-admin': '' },
+    h('h2', t('passkey.adminTitle')),
+    h('p.muted', t('passkey.adminIntro')),
+    field(t('passkey.enabled'), bindCheck(s, 'passkeys.enabled'), t('passkey.enabledHint')),
+    netInfo.passkeyRp
+      ? h('div.hint-box', icon('check'), h('div', t('passkey.adminRp', { host: netInfo.passkeyRp })))
+      : h('div.hint-box.hint-warn', icon('warning'), h('div', t('passkey.adminNoHttps', { url: netInfo.baseUrl }))),
+    adNoService ? h('div.hint-box.hint-warn', { 'data-passkey-ad-hint': '' }, icon('warning'), h('div',
+      h('p', t('passkey.adminAdNoService')),
+      h('p', h('a', { href: '/admin/ldap', 'data-link': '' }, t('passkey.adminAdLink'))))) : null,
+    saveBar(async () => { if (await saveKeys(s, ['passkeys.'])) route(); }));
 }
 async function registrationPage(body, s) {
   const netInfo = await api.admin.mfaNetwork();
@@ -595,7 +612,7 @@ async function usersPage(body, showContacts = false) {
     h('p.muted', t('users.hint')),
     h('label.check-inline', contactsToggle, t('users.showContacts')),
     h('table.data',
-      h('thead', h('tr', h('th', t('users.displayName')), h('th', t('users.username')), h('th', t('users.source')), h('th', t('users.role')), h('th', { title: t('users.roleLockedHint') }, t('users.roleLocked')), h('th', '2FA'), h('th', t('users.lastLogin')), h('th', ''))),
+      h('thead', h('tr', h('th', t('users.displayName')), h('th', t('users.username')), h('th', t('users.source')), h('th', t('users.role')), h('th', { title: t('users.roleLockedHint') }, t('users.roleLocked')), h('th', t('users.signInCol')), h('th', t('users.lastLogin')), h('th', ''))),
       h('tbody', list.map((u) => h('tr', { class: u.active ? '' : 'muted' },
         h('td.col-person', h('span.person', avatar(u, 'sm'), h('span', u.displayName, u.email ? h('span.muted.block', u.email) : null))),
         h('td', u.username),
@@ -606,11 +623,14 @@ async function usersPage(body, showContacts = false) {
         h('td', select([...(u.role === 'agent' ? ['agent'] : []), 'user', 'admin'].map((r) => [r, t(`users.roleOpt.${r}`)]), u.role, { class: 'select-sm', disabled: u.source === 'email', onchange: (e) => update(u, { role: e.target.value }) }),
           worksLine(u) ? h('span.muted.small.block.user-sees', worksLine(u)) : null),
         h('td', u.source === 'local' || u.source === 'email' ? '' : h('input', { type: 'checkbox', checked: u.roleLocked, title: t('users.roleLockedHint'), onchange: (e) => update(u, { roleLocked: e.target.checked }) })),
-        h('td', u.mfaEnabled ? h('span.badge.badge-ok', { title: t('mfa.statusOn') }, icon('check')) : h('span.muted', '—')),
+        h('td', u.mfaEnabled ? h('span.badge.badge-ok', { title: t('mfa.statusOn') }, icon('check')) : null,
+          u.passkeys ? h('span.badge.badge-ok', { title: t('passkey.countTitle', { n: u.passkeys }), 'data-passkeys': u.passkeys }, icon('key'), String(u.passkeys)) : null,
+          !u.mfaEnabled && !u.passkeys ? h('span.muted', '—') : null),
         h('td', { title: u.lastLogin ? fmtDate(u.lastLogin) : '' }, u.lastLogin ? relTime(u.lastLogin) : '—'),
         h('td.actions-cell',
           u.source === 'local' ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => editUser(u) }, t('app.edit')) : null,
           u.mfaEnabled ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => { if (confirm(t('mfa.resetConfirm', { name: u.displayName }))) update(u, { resetMfa: true }); } }, t('mfa.reset')) : null,
+          u.passkeys ? h('button.btn.btn-subtle.small', { type: 'button', 'data-remove-passkeys': '', onclick: () => { if (confirm(t('passkey.adminRemoveConfirm', { name: u.displayName, n: u.passkeys }))) update(u, { removePasskeys: true }); } }, t('passkey.adminRemove')) : null,
           u.approvalPending ? h('button.btn.btn-primary.small', { type: 'button', onclick: () => update(u, { active: true }) }, t('users.approve')) : null,
           u.id !== state.user.id && !u.approvalPending ? h('button.btn.btn-subtle.small', { type: 'button', onclick: () => update(u, { active: !u.active }) }, u.active ? t('users.deactivate') : t('users.activate')) : null)))))));
 }

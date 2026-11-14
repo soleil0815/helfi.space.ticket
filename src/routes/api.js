@@ -16,6 +16,7 @@ import { config, paths, COMPOSE_VERSION } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
 import { requireAuth, requireRole, isAgent, agentOn, agentProjects, idleMinutes } from '../auth/session.js';
+import { relyingParty } from '../auth/passkeys.js';
 import { publicUser, userRef, roleFromGroups, projectAccessFromGroups, withProjectGroups, normalizeEmail } from '../users.js';
 import * as ldap from '../auth/ldap.js';
 import * as oidcAuth from '../auth/oidc.js';
@@ -82,6 +83,8 @@ export function createApi(ctx) {
       user: req.user ? publicUser(req.user) : null,
       auth: {
         ldap: settings.get('ldap.enabled'),
+        // "Sign in with passkey" (Face ID, Touch ID, …): host name the passkeys belong to, false = not available
+        passkeys: ctx.passkeys.available() ? relyingParty().rpID : false,
         oidc: settings.get('oidc.enabled') ? { label: settings.get('oidc.buttonLabel'), autoRedirect: settings.get('oidc.autoRedirect') } : null,
         // Self-registration and "forgot password" (only with working mail sending)
         ...(req.user ? {} : ctx.selfService.status()),
@@ -200,6 +203,13 @@ export function createApi(ctx) {
     res.json({ user: publicUser(out.user), recoveryCodes: out.recoveryCodes, usedRecovery: out.usedRecovery });
   }));
 
+  // Passkeys: options (challenge in a short-lived cookie), then the signed answer of the device
+  r.post('/auth/passkey/options', wrap(async (req, res) => res.json(await ctx.passkeys.loginOptions(req, res))));
+  r.post('/auth/passkey/login', wrap(async (req, res) => {
+    const u = await ctx.passkeys.login(req, res, req.body?.response);
+    res.json({ user: publicUser(u) });
+  }));
+
   // Self-registration and "forgot password": one-time links by mail (src/auth/selfservice.js)
   r.post('/auth/register', wrap(async (req, res) => res.json(ctx.selfService.register(req))));
   r.post('/auth/register/confirm', wrap(async (req, res) => res.json(ctx.selfService.confirmRegistration(req.body.token))));
@@ -294,6 +304,12 @@ export function createApi(ctx) {
   r.post('/me/mfa/setup', wrap(async (req, res) => res.json(await mfa.startSetup(req, req.user))));
   r.post('/me/mfa/enable', wrap(async (req, res) => res.json({ recoveryCodes: mfa.confirmSetup(req, req.user, str(req.body.code, 40)) })));
   r.post('/me/mfa/disable', wrap(async (req, res) => { mfa.disable(req, req.user, str(req.body.code, 40)); res.json({ ok: true }); }));
+  // Own passkeys (src/auth/passkeys.js)
+  r.get('/me/passkeys', (req, res) => res.json(ctx.passkeys.status(req, req.user)));
+  r.post('/me/passkeys/options', wrap(async (req, res) => res.json(await ctx.passkeys.registrationOptions(req, req.user))));
+  r.post('/me/passkeys', wrap(async (req, res) => res.json({ passkey: await ctx.passkeys.register(req, req.user, req.body?.response, str(req.body?.name, 200)) })));
+  r.patch('/me/passkeys/:id', (req, res) => { ctx.passkeys.rename(req.user, int(req.params.id), str(req.body?.name, 200)); res.json({ ok: true }); });
+  r.delete('/me/passkeys/:id', (req, res) => { ctx.passkeys.remove(req.user, int(req.params.id)); res.json({ ok: true }); });
   r.post('/me/mfa/recovery', wrap(async (req, res) => res.json({ recoveryCodes: mfa.newRecoveryCodes(req, req.user, str(req.body.code, 40)) })));
 
   // ---------- Users ----------
@@ -307,7 +323,8 @@ export function createApi(ctx) {
     }
     // Admins: which projects each agent works on (manually and via project group)
     const byUser = users.projectsByUser();
-    res.json({ users: users.all().map((u) => ({ ...publicUser(u), projects: byUser.get(u.id) || [] })) });
+    const keys = new Map(db.prepare('SELECT user_id, COUNT(*) n FROM user_passkeys GROUP BY user_id').all().map((r) => [r.user_id, r.n]));
+    res.json({ users: users.all().map((u) => ({ ...publicUser(u), projects: byUser.get(u.id) || [], passkeys: keys.get(u.id) || 0 })) });
   });
 
   // Search people (e.g. request participants): name/login name only, from 2 characters, at most 10 matches.
@@ -461,6 +478,11 @@ export function createApi(ctx) {
       mfa.adminReset(u.id);
       sessions.destroyAllForUser(u.id);
       log.info(`2FA of ${u.username} reset by ${req.user.username}`);
+    }
+    if (req.body.removePasskeys) {
+      const n = ctx.passkeys.adminRemoveAll(u.id);
+      sessions.destroyAllForUser(u.id);
+      log.info(`${n} passkey(s) of ${u.username} removed by ${req.user.username}`);
     }
     if (approvedNow) {
       log.info(`Self-registered account "${u.username}" approved by ${req.user.username}`);
@@ -961,6 +983,8 @@ export function createApi(ctx) {
   admin.get('/mfa/network', wrap(async (req, res) => res.json({
     own: await policy.ownAddresses(), levels: policy.levels(),
     trustProxy: String(config.trustProxy), proxyWarning: policy.proxyWarning(),
+    // Passkeys: host name they are bound to (null = HELFI_BASE_URL without HTTPS or an IP address)
+    passkeyRp: relyingParty()?.rpID || null, baseUrl: config.baseUrl,
   })));
 
   admin.get('/settings', (req, res) => res.json({ settings: settings.publicView(), redirectUri: oidcAuth.redirectUri(), languages: LANGUAGES }));
@@ -991,6 +1015,7 @@ export function createApi(ctx) {
     }
     if (incoming['ai.reasoning'] !== undefined && !REASONING.includes(incoming['ai.reasoning'])) throw new HttpError(400, 'err.badRequest', 'ai.reasoning');
     if (incoming['ai.classifyMode'] !== undefined && !CLASSIFY_MODES.includes(incoming['ai.classifyMode'])) throw new HttpError(400, 'err.badRequest', 'ai.classifyMode');
+    if (incoming['passkeys.enabled'] !== undefined) incoming['passkeys.enabled'] = !!incoming['passkeys.enabled'];
     for (const k of ['ai.summary', 'ai.reply', 'ai.rewrite', 'ai.classify', 'ai.kb', 'ai.duplicates']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
     if (incoming['ai.baseUrl'] !== undefined && String(incoming['ai.baseUrl']).trim()) {
       let u = null;

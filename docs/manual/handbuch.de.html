@@ -92,6 +92,8 @@
 <figure class="medium"><img src="img/de/login.jpg" alt=""><figcaption>Anmeldeseite mit eigenem Begrüßungstext</figcaption></figure>
 <p><strong>Ohne Firmenkonto:</strong> Steht unter dem Anmelden „Konto erstellen“, kannst du dir selbst ein Konto anlegen: Name, E-Mail-Adresse und Kennwort eingeben und den Link in der Bestätigungsmail öffnen. Hast du schon per Mail Anfragen gestellt, nimm dieselbe Adresse – sie erscheinen dann im Konto. Angemeldet wird mit der E-Mail-Adresse. „Kennwort vergessen?“ schickt dir einen Link, mit dem du ein neues Kennwort festlegst.</p>
 <p>Meldest du dich <strong>von außerhalb des Firmennetzes</strong> an, fragt Helfi.Space je nach Einstellung nach dem Kennwort zusätzlich einen 6-stelligen Code aus deiner Authenticator-App ab (siehe <a href="#2fa-einrichten">2.9</a>).</p>
+<p><strong>Mit Passkey:</strong> Hast du einen Passkey angelegt (siehe <a href="#passkey">Passkeys</a>), tippst du auf <em>Mit Passkey anmelden</em> oder wählst ihn direkt im Feld „Benutzername“ aus. Face ID, Touch ID, Windows Hello oder die Geräte-PIN bestätigen – fertig, ohne Kennwort und ohne Code.</p>
+<figure class="small"><img src="img/de/login-passkey.jpg" alt=""><figcaption>Anmeldeseite mit „Mit Passkey anmelden“</figcaption></figure>
 
 <p><strong>Automatische Abmeldung:</strong> Wer eine Weile nichts tut, wird aus Sicherheitsgründen abgemeldet. Zwei Minuten vorher fragt Helfi.Space „Noch da?“ – mit <em>Weiterarbeiten</em> geht es einfach weiter. Solange du klickst oder tippst, bleibst du angemeldet.</p>
 <figure class="small"><img src="img/de/idle.jpg" alt=""><figcaption>Zwei Minuten vor der automatischen Abmeldung</figcaption></figure>
@@ -148,6 +150,7 @@
   <li><strong>Name und E-Mail-Adresse</strong> – bei lokalen Konten änderbar (für eine neue Mailadresse ist das aktuelle Kennwort nötig). Bei AD- und SSO-Konten kommen beide Angaben aus dem Firmenkonto.</li>
   <li><strong>Sprache</strong> der Oberfläche und der Mails an dich, und die <strong>Reihenfolge der Aktivität</strong> im Ticket (Neueste oben oder Älteste oben).</li>
   <li><strong>Neuigkeiten</strong> (ebenfalls im Menü oben rechts): was sich in den einzelnen Versionen geändert hat. Nach einem Update zeigt Helfi.Space die Neuigkeiten einmal von selbst. Ein Klick auf die Versionsnummer unten in der Seitenleiste führt ebenfalls dorthin, „Helfi.Space“ daneben öffnet die Website <code>helfi.space</code>.</li>
+  <li><strong>Passkeys</strong> hinzufügen, umbenennen und entfernen (siehe <a href="#passkey">Passkeys</a>).</li>
   <li><strong>Zwei-Faktor-Anmeldung</strong> einrichten oder verwalten.</li>
   <li><strong>Kennwort ändern</strong> (nur lokale Konten; AD-Kennwörter änderst du wie gewohnt in Windows).</li>
 </ul>
@@ -162,6 +165,16 @@
   <li>Die <strong>10 Wiederherstellungscodes</strong> sicher aufbewahren (ausdrucken oder im Passwortmanager). Jeder gilt genau einmal, falls das Handy nicht zur Hand ist.</li>
 </ol>
 <div class="note"><p>Die Ersteinrichtung geht aus Sicherheitsgründen normalerweise nur im <strong>Firmennetz</strong> (außer nach einer SSO-Anmeldung, deren zweiten Faktor der Identitätsanbieter geprüft hat). So kann niemand mit einem erbeuteten Kennwort von außen seinen eigenen zweiten Faktor hinterlegen. <strong>Handy verloren?</strong> Mit einem Wiederherstellungscode anmelden oder die IT bitten, die 2FA zurückzusetzen.</p></div>
+
+<h3 id="passkey">Passkeys</h3>
+<p>Mit einem <strong>Passkey</strong> meldest du dich per Face ID, Touch ID, Windows Hello oder Geräte-PIN an – ohne Kennwort und ohne Code aus der Authenticator-App. Ein Passkey zählt selbst als Zwei-Faktor-Anmeldung (dein Gerät plus Gesicht, Finger oder PIN), auch von außerhalb des Firmennetzes. Er bleibt auf deinem Gerät; Helfi.Space bekommt nur einen öffentlichen Schlüssel. Auf dem iPhone und Mac landet er im iCloud-Schlüsselbund, auf Android im Google-Passwortmanager – dann steht er auf deinen anderen Geräten ebenfalls bereit („Synchronisiert“).</p>
+<ol>
+  <li><em>Profil → Passkeys</em> (am Handy: <em>Ich → Passkeys</em>).</li>
+  <li>Einen Namen eingeben, an dem du ihn wiedererkennst, z. B. „iPhone“, und <strong>Passkey hinzufügen</strong> wählen.</li>
+  <li>Das Gerät fragt nach Face ID, Touch ID oder PIN und legt den Passkey an.</li>
+</ol>
+<figure><img src="img/de/profile-passkeys.jpg" alt=""><figcaption>Passkeys im Profil</figcaption></figure>
+<div class="note"><p>Den <strong>ersten</strong> Passkey kannst du – wie die Zwei-Faktor-Anmeldung – nur im Firmennetz anlegen, oder nachdem du dich mit Zwei-Faktor-Code angemeldet hast. Passkeys gibt es für lokale Konten und Active-Directory-Konten; wer sich über Single Sign-on anmeldet, nutzt die Anmeldung beim Anbieter. <strong>Gerät verloren?</strong> Den Passkey im Profil entfernen oder die IT bitten, deine Passkeys zu entfernen; die Anmeldung mit Kennwort geht weiterhin.</p></div>
 
 <h2 id="katalog">Service anfordern</h2>
 <p>Für häufige Wünsche gibt es fertige Formulare, z. B. „Neuer Mitarbeiter“ oder „Software-Wunsch“: <em>Service anfordern</em> in der Seitenleiste. Die Angebote sind nach Abteilung (Projekt) gruppiert, z. B. IT und Haustechnik. Ein Klick auf eine Kachel öffnet das Formular; Pflichtfelder sind mit * markiert. Nach dem Absenden landest du im neuen Ticket.</p>
@@ -193,7 +206,7 @@
   <li><strong>Service anfordern:</strong> Unter ＋ stehen die Angebote des Servicekatalogs als Kacheln. Pflichtfelder sind mit * markiert; braucht ein Angebot eine Genehmigung, steht das im Formular.</li>
   <li><strong>Ticket:</strong> Die Kommentare sehen aus wie ein Chat. Unten schreibst du deine Antwort, über <strong>＋</strong> hängst du Fotos oder Dateien an. Bearbeiter blenden mit <em>Alle</em> neben „Aktivität“ auch Statuswechsel und Zuweisungen ein; das Handy merkt sich die Wahl. Mit <strong>@</strong> in der Antwortleiste erwähnen Bearbeiter Kollegen, unter <em>Tickets</em> zeigt der Chip <em>Erwähnt</em> die Tickets, in denen sie erwähnt wurden. Titel und Beschreibung deiner eigenen Anfrage änderst du über <em>Bearbeiten</em> neben „Beschreibung“.</li>
   <li><strong>Wissen:</strong> Suche, Kategorien, <em>Zuletzt angesehen</em>, <em>Meistgelesen</em> und der Seitenbaum. Lange Artikel haben oben ein <em>Inhalt</em>-Verzeichnis, breite Tabellen schiebst du seitlich. Unter jedem Artikel kannst du einen Kommentar schreiben.</li>
-  <li><strong>Ich:</strong> Name, E-Mail-Adresse und Kennwort (bei lokalen Konten), Sprache, Design (hell/dunkel), Zwei-Faktor-Anmeldung, <em>App installieren</em>, Neuigkeiten und – nur im Handy-Browser – <em>Desktop-Ansicht</em>. Über das Benutzermenü der Desktop-Ansicht (<em>Handy-Ansicht</em>) kommst du zurück.</li>
+  <li><strong>Ich:</strong> Name, E-Mail-Adresse und Kennwort (bei lokalen Konten), Sprache, Design (hell/dunkel), Zwei-Faktor-Anmeldung, <strong>Passkeys</strong>, <em>App installieren</em>, Neuigkeiten und – nur im Handy-Browser – <em>Desktop-Ansicht</em>. Über das Benutzermenü der Desktop-Ansicht (<em>Handy-Ansicht</em>) kommst du zurück.</li>
   <li><strong>Original-Mail:</strong> Kam eine Anfrage oder Antwort per E-Mail, steht darunter „Textfassung der E-Mail. <em>Original-Mail anzeigen</em>“. Das öffnet die Mail so, wie sie geschrieben wurde, in einem Fenster von unten – mit <em>Formatiert</em>/<em>Text</em> zum Umschalten. Wischen nach unten, ✕ oder Zurück schließt es wieder.</li>
 </ul>
 <figure><img src="img/de/m-mail.jpg" alt=""><figcaption>Original-Mail auf dem Handy: Hinweis unter der Beschreibung und die Mail im Fenster</figcaption></figure>
@@ -201,6 +214,8 @@
 <figure class="phone"><img src="img/de/m-image.jpg" alt=""><figcaption>Bild im Fenster der App</figcaption></figure>
 <figure><img src="img/de/mobile-app-2.jpg" alt=""><figcaption>Problem melden mit Foto und Wissensvorschlägen, ein Hilfeartikel und die Einrichtung der Zwei-Faktor-Anmeldung auf dem Handy</figcaption></figure>
 <p><strong>Zwei-Faktor-Anmeldung auf dem Handy einrichten:</strong> Einen QR-Code auf dem eigenen Bildschirm kann das Handy nicht scannen. Tippe deshalb unter <em>Ich → Zwei-Faktor-Anmeldung → Jetzt einrichten</em> auf <strong>In Authenticator-App öffnen</strong> – die App übernimmt das Konto direkt. Klappt das nicht, kopierst du den angezeigten Schlüssel und fügst ihn in der App unter „Schlüssel eingeben“ ein. Der QR-Code ist für ein zweites Gerät weiterhin da. Danach den 6-stelligen Code eingeben und die Wiederherstellungscodes kopieren, teilen oder speichern. Ist 2FA für dein Konto Pflicht, geht das genauso direkt bei der Anmeldung.</p>
+<p><strong>Passkey auf dem Handy:</strong> Unter <em>Ich → Passkeys → Passkey hinzufügen</em> fragt das Handy nach Face ID oder Fingerabdruck und legt den Passkey an. Danach meldest du dich mit <em>Mit Passkey anmelden</em> an – oder das Handy schlägt den Passkey schon über der Tastatur vor, sobald du ins Feld „Benutzername“ tippst.</p>
+<figure><img src="img/de/m-passkeys.jpg" alt=""><figcaption>Anmelden mit Passkey und die Passkeys unter „Ich“</figcaption></figure>
 <div class="tip"><p><strong>Als App installieren:</strong> <em>iPhone/iPad:</em> Helfi.Space in Safari öffnen, unten auf <em>Teilen</em> tippen, <em>Zum Home-Bildschirm</em> → <em>Hinzufügen</em>. <em>Android:</em> in Chrome oben rechts ⋮ → <em>App installieren</em> (oder <em>Ich → App installieren → Jetzt installieren</em>). Helfi.Space startet dann im Vollbild mit eigenem Symbol und aktualisiert sich selbst; nach einem Update erscheint kurz „Neue Version – Neu laden“. Ohne Verbindung zeigt die App einen Hinweis mit <em>Erneut versuchen</em>. Installiert bleibt Helfi.Space immer in der Handy-Ansicht – auch Links auf Desktop-Seiten führen zurück in die App, weil es dort keine Adressleiste und keinen Zurück-Knopf gibt.</p></div>
 <div class="note"><p><strong>Datenschutz:</strong> Fotos werden ohne Aufnahmeort hochgeladen, große Fotos werden schon auf dem Handy verkleinert. Nicht gesendete Entwürfe werden beim Abmelden gelöscht. Tickets, Anhänge und Antworten werden nicht auf dem Gerät gespeichert, nur die Programmdateien. Es wird nichts aus dem Internet geladen.</p></div>
 
@@ -650,6 +665,16 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>2FA zurücksetzen</strong> für eine Person: <em>Benutzer → 2FA zurücksetzen</em>.</li>
 </ul>
 
+<h3 id="passkeys-admin">Passkeys</h3>
+<p>Auf derselben Seite schaltest du <strong>Passkeys</strong> ein oder aus (standardmäßig an). Jede Person legt ihre Passkeys selbst im Profil an (<a href="#passkey">Passkeys</a>); ein Passkey ersetzt Kennwort und Zwei-Faktor-Code.</p>
+<figure class="medium"><img src="img/de/admin-passkeys.jpg" alt=""><figcaption>Passkeys in den Sicherheitseinstellungen</figcaption></figure>
+<ul>
+  <li><strong>Adresse:</strong> Passkeys gehören zum Namen aus <code>HELFI_BASE_URL</code>, z. B. <code>helfi.firma.local</code>, und brauchen HTTPS (eine IP-Adresse geht nicht). Intern und extern sollte derselbe Name gelten, etwa über Split-DNS. Ändert sich der Name, müssen alle ihre Passkeys neu anlegen. Wer Helfi.Space unter einer anderen Adresse öffnet, sieht den Passkey-Knopf nicht.</li>
+  <li><strong>Active Directory:</strong> Für AD-Konten braucht es ein <strong>Dienstkonto</strong> (<a href="#ad">Active Directory</a>). Da bei einer Passkey-Anmeldung kein Kennwort im Spiel ist, prüft Helfi.Space jedes Mal mit dem Dienstkonto, ob das Konto im AD noch existiert, aktiv ist und in der erlaubten Gruppe steckt; Rolle und Projektgruppen werden wie bei der Anmeldung mit Kennwort übernommen. Ein normales Konto mit Leserechten reicht. Ohne Dienstkonto zeigt das Profil von AD-Konten einen Hinweis statt „Passkey hinzufügen“.</li>
+  <li><strong>SSO-Konten</strong> melden sich beim Identitätsanbieter an; dort lassen sich Passkeys ebenfalls nutzen.</li>
+  <li><strong>Gerät verloren oder ausgeschieden:</strong> <em>Benutzer → Passkeys entfernen</em> löscht alle Passkeys der Person und meldet sie ab.</li>
+</ul>
+
 <h2 id="email">E-Mail</h2>
 <p><em>Administration → E-Mail → Posteingang</em> (Abruf, Eingangsprojekt, Absender-Regeln, Schutz vor Mail-Schleifen) und <em>Postausgang</em> (Versand, Benachrichtigungen)</p>
 <figure><img src="img/de/admin-mail-1.jpg" alt=""><figcaption>Postfach abrufen (IMAP)</figcaption></figure>
@@ -732,7 +757,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 </ul>
 
 <h2 id="benutzerverwaltung">Benutzer</h2>
-<p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten und setzt die 2FA zurück. Selbst registrierte Konten sind gekennzeichnet; ist unter <em>Sicherheit → Registrierung und Kennwort vergessen</em> die Freigabe eingeschaltet, steht bei neuen Konten „Wartet auf Freigabe“ mit dem Knopf <strong>Freigeben</strong>.</p>
+<p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status, Zahl der Passkeys und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten, setzt die 2FA zurück und entfernst Passkeys. Selbst registrierte Konten sind gekennzeichnet; ist unter <em>Sicherheit → Registrierung und Kennwort vergessen</em> die Freigabe eingeschaltet, steht bei neuen Konten „Wartet auf Freigabe“ mit dem Knopf <strong>Freigeben</strong>.</p>
 <p>Die <strong>Rolle</strong> ist <em>Benutzer</em> oder <em>Administrator</em>. Was jemand darüber hinaus in Projekten bearbeitet, wird im Projekt festgelegt und steht hier nur zur Info unter der Rolle, z. B. „Bearbeitet: IT (Leitung)“ oder „Bearbeitet: IT (Gruppe Helpdesk)“ (<a href="#projektrechte">Wer bearbeitet die Tickets eines Projekts?</a>).</p>
 <figure class="medium"><img src="img/de/admin-users-sees.jpg" alt=""><figcaption>Unter der Rolle steht, welche Projekte jemand bearbeitet</figcaption></figure>
 <p><strong>Automatische Abmeldung</strong> (<em>Administration → Anmeldung &amp; Sicherheit → Zwei-Faktor &amp; Sitzungen</em>): Frist ohne Aktivität für alle (Standard 12 Stunden aus <code>HELFI_SESSION_HOURS</code>), für Admins (Standard 60 Minuten) und optional für Zugriffe von außen – es gilt die kürzeste passende. Zwei Minuten vor Ablauf fragt Helfi „Noch da?“; wer weiterarbeitet, bleibt angemeldet. Optional: „Beim Schließen des Browsers abmelden“.</p>
@@ -852,6 +877,7 @@ docker compose exec helfi helfi-admin create notfall   # neuen lokalen Admin anl
   <li>Wer bei AD, IMAP, SMTP oder SSO Server, Port, Verschlüsselung, Dienstkonto bzw. Benutzer, Issuer oder Client-ID ändert, die Zertifikatsprüfung abschwächt (auch „Abgerufenes Zertifikat“ → „System-Zertifizierungsstellen“) oder ein anderes AD-Zertifikat hinterlegt, muss das Kennwort bzw. Geheimnis im selben Schritt neu eingeben, sonst wird nicht gespeichert. So geht ein gespeichertes Geheimnis nie an einen anderen Server; auch Verbindungstests mit abgeschwächter Prüfung senden es nicht.</li>
   <li>Sitzungen enden nach der unter <em>Automatische Abmeldung</em> eingestellten Zeit ohne Nutzung (ohne Einstellung <code>HELFI_SESSION_HOURS</code>, Standard 12 Stunden; Administratoren 60 Minuten) und spätestens 30 Tage nach der Anmeldung. Deaktivierte Konten bekommen bei der Anmeldung dieselbe Meldung wie bei falschem Kennwort.</li>
   <li>Zwei-Faktor-Anmeldung nach RFC 6238, jeder Code nur einmal, Wiederherstellungscodes nur als Hash.</li>
+  <li>Passkeys nach WebAuthn: gespeichert wird nur der öffentliche Schlüssel; Face ID, Touch ID oder PIN sind Pflicht, jede Anmeldung braucht eine neue Einmal-Anfrage, ein kopierter Passkey fällt am Zähler auf. AD-Konten werden bei jeder Passkey-Anmeldung im AD geprüft.</li>
   <li>Bremse bei falschen Kennwörtern, Cookies <code>HttpOnly</code>/<code>SameSite</code>, CSRF-Schutz, strenge Content-Security-Policy. Die Oberfläche lädt nichts aus dem Internet.</li>
   <li>HTML-Mails werden bereinigt und in einem abgeschotteten Rahmen ohne Skripte angezeigt.</li>
   <li>Der Container läuft ohne root-Rechte, mit schreibgeschütztem Programmteil, ohne zusätzliche Linux-Rechte und mit <code>no-new-privileges</code>.</li>

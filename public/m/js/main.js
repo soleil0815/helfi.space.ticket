@@ -12,7 +12,7 @@ import { renderHome, renderRequests } from './views/home.js';
 import { renderPortal, renderPortalDepartment } from './views/portal.js';
 import { renderTickets } from './views/tickets.js';
 import { renderTicket } from './views/ticket.js';
-import { renderMe, renderNews, renderMfa } from './views/me.js';
+import { renderMe, renderNews, renderMfa, renderPasskeys } from './views/me.js';
 import { renderNew, renderReport, renderCatalogItem } from './views/new.js';
 import { renderKb, renderKbArticle } from './views/kb.js';
 import { resetActionCaches } from './actions.js';
@@ -165,6 +165,7 @@ function defineRoutes() {
   route({ path: /^\/m\/kb\/(\d+)$/, parent: '/m/kb', render: authed(renderKbArticle) });
   route({ path: /^\/m\/me$/, tab: 'me', root: always, render: authed(renderMe) });
   route({ path: /^\/m\/me\/2fa$/, parent: '/m/me', render: authed(renderMfa) });
+  route({ path: /^\/m\/me\/passkeys$/, parent: '/m/me', render: authed(renderPasskeys) });
   route({ path: /^\/m\/news$/, parent: '/m/me', render: authed(renderNews) });
   route({ path: /^\/m\/404$/, parent: '/m', render: renderNotFound });
   route({ path: /^\/m\/.*$/, parent: '/m', render: renderNotFound });

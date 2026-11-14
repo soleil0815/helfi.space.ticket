@@ -26,6 +26,7 @@ import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
 import { createNetworkPolicy } from './auth/network.js';
 import { createMfa } from './auth/mfa.js';
+import { createPasskeys } from './auth/passkeys.js';
 import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
@@ -124,6 +125,8 @@ export function createApp(db) {
   const ctx = { links, major, sla, reminders, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, portal, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, aiDuplicates, examples, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
+  // Passkeys use ctx.directory at sign-in time (tests replace it)
+  ctx.passkeys = createPasskeys(ctx);
 
   const app = express();
   app.disable('x-powered-by');

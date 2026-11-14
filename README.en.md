@@ -29,6 +29,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 - **Knowledge articles with 👍/👎 rating** and feedback on what was missing – articles that need rework at a glance
 - **Roles:** administrator (may do and sets up everything) and user (only sees their own requests). **Who works on tickets is set in the project:** lead, deputy, agent group from AD/SSO and single people – someone only responsible for facilities never sees IT tickets ([Project rights](#project-rights)).
 - **Two-factor sign-in (TOTP):** on the internal network a password is enough, from outside a code from an authenticator app is required – configurable per role.
+- **Passkeys:** sign in with Face ID, Touch ID, Windows Hello or the device PIN instead of password and code – for local and Active Directory accounts, on the desktop and in the phone app.
 - **Local emergency admin:** created during first setup, works even when the AD is unreachable.
 - **Dark mode:** choose *System* (follows the device), *Light* or *Dark* under *Theme* in the user menu – on phones under *Me → Theme*. The choice is stored with the account on all devices, also with a custom brand colour.
 - **What's new:** after an update Helfi.Space shows everyone once what changed for them; all versions are listed in the user menu under *What's new*.
@@ -204,6 +205,21 @@ Example: reporters without a code, agents with a code from outside, administrato
 - Docker note: with some Docker setups all requests seem to come from the Docker gateway, e.g. with rootless Docker or IPv6. That address therefore only counts as internal if it is listed on its own.
 
 ![Two-factor sign-in settings](docs/images/2fa-en.png)
+
+## Passkeys
+
+*Administration → Sign-in & security → Two-factor & sessions → Passkeys* (on by default)
+
+With a passkey you sign in using Face ID, Touch ID, Windows Hello or the device PIN – without password and without code. A passkey counts as two-factor sign-in (device plus face, finger or PIN), also from outside. Only the public key is stored; on iPhone/Mac the passkey lives in the iCloud Keychain, on Android in Google Password Manager.
+
+- **Setup:** everyone under *Profile → Passkeys* or in the phone app under *Me → Passkeys*. The first passkey only where 2FA may be set up too (company network, "first-time setup from outside too" or after a sign-in with a second factor) – otherwise someone with a stolen password could register their own passkey from outside.
+- **Signing in:** the *Sign in with a passkey* button on the sign-in page, or the browser suggests the passkey right in the "Username" field.
+- **Address:** passkeys belong to the host name from `HELFI_BASE_URL` and need HTTPS with a name (not an IP address). Use the same name inside and outside (e.g. split DNS). If the name changes, everyone has to add their passkeys again.
+- **Active Directory:** needs a **service account** (read access is enough). Without a password, Helfi.Space uses the service account on every passkey sign-in to check that the account still exists, is enabled and is in the allowed group, and applies role and project groups as on a password sign-in.
+- **SSO accounts** sign in at the identity provider and have no passkeys here.
+- **Lost device:** remove the passkey in the profile, or an admin chooses *Users → Remove passkeys* (also signs the person out).
+
+![Passkeys in the profile](docs/manual/img/en/profile-passkeys.jpg)
 
 ## Single sign-on (OpenID Connect)
 
@@ -526,7 +542,7 @@ On phones Helfi.Space opens automatically in its own app-like interface (under `
 - **Report (＋):** report a problem with title, description, **Take photo** or **File**; agents also choose project, type and priority (as on the PC). While you type the title, Helfi.Space suggests matching knowledge articles. If there is a service catalog, its offerings appear as large tiles next to it – with all field types, required fields and approval. An unsent draft is kept until the tab is closed.
 - **Ticket:** comments like a chat, reply bar at the bottom with photos and files; agents add the history (status, assignments …) via *All* – the phone remembers the choice. Agents also write internal notes, use templates, change status, assignee, priority, type and participants, link tickets and approve requests. Title and description can be changed by agents and by the reporter.
 - **Knowledge:** search, categories, *Recently viewed*, *Most read* and the page tree to browse. Articles with a table of contents, sideways-scrolling tables and comments. Articles are edited on the PC (*Edit on desktop*). Users only see public articles.
-- **Me:** name, email and password (local accounts), language, **two-factor authentication** right on the phone (secret key to copy and an *Open in authenticator app* button instead of a QR code, the QR code stays available for a second device; then the recovery codes to copy or share), what's new and *Desktop view*.
+- **Me:** name, email and password (local accounts), language, **passkeys** (Face ID, fingerprint), **two-factor authentication** right on the phone (secret key to copy and an *Open in authenticator app* button instead of a QR code, the QR code stays available for a second device; then the recovery codes to copy or share), what's new and *Desktop view*.
 - **Install as an app:** iPhone/iPad: in Safari *Share* → *Add to Home Screen*. Android: in Chrome ⋮ → *Install app* (or the button under *Me → Install app*). Helfi.Space then starts full screen with its own icon; a small service worker keeps only the program files ready and shows a notice page without a connection. New versions arrive automatically ("New version – Reload").
 - **Switching:** in the phone browser, *Me → Desktop view* switches to the familiar view for good, *Phone view* in the user menu switches back. Pages that only exist on the PC (administration, reports, board …) open in the desktop view there.
 - **Installed as an app**, Helfi.Space always stays in the phone view – without an address bar there would be no way back. There is no *Desktop view* switch, the original email and images (attachments, pictures in replies and knowledge articles) open in a window inside the app, and every desktop address (old link, SSO sign-in, a desktop view chosen earlier) leads back into the app; pages that only exist on the PC lead to the start page.

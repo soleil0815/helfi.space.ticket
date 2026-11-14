@@ -29,6 +29,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 - **Wissensartikel mit 👍/👎-Bewertung** und Rückmeldungen, was gefehlt hat – Artikel, die eine Überarbeitung brauchen, auf einen Blick
 - **Rollen:** Administrator (darf alles und richtet alles ein) und Benutzer (sieht nur seine eigenen Anfragen). **Wer Tickets bearbeitet, steht im Projekt:** Leitung, Vertretung, Bearbeiter-Gruppe aus AD/SSO und einzelne Personen – wer nur für die Haustechnik zuständig ist, sieht keine IT-Tickets ([Projektrechte](#projektrechte)).
 - **Zwei-Faktor-Anmeldung (TOTP):** Im internen Netz reicht das Kennwort, von außen ist der Code aus einer Authenticator-App Pflicht – einstellbar je Rolle.
+- **Passkeys:** Anmelden per Face ID, Touch ID, Windows Hello oder Geräte-PIN statt Kennwort und Code – für lokale und Active-Directory-Konten, am Desktop und in der Handy-App.
 - **Lokaler Notfall-Admin:** Er wird bei der Ersteinrichtung angelegt und funktioniert auch, wenn das AD nicht erreichbar ist.
 - **Dunkelmodus:** Im Benutzermenü unter *Design* zwischen *System* (folgt dem Gerät), *Hell* und *Dunkel* wählen – am Handy unter *Ich → Design*. Die Wahl gilt für das Konto auf allen Geräten, auch mit eigener Firmenfarbe.
 - **Neuigkeiten:** Nach einem Update zeigt Helfi.Space jedem einmal, was sich für ihn geändert hat; alle Versionen stehen im Benutzermenü unter *Neuigkeiten*.
@@ -204,6 +205,21 @@ Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren imme
 - Docker-Hinweis: Bei manchen Docker-Setups kommen alle Zugriffe scheinbar vom Docker-Gateway, z. B. bei rootless Docker oder IPv6. Diese Adresse gilt deshalb nur als intern, wenn sie einzeln eingetragen ist.
 
 ![Einstellungen zur Zwei-Faktor-Anmeldung](docs/images/2fa-de.png)
+
+## Passkeys
+
+*Administration → Anmeldung & Sicherheit → Zwei-Faktor & Sitzungen → Passkeys* (standardmäßig an)
+
+Mit einem Passkey meldet man sich per Face ID, Touch ID, Windows Hello oder Geräte-PIN an – ohne Kennwort und ohne Code. Ein Passkey zählt als Zwei-Faktor-Anmeldung (Gerät plus Gesicht, Finger oder PIN), auch von außen. Gespeichert wird nur der öffentliche Schlüssel; auf iPhone/Mac liegt der Passkey im iCloud-Schlüsselbund, auf Android im Google-Passwortmanager.
+
+- **Einrichten:** Jeder unter *Profil → Passkeys* bzw. in der Handy-App unter *Ich → Passkeys*. Den ersten Passkey nur dort, wo auch 2FA eingerichtet werden darf (Firmennetz, „Ersteinrichtung auch von außen“ oder nach einer Anmeldung mit zweitem Faktor) – sonst könnte jemand mit erbeutetem Kennwort von außen seinen eigenen Passkey hinterlegen.
+- **Anmelden:** Knopf *Mit Passkey anmelden* auf der Anmeldeseite, oder der Browser schlägt den Passkey direkt im Feld „Benutzername“ vor.
+- **Adresse:** Passkeys gehören zum Namen aus `HELFI_BASE_URL` und brauchen HTTPS mit einem Namen (keine IP-Adresse). Intern und extern denselben Namen nutzen (z. B. Split-DNS). Ändert sich der Name, müssen alle ihre Passkeys neu anlegen.
+- **Active Directory:** braucht ein **Dienstkonto** (Leserechte genügen). Ohne Kennwort prüft Helfi.Space bei jeder Passkey-Anmeldung mit dem Dienstkonto, ob das Konto noch existiert, aktiv ist und in der erlaubten Gruppe steckt, und übernimmt Rolle und Projektgruppen wie bei der Anmeldung mit Kennwort.
+- **SSO-Konten** melden sich beim Identitätsanbieter an und haben hier keine Passkeys.
+- **Gerät verloren:** Passkey im Profil entfernen, oder ein Admin wählt *Benutzer → Passkeys entfernen* (meldet die Person auch ab).
+
+![Passkeys im Profil](docs/manual/img/de/profile-passkeys.jpg)
 
 ## Single Sign-on (OpenID Connect)
 
@@ -526,7 +542,7 @@ Auf dem Handy öffnet sich Helfi.Space automatisch in einer eigenen, app-artigen
 - **Melden (＋):** Problem melden mit Titel, Beschreibung, **Foto aufnehmen** oder **Datei**; Bearbeiter wählen zusätzlich Projekt, Typ und Priorität (wie am PC). Schon beim Tippen des Titels schlägt Helfi.Space passende Wissensartikel vor. Gibt es einen Servicekatalog, stehen seine Angebote als große Kacheln daneben – mit allen Feldarten, Pflichtfeldern und Genehmigung. Ein nicht abgeschickter Entwurf bleibt erhalten, bis der Tab geschlossen wird.
 - **Ticket:** Kommentare wie ein Chat, Antwortleiste unten mit Fotos und Dateien; Bearbeiter blenden über *Alle* auch den Verlauf (Status, Zuweisungen …) ein – das Handy merkt sich die Wahl. Bearbeiter schreiben auch interne Notizen, nutzen Vorlagen, ändern Status, Bearbeiter, Priorität, Typ und Teilnehmer, verknüpfen Tickets und genehmigen Anfragen. Titel und Beschreibung ändern Bearbeiter und der Melder selbst.
 - **Wissen:** Suche, Kategorien, *Zuletzt angesehen*, *Meistgelesen* und der Seitenbaum zum Durchklicken. Artikel mit Inhaltsverzeichnis, seitlich scrollenden Tabellen und Kommentaren. Bearbeitet werden Artikel am PC (*Im Desktop bearbeiten*). Benutzer sehen nur öffentliche Artikel.
-- **Ich:** Name, E-Mail und Kennwort (lokale Konten), Sprache, **Zwei-Faktor-Anmeldung** direkt auf dem Handy (geheimer Schlüssel zum Kopieren und Knopf *In Authenticator-App öffnen* statt QR-Code, der QR-Code bleibt für ein zweites Gerät; danach die Wiederherstellungscodes zum Kopieren oder Teilen), Neuigkeiten und *Desktop-Ansicht*.
+- **Ich:** Name, E-Mail und Kennwort (lokale Konten), Sprache, **Passkeys** (Face ID, Fingerabdruck), **Zwei-Faktor-Anmeldung** direkt auf dem Handy (geheimer Schlüssel zum Kopieren und Knopf *In Authenticator-App öffnen* statt QR-Code, der QR-Code bleibt für ein zweites Gerät; danach die Wiederherstellungscodes zum Kopieren oder Teilen), Neuigkeiten und *Desktop-Ansicht*.
 - **Als App installieren:** iPhone/iPad: in Safari *Teilen* → *Zum Home-Bildschirm*. Android: in Chrome ⋮ → *App installieren* (oder der Knopf unter *Ich → App installieren*). Helfi.Space startet dann im Vollbild mit eigenem Symbol; ein kleiner Service Worker hält nur die Programmdateien bereit und zeigt ohne Verbindung eine Hinweisseite. Neue Versionen kommen automatisch („Neue Version – Neu laden“).
 - **Umschalten:** Im Handy-Browser wechselt *Ich → Desktop-Ansicht* dauerhaft zur gewohnten Ansicht, im Benutzermenü führt *Handy-Ansicht* zurück. Seiten, die es nur am PC gibt (Administration, Berichte, Board …), öffnen sich dort in der Desktop-Ansicht.
 - **Als App installiert** bleibt Helfi.Space immer in der Handy-Ansicht – ohne Adressleiste gäbe es sonst keinen Weg zurück. Den Schalter *Desktop-Ansicht* gibt es dort nicht, die Original-Mail und Bilder (Anhänge, Bilder in Antworten und Wissensartikeln) öffnen sich in einem Fenster innerhalb der App, und jede Desktop-Adresse (alter Link, Anmeldung über SSO, früher gewählte Desktop-Ansicht) führt zurück in die App; Seiten, die es nur am PC gibt, zur Startseite.

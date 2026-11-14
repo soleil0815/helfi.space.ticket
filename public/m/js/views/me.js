@@ -11,6 +11,7 @@ import { listRow, emptyState, skeletonList } from '../ui.js';
 import { openSheet } from '../sheet.js';
 import { rerender, dataChanged } from '../router.js';
 import { mfaSetupSteps, recoveryCodesView } from '../mfa.js';
+import { passkeySupported, passkeysHere, passkeyAdd, passkeyCancelled, defaultPasskeyName } from '/js/passkey.js';
 import { isStandalone, isIos, canPromptInstall, promptInstall, onInstallChange } from '../pwa.js';
 
 /** Switch to the desktop UI for good (saved preference; the desktop user menu offers the way back) */
@@ -50,7 +51,10 @@ export function renderMe(page) {
       listRow({
         icon: 'shield', label: t('mfa.title'), href: '/m/me/2fa',
         trailing: h(`span.m-status-chip${mfaOn ? '.on' : ''}`, mfaOn ? t('mfa.statusOn') : t('mfa.statusOff')),
-      })),
+      }),
+      // Passkeys: sign in with Face ID/Touch ID (local and AD accounts; SSO signs in at the provider)
+      state.boot?.auth?.passkeys && ['local', 'ldap'].includes(u.source)
+        ? listRow({ icon: 'passkey', label: t('passkey.title'), hint: t('m.passkey.rowHint'), href: '/m/me/passkeys' }) : null),
     group(t('app.language'),
       h('div.m-row.m-row-static',
         h('div.m-segmented', { role: 'radiogroup', 'aria-label': t('app.language') }, langBtn('de', 'Deutsch'), langBtn('en', 'English')))),
@@ -165,6 +169,72 @@ function openInstall() {
   draw();
   const off = onInstallChange(draw);
   openSheet({ title: t('m.app.install'), content: body, className: 'm-sheet-install', onClose: off });
+}
+
+// ---------- Passkeys ----------
+export async function renderPasskeys(page) {
+  page.title(t('passkey.title'));
+  page.body.replaceChildren(skeletonList(1));
+  await draw();
+
+  async function draw() {
+    let st;
+    try { st = await api.passkeys(); } catch (e) { page.body.replaceChildren(h('div.m-alert.m-alert-error', e.message)); return; }
+    const intro = h('p.m-intro', t('passkey.intro'));
+    if (!st.available) {
+      page.body.replaceChildren(intro, h('div.m-alert.m-alert-info', icon('info'), h('span', t(`passkey.reason.${st.reason}`))));
+      return;
+    }
+    const rows = st.passkeys.map((p) => listRow({
+      icon: 'passkey', label: p.name,
+      hint: [p.lastUsedAt ? t('passkey.lastUsed', { date: fmtDate(p.lastUsedAt) }) : t('passkey.neverUsed'), p.synced ? t('passkey.synced') : null].filter(Boolean).join(' · '),
+      onClick: () => openPasskey(p),
+    }));
+    let add;
+    if (!passkeySupported()) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.unsupported')));
+    else if (!passkeysHere(state.boot.auth.passkeys)) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.wrongHost', { host: state.boot.auth.passkeys })));
+    else if (!st.canAdd) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.addOnlyInternal')));
+    else {
+      const btn = h('button.m-btn.m-btn-primary.m-btn-block', {
+        type: 'button', 'data-passkey-add': '',
+        onclick: async () => {
+          btn.disabled = true;
+          try { await passkeyAdd(defaultPasskeyName()); toast(t('passkey.added')); await draw(); }
+          catch (e) { if (!passkeyCancelled(e)) toast(e.message, 'error'); }
+          finally { btn.disabled = false; }
+        },
+      }, icon('passkey'), t('passkey.add'));
+      add = h('div.m-passkey-add', btn, h('p.m-muted.m-small', t('m.passkey.addHint')));
+    }
+    page.body.replaceChildren(intro,
+      rows.length ? group(null, ...rows) : h('p.m-muted.m-passkey-none', t('passkey.none')),
+      add);
+  }
+
+  function openPasskey(p) {
+    const name = h('input', { value: p.name, maxLength: 60, required: true });
+    const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
+    const sheet = openSheet({
+      title: p.name,
+      content: h('form#m-passkey.m-form', {
+        onsubmit: async (e) => {
+          e.preventDefault();
+          if (!name.value.trim()) return;
+          try { await api.passkeyRename(p.id, name.value.trim()); sheet.close(); await draw(); } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+        },
+      },
+      err,
+      fieldEl(t('passkey.name'), name, t('passkey.created', { date: fmtDate(p.createdAt, false) })),
+      h('button.m-btn.m-btn-primary.m-btn-block', { type: 'submit' }, t('app.save')),
+      h('button.m-btn.m-btn-block.m-btn-danger', {
+        type: 'button', 'data-passkey-remove': '',
+        onclick: async () => {
+          if (!confirm(t('passkey.removeConfirm', { name: p.name }))) return;
+          try { await api.passkeyRemove(p.id); sheet.close(); toast(t('passkey.removed')); await draw(); } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+        },
+      }, t('passkey.remove'))),
+    });
+  }
 }
 
 // ---------- Two-factor sign-in ----------

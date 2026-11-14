@@ -1,6 +1,7 @@
 // Own profile: language, password (local accounts)
 import { api } from '../api.js';
-import { h, mount, avatar, field, select, toast, icon } from '../dom.js';
+import { h, mount, avatar, field, select, toast, icon, fmtDate } from '../dom.js';
+import { passkeySupported, passkeysHere, passkeyAdd, passkeyCancelled, defaultPasskeyName } from '../passkey.js';
 import { recoveryCodesBox } from './auth.js';
 import { t } from '../i18n.js';
 import { state, setLanguage, reloadBase } from '../app.js';
@@ -76,6 +77,10 @@ export function renderProfile(content) {
 
   const mfaPanel = h('section.panel', h('h2', t('mfa.title')), h('div.loading', t('app.loading')));
   drawMfa(mfaPanel);
+  // Passkeys: only where they can work for this account (not for SSO accounts, not switched off)
+  const pkPanel = h('section.panel', { id: 'passkeys', 'data-passkeys-panel': '', hidden: !state.boot.auth.passkeys || !['local', 'ldap'].includes(u.source) },
+    h('h2', t('passkey.title')), h('div.loading', t('app.loading')));
+  if (!pkPanel.hidden) drawPasskeys(pkPanel);
 
   mount(content,
     h('div.page-head', h('h1', t('profile.title'))),
@@ -88,11 +93,70 @@ export function renderProfile(content) {
     personal,
     h('section.panel', h('h2', t('profile.display')), field(t('app.language'), lang),
       field(t('profile.activityOrder'), order, t('profile.activityOrderHint'))),
+    pkPanel,
     mfaPanel,
     pwForm,
     state.isAgent ? (() => { const tp = templatesPanel({ shared: false }); tp.id = 'templates'; return tp; })() : null,
   );
   if (location.hash === '#templates') setTimeout(() => document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }), 50);
+}
+
+async function drawPasskeys(panel) {
+  let st;
+  try { st = await api.passkeys(); } catch (e) { return mount(panel, h('h2', t('passkey.title')), h('div.form-error', e.message)); }
+  const head = h('h2', t('passkey.title'));
+  const intro = h('p.muted', t('passkey.intro'));
+  if (!st.available) {
+    if (st.reason === 'off' || st.reason === 'sso' || st.reason === 'noHttps') { panel.hidden = true; return; }
+    // AD account without service account: say why (admins get the way to fix it)
+    return mount(panel, head, intro, h('div.hint-box', icon('info'), h('div',
+      h('p', t(`passkey.reason.${st.reason}`)),
+      state.user.role === 'admin' ? h('p', h('a', { href: '/admin/ldap', 'data-link': '' }, t('passkey.adminAdLink'))) : null)));
+  }
+  const list = st.passkeys.length
+    ? h('ul.passkey-list', st.passkeys.map((p) => h('li.passkey-item', { 'data-passkey': p.id },
+      h('span.passkey-icon', icon('passkey')),
+      h('div.passkey-text',
+        h('strong', p.name),
+        h('span.muted.small.block', t('passkey.created', { date: fmtDate(new Date(p.createdAt).toISOString(), false) }),
+          ' · ', p.lastUsedAt ? t('passkey.lastUsed', { date: fmtDate(new Date(p.lastUsedAt).toISOString()) }) : t('passkey.neverUsed')),
+        p.synced ? h('span.badge', { title: t('passkey.syncedHint') }, t('passkey.synced')) : null),
+      h('div.passkey-actions',
+        h('button.btn.btn-subtle.small', {
+          type: 'button',
+          onclick: async () => {
+            const name = prompt(t('passkey.renamePrompt'), p.name);
+            if (name === null || !name.trim()) return;
+            try { await api.passkeyRename(p.id, name.trim()); drawPasskeys(panel); } catch (e) { toast(e.message, 'error'); }
+          },
+        }, t('passkey.rename')),
+        h('button.btn.btn-subtle.small', {
+          type: 'button', 'data-passkey-remove': '',
+          onclick: async () => {
+            if (!confirm(t('passkey.removeConfirm', { name: p.name }))) return;
+            try { await api.passkeyRemove(p.id); toast(t('passkey.removed')); drawPasskeys(panel); } catch (e) { toast(e.message, 'error'); }
+          },
+        }, t('passkey.remove'))))))
+    : h('p.muted', t('passkey.none'));
+
+  let add = null;
+  if (!passkeySupported()) add = h('div.hint-box', icon('info'), h('div', t('passkey.unsupported')));
+  else if (!passkeysHere(state.boot.auth.passkeys)) add = h('div.hint-box', icon('info'), h('div', t('passkey.wrongHost', { host: state.boot.auth.passkeys })));
+  else if (!st.canAdd) add = h('div.hint-box', icon('info'), h('div', t('passkey.addOnlyInternal')));
+  else {
+    const name = h('input', { value: defaultPasskeyName(), maxLength: 60, 'aria-label': t('passkey.name'), name: 'passkey-name' });
+    const btn = h('button.btn.btn-primary', {
+      type: 'button', 'data-passkey-add': '',
+      onclick: async () => {
+        btn.disabled = true;
+        try { await passkeyAdd(name.value.trim()); toast(t('passkey.added'), 'success'); drawPasskeys(panel); }
+        catch (e) { if (!passkeyCancelled(e)) toast(e.message, 'error'); }
+        finally { btn.disabled = false; }
+      },
+    }, icon('passkey'), t('passkey.add'));
+    add = h('div', field(t('passkey.name'), h('div.inline-form', name, btn), t('passkey.nameHint')));
+  }
+  mount(panel, head, intro, list, add);
 }
 
 async function drawMfa(panel) {
