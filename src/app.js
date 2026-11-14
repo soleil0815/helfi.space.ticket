@@ -150,6 +150,13 @@ export function createApp(db) {
     crossOriginOpenerPolicy: { policy: 'same-origin' },
     referrerPolicy: { policy: 'same-origin' },
   }));
+  // Browser features the app never uses are switched off (ZAP 10063). Kept: clipboard-write (copy link/codes),
+  // web-share (recovery codes on the phone), fullscreen for the own pages.
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=(), '
+      + 'fullscreen=(self), clipboard-read=(), clipboard-write=(self), web-share=(self), browsing-topics=()');
+    next();
+  });
 
   // http:// → https:// and HSTS behind the reverse proxy – same rules as Catalytix and AssetLotse (see https.js).
   // The target always comes from HELFI_BASE_URL, never from the Host header (no open redirect). Direct requests

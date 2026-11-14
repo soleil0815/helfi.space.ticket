@@ -243,7 +243,7 @@ export async function main(argv, io = { stdin: process.stdin, stdout: process.st
         say(L.listHead);
         for (const u of rows) {
           say(fmt(L.listRow, {
-            username: u.username, name: u.display_name, state: u.active ? L.active : L.inactive,
+            username: u.username, name: String(u.display_name ?? '').replace(/[\x00-\x1f\x7f-\x9f]/g, ''), state: u.active ? L.active : L.inactive,
             mfa: u.totp_enabled ? L.on : L.off, last: u.last_login ? u.last_login.slice(0, 16).replace('T', ' ') : L.never,
           }));
         }
@@ -266,6 +266,8 @@ export async function main(argv, io = { stdin: process.stdin, stdout: process.st
         db.prepare('UPDATE users SET password_hash=?, active=1, approval_pending=0 WHERE id=?').run(hashPassword(password), u.id);
         if (!keep2fa) db.prepare('UPDATE users SET totp_secret=NULL, totp_enabled=0, totp_last_step=0, recovery_codes=NULL WHERE id=?').run(u.id);
         db.prepare('DELETE FROM sessions WHERE user_id=?').run(u.id);
+        // Pending "forgot password" links must not outlive the emergency reset (audit; as selfservice.js does)
+        db.prepare("DELETE FROM account_tokens WHERE kind='reset' AND user_id=?").run(u.id);
         addEmergencyLog(db, { at: new Date().toISOString(), action: 'reset', username: u.username, mfaReset: !keep2fa });
       })();
       if (generated) say(`\n${fmt(L.generated, { name: u.username, pw: password })}\n`);

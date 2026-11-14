@@ -251,6 +251,9 @@ function cleanupSetup() {
   f('docker-compose.yml.alt-20261031-200000'); // newest – stays
   f('helfi-1.0.1-amd64.tar.gz');
   f('helfi-1.0.1-arm64.tar.gz');
+  f('helfi-1.36.0-s1-amd64.tar.gz'); // offline image of a security update (-sN)
+  f('helfi-1.36.0-s12.tar');
+  f('helfi-1.36.0-s0-amd64.tar.gz'); // not a valid -sN version – stays
   f('.docker-compose.neu.4711'); old('.docker-compose.neu.4711');
   f('.env.tmp.4712'); // fresh – may belong to a running update
   f('notizen.txt');
@@ -265,10 +268,10 @@ test('--cleanup: shows only update.sh leftovers and deletes them with -y', () =>
   fs.copyFileSync(path.join(ctx.dir, 'docker-compose.yml'), path.join(ctx.dir, 'docker-compose.yml.neu')); // already taken over
   const r = run(ctx, ['--cleanup', '-y']);
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  for (const gone of ['docker-compose.yml.alt-20261001-080000', 'helfi-1.0.1-amd64.tar.gz', 'helfi-1.0.1-arm64.tar.gz', '.docker-compose.neu.4711', 'docker-compose.yml.neu']) {
+  for (const gone of ['docker-compose.yml.alt-20261001-080000', 'helfi-1.0.1-amd64.tar.gz', 'helfi-1.0.1-arm64.tar.gz', 'helfi-1.36.0-s1-amd64.tar.gz', 'helfi-1.36.0-s12.tar', '.docker-compose.neu.4711', 'docker-compose.yml.neu']) {
     assert.ok(!exists(ctx, gone), `${gone} should have been deleted`);
   }
-  for (const kept of ['docker-compose.yml.alt-20261031-200000', '.env.tmp.4712', 'notizen.txt', 'helfi-sicherung.tar.gz', '.env', 'docker-compose.yml', 'update.sh', 'data/helfi.sqlite', 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite']) {
+  for (const kept of ['docker-compose.yml.alt-20261031-200000', '.env.tmp.4712', 'notizen.txt', 'helfi-sicherung.tar.gz', 'helfi-1.36.0-s0-amd64.tar.gz', '.env', 'docker-compose.yml', 'update.sh', 'data/helfi.sqlite', 'data/backups/helfi-vor-1.0.0-2026-10-01.sqlite']) {
     assert.ok(exists(ctx, kept), `${kept} must not be deleted`);
   }
   assert.doesNotMatch(r.calls, /compose (pull|up)/, 'cleanup does not start an update');

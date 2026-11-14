@@ -120,7 +120,7 @@ cleanup_candidates() {
   # 2. Image files from the release (for --offline; no longer needed once loaded)
   for f in helfi-*.tar helfi-*.tar.gz; do
     plain_name "$f" || continue
-    printf '%s\n' "$f" | grep -Eq '^helfi-[0-9]+\.[0-9]+\.[0-9]+(-(amd64|arm64))?\.tar(\.gz)?$' && printf '%s\n' "$f"
+    printf '%s\n' "$f" | grep -Eq '^helfi-[0-9]+\.[0-9]+\.[0-9]+(-s[1-9][0-9]*)?(-(amd64|arm64))?\.tar(\.gz)?$' && printf '%s\n' "$f"
   done
   # 3. Temporary files of aborted runs (older than one hour, so a running update is not disturbed)
   for f in .docker-compose.neu.* .docker-compose.hashes.* .env.tmp.* .update-start.* docker-compose.yml.tmp; do

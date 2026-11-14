@@ -27,3 +27,16 @@ test('CSP of pages and API: no wildcard or scheme-wide sources, fonts only from 
     }
   }
 });
+
+test('Permissions-Policy, CORP and COOP on pages and API (ZAP 10063, 90004)', async () => {
+  for (const path of ['/', '/login', '/m/', '/sitemap.xml', '/api/bootstrap', '/js/app.js']) {
+    const r = await fetch(`${S.base}${path}`);
+    const pp = r.headers.get('permissions-policy');
+    assert.ok(pp, `Permissions-Policy on ${path}`);
+    for (const d of ['camera=()', 'microphone=()', 'geolocation=()', 'clipboard-write=(self)', 'web-share=(self)']) {
+      assert.ok(pp.split(/,\s*/).includes(d), `${d} on ${path}`);
+    }
+    assert.equal(r.headers.get('cross-origin-resource-policy'), 'same-origin', `CORP on ${path}`);
+    assert.equal(r.headers.get('cross-origin-opener-policy'), 'same-origin', `COOP on ${path}`);
+  }
+});
