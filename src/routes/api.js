@@ -55,13 +55,15 @@ export function createApi(ctx) {
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
   // Requests per IP and minute for the passkey routes (on top of the failed-attempt limiter): the
   // sign-in options are public and every call keeps a challenge in memory
-  const perMinute = (limit) => rateLimit({
-    windowMs: 60 * 1000, limit, standardHeaders: 'draft-7', legacyHeaders: false,
+  const perMinute = (limit, skip) => rateLimit({
+    windowMs: 60 * 1000, limit, standardHeaders: 'draft-7', legacyHeaders: false, ...(skip ? { skip } : {}),
     validate: { xForwardedForHeader: false }, // proxies are handled by HELFI_TRUST_PROXY
     handler: (req, res, next) => next(new HttpError(429, 'err.tooManyAttempts')),
   });
   const passkeyAuthLimit = perMinute(120);
   const passkeyMeLimit = perMinute(60);
+  // Full user list of the administration (with passkey counts); the agents list for assigning stays unlimited
+  const usersListLimit = perMinute(120, (req) => req.query.all !== '1');
 
   // ---------- Public ----------
   r.get('/bootstrap', (req, res) => {
@@ -323,7 +325,7 @@ export function createApi(ctx) {
   r.post('/me/mfa/recovery', wrap(async (req, res) => res.json({ recoveryCodes: mfa.newRecoveryCodes(req, req.user, str(req.body.code, 40)) })));
 
   // ---------- Users ----------
-  r.get('/users', requireRole('agent'), (req, res) => {
+  r.get('/users', requireRole('agent'), usersListLimit, (req, res) => {
     const all = req.query.all === '1' && req.user.role === 'admin';
     // Agents (for assigning): of one project (?project=KEY) – or of the asking agent's projects
     if (!all) {
