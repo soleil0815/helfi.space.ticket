@@ -80,14 +80,14 @@ helfi.firma.local {
 }
 ```
 
-**Redirect `http://` to `https://`:** many proxies (e.g. the Synology reverse proxy) cannot redirect custom addresses themselves. Helfi.Space does it: as soon as the `https://` address from `HELFI_BASE_URL` has been opened once over HTTPS through the configured proxy (`HELFI_TRUST_PROXY`), requests the proxy forwards over HTTP (`X-Forwarded-Proto: http`, or else `X-Forwarded-Port: 80`) get a permanent redirect there (301, 308 for forms). Helfi.Space remembers this in the data folder (`https-hosts.txt`); a proxy without any HTTPS is therefore never redirected into nothing. `HELFI_FORCE_HTTPS=1` redirects right away, `0` never. Catalytix and AssetLotse behave the same way. The target never comes from the request, so no redirect to other sites is possible. Without this header (direct access to port 8080, Docker health check) nothing changes. For this, add a second proxy rule for **HTTP, port 80** to the same container. On a Synology:
+**Redirect `http://` to `https://`:** many proxies (e.g. the Synology reverse proxy) cannot redirect custom addresses themselves. Helfi.Space does it: as soon as the `https://` address from `HELFI_BASE_URL` has been opened once over HTTPS through the configured proxy (`HELFI_TRUST_PROXY`) – under exactly that name and with a single value in `X-Forwarded-Proto` –, requests the proxy forwards over HTTP (`X-Forwarded-Proto: http`, or else `X-Forwarded-Port: 80`) get a permanent redirect there (301, 308 for forms). Helfi.Space remembers this in the data folder (`https-hosts.txt`); a proxy without any HTTPS is therefore never redirected into nothing. `HELFI_FORCE_HTTPS=1` redirects right away, `0` never. If `HELFI_BASE_URL` has no `https://`, or names an IP address or `localhost`, Helfi.Space never redirects and sends no HSTS. Catalytix and AssetLotse behave the same way. The target never comes from the request, so no redirect to other sites is possible. Without this header (direct access to port 8080, Docker health check) nothing changes. For this, add a second proxy rule for **HTTP, port 80** to the same container. On a Synology:
 
 1. *Control Panel → Login Portal → Advanced → Reverse Proxy → Create.*
 2. Source: protocol **HTTP**, hostname as in the HTTPS rule, port **80**.
 3. Destination: exactly as in the HTTPS rule (protocol HTTP, host, port 8080). The Synology sets `X-Forwarded-Proto` itself.
 4. **Check Let's Encrypt:** port 80 stays open on the router. Afterwards renew the certificate once under *Control Panel → Security → Certificate*. If that fails, delete the HTTP rule again – the existing certificate stays valid.
 
-**HSTS** (`max-age` one year, this address only – no subdomains) is sent by Helfi.Space only where it had to redirect HTTP to HTTPS itself, i.e. behind a proxy that cannot (e.g. Synology). A proxy that redirects on its own (Nginx Proxy Manager with "Force SSL") keeps its own HSTS header – there is never a second one, which checkers such as the Mozilla HTTP Observatory or hstspreload.org count as an error. `HELFI_FORCE_HTTPS=1` always sends HSTS, `HELFI_HSTS=off` never. `HELFI_HSTS=preload` always sends HSTS with `includeSubDomains; preload` for the browsers' preload list – only set it if really all subdomains speak HTTPS for good.
+**HSTS** (`max-age` one year, this address only – no subdomains) is sent by Helfi.Space only where it had to redirect HTTP to HTTPS itself, i.e. behind a proxy that cannot (e.g. Synology). A proxy that redirects on its own (Nginx Proxy Manager with "Force SSL") keeps its own HSTS header – there is never a second one, which checkers such as the Mozilla HTTP Observatory or hstspreload.org count as an error. `HELFI_FORCE_HTTPS=1` always sends HSTS, `HELFI_HSTS=off` never. `HELFI_HSTS=preload` always sends HSTS (not only after a redirect) and with `includeSubDomains; preload` for the browsers' preload list – only set it if really all subdomains speak HTTPS for good. In both cases "always" means: on every request the configured proxy reports as HTTPS, and only as long as the redirect is not switched off (`HELFI_FORCE_HTTPS` not `0`) and `HELFI_BASE_URL` is set with `https://` and a name (no IP address, not `localhost`).
 
 ---
 
@@ -138,7 +138,7 @@ Agents can have tickets summarized and replies suggested, polished, shortened or
   - *Assign automatically*: the component is set directly; the history says “by AI” with the model.
   - The **hit rate** is shown on the AI page, e.g. “87 % (52 of 60 accepted)”: accepted ones and automatic ones nobody changed, against corrected and dismissed ones.
   - With a cloud model, the title and description of every new ticket without a rule match go to the provider for this – the page points it out.
-- **Detect duplicates** (off by default): for a new ticket, Helfi.Space first searches similar **open** tickets of the same project from the last 30 days by full text, without AI (at most 8). Only if there are any does the AI check whether the new ticket reports the same problem. Agents then see “Possible duplicate of IT-12 – reason” in the ticket with **Close as duplicate** (opens the dialog with the original filled in) and **Not a duplicate** – also on phones. Nothing is ever closed automatically; reporters do not see the hint. The hit rate is shown on the AI page. With a cloud model, the title and description of the new ticket and of up to 8 possible originals (the first 1500 characters each) go to the provider for this.
+- **Detect duplicates** (off by default): for a new ticket, Helfi.Space first searches similar **open** tickets of the same project from the last 30 days by full text, without AI (at most 8). Only if there are any does the AI check whether the new ticket reports the same problem. Agents then see “Possible duplicate of IT-12 – reason” in the ticket with **Close as duplicate** (opens the dialog with the original filled in) and **Not a duplicate** – also on phones. Nothing is ever closed automatically; reporters do not see the hint, and it only names tickets the viewer may open. The hit rate is shown on the AI page. With a cloud model, the title and description of the new ticket and of up to 8 possible originals (the first 1500 characters each) go to the provider for this.
 
 ## Self-registration and forgotten passwords
 
@@ -149,7 +149,7 @@ Without AD or SSO, external people simply send an email and are kept as an email
 - **Confirmation link:** enter name, email address and password, then a link arrives (valid for 24 hours). Only then is the account created. If there already is an email contact for the address, it becomes the account, with all previous requests. Unconfirmed registrations expire on their own.
 - **Sign-in** with the email address as user name. Afterwards only an admin can change the address.
 - **Allowed mail domains** (optional, subdomains included) and **approval by an admin** (optional: admins get an email and approve the account under *Users*; the person is notified).
-- **Forgot password:** link by email, valid for 60 minutes and usable once; afterwards all sessions are ended. By default for local accounts with the role "User", optionally for all local accounts or off. The link only appears if such accounts exist. Accounts from AD or SSO change their password there; two-factor sign-in stays in place.
+- **Forgot password:** link by email, valid for 60 minutes and usable once; afterwards all sessions are ended. By default for local accounts with the role "User" that do not work on any project (lead, deputy and agents of a project then get no link), optionally for all local accounts or off. The link only appears if such accounts exist. Accounts from AD or SSO change their password there; two-factor sign-in stays in place.
 - **Requires** outgoing mail. The page never says whether an address is already known (the person learns it by email). Requests per IP and address are limited, an invisible field keeps simple bots away; there is no captcha because it would have to load something from the internet.
 - **Two-factor:** if 2FA is required for everyone from outside but enrollment is only allowed inside the company network, external people could never sign in. The settings page points this out.
 
@@ -193,11 +193,11 @@ Example: reporters without a code, agents with a code from outside, administrato
 - **Internal networks** are listed in the settings, one entry per line (default: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). The default covers all private ranges, including Docker networks and a guest Wi-Fi. Best narrow it down to the real company networks, e.g. `10.0.10.0/24`. The page shows how your current address is classified.
 - **Own internet connection:** when a computer inside the company opens Helfi.Space via its public address, it often arrives with the public IP of your own connection (hairpin NAT). Enter that IP or a DynDNS name (e.g. `203.0.113.10` or `helfi.dyndns.example`) and such requests count as internal. Names are resolved again every 5 minutes; if DNS is briefly unreachable, the last known address keeps counting. Caution: if a guest Wi-Fi uses the same connection, guests count as internal too.
 - **Behind a reverse proxy** its address must be in `HELFI_TRUST_PROXY`. Otherwise Helfi.Space only sees the proxy and, to be safe, treats every request as external. Admins then get a notice.
-- **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Exception: after an SSO sign-in whose second factor was checked by the identity provider ("SSO sign-ins count as second factor"). Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Security* can allow "first-time setup from outside too".
+- **Setup:** everyone sets up 2FA under *Profile → Two-factor sign-in*: scan the QR code, enter a code, save 10 recovery codes. For security, first-time setup only works on the internal network, in every mode. Exception: after an SSO sign-in whose second factor was checked by the identity provider ("SSO sign-ins count as second factor"). Once 2FA is set up, it can only be turned off with a valid code and then set up again (e.g. new phone). This way nobody with a stolen password can register their own second factor from outside. For people who only work remotely, *Two-factor & sessions* can allow "first-time setup from outside too".
 - **Sessions:** if you signed in at the office without a code and later use the same browser from home, you have to sign in again with a code there. Every session ends at the latest 30 days after sign-in, even with constant use.
 - **Automatic sign-out** (*Administration → Sign-in & security → Two-factor & sessions*): whoever does nothing for a while (no clicks, no typing) is signed out – everyone after `HELFI_SESSION_HOURS` (default 12 hours) or the value set there, admins after 60 minutes by default, optionally shorter for access from outside the company network; the shortest applicable period counts. Two minutes before, Helfi asks "Still there?". As long as someone works, including typing a long reply, the session continues. Optionally the sign-in ends when the browser is closed.
 - **Lost phone:** sign in with a recovery code. Alternatively, an admin resets 2FA under *Users → Reset 2FA*, and the person sets it up again at the office.
-- **Applies to** local accounts and Active Directory sign-ins. For **SSO**, *Security → SSO sign-in as second factor* decides whether the sign-in at the identity provider is enough:
+- **Applies to** local accounts and Active Directory sign-ins. For **SSO**, *Two-factor & sessions → SSO sign-in as second factor* decides whether the sign-in at the identity provider is enough:
   - **Only if the provider reports MFA** (default): the token must show a multi-factor sign-in, i.e. `amr` with e.g. `mfa`, `otp` or `hwk` (Entra ID: `mfa`), or one of the `acr` values entered under *Single sign-on → acr values for MFA* (e.g. Keycloak level `2`). Otherwise Helfi.Space asks for its own code.
   - **Always** or **Never** (then always its own code as well).
   - Installations with SSO enabled keep their previous behaviour (“Always”) on update; *Two-factor & sessions* then shows a notice with the recommendation.
@@ -226,10 +226,11 @@ Example: reporters without a code, agents with a code from outside, administrato
 
 - **Polling a mailbox (IMAP):** enter server, user and password of the help desk mailbox. New mails become tickets (including attachments up to 20 MB each and up to 30 attachments; anything not taken over is noted in the ticket; mails over 80 MB are skipped and flagged in the mailbox). Replies to mails from Helfi.Space and replies from participants with `[IT-123]` in the subject become comments, quoted history is cut off. If the reporter replies to a waiting or resolved ticket, it is reopened – unless it was rejected or closed as a duplicate: then the reply becomes an internal note and the ticket stays closed (an agent reopens it if needed). Out-of-office notes and automatic mails are ignored. Processed mails are marked as read or moved to a folder. Skipped mails (automatically generated, hourly limit, account disabled, no valid sender, own address, rule "Ignore") and delivery failure reports stay in the inbox, marked as read; they are not moved to the processed-mail folder and therefore not deleted automatically either.
 - **Which project? – via the components:** a new mail to the central mailbox is compared with the components of **all projects** (sender, keywords in subject and text). The project of the matching component gets the ticket – with this component, assigned to nobody. “Heating in room 12 cold” thus lands in facilities with the component “Heating & air conditioning”. No mailbox per project is needed. A sender rule with a project takes precedence.
-- **No component matches:** the ticket lands in the **inbox project** (*Administration → Email → Incoming → Inbox project*, otherwise the default project; marked “Inbox” in *Projects*). Its lead and deputy sort it with *Move* and get the reminder mail if it is left lying. With the AI function *Detect component* switched on, the AI chooses from the components of all projects for such mails – as a suggestion (“Facilities / Heating & air conditioning – accept?”) or directly; accepted, the ticket moves there.
-- **In the wrong place?** Agents move a ticket into **any** project (details → project or multiple selection), also into one they do not work on themselves; afterwards they no longer see it there.
+- **No component matches:** the ticket lands in the **inbox project** (*Administration → Email → Incoming → Inbox project*, otherwise the default project; marked “Inbox” in *Projects*). Its lead and deputy sort it with *Move* and get the reminder mail if it is left lying. With the AI function *Detect component* switched on, the AI chooses from the components of all projects for such mails – as a suggestion (“Facilities / Heating & air conditioning – accept?”) or directly; accepted, the ticket moves there. A sender rule with an archived project counts as one without a project; if the inbox project is archived, the mail lands in the default project.
+- **In the wrong place?** Agents move a ticket into **any** project (details → project or multiple selection), also into one they do not work on themselves; afterwards they no longer see it there. The AI function *Detect component* does not move a manually moved ticket back; open AI suggestions from the old project are settled.
 - **Sending (SMTP):** ideally use the same address as the mailbox as sender, so replies land back in the ticket.
-- **Internal notes** never go out by email.
+- **Internal notes** never go to reporters or participants, nor do their pictures. Only people @-mentioned in an internal note – who can only be agents of the project – get the note including its pictures by email.
+- **Sending errors:** if the mail to one recipient fails, the others still get theirs. If the mail server refuses a mail with pictures (e.g. because it is too big), it is sent once more as plain text with "[Image: name]".
 - Only people involved may reply by ticket number in the subject: the reporter, request participants and everyone who has already written in the ticket. The assignee does not automatically count. Anyone who merely guesses the number gets a new ticket of their own. Replies to mails from Helfi.Space are always matched correctly via the Message-ID.
 - If a reply is matched only by the number in the subject, its To/CC recipients do not become participants. That only happens for new tickets and for replies to mails from Helfi.Space (matched via the Message-ID).
 - Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the reporter. Agents reply through the web interface.
@@ -283,7 +284,7 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
   - comment and attach files on the web or by replying to a mail
 - **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
-- **Reminder to project leads** (*Administration → Tickets → General*, off by default): once a day at the set time, the lead and deputy of each project get one mail with the open tickets nobody has been assigned to for X days – with links to the tickets and the filtered list. Without lead and deputy it goes to the admins; without forgotten tickets no mail is sent. Optionally Monday to Friday only; *Check and send now* for trying it out.
+- **Reminder to project leads** (*Administration → Tickets → General*, off by default): once a day at the set time, the lead and deputy of each project get one mail with the open tickets without assignee that were created at least X days ago – with links to the tickets and the filtered list. If there is neither a lead nor a deputy with an email address and an active account, it goes to the admins; without forgotten tickets no mail is sent. Monday to Friday only by default (can be switched off); *Check and send now* for trying it out.
 - **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
 - **Remove:** agents, the reporter or the person themselves.
 
@@ -295,13 +296,13 @@ Besides the reporter, other people can be involved in a ticket, e.g. colleagues 
 
 Who works on a project's tickets is set **in the project** (*Administration → Projects → Edit*, also when creating it) – not in the user management:
 
-- **Lead** and optionally **deputy:** one person each (search by name; with AD also people who have never signed in). Both work on the tickets and get the reminder mail.
+- **Lead** and optionally **deputy:** one person each (search by name, then pick from the list – typed text alone is not saved; with AD also people who have never signed in). Both work on the tickets and get the reminder mail.
 - **Agent group (AD/SSO):** e.g. `Helpdesk`. All members work on this project's tickets. Membership is checked at every sign-in; when the group is changed, the old memberships stop counting at once.
 - **More agents:** single people in addition, e.g. without an AD account.
 
 There are only two roles: **administrator** (sees and may do everything and decides who works on what) and **user** (own requests – plus the projects where one is lead, deputy, group member or added by hand). Under the role *Users* shows for information what someone works on, e.g. “Works on: IT (lead)”. There is no general agent group for all projects any more; after updating to this version, enter each project's group.
 
-For every other project one is a normal user: only one's own requests (or those one takes part in), without internal notes, history and agent tools. Restricted everywhere: ticket lists, search (internal notes of other projects find nothing), board, queues and counts, summary, reports, SLA, problems, changes, major incidents, links, device history, AI functions, @-mentions in internal notes and assigning (only to people working on the project). Moving is only possible into one's own projects. The knowledge base and reply templates are separated by project too (see there); shared are devices & services and the people search.
+For every other project one is a normal user: only one's own requests (or those one takes part in), without internal notes, history and agent tools. Restricted everywhere: ticket lists, search (internal notes of other projects find nothing), board, queues and counts, summary, reports, SLA, problems, changes, major incidents, links, device history, AI functions, @-mentions in internal notes and assigning (only to people working on the project). Moving works into any project (afterwards one no longer sees the ticket there). Whoever may no longer work on a project (removed from the project, lead changed, AD group lost, account deactivated), or whose ticket moves to a project they do not work on, is removed as assignee of its open tickets – with an entry in the history; the tickets then show up under *Unassigned* again. The update cleans up existing cases once. The knowledge base and reply templates are separated by project too (see there); shared are devices & services and the people search.
 
 Example: create the project IT, agent group `Helpdesk`, yourself as lead and a colleague as deputy – done.
 
@@ -310,7 +311,7 @@ Example: create the project IT, agent group `Helpdesk`, yourself as lead and a c
 A done ticket has a **resolution**: *Done*, *Rejected* or *Duplicate*. Internally the status stays “Done” – service levels, board, reports, automatic closing and reopening therefore work as usual.
 
 - **Reject:** *Reject …* in the ticket's status menu (phone: status → *Reject …*). The **reason is required** and goes to the reporter and participants as a reply – instead of the “Resolved” mail. Reply templates and placeholders work; there is no satisfaction survey.
-- **Close as duplicate:** choose the original ticket (number or search). The ticket is linked with the original; the reporter gets a standard note with the original's number (or your own text). Optionally reporter and participants are **added to the original** and kept up to date there – only tick this if the original contains nothing confidential.
+- **Close as duplicate:** choose the original ticket (number or search). The ticket is linked with the original; the reporter gets a standard note with the original's number (or your own text). Optionally reporter and participants are **added to the original** and kept up to date there – only tick this if the original contains nothing confidential. Only tickets one works on can be chosen as the original; if the original is itself a duplicate, the same applies to the tickets it points to.
 - **Several at once:** in the ticket list via the multiple selection → *Status* → *Reject …* or *Close as duplicate …*; placeholders are filled per ticket.
 - **Display:** lozenge *Rejected* or *Duplicate* instead of *Done* (lists, ticket, *My requests*, phone), “Duplicate of IT-12” with a link, entry in the history. Filter *Resolution* in the ticket list once the status *Done* is chosen.
 - **Reopening:** a reply mail to a ticket closed as rejected or as a duplicate does not reopen it but becomes an internal note (a “thanks” or a forged mail should not undo the decision). If the reporter writes in the web interface, the ticket reopens as usual; reopening resets the resolution. A ticket that is already done can be rejected or marked as a duplicate afterwards.
@@ -334,10 +335,11 @@ When a request comes in by phone, in passing or to another mailbox, agents enter
 
 ## Order of the activity
 
-In a ticket the activity (*Comments*, *History*, *All*) shows **newest first** by default. The button to the right of the tabs reverses the order: **oldest first**, like a chat. The **reply box always stays on top**, the entries below in the chosen order. A reply already being written is kept when switching.
+On the computer the activity in a ticket (*Comments*, *History*, *All*) shows **newest first** by default. The button to the right of the tabs reverses the order: **oldest first**, like a chat. The **reply box always stays on top**, the entries below in the chosen order. A reply already being written is kept when switching.
 
-- The choice applies **per person** to all tickets and on all devices (saved in the account); it can also be set in the *profile* under *Language and display*.
-- In the phone app the activity always stays a chat (oldest first, reply bar at the bottom).
+- The choice applies **per person** to all tickets on every computer (saved in the account); it can also be set in the *profile* under *Language and display*.
+- With *Oldest first* the ticket scrolls to the new reply after sending.
+- In the phone app the activity always stays a chat (oldest first, reply bar at the bottom); the setting does not apply there.
 
 ## Formatting replies
 
@@ -348,14 +350,14 @@ Above the comment field there is a toolbar – in tickets, in comments on knowle
 - **Link** (Ctrl+K, also ticket numbers such as IT-42), **image** (or Ctrl+V), **emoji** (also “:)”) and **@** to mention someone.
 - **Canned responses** on the right of the bar, *Save as template* in the same menu. Ctrl+Enter saves.
 
-The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. **Pictures in the email:** pictures in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything. Up to 5 pictures per email (PNG, JPEG, GIF, WebP, each up to 2 MB); anything beyond that appears as a note “[Image: name]” in the email and is visible in the ticket. Pictures from internal notes never go to reporters or participants. Older comments and mails are shown as before.
+The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. **Pictures in the email:** pictures in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); anything beyond that appears as a note “[Image: name]” in the email and is visible in the ticket. Pictures from internal notes never go to reporters or participants. Older comments and mails are shown as before.
 
 ## @-mentions
 
 Agents bring colleagues into a ticket directly: in the reply field (desktop and phone) type **@** and a few letters, then pick a person (click/tap or ↑/↓ and Enter or Tab; Esc closes the list). The name is highlighted in the comment, your own mentions in colour.
 
 - **Who can be mentioned:** in an **internal note** only agents; in a **reply** also the ticket's reporter, participants and approvers. People who cannot see the ticket are not offered – and a reference typed by hand becomes plain text when saving. Reporters do not mention anyone; neither do comments from emails (senders can be forged).
-- **Notification:** people mentioned get an email from the ticket system ("[IT-12] Anna mentioned you: …") with the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
+- **Notification:** people mentioned get an email from the ticket system ("[IT-12] Anna mentioned you: …") with the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Pictures in the comment travel with the email as for replies; mentioned agents of the project thus also get the text and pictures of an internal note. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
 - **Finding them again:** *Mentions me* in the sidebar (phone: *Mentions* chip under *Tickets*) lists all tickets with a mention; the number next to it counts those not opened yet. New mentions are marked with **@** in lists, and so is the comment in the ticket. Opening the ticket marks the mention as seen.
 - Mentions do not add people as participants or watchers – that is what *Request participants* is for.
 
@@ -395,14 +397,14 @@ In *All tickets* (agents):
 - **Select:** checkbox in front of each row, "all" in the header, Shift+click for a range, `x` for the ticket highlighted with `j`/`k`.
 - **Action bar:**
   - **Resolve** and **Status:** each with an optional comment – either a reply to reporters and participants or an internal note, with templates and per-ticket placeholders. With a reply there is no extra "resolved" mail.
-  - **Comment:** reply or internal note for all selected tickets without changing the status.
+  - **Comment:** reply or internal note for all selected tickets without changing the status. An internal note never becomes a public reply: tickets of a project one does not work on are skipped with an error.
   - **Link …:** link all selected tickets with one ticket, e.g. "is caused by IT-42"; optionally with status and comment right away. Existing links stay as they are.
   - **Assign**, **Priority**
   - **Component:** set or remove (*No component*) when all selected tickets belong to one project – like a change in the ticket: history entry, no mail, nobody is assigned automatically.
   - **Move to another project**
 - Every change goes into the ticket history. If one ticket fails, the others still go through and the message names it.
 
-**Tickets are never deleted**, not even by admins, so that their history remains traceable. Finished work is set to “Done”. Against spam, use a sender rule “Ignore”. A project can only be deleted if its tickets are moved to another project; to keep it together with its tickets, archive it instead.
+**Tickets are never deleted**, not even by admins, so that their history remains traceable. Finished work is set to “Done”. Against spam, use a sender rule “Ignore”. A project can only be deleted if its tickets are moved to another project; reply templates, knowledge articles and catalog offerings of the project move along. If a project without tickets is deleted without a target, its shared reply templates become personal templates of the deleting admin and its offerings are switched off. To keep it together with its tickets, archive it instead.
 
 ## Links and subtasks
 
@@ -445,7 +447,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
   - **Emergency:** implement immediately, approval afterwards.
 - **Fields:** reason, risk, affected services and devices, planned start and end, implementation, backout and test plan.
 - **Flow:** Draft → Awaiting approval → Approved/Rejected → Scheduled → Implementing → Review → Closed. The ticket status follows automatically. Missing required information is named at each step.
-- **Approval (CAB):** approvers and rule (“one approval is enough” or “everyone must approve”) under *Administration → Change*. Approvers get an email and decide in the ticket (with a comment) or via the **My approvals** view. Every decision is in the history. After a rejection the change can be reworked and submitted again.
+- **Approval (CAB):** approvers and rule (“one approval is enough” or “everyone must approve”) under *Administration → Change*. Approvers get an email and decide in the ticket (with a comment) or via the **My approvals** view. Every decision is in the history. After a rejection the change can be reworked and submitted again. Approvers need not be admins or agents of the project: they see the approval box in the ticket and decide there; the phase then moves on by itself.
 - **Standard change templates** (e.g. firmware update) under *Administration → Change*, applied in the change with one click.
 - **Closing:** outcome “Successful”, “With issues” or “Rolled back”. For the latter two a post-implementation review is required.
 - **Change calendar** in the sidebar: monthly view of all planned changes, overlapping time windows are marked red.
@@ -477,15 +479,15 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 
 ## Portal for users
 
-Users opening the start page land in the **portal** (`/portal`), similar to Jira's customer portal – sign-in required.
+Users opening the start page land in the **portal** (`/portal`) – sign-in required.
 
 - **Top:** greeting and a search across the service catalog's offerings and the public guides of all departments.
-- **My requests:** three counters – *In progress*, *Waiting for you* (status “Waiting”, i.e. an open question) and *Done* – and the latest own requests. A click on a counter opens the filtered list.
+- **My requests:** three counters – *Active*, *Waiting for you* (status “Waiting”, i.e. an open question) and *Done* – and the latest own requests. A click on a counter opens exactly the counted own requests (on the computer and on the phone); the list's status filter has the option *Active* for this.
 - **Departments:** every project with “Show in the portal” as a tile with symbol, colour, short description and the number of offerings and guides.
-- **Department page** (`/portal/<project>`, e.g. `/portal/hm`): optional notice at the top (e.g. an emergency number), the department's offerings, **Report something else** (the ticket lands in this project) and the most frequent public articles on the right.
+- **Department page** (`/portal/<project>`, e.g. `/portal/hm`): optional notice at the top (e.g. an emergency number), the department's offerings, **Report something else** (the ticket lands in this project) and the most recently updated public articles (frequent questions) on the right.
 - **Setup** <sup>admin</sup>: in the project dialog under *In the portal* – show yes/no, short description, notice, symbol, colour and order. After the update all projects are shown; adding a symbol and short description is worth it.
 - **Start page for users** (*Administration → Tickets → General*): *Portal* (default) or *My requests* as before. Only applies when the start page is opened directly – links from emails always lead straight to the ticket, approval or article. **Agents and admins** always land at the tickets; they reach the portal via *Portal* in the sidebar.
-- **Phone:** in the app the portal is the first tab, next to *Requests*; the department page's *Report something else* leads to the report form with the project preselected.
+- **Phone:** in the app the portal is the first tab, next to *Requests* (the other way round if *My requests* is chosen as start page); the department page's *Report something else* leads to the report form with the project preselected.
 
 ## Service catalog
 
@@ -638,7 +640,7 @@ What is taken over:
 How numbers and people are handled:
 
 - **Numbers:** `SUP-123` stays `SUP-123`, Zammad `#31011` becomes e.g. `SD-31011`. Very long numbers (date based, e.g. `2025030110000071` from Znuny) and numbers already taken get the next free one; so do numbers that belonged to a ticket moved elsewhere since. The old number appears in the history ("imported"). New tickets continue after the highest number.
-- **People** are matched by email address. Reporters without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they are already agents in Helfi.Space (by email, login or a unique name), otherwise their name appears in the history. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
+- **People** are matched by email address. Reporters without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they work on the target project in Helfi.Space (admins or the project's people; by email, login or a unique name), otherwise their name appears in the history – so add agents to the project before importing. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
 
 Also:
 
@@ -677,7 +679,7 @@ Over time, older backup copies of `docker-compose.yml` and loaded image files fr
 Only files on this fixed list are deleted:
 
 - older `docker-compose.yml.alt-…`
-- `helfi-<version>[-amd64|-arm64].tar[.gz]`
+- `helfi-<version>[-s<n>][-amd64|-arm64].tar[.gz]` (also image files of security updates such as `helfi-1.36.0-s1-amd64.tar.gz`)
 - temporary files of aborted runs older than one hour
 - a `docker-compose.yml.neu` that has already been taken over
 
@@ -750,7 +752,7 @@ Try the normal ways first, in this order:
 | AD unreachable | Sign in with the **local emergency admin** from the initial setup. |
 | SSO redirects right away and fails | `https://…/login?local=1` opens the normal sign-in page. |
 | Phone with the authenticator lost | Sign in with a **recovery code**, or another admin resets 2FA under *Users*. |
-| Password forgotten | *Forgot password* on the sign-in page – for admins only if *Security → Registration and forgotten password* is set to "all local accounts" and mail goes out. |
+| Password forgotten | *Forgot password* on the sign-in page – for admins only if *Sign-in & security → Registration* is set to "all local accounts" and mail goes out. |
 | AD admin lost the admin group | The emergency admin or another admin gives the role back under *Users*. |
 | Too many failed attempts | Wait 15 minutes or `docker compose restart helfi`. |
 
@@ -762,18 +764,18 @@ docker compose exec helfi helfi-admin reset admin      # new password, 2FA off, 
 docker compose exec helfi helfi-admin create notfall   # create a new local admin
 ```
 
-- `reset` asks for the new password twice without echo (at least 10 characters). With `--generate` it creates a random password and shows it once; with `--keep-2fa` two-factor sign-in stays set up. A deactivated account becomes active again. Then sign in at `/login?local=1` and set up 2FA again.
+- `reset` asks for the new password twice without echo (at least 10 characters). With `--generate` it creates a random password and shows it once; with `--keep-2fa` two-factor sign-in stays set up. A deactivated account becomes active again, pending "forgot password" links of the account expire. Then sign in at `/login?local=1` and set up 2FA again.
 - `create` adds a local admin (`--name "First Last"`, `--email address`), e.g. if the emergency admin was deleted.
 - Without a terminal (script, scheduler) pass the password on standard input: `printf '%s\n' "$PW" | docker compose exec -T helfi helfi-admin reset admin --password-stdin`.
 - The command only works on **local** accounts. AD and SSO accounts are managed there.
-- **Security:** it is only reachable with a shell on the Docker host – whoever has that can read the data folder anyway. It does not work over the network. It runs as `PUID`/`PGID`, never as root. Every use is listed under *Administration → System → Emergency access* and emailed to all admins with an email address.
+- **Security:** it is only reachable with a shell on the Docker host – whoever has that can read the data folder anyway. It does not work over the network. It runs as `PUID`/`PGID`, never as root. Every use is listed under *Administration → System → Emergency access* (which also shows the commands for `reset` and `create`) and emailed to all admins with an email address.
 
 ## Security
 
 - Two-factor sign-in per RFC 6238. Each code is valid only once; after 5 failed attempts sign-in starts over. The key is stored encrypted, recovery codes only as a scrypt hash with its own salt per code.
 - Passwords of local accounts are stored with scrypt. Stored credentials (service account, mailbox, SSO) are encrypted with AES-256-GCM and never sent to the browser.
 - First-time setup is only possible with the setup code from the container log.
-- After several wrong passwords, sign-in is slowed down. Session cookies are `HttpOnly` and `SameSite`, plus CSRF protection and a strict Content Security Policy.
+- After several wrong passwords, sign-in is slowed down. Session cookies are `HttpOnly` and `SameSite`, plus CSRF protection and a strict Content Security Policy. A Permissions-Policy switches off browser features Helfi.Space does not need (camera, microphone, location and others); only writing to the clipboard, sharing and full screen for its own page stay allowed.
 - Empty passwords are never passed to the AD, because an anonymous bind would otherwise count as a sign-in. Input in LDAP filters is escaped.
 - The container runs without root rights (`PUID`/`PGID`, 0 is not allowed), with a read-only program part, without extra Linux capabilities and with `no-new-privileges` (see `docker-compose.yml`). Files in `data/` are readable only by this user.
 - Attachments are served as downloads (only images are shown directly), so uploaded files never run in the context of Helfi.Space.
