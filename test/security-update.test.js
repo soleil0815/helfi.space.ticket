@@ -78,7 +78,8 @@ test('security-update.yml: patch day only, from main, release state, checks befo
   assert.match(job('prepare'), /if: needs\.patchday\.outputs\.due == 'true' && github\.ref == 'refs\/heads\/main'/);
   assert.doesNotMatch(job('prepare'), /: write/, 'preparing writes nothing');
   assert.match(job('prepare'), /git worktree add --detach release "v\$v"/, 'code of the highest release, not main');
-  assert.match(job('prepare'), /npm audit fix --no-fund/);
+  assert.match(job('prepare'), /npm audit fix --no-fund --ignore-scripts --before="\$before"/);
+  assert.match(job('prepare'), /before="\$\(date -u -d '7 days ago' \+%Y-%m-%d\)"/, 'only versions published at least 7 days ago');
   assert.doesNotMatch(yml, /^\s+npm audit fix.*--force/m, 'no version jumps');
   assert.match(job('prepare'), /run: npm test/);
   assert.match(job('build'), /no-cache: true/);

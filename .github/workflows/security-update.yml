@@ -8,7 +8,9 @@
 #   commits, a reserved tag of a failed release or a tag from another branch), with
 #   - the newest base image of the same Node line (e.g. node:24-alpine, new digest – never a new Node version),
 #   - all Alpine packages upgraded (the Dockerfile runs "apk upgrade" in a build without cache),
-#   - npm security fixes that need no version jump ("npm audit fix", never --force).
+#   - npm security fixes that need no version jump ("npm audit fix", never --force), only with package versions
+#     published at least 7 days ago (--before: a hijacked package is usually found and pulled within days)
+#     and without running install scripts during the fix.
 # Checks: tests with the updated packages, build natively for amd64 and arm64 (no QEMU), smoke test per
 #   architecture, compare with the published image (nothing changed → nothing happens), Trivy on both platforms
 #   (fixable HIGH/CRITICAL blocks). Only if everything passed: tag v<version>-s<n>, image <version>-s<n> and
@@ -107,8 +109,10 @@ jobs:
         working-directory: release
         run: |
           npm ci --no-audit --no-fund
-          # never --force: only fixes within the version ranges of package.json
-          npm audit fix --no-fund || true
+          # never --force: only fixes within the version ranges of package.json; only versions published at
+          # least 7 days ago (cooling-off period against hijacked packages), no install scripts during the fix
+          before="$(date -u -d '7 days ago' +%Y-%m-%d)"
+          npm audit fix --no-fund --ignore-scripts --before="$before" || true
           npm ci --no-audit --no-fund
           git --no-pager diff --stat -- package-lock.json
       - name: Version for the image
