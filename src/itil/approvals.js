@@ -46,6 +46,9 @@ export function createApprovals(db, users) {
   const isPendingApprover = (ticketId, userId) => !!db.prepare('SELECT 1 FROM approvals WHERE ticket_id=? AND round=? AND approver_id=? AND decision IS NULL')
     .get(ticketId, latestRound(ticketId), userId);
 
+  /** Approver of this ticket in any round (current or earlier) */
+  const isApprover = (ticketId, userId) => !!db.prepare('SELECT 1 FROM approvals WHERE ticket_id=? AND approver_id=?').get(ticketId, userId);
+
   /** Tickets waiting for this person's decision */
   function pendingFor(userId) {
     return db.prepare(`SELECT a.ticket_id FROM approvals a WHERE a.approver_id=? AND a.decision IS NULL
@@ -54,5 +57,5 @@ export function createApprovals(db, users) {
 
   const approverUsers = (ids) => ids.map((id) => users.byId(Number(id))).filter((u) => u && u.active);
 
-  return { request, current, outcome, decide, isPendingApprover, pendingFor, approverUsers };
+  return { request, current, outcome, decide, isPendingApprover, isApprover, pendingFor, approverUsers };
 }

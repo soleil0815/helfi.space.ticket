@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, mount, icon, toast, field, select, modal, fmtDate, richText, avatar } from '../dom.js';
 import { t, getLang } from '../i18n.js';
 import { state } from '../app.js';
+import { changePlanView } from '../changeplan.js';
 
 const PHASES = ['draft', 'approval', 'approved', 'scheduled', 'implementing', 'review', 'closed'];
 const TEXT_FIELDS = ['reason', 'implementationPlan', 'backoutPlan', 'testPlan'];
@@ -99,13 +100,14 @@ export function changeSection(tk, refresh) {
     editable ? h('div.form-actions', h('button.btn', { type: 'button', onclick: save }, t('app.save'))) : null);
 }
 
-/** Approvers who do not work on the change's project: only the approval round (to decide) */
+/** Approvers who do not work on the change's project: the approval round (to decide) and the plan read-only */
 export function changeApprovalBox(tk, refresh) {
   const c = tk.change;
   if (!c?.approvals?.round) return null;
   return h('section.ticket-section.itil-box.change-box',
     h('div.section-head', h('h3', icon('type-change'), ' ', t('change.title')), h(`span.badge.phase-${c.phase}`, t(`change.phase.${c.phase}`))),
-    approvalsBox(tk, c, refresh));
+    approvalsBox(tk, c, refresh),
+    changePlanView(c.plan));
 }
 
 function approvalsBox(tk, c, refresh) {

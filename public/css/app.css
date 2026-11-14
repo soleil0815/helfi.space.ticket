@@ -710,6 +710,12 @@ input.num { width: 100px; }
 .approval-actions input { flex: 1; }
 .change-outcome { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; margin-bottom: 12px; }
 .change-box .section-head { gap: 6px; }
+.change-plan { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
+.change-plan-title { margin: 0 0 8px; font-size: 13px; color: var(--text-subtle); }
+.change-plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0 12px; }
+.change-plan-item { margin-bottom: 8px; min-width: 0; overflow-wrap: anywhere; }
+.change-plan-label { font-size: 12px; font-weight: 600; color: var(--text-subtle); }
+.change-plan-ci { display: inline-block; margin: 2px 6px 0 0; padding: 0 6px; border-radius: 3px; background: var(--bg-neutral); font-size: 12px; }
 .cal-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .page-head:has(.cal-nav) { display: flex; align-items: center; }
 .cal-head, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }

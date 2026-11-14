@@ -153,14 +153,24 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
       .catch((e) => log.warn('Approval mail failed', { error: e.message }));
   }
 
+  // Plan fields an approver needs to decide (read-only view for approvers without project rights)
+  const PLAN_FIELDS = ['changeType', 'risk', 'services', 'plannedStart', 'plannedEnd', 'reason', 'implementationPlan', 'backoutPlan', 'testPlan'];
+  const cisOf = db.prepare('SELECT c.name, c.kind FROM ticket_cis x JOIN config_items c ON c.id=x.ci_id WHERE x.ticket_id=? ORDER BY c.name');
+  function planOf(row, f) {
+    const plan = Object.fromEntries(PLAN_FIELDS.map((n) => [n, f[n] ?? '']));
+    // Affected configuration items: name and kind only (no CMDB details, no links into the CMDB)
+    plan.cis = cisOf.all(row.id).map((c) => ({ name: c.name, kind: c.kind }));
+    return plan;
+  }
+
   tickets.addDetailExtra((user, row) => {
     if (row.type !== 'change') return {};
     const f = state(row);
     if (!agentOn(user, row.project_id)) {
-      // Approver without rights on the project: only phase and approval round (to decide), no plan fields
-      const a = approvals.current(row.id);
-      if (!a.items.some((x) => x.approverId === user.id)) return {};
-      return { change: { phase: f.phase, next: [], approvals: a, mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id) } };
+      // Approver (of any round) without rights on the project: phase, approval round (to decide) and
+      // the plan read-only – what is needed to decide; no transitions, no review/outcome, no edit
+      if (!user || !approvals.isApprover(row.id, user.id)) return {};
+      return { change: { phase: f.phase, next: [], approvals: approvals.current(row.id), mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id), plan: planOf(row, f) } };
     }
     return { change: { phase: f.phase, next: nextPhases(f), approvals: approvals.current(row.id), mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id) } };
   });
