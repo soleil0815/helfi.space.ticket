@@ -34,6 +34,7 @@ import { REASONING, normalizeBaseUrl, listModels } from '../ai.js';
 import { LINK_KINDS } from '../itil/links.js';
 import { createSavedFilters } from '../filters.js';
 import { CLASSIFY_MODES } from '../ai-classify.js';
+import { releaseUnassignable } from '../assignments.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -455,6 +456,8 @@ export function createApi(ctx) {
       );
       if (email !== undefined) users.setEmail(u.id, email);
       if (newHash) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
+      // Deactivated or no longer an agent (role): taken off the open tickets they may not work on
+      releaseUnassignable(db, { userId: u.id, actorId: req.user.id });
     })();
     if (newHash || !active) sessions.destroyAllForUser(u.id);
     if (req.body.resetMfa) {
@@ -542,13 +545,15 @@ export function createApi(ctx) {
         if (group.toLowerCase() !== String(p.agent_group || '').toLowerCase()) db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='group'").run(p.id);
       }
       if (lead !== undefined || deputy !== undefined) {
-        tickets.projects.update(p.id, { leadId: lead === undefined ? undefined : (lead ? lead.id : null), deputyId: deputy === undefined ? undefined : (deputy ? deputy.id : null) });
+        tickets.projects.update(p.id, { leadId: lead === undefined ? undefined : (lead ? lead.id : null), deputyId: deputy === undefined ? undefined : (deputy ? deputy.id : null) }, { release: false });
       }
       if (members) {
         db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='manual'").run(p.id);
         const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) VALUES(?,?,'manual')");
         for (const u of members) add.run(p.id, u.id);
       }
+      // Whoever no longer works on the project is taken off its open tickets (they could not open them)
+      releaseUnassignable(db, { projectId: p.id, actorId: req.user.id });
     })();
     log.info(`People of project ${p.key} changed by ${req.user.username}`, { lead: lead !== undefined, deputy: deputy !== undefined, group: group !== null, people: members ? members.length : undefined });
     res.json(projectPeople(tickets.projects.get(p.id)));
@@ -561,8 +566,9 @@ export function createApi(ctx) {
     // Tickets are never deleted: with tickets only together with moving them (otherwise archive)
     // First check whether deleting is allowed (like projects.remove), then back up – otherwise every rejection would leave a copy behind
     if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
-    if (db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) {
-      if (!body.moveTo) throw new HttpError(400, 'err.projectHasTickets');
+    if (db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0 && !body.moveTo) throw new HttpError(400, 'err.projectHasTickets');
+    if (body.moveTo) {
+      // also without tickets: canned responses, knowledge articles and offerings move there
       const target = tickets.projects.get(body.moveTo);
       if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
       if (target.archived) throw new HttpError(400, 'err.projectArchived');

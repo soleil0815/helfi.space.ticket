@@ -81,7 +81,9 @@ export function createAiDuplicates({ db, tickets, ai }) {
     const cfg = ai.config();
     const answer = await ai.timed('duplicates', keyOf(row), cfg, () => ai.chat(duplicateMessages({ key: keyOf(row), title: row.title, description: row.description }, list), { maxTokens: 300, cfg }));
     const { key, reason } = parseDuplicate(answer, list);
-    if (tickets.rawById(ticketId)?.status === 'done') return null; // closed meanwhile
+    const now = tickets.rawById(ticketId);
+    if (!now || now.status === 'done') return null; // closed meanwhile
+    if (now.project_id !== row.project_id) return null; // moved meanwhile: the candidates were of the old project
     if (!key) { save.run(ticketId, null, reason, cfg.model, 'none'); return { state: 'none' }; }
     const orig = list.find((c) => c.key === key);
     save.run(ticketId, orig.id, reason, cfg.model, 'pending');
@@ -120,7 +122,8 @@ export function createAiDuplicates({ db, tickets, ai }) {
     const s = db.prepare("SELECT * FROM duplicate_suggestions WHERE ticket_id=? AND state='pending'").get(row.id);
     if (!s || !s.original_id) return {};
     const o = tickets.rawById(s.original_id);
-    if (!o) return {};
+    // Key, title and reason only for someone who may open the original (it may be in another project now)
+    if (!o || !agentOn(user, o.project_id)) return {};
     return { duplicateSuggestion: { key: keyOf(o), title: o.title, status: o.status, reason: s.reason, model: s.model } };
   });
 

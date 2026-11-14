@@ -12,6 +12,7 @@ import { log } from './lib/log.js';
 import { normalizeMentions } from './mentions.js';
 import { createComponents, matchComponent, reasonDetail } from './components.js';
 import { PORTAL_ICONS, PORTAL_COLORS } from './portal.js';
+import { releaseUnassignable } from './assignments.js';
 
 export const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
 // How a done ticket ended: solved, rejected (with a reason) or a duplicate of another ticket
@@ -49,7 +50,8 @@ export function normalizeLabels(v) {
   return [...new Set(arr.map((x) => str(x, 100).trim().toLowerCase().replace(/[^\p{L}\p{N}_.-]/gu, '')).filter(Boolean))].slice(0, 20).join(',');
 }
 
-export function createTickets(db, users) {
+/** settings (optional): for the fallback project of new tickets (general.defaultProject, imap.project) */
+export function createTickets(db, users, { settings = null } = {}) {
   // Full-text search: catch up the index at startup (after an update once for all tickets)
   const search = createSearch(db);
   try {
@@ -116,7 +118,8 @@ export function createTickets(db, users) {
       syncLead(info.lastInsertRowid, lead);
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(info.lastInsertRowid));
     },
-    update(id, { name, description, leadId, deputyId, archived, portal }) {
+    /** opts.release false: the caller releases assignments itself (after further changes to the project's people) */
+    update(id, { name, description, leadId, deputyId, archived, portal }, { release = true } = {}) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(id);
       if (!p) throw notFound();
       const lead = leadId !== undefined ? validLead(leadId) : p.lead_id;
@@ -141,6 +144,8 @@ export function createTickets(db, users) {
           db.prepare('UPDATE projects SET deputy_id=? WHERE id=?').run(deputy, id);
           syncLead(id, deputy, 'deputy');
         }
+        // A former lead/deputy who no longer works on the project is taken off its open tickets
+        if (release && (lead !== p.lead_id || deputy !== p.deputy_id)) releaseUnassignable(db, { projectId: id });
       })();
       return projectOut(db.prepare('SELECT * FROM projects WHERE id=?').get(id));
     },
@@ -148,6 +153,12 @@ export function createTickets(db, users) {
      * Delete a project. Tickets are never deleted (records): a project with tickets can only be
      * deleted if they are moved to another project (moveTo) – otherwise archive it.
      * The last project always remains. Returns { key, moved, target }.
+     * What else belongs to the project goes along to moveTo (also without tickets): shared canned
+     * responses, knowledge articles and service offerings. Without a target nothing becomes more
+     * visible: the canned responses become personal ones of the admin who deletes (a shared one
+     * without project would be for everyone), knowledge articles keep their visibility without a
+     * project (public ones stay public, internal ones are then for admins only) and the offerings are
+     * switched off and lose the project key (a new project with the same key must not adopt them).
      */
     remove(user, id, { moveTo = null } = {}) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(int(id) || 0);
@@ -155,14 +166,23 @@ export function createTickets(db, users) {
       if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
       const ticketRows = db.prepare('SELECT id FROM tickets WHERE project_id=? ORDER BY number').all(p.id);
       let target = null;
-      if (ticketRows.length) {
-        if (!moveTo) throw new HttpError(400, 'err.projectHasTickets');
+      if (ticketRows.length && !moveTo) throw new HttpError(400, 'err.projectHasTickets');
+      if (moveTo) {
         target = projects.get(moveTo);
         if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
         if (target.archived) throw new HttpError(400, 'err.projectArchived');
       }
       db.transaction(() => {
         for (const { id: tid } of ticketRows) moveToProject(rawById(tid), target, user ? user.id : null);
+        if (target) {
+          db.prepare('UPDATE canned_responses SET project_id=? WHERE project_id=?').run(target.id, p.id);
+          db.prepare('UPDATE kb_articles SET project_id=? WHERE project_id=?').run(target.id, p.id);
+          db.prepare('UPDATE catalog_items SET project_key=? WHERE project_key=?').run(target.key, p.key);
+        } else {
+          if (user) db.prepare('UPDATE canned_responses SET owner_id=?, project_id=NULL WHERE owner_id IS NULL AND project_id=?').run(user.id, p.id);
+          else db.prepare('DELETE FROM canned_responses WHERE owner_id IS NULL AND project_id=?').run(p.id);
+          db.prepare("UPDATE catalog_items SET project_key='', active=0 WHERE project_key=?").run(p.key);
+        }
         db.prepare('DELETE FROM projects WHERE id=?').run(p.id);
       })();
       return { key: p.key, moved: ticketRows.length, target: target ? target.key : null };
@@ -232,22 +252,23 @@ export function createTickets(db, users) {
    * source. Nobody is assigned (the component's person is for information only).
    * userId: who accepted a suggestion (null = automatic). Returns the ticket (agent view).
    */
-  function applyComponent(ticketId, componentId, { kind = 'ai', detail = '', userId = null, backfill = false } = {}) {
+  /**
+   * allowMove: a component of another project moves the ticket there (AI over all projects for a
+   * ticket in the inbox project) – only when the caller says so; otherwise a component of another
+   * project is refused (409), so a stale choice never undoes a move by hand.
+   */
+  function applyComponent(ticketId, componentId, { kind = 'ai', detail = '', userId = null, backfill = false, allowMove = false } = {}) {
     let row = rawById(ticketId);
     if (!row) throw notFound();
-    // A component of another project (mail routing, AI over all projects): the ticket moves there
     const any = components.activeById(componentId);
     if (!any) throw new HttpError(400, 'err.badRequest', 'componentId');
+    if (any.projectId !== row.project_id && !allowMove) throw new HttpError(409, 'err.noSuggestion');
     const target = any.projectId !== row.project_id ? projects.get(any.projectId) : null;
     const component = components.forProject(any.projectId, componentId);
     db.transaction(() => {
       if (target) {
+        // moveToProject also takes the assignee off if they do not work on the new project
         moveToProject(row, target, userId);
-        // The assignee must work on the new project
-        if (row.assignee_id && !isAssignable(row.assignee_id, target.id)) {
-          db.prepare('UPDATE tickets SET assignee_id=NULL WHERE id=?').run(row.id);
-          logActivity(row.id, userId, 'changed', 'assignee', row.a_name, null);
-        }
         row = rawById(row.id);
       }
       // Only the component and the history entry – nobody is ever assigned automatically (the
@@ -416,13 +437,23 @@ export function createTickets(db, users) {
       .run(ticketId, userId, action, field, oldV === null ? null : String(oldV), newV === null ? null : String(newV));
   }
 
+  /** Project for a new ticket without a (usable) one: the default project, the mail inbox project, otherwise the first active one */
+  function fallbackProject() {
+    for (const k of ['general.defaultProject', 'imap.project']) {
+      const v = settings ? settings.get(k) : null;
+      const p = v ? projects.get(v) : null;
+      if (p && !p.archived) return p;
+    }
+    return db.prepare('SELECT * FROM projects WHERE archived=0 ORDER BY id LIMIT 1').get();
+  }
+
   function create(user, data, { source = 'web', reporterEmail = null, reporterName = null, reporterId, messageId = null, notifyReporter = false } = {}) {
     // An agent creates the ticket for someone else (e.g. a request that came in by phone or another mailbox)
     const onBehalf = !!user && reporterId !== undefined && reporterId !== null && reporterId !== user.id;
     const title = str(data.title, 255).trim();
     if (!title) throw new HttpError(400, 'err.titleRequired');
     let project = data.projectId ? projects.get(data.projectId) : null;
-    if (!project || project.archived) project = db.prepare('SELECT * FROM projects WHERE archived=0 ORDER BY id LIMIT 1').get();
+    if (!project || project.archived) project = fallbackProject();
     if (!project) throw new HttpError(400, 'err.noProject');
     const agent = !!user && agentOn(user, project.id);
     // For someone else only as an agent of this project (a fallback project may not be theirs)
@@ -681,6 +712,14 @@ export function createTickets(db, users) {
     logActivity(row.id, userId, 'changed', 'project', `${row.project_key}-${row.number}`, `${target.key}-${number}`);
     // Components belong to a project: the old one does not apply in the target project
     if (row.component_id) logActivity(row.id, userId, 'changed', 'component', row.c_name, null);
+    // The assignee must work on the new project (current value: the caller may have changed it already)
+    releaseUnassignable(db, { ticketId: row.id, actorId: userId });
+    // Open AI hints of the old project no longer apply: a component suggestion of another project
+    // would move the ticket back when accepted, a duplicate hint names a ticket of the old project
+    db.prepare(`UPDATE component_suggestions SET state='corrected', decided_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), decided_by=?
+      WHERE ticket_id=? AND state='pending' AND (component_id IS NULL OR component_id NOT IN (SELECT id FROM components WHERE project_id=?))`).run(userId, row.id, target.id);
+    db.prepare(`UPDATE duplicate_suggestions SET state='closed', decided_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), decided_by=?
+      WHERE ticket_id=? AND state='pending' AND (original_id IS NULL OR original_id NOT IN (SELECT id FROM tickets WHERE project_id=?))`).run(userId, row.id, target.id);
   }
 
   // ---------- Comments ----------

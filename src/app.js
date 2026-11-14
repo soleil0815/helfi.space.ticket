@@ -76,7 +76,7 @@ export function createApp(db) {
   const policy = createNetworkPolicy(settings);
   const sessions = createSessions(db, { policy, settings });
   const users = createUsers(db);
-  const tickets = createTickets(db, users);
+  const tickets = createTickets(db, users, { settings });
   const links = createLinks(db, tickets);
 
   const suppressions = createSuppressions(db);

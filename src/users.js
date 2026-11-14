@@ -2,6 +2,7 @@
 import { hashPassword } from './lib/crypto.js';
 import { HttpError } from './lib/http.js';
 import { withProjects } from './auth/access.js';
+import { releaseUnassignable } from './assignments.js';
 
 export function publicUser(u) {
   if (!u) return null;
@@ -213,6 +214,8 @@ export function createUsers(db) {
       db.prepare('UPDATE users SET username=? WHERE id=?').run(username, u.id);
     }
     applyAccess(u, access);
+    // Lost a project group or the role at this sign-in: taken off the open tickets they may no longer work on
+    releaseUnassignable(db, { userId: u.id });
     return scoped(byId.get(u.id));
   }
 
