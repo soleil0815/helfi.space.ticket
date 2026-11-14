@@ -24,7 +24,8 @@ async function start(content) {
   q.addEventListener('input', () => search(q.value, results));
   q.addEventListener('keydown', (e) => { if (e.key === 'Escape') { q.value = ''; results.hidden = true; } });
   const c = data.counts;
-  const counter = (n, label, status, cls = '') => h(`a.portal-count${cls}`, { href: `/requests?status=${status}`, 'data-link': '' }, h('span.portal-count-n', String(n)), h('span', label));
+  // The counters count the user's own reports by status: the list behind them shows exactly those
+  const counter = (n, label, status, cls = '') => h(`a.portal-count${cls}`, { href: `/requests?status=${status}&reporter=me`, 'data-link': '' }, h('span.portal-count-n', String(n)), h('span', label));
   mount(content,
     h('section.portal-hero',
       h('h1', t('portal.hello', { name: first })),
@@ -92,7 +93,7 @@ async function department(content, key) {
       h('span.portal-offer-emoji', x.emoji || '📦'),
       h('span.portal-offer-text', h('strong', x.title), x.description ? h('span', x.description) : null,
         x.needsApproval ? h('span.portal-offer-approval', icon('check'), t('catalog.needsApproval')) : null)))
-      : h('p.muted', words.length ? t('portal.noResults') : t('portal.noOffers')));
+      : h('p.muted', words.length ? t('portal.noResults') : t(canReport() ? 'portal.noOffers' : 'portal.noOffersNoReport')));
   };
   local.addEventListener('input', draw);
   mount(content,

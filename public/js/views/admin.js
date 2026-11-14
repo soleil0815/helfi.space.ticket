@@ -396,12 +396,17 @@ async function projectsPage(body) {
     const key = h('input', { required: true, maxLength: 10, style: { textTransform: 'uppercase' } });
     const name = h('input', { required: true, value: p?.name || '' });
     const desc = h('textarea', { rows: 2 }, p?.description || '');
+    // Lead/deputy only count when picked from the list: typing afterwards drops the stored person
     let lead = cur.lead ? { userId: cur.lead.id } : null;
-    const leadIn = h('input', { value: cur.lead?.displayName || '', placeholder: t('projects.personPlaceholder'), 'data-lead': '' });
-    peoplePicker(leadIn, { onPick: (choice, person) => { lead = choice; leadIn.value = person.displayName; } });
+    let leadName = cur.lead?.displayName || '';
+    const leadIn = h('input', { value: leadName, placeholder: t('projects.personPlaceholder'), 'data-lead': '' });
+    peoplePicker(leadIn, { onPick: (choice, person) => { lead = choice; leadIn.value = leadName = person.displayName; leadIn.removeAttribute('aria-invalid'); } });
+    leadIn.addEventListener('input', () => { if (leadIn.value !== leadName) lead = null; });
     let deputy = cur.deputy ? { userId: cur.deputy.id } : null;
-    const deputyIn = h('input', { value: cur.deputy?.displayName || '', placeholder: t('projects.personPlaceholder'), 'data-deputy': '' });
-    peoplePicker(deputyIn, { onPick: (choice, person) => { deputy = choice; deputyIn.value = person.displayName; } });
+    let deputyName = cur.deputy?.displayName || '';
+    const deputyIn = h('input', { value: deputyName, placeholder: t('projects.personPlaceholder'), 'data-deputy': '' });
+    peoplePicker(deputyIn, { onPick: (choice, person) => { deputy = choice; deputyIn.value = deputyName = person.displayName; deputyIn.removeAttribute('aria-invalid'); } });
+    deputyIn.addEventListener('input', () => { if (deputyIn.value !== deputyName) deputy = null; });
     const group = h('input', { value: cur.agentGroup, maxLength: 500, placeholder: t('projects.agentGroupPlaceholder'), autocomplete: 'off' });
     // people added by hand: list with ✕, add via search
     const members = cur.members.map((m) => ({ choice: { userId: m.id }, displayName: m.displayName, id: m.id }));
@@ -427,8 +432,9 @@ async function projectsPage(body) {
     const pDesc = h('input', { value: pp.description, maxLength: 200, 'data-portal-desc': '' });
     const pIntro = h('textarea', { rows: 2, maxLength: 1000 }, pp.intro);
     const pSort = h('input', { type: 'number', value: pp.sort, min: -999, max: 999, style: { width: '110px' } });
+    const iconColorLabel = h('span.field-label', { id: `pcl-${Math.random().toString(36).slice(2, 9)}` }, t('portal.iconColor'));
     const choice = (list, key, render) => {
-      const box = h('div.portal-choice', { role: 'group' });
+      const box = h('div.portal-choice', { role: 'group', 'aria-labelledby': iconColorLabel.id });
       const draw = () => mount(box, list.map((v) => render(v, pp[key] === v, () => { pp[key] = v; draw(); })));
       draw();
       return box;
@@ -438,14 +444,27 @@ async function projectsPage(body) {
     const portalData = () => ({ show: pShow.checked, description: pDesc.value.trim(), intro: pIntro.value.trim(), icon: pp.icon, color: pp.color, sort: Number(pSort.value) || 0 });
     const err = h('div.form-error', { role: 'alert', hidden: true });
     const submit = h('button.btn.btn-primary', { type: 'submit', form: 'proj-form' }, p ? t('app.save') : t('app.create'));
+    // A new project that was created on an earlier (partly failed) submit: further submits update it
+    let created = null;
     const dlg = modal(p ? `${p.name} (${p.key})` : t('projects.new'), h('form#proj-form', {
       onsubmit: async (e) => {
         e.preventDefault();
         err.hidden = true;
+        // Text typed but no person picked from the list: do not save silently without it
+        for (const [inp, picked] of [[leadIn, lead], [deputyIn, deputy]]) {
+          if (inp.value.trim() && !picked) {
+            inp.setAttribute('aria-invalid', 'true');
+            err.textContent = t('projects.pickFromList'); err.hidden = false; inp.focus();
+            return;
+          }
+        }
         submit.disabled = true;
         try {
-          let target = p;
-          if (!target) target = (await api.createProject({ key: key.value.trim().toUpperCase(), name: name.value.trim(), description: desc.value })).project;
+          let target = p || created;
+          if (!target) {
+            target = created = (await api.createProject({ key: key.value.trim().toUpperCase(), name: name.value.trim(), description: desc.value })).project;
+            key.disabled = true;
+          }
           await api.updateProject(target.id, { name: name.value.trim(), description: desc.value, portal: portalData() });
           if (!leadIn.value.trim()) lead = null;
           if (!deputyIn.value.trim()) deputy = null;
@@ -464,10 +483,10 @@ async function projectsPage(body) {
       h('ul.plain', cur.viaGroup.map((a) => h('li', h('span.person', avatar(a, 'sm'), h('span', a.displayName)))))) : null,
     h('div.field', h('span.field-label', t('projects.members')), list, addIn, h('div.hint', t('projects.membersHint'))),
     h('h3.form-section', t('portal.inPortal')),
-    h('div.field.field-check', pShow, h('label', t('portal.show'))),
+    field(t('portal.show'), pShow),
     field(t('portal.description'), pDesc, t('portal.descriptionHint')),
     field(t('portal.intro'), pIntro, t('portal.introHint')),
-    h('div.field', h('span.field-label', t('portal.iconColor')), icons, colors),
+    h('div.field', iconColorLabel, icons, colors),
     field(t('portal.sort'), pSort, t('portal.sortHint'))),
     { wide: true, footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), submit] });
   };
@@ -1081,7 +1100,7 @@ async function systemPage(body) {
         h('dt', t('system.compose')), h('dd', `${sys.composeVersion || '?'} / ${sys.composeVersionExpected}`),
         h('dt', t('system.dbSize')), h('dd', fmtSize(sys.dbSize)),
         h('dt', 'Node.js'), h('dd', sys.node),
-        h('dt', ''), h('dd', t('system.counts', sys.counts)))),
+        h('dt', ''), h('dd', ['Users', 'Contacts', 'Tickets'].map((k) => { const n = sys.counts[k.toLowerCase()] || 0; return t(n === 1 ? `system.count${k}1` : `system.count${k}`, { n }); }).join(', ')))),
     backupPanel(body, sys),
     emergencyPanel(sys));
 }
@@ -1092,7 +1111,7 @@ function emergencyPanel(sys) {
   return h('section.panel.emergency-panel',
     h('h2', t('system.emergency')),
     h('p.muted', t('system.emergencyHint')),
-    h('pre.emergency-cmd', 'docker compose exec helfi helfi-admin list\ndocker compose exec helfi helfi-admin reset <name>'),
+    h('pre.emergency-cmd', 'docker compose exec helfi helfi-admin list\ndocker compose exec helfi helfi-admin reset <name>\ndocker compose exec helfi helfi-admin create <name>'),
     list.length ? h('div',
       h('h3', t('system.emergencyUsed')),
       h('ul.emergency-log', list.map((e) => h('li',

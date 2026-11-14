@@ -93,7 +93,7 @@ export function catalogApprovalBox(tk, refresh) {
       ' ', h('span.muted.small', t(`change.mode.${a.mode}`))),
     a.items.map((x) => h('div.approval-row', avatar({ displayName: x.name }, 'sm'), h('span', x.name),
       h(`span.badge.decision-${x.decision || 'pending'}`, t(`change.decision.${x.decision || 'pending'}`)),
-      x.comment ? h('span.muted.small', `„${x.comment}“`) : null)),
+      x.comment ? h('span.muted.small', t('app.quoted', { text: x.comment })) : null)),
     a.canDecide ? h('div.approval-actions', comment,
       h('button.btn.btn-primary.small', { type: 'button', onclick: () => decide('approve') }, icon('check'), t('change.approve')),
       h('button.btn.btn-danger.small', { type: 'button', onclick: () => decide('reject') }, t('change.reject'))) : null);

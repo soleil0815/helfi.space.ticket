@@ -237,7 +237,7 @@ export async function renderTicket(page, ctx) {
     return h('ul.m-approvers', items.map((x) => h('li',
       avatar({ displayName: x.name }, 'xs'), h('span.m-approver-name', x.name),
       h(`span.m-approval-state.${x.decision || 'pending'}`, t(`change.decision.${x.decision || 'pending'}`)),
-      x.comment ? h('span.m-approver-comment', `„${x.comment}“`) : null)));
+      x.comment ? h('span.m-approver-comment', t('app.quoted', { text: x.comment })) : null)));
   }
 
   // ---------- Rating (reporter of a resolved ticket, as in the desktop UI) ----------
