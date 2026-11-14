@@ -99,6 +99,15 @@ export function changeSection(tk, refresh) {
     editable ? h('div.form-actions', h('button.btn', { type: 'button', onclick: save }, t('app.save'))) : null);
 }
 
+/** Approvers who do not work on the change's project: only the approval round (to decide) */
+export function changeApprovalBox(tk, refresh) {
+  const c = tk.change;
+  if (!c?.approvals?.round) return null;
+  return h('section.ticket-section.itil-box.change-box',
+    h('div.section-head', h('h3', icon('type-change'), ' ', t('change.title')), h(`span.badge.phase-${c.phase}`, t(`change.phase.${c.phase}`))),
+    approvalsBox(tk, c, refresh));
+}
+
 function approvalsBox(tk, c, refresh) {
   const a = c.approvals;
   if (!a.round) return null;

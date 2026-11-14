@@ -20,7 +20,7 @@ import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
 import { problemSection, problemHint, createProblemButton } from './problem.js';
-import { changeSection } from './change.js';
+import { changeSection, changeApprovalBox } from './change.js';
 import { kbSuggestions, kbFromTicketButton } from './kb.js';
 import { catalogApprovalBox } from './catalog.js';
 import { ciSection } from './cmdb.js';
@@ -535,6 +535,7 @@ export async function renderTicket(content, key) {
         agent && state.boot.aiFeatures?.summary ? aiSummarySection(tk) : null,
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,
+        !agent && tk.type === 'change' ? changeApprovalBox(tk, refresh) : null,
         attachmentsEl(),
         linksEl,
         agent ? ciSection(tk, refresh) : null,

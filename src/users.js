@@ -243,7 +243,8 @@ export function createUsers(db) {
 
   /** Active agents and admins – of these projects (ids), or of every project (null) */
   function agentsOf(projectIds = null) {
-    if (projectIds === null) return db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all();
+    // All projects: admins, legacy agents and everyone who works on a project (role 'user' + project_agents)
+    if (projectIds === null) return db.prepare("SELECT * FROM users WHERE active=1 AND (role IN ('agent','admin') OR id IN (SELECT user_id FROM project_agents)) ORDER BY display_name").all();
     return db.prepare(`SELECT * FROM users WHERE active=1 AND (role IN ('admin','agent')
       OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))) ORDER BY display_name`).all(JSON.stringify(projectIds));
   }

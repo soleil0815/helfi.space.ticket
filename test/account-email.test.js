@@ -116,7 +116,8 @@ test('Administration: name, address and password of local accounts; not AD/SSO a
   const ad = ctx.users.upsertExternal({ source: 'ldap', username: 'm.muster', displayName: 'Max', email: 'Max.Muster@firma.local', externalId: 'g1', role: 'user' });
   assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { email: 'x@firma.local' })).status, 400);
   assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { displayName: 'X' })).status, 400);
-  assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { role: 'agent' })).status, 200, 'role still changeable');
+  assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { role: 'admin' })).status, 200, 'role still changeable');
+  assert.equal((await admin('PATCH', `/api/users/${ad.id}`, { role: 'user' })).status, 200);
   assert.equal(ctx.users.byEmail('max.muster@firma.local')?.id, ad.id, 'AD address found with different case');
 });
 

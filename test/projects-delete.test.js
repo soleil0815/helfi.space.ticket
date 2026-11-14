@@ -45,7 +45,9 @@ const pid = {};
 
 test('Setup', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
-  await admin('POST', '/api/users', { username: 'anna', displayName: 'Anna', email: 'anna@firma.local', role: 'agent', password: 'Sehrgeheim123' });
+  await admin('POST', '/api/users', { username: 'anna', displayName: 'Anna', email: 'anna@firma.local', role: 'user', password: 'Sehrgeheim123' });
+  // legacy all-projects agents: the API no longer gives out role 'agent'
+  db.prepare("UPDATE users SET role='agent' WHERE username IN ('anna')").run();
   assert.equal((await anna('POST', '/api/auth/login', { username: 'anna', password: 'Sehrgeheim123' })).status, 200);
   for (const [k, n] of [['HR', 'Personal'], ['ALT', 'Altlasten'], ['LEER', 'Leer']]) await admin('POST', '/api/projects', { key: k, name: n });
   for (const p of (await admin('GET', '/api/projects')).body.projects) pid[p.key] = p.id;

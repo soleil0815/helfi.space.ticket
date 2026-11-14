@@ -415,6 +415,9 @@ export function createApi(ctx) {
   r.post('/users', requireRole('admin'), wrap(async (req, res) => {
     const username = str(req.body.username, 64).trim();
     if (!/^[\p{L}\p{N}._@-]{2,64}$/u.test(username)) throw new HttpError(400, 'err.badRequest', 'username');
+    // Roles are user and admin; agent rights come from projects. The legacy role 'agent' (every
+    // project) is not given out any more.
+    if (req.body.role === 'agent') throw new HttpError(400, 'err.badRequest', 'role');
     const u = users.createLocal({
       username, displayName: str(req.body.displayName, 120).trim(), email: str(req.body.email, 254).trim(),
       role: oneOf(req.body.role, ['admin', 'agent', 'user'], 'user'), password: str(req.body.password, 1024),
@@ -426,6 +429,8 @@ export function createApi(ctx) {
     // the stored row: its role is the base role (rights from projects are not a role)
     const u = users.rawById(int(req.params.id));
     if (!u) throw notFound();
+    // Legacy role 'agent' (every project): kept on accounts that have it, never given to another one
+    if (req.body.role === 'agent' && u.role !== 'agent') throw new HttpError(400, 'err.badRequest', 'role');
     const role = req.body.role !== undefined ? oneOf(req.body.role, ['admin', 'agent', 'user'], u.role) : u.role;
     const active = req.body.active !== undefined ? (req.body.active ? 1 : 0) : u.active;
     if (u.role === 'admin' && u.active && (role !== 'admin' || !active) && users.countActiveAdmins(u.id) === 0) {

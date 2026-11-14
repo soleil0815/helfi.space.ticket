@@ -51,8 +51,10 @@ const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString();
 test('Setup: two agents, one reporter, two projects', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
   for (const [u, role] of [['anna', 'agent'], ['bert', 'agent'], ['karl', 'user']]) {
-    ids[u] = (await admin('POST', '/api/users', { username: u, displayName: u[0].toUpperCase() + u.slice(1), email: `${u}@firma.local`, role, password: 'Sehrgeheim123' })).body.user.id;
+    ids[u] = (await admin('POST', '/api/users', { username: u, displayName: u[0].toUpperCase() + u.slice(1), email: `${u}@firma.local`, role: role === 'agent' ? 'user' : role, password: 'Sehrgeheim123' })).body.user.id;
   }
+  // legacy all-projects agents: the API no longer gives out role 'agent'
+  db.prepare("UPDATE users SET role='agent' WHERE username IN ('anna','bert')").run();
   for (const [c, u] of [[anna, 'anna'], [bert, 'bert'], [karl, 'karl']]) assert.equal((await c('POST', '/api/auth/login', { username: u, password: 'Sehrgeheim123' })).status, 200);
   assert.equal((await admin('POST', '/api/projects', { key: 'HR', name: 'Personal' })).status, 201);
 

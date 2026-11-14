@@ -624,11 +624,16 @@ export function createTickets(db, users, { settings = null } = {}) {
     if (resolution === 'duplicate') {
       try { original = load(user, str(duplicateOf, 30).trim().toUpperCase()); } catch { throw new HttpError(400, 'err.duplicateTarget'); }
       if (original.id === row.id) throw new HttpError(400, 'err.duplicateTarget');
+      // Like links.add: closing as duplicate writes a link, history and possibly participants into
+      // the original – only allowed on tickets the user works on as an agent (seeing it, e.g. as
+      // approver or reporter, is not enough)
+      if (!agentFor(user, original)) throw new HttpError(400, 'err.duplicateTarget');
       // The original is itself a closed duplicate: follow the chain to the ticket where the request is
       // really handled (so nobody is sent to a closed ticket); reaching this ticket again = cycle
       for (let depth = 0; original.resolution === 'duplicate' && original.duplicate_of; depth++) {
         if (original.duplicate_of === row.id || depth >= MAX_DUPLICATE_CHAIN) throw new HttpError(400, 'err.duplicateCycle');
         try { original = load(user, original.duplicate_of); } catch { throw new HttpError(400, 'err.duplicateTarget'); }
+        if (!agentFor(user, original)) throw new HttpError(400, 'err.duplicateTarget');
       }
       if (original.id === row.id) throw new HttpError(400, 'err.duplicateCycle');
     }
@@ -746,7 +751,10 @@ export function createTickets(db, users, { settings = null } = {}) {
     const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
     const agent = agentFor(user, row);
-    const isInternal = system || (agent && internal) ? 1 : 0;
+    // Never turn a requested internal note into a public reply (it would be mailed to the reporter):
+    // only agents of the ticket's project write internal notes, everyone else is refused
+    if (internal && !agent && !system) throw forbidden();
+    const isInternal = system || internal ? 1 : 0;
     // @-mentions only from agents on the web; internal notes only reach agents, replies also
     // the people who can see the ticket anyway. Everything else stays plain text "@Name".
     const canMention = !!agent && !system && source !== 'email';

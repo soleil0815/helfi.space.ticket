@@ -86,17 +86,28 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
     return detail(user, key);
   }
 
+  /**
+   * Decision of an approver of the current round (any role – approvers need not work on the change's
+   * project). Vote and the resulting phase change happen in one transaction; the phase change is a
+   * system step done on the approver's behalf, so it does not need agent rights on the project.
+   */
   function decide(user, key, decision, comment) {
     const row = tickets.load(user, key);
     if (row.type !== 'change') throw new HttpError(400, 'err.notChange');
-    approvals.decide(user, row.id, decision, comment);
-    tickets.logActivity(row.id, user.id, 'approval', decision, null, str(comment, 200) || null);
-    const f = state(row);
-    const result = approvals.outcome(row.id, mode());
-    if (f.phase === 'approval' && (result === 'approved' || result === 'rejected')) {
-      setPhase(user, tickets.rawById(row.id), result);
-      notifyOwner(tickets.rawById(row.id), result);
-    }
+    const result = db.transaction(() => {
+      approvals.decide(user, row.id, decision, comment);
+      tickets.logActivity(row.id, user.id, 'approval', decision, null, str(comment, 200) || null);
+      const f = state(row);
+      const res = approvals.outcome(row.id, mode());
+      if (f.phase === 'approval' && (res === 'approved' || res === 'rejected')) {
+        // Acts as an agent of every project for this step only (own properties: no project limit)
+        const system = { ...user, role: 'agent' };
+        setPhase(system, tickets.rawById(row.id), res);
+        return res;
+      }
+      return null;
+    })();
+    if (result) notifyOwner(tickets.rawById(row.id), result);
     return detail(user, key);
   }
 
@@ -143,8 +154,14 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
   }
 
   tickets.addDetailExtra((user, row) => {
-    if (!agentOn(user, row.project_id) || row.type !== 'change') return {};
+    if (row.type !== 'change') return {};
     const f = state(row);
+    if (!agentOn(user, row.project_id)) {
+      // Approver without rights on the project: only phase and approval round (to decide), no plan fields
+      const a = approvals.current(row.id);
+      if (!a.items.some((x) => x.approverId === user.id)) return {};
+      return { change: { phase: f.phase, next: [], approvals: a, mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id) } };
+    }
     return { change: { phase: f.phase, next: nextPhases(f), approvals: approvals.current(row.id), mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id) } };
   });
 
