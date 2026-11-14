@@ -123,7 +123,7 @@ test('Migration 43: existing articles go to the default project', async () => {
     d.prepare("INSERT INTO projects(key,name) VALUES('AA','Erstes')").run();
     const hmId = d.prepare("INSERT INTO projects(key,name) VALUES('HM','Haustechnik')").run().lastInsertRowid;
     d.prepare("INSERT OR REPLACE INTO settings(key,value,secret) VALUES('general.defaultProject','\"HM\"',0)").run();
-    d.exec('ALTER TABLE users DROP COLUMN activity_order; ALTER TABLE projects DROP COLUMN portal_show; ALTER TABLE projects DROP COLUMN portal_desc; ALTER TABLE projects DROP COLUMN portal_intro; ALTER TABLE projects DROP COLUMN portal_icon; ALTER TABLE projects DROP COLUMN portal_color; ALTER TABLE projects DROP COLUMN portal_sort; ALTER TABLE canned_responses DROP COLUMN project_id; DROP INDEX idx_kb_articles_project; ALTER TABLE kb_articles DROP COLUMN project_id;');
+    d.exec('DROP TABLE user_passkeys; ALTER TABLE users DROP COLUMN activity_order; ALTER TABLE projects DROP COLUMN portal_show; ALTER TABLE projects DROP COLUMN portal_desc; ALTER TABLE projects DROP COLUMN portal_intro; ALTER TABLE projects DROP COLUMN portal_icon; ALTER TABLE projects DROP COLUMN portal_color; ALTER TABLE projects DROP COLUMN portal_sort; ALTER TABLE canned_responses DROP COLUMN project_id; DROP INDEX idx_kb_articles_project; ALTER TABLE kb_articles DROP COLUMN project_id;');
     d.prepare("INSERT INTO kb_articles(title, body, visibility) VALUES('Alt', '', 'public')").run();
     d.prepare("UPDATE meta SET value='42' WHERE key='schema_version'").run();
     d.close();

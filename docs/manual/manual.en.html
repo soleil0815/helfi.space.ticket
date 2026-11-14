@@ -92,6 +92,8 @@
 <figure class="medium"><img src="img/en/login.jpg" alt=""><figcaption>Sign-in page with a custom welcome text</figcaption></figure>
 <p><strong>Without a company account:</strong> if “Create account” appears below the sign-in, you can create an account yourself: enter name, email address and password and open the link in the confirmation email. If you have sent requests by email before, use the same address – they then appear in the account. You sign in with the email address. “Forgot password?” sends you a link to set a new password.</p>
 <p>When you sign in <strong>from outside the company network</strong>, Helfi.Space may additionally ask for a 6-digit code from your authenticator app, depending on the settings (see <a href="#2fa-setup">2.9</a>).</p>
+<p><strong>With a passkey:</strong> if you have added a passkey (see <a href="#passkey">Passkeys</a>), tap <em>Sign in with a passkey</em> or pick it right in the “Username” field. Confirm with Face ID, Touch ID, Windows Hello or your device PIN – done, without password and without code.</p>
+<figure class="small"><img src="img/en/login-passkey.jpg" alt=""><figcaption>Sign-in page with “Sign in with a passkey”</figcaption></figure>
 
 <p><strong>Automatic sign-out:</strong> whoever does nothing for a while is signed out for security reasons. Two minutes before, Helfi.Space asks “Still there?” – <em>Keep working</em> simply continues. As long as you click or type, you stay signed in.</p>
 <figure class="small"><img src="img/en/idle.jpg" alt=""><figcaption>Two minutes before the automatic sign-out</figcaption></figure>
@@ -148,6 +150,7 @@
   <li><strong>Name and email address</strong> – editable for local accounts (a new email address requires your current password). For AD and SSO accounts both come from the company account.</li>
   <li><strong>Language</strong> of the interface and of emails sent to you, and the <strong>order of the activity</strong> in a ticket on the computer (newest first or oldest first; the phone app always shows the activity like a chat, oldest first).</li>
   <li><strong>What's new</strong> (also in the menu at the top right): what changed in each version. After an update Helfi.Space shows the news once by itself. Clicking the version number at the bottom of the sidebar also leads there, “Helfi.Space” next to it opens the website <code>helfi.space</code>.</li>
+  <li><strong>Passkeys</strong>: add, rename and remove them (see <a href="#passkey">Passkeys</a>).</li>
   <li><strong>Two-factor authentication</strong> setup and management.</li>
   <li><strong>Change password</strong> (local accounts only; change AD passwords in Windows as usual).</li>
 </ul>
@@ -162,6 +165,16 @@
   <li>Keep the <strong>10 recovery codes</strong> safe (print them or store them in a password manager). Each works exactly once if your phone is not at hand.</li>
 </ol>
 <div class="note"><p>For security reasons, first-time setup normally only works <strong>inside the company network</strong> (except after an SSO sign-in whose second factor was checked by the identity provider). This way nobody with a stolen password can register their own second factor from outside. <strong>Lost your phone?</strong> Sign in with a recovery code or ask IT to reset your 2FA.</p></div>
+
+<h3 id="passkey">Passkeys</h3>
+<p>With a <strong>passkey</strong> you sign in using Face ID, Touch ID, Windows Hello or your device PIN – without password and without a code from the authenticator app. A passkey counts as two-factor authentication by itself (your device plus face, finger or PIN), also from outside the company network. It stays on your device; Helfi.Space only receives a public key. On iPhone and Mac it is stored in the iCloud Keychain, on Android in Google Password Manager – then it is available on your other devices too (“Synced”).</p>
+<ol>
+  <li><em>Profile → Passkeys</em> (on the phone: <em>Me → Passkeys</em>).</li>
+  <li>Enter a name you will recognise, e.g. “iPhone”, and choose <strong>Add passkey</strong>.</li>
+  <li>The device asks for Face ID, Touch ID or PIN and creates the passkey.</li>
+</ol>
+<figure><img src="img/en/profile-passkeys.jpg" alt=""><figcaption>Passkeys in the profile</figcaption></figure>
+<div class="note"><p>Like two-factor authentication, you can add your <strong>first</strong> passkey only inside the company network, or after signing in with a two-factor code. Passkeys are available for local accounts and Active Directory accounts; if you sign in via single sign-on, you use the sign-in at the provider. <strong>Lost a device?</strong> Remove the passkey in your profile or ask IT to remove your passkeys; signing in with your password still works.</p></div>
 
 <h2 id="catalog">Requesting a service</h2>
 <p>For frequent requests there are ready-made forms, e.g. “New employee” or “Software request”: <em>Request a service</em> in the sidebar. The offerings are grouped by department (project), e.g. IT and Facilities. Clicking a tile opens the form; required fields are marked with *. After sending you land in the new ticket.</p>
@@ -193,7 +206,7 @@
   <li><strong>Request a service:</strong> under ＋ the offerings of the service catalog appear as tiles. Required fields are marked with *; if an offering needs approval, the form says so.</li>
   <li><strong>Ticket:</strong> the comments look like a chat. Write your reply at the bottom, attach photos or files with <strong>＋</strong>. Agents add status changes and assignments with <em>All</em> next to “Activity”; the phone remembers the choice. With <strong>@</strong> in the reply bar agents mention colleagues; under <em>Tickets</em> the <em>Mentions</em> chip shows the tickets they were mentioned in. Change title and description of your own request with <em>Edit</em> next to "Description".</li>
   <li><strong>Knowledge:</strong> search, categories, <em>Recently viewed</em>, <em>Most read</em> and the page tree. Long articles have a <em>Contents</em> list at the top, wide tables scroll sideways. Below each article you can write a comment.</li>
-  <li><strong>Me:</strong> name, email address and password (local accounts), language, theme (light/dark), two-factor authentication, <em>Install app</em>, what's new and – only in the phone browser – <em>Desktop view</em>. The user menu of the desktop view (<em>Phone view</em>) brings you back.</li>
+  <li><strong>Me:</strong> name, email address and password (local accounts), language, theme (light/dark), two-factor authentication, <strong>passkeys</strong>, <em>Install app</em>, what's new and – only in the phone browser – <em>Desktop view</em>. The user menu of the desktop view (<em>Phone view</em>) brings you back.</li>
   <li><strong>Original email:</strong> if a request or reply came by email, it says “Text version of the email. <em>Show original email</em>” below it. This opens the email as it was written in a window from the bottom – with <em>Formatted</em>/<em>Text</em> to switch. Swipe down, ✕ or back closes it.</li>
 </ul>
 <figure><img src="img/en/m-mail.jpg" alt=""><figcaption>Original email on the phone: note below the description and the email in its window</figcaption></figure>
@@ -201,6 +214,8 @@
 <figure class="phone"><img src="img/en/m-image.jpg" alt=""><figcaption>Image in the app's window</figcaption></figure>
 <figure><img src="img/en/mobile-app-2.jpg" alt=""><figcaption>Reporting a problem with a photo and knowledge suggestions, a help article and setting up two-factor authentication on the phone</figcaption></figure>
 <p><strong>Setting up two-factor authentication on the phone:</strong> a phone cannot scan a QR code on its own screen. So under <em>Me → Two-factor authentication → Set up now</em> tap <strong>Open in authenticator app</strong> – the app takes over the account directly. If that does not work, copy the key shown and paste it in the app under "Enter a setup key". The QR code is still there for a second device. Then enter the 6-digit code and copy, share or save the recovery codes. If 2FA is required for your account, this works the same way right during sign-in.</p>
+<p><strong>Passkey on the phone:</strong> under <em>Me → Passkeys → Add passkey</em> the phone asks for Face ID or fingerprint and creates the passkey. After that you sign in with <em>Sign in with a passkey</em> – or the phone suggests the passkey above the keyboard as soon as you tap the “Username” field.</p>
+<figure><img src="img/en/m-passkeys.jpg" alt=""><figcaption>Signing in with a passkey and the passkeys under “Me”</figcaption></figure>
 <div class="tip"><p><strong>Install as an app:</strong> <em>iPhone/iPad:</em> open Helfi.Space in Safari, tap <em>Share</em> at the bottom, <em>Add to Home Screen</em> → <em>Add</em>. <em>Android:</em> in Chrome tap ⋮ at the top right → <em>Install app</em> (or <em>Me → Install app → Install now</em>). Helfi.Space then starts full screen with its own icon and updates itself; after an update "New version – Reload" appears briefly. Without a connection the app shows a notice with <em>Try again</em>. Installed, Helfi.Space always stays in the phone view – links to desktop pages lead back into the app too, because there is no address bar and no back button there.</p></div>
 <div class="note"><p><strong>Privacy:</strong> photos are uploaded without the location where they were taken, and large photos are downscaled on the phone already. Unsent drafts are deleted when you sign out. Tickets, attachments and replies are not stored on the device, only the program files. Nothing is loaded from the internet.</p></div>
 
@@ -650,6 +665,16 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Reset 2FA</strong> for a person: <em>Users → Reset 2FA</em>.</li>
 </ul>
 
+<h3 id="passkeys-admin">Passkeys</h3>
+<p>On the same page you switch <strong>passkeys</strong> on or off (on by default). Everyone adds their passkeys in their profile (<a href="#passkey">Passkeys</a>); a passkey replaces password and two-factor code.</p>
+<figure class="medium"><img src="img/en/admin-passkeys.jpg" alt=""><figcaption>Passkeys in the security settings</figcaption></figure>
+<ul>
+  <li><strong>Address:</strong> passkeys belong to the host name from <code>HELFI_BASE_URL</code>, e.g. <code>helfi.firma.local</code>, and need HTTPS (an IP address does not work). The same name should apply inside and outside, e.g. via split DNS. If the name changes, everyone has to add their passkeys again. Anyone opening Helfi.Space under a different address does not see the passkey button.</li>
+  <li><strong>Active Directory:</strong> AD accounts need a <strong>service account</strong> (<a href="#ad">Active Directory</a>). As no password is involved in a passkey sign-in, Helfi.Space uses the service account every time to check that the account still exists in AD, is enabled and is in the allowed group; role and project groups are applied as on a password sign-in. A normal account with read access is enough. Without a service account, the profile of AD accounts shows a note instead of “Add passkey”.</li>
+  <li><strong>SSO accounts</strong> sign in at the identity provider, which can offer passkeys as well.</li>
+  <li><strong>Lost device or left the company:</strong> <em>Users → Remove passkeys</em> deletes all passkeys of the person and signs them out.</li>
+</ul>
+
 <h2 id="email">Email</h2>
 <p><em>Administration → Email → Incoming</em> (fetching, inbox project, sender rules, mail loop protection) and <em>Outgoing</em> (sending, notifications)</p>
 <figure><img src="img/en/admin-mail-1.jpg" alt=""><figcaption>Fetching a mailbox (IMAP)</figcaption></figure>
@@ -732,7 +757,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 </ul>
 
 <h2 id="usermgmt">Users</h2>
-<p><em>Administration → Users</em> lists all accounts with origin (local, AD, SSO, email contact), role, 2FA status and last sign-in. Here you create local users, change roles (“Role locked” prevents AD groups from overriding them), deactivate accounts and reset 2FA. Self-registered accounts are marked; if approval is switched on under <em>Sign-in &amp; security → Registration</em>, new accounts show “Awaiting approval” with an <strong>Approve</strong> button.</p>
+<p><em>Administration → Users</em> lists all accounts with origin (local, AD, SSO, email contact), role, 2FA status, number of passkeys and last sign-in. Here you create local users, change roles (“Role locked” prevents AD groups from overriding them), deactivate accounts, reset 2FA and remove passkeys. Self-registered accounts are marked; if approval is switched on under <em>Sign-in &amp; security → Registration</em>, new accounts show “Awaiting approval” with an <strong>Approve</strong> button.</p>
 <p>The <strong>role</strong> is <em>User</em> or <em>Administrator</em>. What someone works on in projects on top of that is set in the project and only shown here under the role, e.g. “Works on: IT (lead)” or “Works on: IT (group Helpdesk)” (<a href="#project-rights">Who works on a project's tickets?</a>).</p>
 <figure class="medium"><img src="img/en/admin-users-sees.jpg" alt=""><figcaption>Under the role: which projects someone works on</figcaption></figure>
 <p><strong>Automatic sign-out</strong> (<em>Administration → Sign-in &amp; security → Two-factor &amp; sessions</em>): period without activity for everyone (default 12 hours from <code>HELFI_SESSION_HOURS</code>), for admins (default 60 minutes) and optionally for access from outside – the shortest applicable one counts. Two minutes before, Helfi asks “Still there?”; whoever keeps working stays signed in. Optional: “Sign out when the browser is closed”.</p>
@@ -852,6 +877,7 @@ docker compose exec helfi helfi-admin create notfall   # create a new local admi
   <li>Anyone who changes server, port, encryption, service account or user, issuer or client ID for AD, IMAP, SMTP or SSO, weakens the certificate check (including “Fetched certificate” → “System certificate authorities”) or stores a different AD certificate, must enter the password or secret again in the same step, otherwise nothing is saved. This way a stored secret never goes to a different server; connection tests with a weakened check do not send it either.</li>
   <li>Sessions end after the time set under <em>Automatic sign-out</em> without use (without a setting <code>HELFI_SESSION_HOURS</code>, default 12 hours; administrators 60 minutes) and at the latest 30 days after sign-in. Disabled accounts get the same message at sign-in as for a wrong password.</li>
   <li>Two-factor authentication per RFC 6238, each code works once, recovery codes are stored only as hashes.</li>
+  <li>Passkeys per WebAuthn: only the public key is stored; Face ID, Touch ID or PIN are required, every sign-in needs a new one-time challenge, a copied passkey stands out by its counter. AD accounts are checked in AD on every passkey sign-in.</li>
   <li>Brake on wrong passwords, cookies <code>HttpOnly</code>/<code>SameSite</code>, CSRF protection, strict Content Security Policy. A Permissions-Policy switches off browser features Helfi.Space does not need (camera, microphone, location and others). The interface loads nothing from the internet.</li>
   <li>HTML emails are cleaned and shown in an isolated frame without scripts.</li>
   <li>The container runs without root rights, with a read-only program part, without additional Linux capabilities and with <code>no-new-privileges</code>.</li>

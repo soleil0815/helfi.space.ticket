@@ -117,6 +117,8 @@ body.m a:hover { text-decoration: none; }
 .m-btn-primary:active { background: var(--blue-press); }
 .m-btn-block { display: flex; width: 100%; }
 .m-btn-sso { background: var(--m-card); border: 1.5px solid var(--border); }
+.m-btn-passkey { background: var(--m-card); border: 1.5px solid var(--border); }
+.m-btn-passkey + .m-btn-sso { margin-top: 10px; }
 .m-link { border: 0; background: none; color: var(--blue); font: 500 15px var(--font); padding: 10px 8px; min-height: 44px; cursor: pointer; }
 .m-push-right { margin-left: auto; }
 
@@ -942,3 +944,8 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-portal-dept-head { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
 .m-portal-dept-head p { margin: 0; color: var(--text-subtle); white-space: pre-line; }
 .m-portal-report { margin-top: 12px; background: var(--m-card); border: 1.5px dashed var(--border-strong); color: var(--text); }
+
+/* Passkeys */
+.m-passkey-add { margin: 16px 0; display: grid; gap: 8px; }
+.m-passkey-none { margin: 12px 4px; }
+#m-passkey .m-btn-danger { margin-top: 4px; }

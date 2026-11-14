@@ -899,6 +899,27 @@ export const MIGRATIONS = [
       WHERE t.status<>'done' AND NOT (u.active=1 AND (u.role IN ('admin','agent') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=t.project_id))));
     `,
   },
+  {
+    id: 47,
+    name: 'Passkeys',
+    sql: `
+    -- Passkeys (WebAuthn) for signing in without a password: only the public key is stored
+    CREATE TABLE user_passkeys (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      credential_id TEXT NOT NULL UNIQUE,
+      public_key BLOB NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      transports TEXT NOT NULL DEFAULT '[]',
+      device_type TEXT NOT NULL DEFAULT '',
+      backed_up INTEGER NOT NULL DEFAULT 0,
+      name TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      last_used_at INTEGER
+    );
+    CREATE INDEX idx_user_passkeys_user ON user_passkeys(user_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

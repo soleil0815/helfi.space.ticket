@@ -9,6 +9,11 @@ import { loginIntro, loginUserLabel, loginUserHint, accountLinks } from '/js/log
 import { replaceUrl } from '../router.js';
 import { signedIn } from '../main.js';
 import { mfaSetupSteps } from '../mfa.js';
+import { passkeysHere, conditionalSupported, passkeySignIn, passkeyCancelled } from '/js/passkey.js';
+
+// Waiting passkey suggestion in the user name field: aborted before anything else uses WebAuthn
+let pkWait = null;
+const stopPasskeyWait = () => { pkWait?.abort(); pkWait = null; };
 
 function frame(page, ...children) {
   const langs = h('div.m-login-lang', { role: 'group', 'aria-label': t('app.language') },
@@ -31,6 +36,7 @@ const fieldEl = (label, input, hint) => {
 };
 
 export function renderLogin(page) {
+  stopPasskeyWait();
   const params = new URLSearchParams(location.search);
   const step = params.get('mfa');
   if (step === 'code' || step === 'enroll') {
@@ -49,7 +55,8 @@ export function renderLogin(page) {
   const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: !error }, error ? t(`login.err.${error}`) : '');
   const mfaHint = state.boot.mfa && !state.boot.mfa.internal && state.boot.mfa.mode !== 'off'
     ? h('div.m-alert.m-alert-info', icon('shield'), h('span', t('mfa.externalHint'))) : null;
-  const user = h('input', { name: 'username', autocomplete: 'username', required: true, autocapitalize: 'off', autocorrect: 'off', spellcheck: false, enterkeyhint: 'next' });
+  const passkeys = passkeysHere(state.boot.auth.passkeys);
+  const user = h('input', { name: 'username', autocomplete: passkeys ? 'username webauthn' : 'username', required: true, autocapitalize: 'off', autocorrect: 'off', spellcheck: false, enterkeyhint: 'next' });
   const pass = h('input', { name: 'password', type: 'password', autocomplete: 'current-password', required: true, enterkeyhint: 'go' });
   const btn = h('button.m-btn.m-btn-primary.m-btn-block', { type: 'submit' }, t('login.submit'));
 
@@ -60,6 +67,7 @@ export function renderLogin(page) {
       err.hidden = true;
       try {
         const r = await api.login(user.value, pass.value);
+        stopPasskeyWait();
         if (r.mfa === 'code') return renderCode(page);
         if (r.mfa) return renderEnroll(page);
         await signedIn(r.user);
@@ -78,10 +86,41 @@ export function renderLogin(page) {
   fieldEl(loginUserLabel(state.boot.login) || t('login.username'), user, loginUserHint(state.boot.auth)),
   fieldEl(t('login.password'), pass),
   btn,
-  oidc ? [h('div.m-divider', h('span', t('login.or'))), h('a.m-btn.m-btn-block.m-btn-sso', { href: '/auth/oidc/start' }, icon('key'), oidc.label)] : null,
+  passkeys || oidc ? h('div.m-divider', h('span', t('login.or'))) : null,
+  passkeys ? h('button.m-btn.m-btn-block.m-btn-passkey', { type: 'button', 'data-passkey-login': '', onclick: () => passkeyButton() }, icon('passkey'), t('passkey.signIn')) : null,
+  oidc ? h('a.m-btn.m-btn-block.m-btn-sso', { href: '/auth/oidc/start' }, icon('key'), oidc.label) : null,
   accountLinks(state.boot.auth, 'div.m-login-links', 'a.m-link'));
   if (error) replaceUrl('/m/login');
+  const showErr = (ex) => { err.textContent = ex.message; err.hidden = false; };
+  const done = async (user) => { stopPasskeyWait(); await signedIn(user); };
+  let pkFails = 0;
+  async function passkeyButton() {
+    stopPasskeyWait();
+    err.hidden = true;
+    try { const r = await passkeySignIn(); await done(r.user); }
+    catch (ex) { if (!passkeyCancelled(ex)) showErr(ex); waitForPasskey(); }
+  }
+  // Suggest passkeys above the keyboard / in the user name field (iPhone, Android)
+  async function waitForPasskey() {
+    if (!passkeys || !(await conditionalSupported()) || !document.contains(form)) return;
+    stopPasskeyWait();
+    const ctl = new AbortController();
+    pkWait = ctl;
+    const renew = setTimeout(() => { if (pkWait === ctl) waitForPasskey(); }, 4 * 60 * 1000);
+    try { const r = await passkeySignIn({ conditional: true, signal: ctl.signal }); clearTimeout(renew); await done(r.user); }
+    catch (ex) {
+      clearTimeout(renew);
+      if (ctl.signal.aborted) return;
+      if (!passkeyCancelled(ex)) {
+        if (!ex.status) return; // browser refused (e.g. security error): no message, no retry
+        showErr(ex);
+        if (++pkFails >= 3) return;
+      }
+      if (pkWait === ctl) { pkWait = null; setTimeout(() => { if (!pkWait && document.contains(form)) waitForPasskey(); }, 1000); }
+    }
+  }
   frame(page, form);
+  waitForPasskey();
 }
 
 /** Second step: code from the authenticator app (or a recovery code) */
