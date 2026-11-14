@@ -46,12 +46,15 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           # scheduled: only if patch day (second Tuesday) is in 7 days; by hand / pull request: always
-          if [ "$EVENT" != schedule ] || sh .github/scripts/patchday.sh "$(date -u -d '+7 days' +%F)"; then
-            echo "due=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "due=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=ZAP scan::Not the week before patch day – nothing to do."
-          fi
+          # 0 = due, 1 = not due, anything else = broken check → the run fails (never a silent skip)
+          rc=0
+          [ "$EVENT" != schedule ] || sh .github/scripts/patchday.sh "$(date -u -d '+7 days' +%F)" || rc=$?
+          case "$rc" in
+            0) echo "due=true" >> "$GITHUB_OUTPUT" ;;
+            1) echo "due=false" >> "$GITHUB_OUTPUT"
+               echo "::notice title=ZAP scan::Not the week before patch day – nothing to do." ;;
+            *) echo "::error title=Patch day check::patchday.sh failed (exit code $rc)"; exit 1 ;;
+          esac
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         if: steps.due.outputs.due == 'true'
       - name: Build image (amd64)
