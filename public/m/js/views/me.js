@@ -5,6 +5,7 @@ import { api } from '/js/api.js';
 import { h, icon, avatar, fmtDate, toast } from '/js/dom.js';
 import { t, getLang } from '/js/i18n.js';
 import { state } from '/js/state.js';
+import { coffeeBox } from '/js/coffee.js';
 import { setUiPref, desktopUrlFor } from '/js/uimode.js';
 import { setLanguage, signOut, reloadBase } from '../main.js';
 import { listRow, emptyState, skeletonList } from '../ui.js';
@@ -77,7 +78,7 @@ export function renderMe(page) {
       listRow({ icon: 'logout', label: t('app.logout'), danger: true, onClick: () => signOut() })),
     h('p.m-version', `Helfi.Space ${state.boot.app.version} · `, h('a', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer', title: t('app.sourceTitle') }, t('app.source'))),
     // Support link for the developer – admins only
-    u.role === 'admin' ? h('div.m-coffee', h('a.coffee-btn', { href: 'https://buymeacoffee.com/soleil0815', target: '_blank', rel: 'noopener noreferrer', title: t('app.coffeeTitle') }, icon('coffee'), h('span', 'Buy me a coffee'))) : null);
+    u.role === 'admin' ? h('div.m-coffee', coffeeBox({ stacked: true })) : null);
   // Shown again after a change (e.g. two-factor switched on): draw anew
   page.refresh = async () => renderMe(page);
 }

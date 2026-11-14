@@ -866,7 +866,10 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-login-links .m-link:only-child { margin: 0 auto; }
 /* Support link for admins (coffee button styles come from app.css) */
 .m-coffee { display: flex; justify-content: center; margin: 12px 0 0; }
-.m-coffee .coffee-btn { font-size: 14px; padding: 8px 16px 8px 12px; min-height: 44px; }
+.m-coffee { justify-content: stretch; }
+.m-coffee .coffee-box { flex: 1; }
+.m-coffee .coffee-box p { font-size: 14px; }
+.m-coffee .coffee-btn { font-size: 15px; min-height: 44px; }
 
 /* AI suggestion in the reply bar */
 .m-reply-ai { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 12px; font-size: 13px; color: var(--text-subtle); }
