@@ -805,6 +805,10 @@ Releases: *Actions → CI → Run workflow*, Branch `main`, bei „Release“ `p
 
 CI sparsam: Pull Requests laufen immer durch die Tests; der AD-Integrationstest nur, wenn sich Anmeldung/AD, Abhängigkeiten oder die Workflows geändert haben, Image-Bau und Schwachstellen-Scan nur, wenn nicht ausschließlich Doku geändert wurde (`.github/scripts/changes.sh`). Ein neuer Push auf denselben PR bricht den alten Lauf ab. Nach dem Merge auf `main` wird nur das Image gebaut (hält den Build-Cache warm) – ein Release führt ohnehin alle Prüfungen erneut aus. Jeder Job hat ein Zeitlimit; Dependabot fasst kleinere Updates zu einem PR pro Woche zusammen.
 
+## Unterstützen
+
+Admins sehen unten in der Seitenleiste, oben unter *Administration → System* und in der Handy-App unter *Ich* einen Kasten „Gefällt dir Helfi.Space? Über einen Kaffee freue ich mich.“ mit dem Knopf **Einen Kaffee spendieren** (öffnet Buy Me a Coffee in einem neuen Tab). Benutzer und Bearbeiter sehen ihn nicht.
+
 ## Lizenz
 
 Copyright (C) 2026 soleil0815

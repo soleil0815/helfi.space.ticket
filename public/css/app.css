@@ -1363,10 +1363,16 @@ button.details-head { display: flex; align-items: center; gap: 8px; width: 100%;
 .news-date { font-size: 13px; font-weight: 400; }
 .history button.link { margin-left: 6px; }
 
-/* Support link for admins (sidebar foot, mobile "Me") */
-a.coffee-btn, .sidebar-foot a.coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 10px; border-radius: 999px;
-  background: #FFDD00; color: #1D1D1F; border: 2px solid #1D1D1F; font-size: 12px; font-weight: 600; line-height: 1.2; text-decoration: none; white-space: nowrap; }
-a.coffee-btn .icon { width: 16px; height: 16px; }
+/* Support for the developer, admins only (sidebar foot, Administration → System, mobile "Me") */
+.coffee-box { display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; padding: 16px 20px; margin-bottom: 16px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.coffee-box p { margin: 0; font-size: 15px; }
+.coffee-box-stacked { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; margin: 0 0 8px; }
+.coffee-box-stacked p { font-size: 12px; line-height: 1.4; color: var(--text-subtle); }
+a.coffee-btn, .sidebar-foot a.coffee-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 18px; border-radius: 8px;
+  background: #FFDD00; color: #1D1D1F; border: 1px solid #E5C700; font-size: 15px; font-weight: 700; line-height: 1.2; text-decoration: none; white-space: nowrap; }
+.coffee-box-stacked a.coffee-btn { padding: 7px 10px; font-size: 13px; }
+a.coffee-btn .icon { width: 18px; height: 18px; }
 a.coffee-btn:hover, .sidebar-foot a.coffee-btn:hover { background: #FFE433; color: #1D1D1F; text-decoration: none; }
 a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 

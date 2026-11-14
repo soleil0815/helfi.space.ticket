@@ -805,6 +805,10 @@ Releases: *Actions → CI → Run workflow*, branch `main`, choose `patch`, `min
 
 Economical CI: pull requests always run the tests; the AD integration test only when sign-in/AD code, dependencies or the workflows changed, image build and vulnerability scan only when not only documentation changed (`.github/scripts/changes.sh`). A new push to the same PR cancels the older run. After a merge to `main` only the image is built (keeps the build cache warm) – a release runs all checks again anyway. Every job has a time limit; Dependabot bundles minor updates into one PR per week.
 
+## Support
+
+Admins see a box “Enjoying Helfi.Space? A coffee makes my day.” with the button **Buy me a coffee** (opens Buy Me a Coffee in a new tab) at the bottom of the sidebar, at the top of *Administration → System* and in the phone app under *Me*. Users and agents do not see it.
+
 ## License
 
 Copyright (C) 2026 soleil0815

@@ -22,6 +22,7 @@ import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
 import { renderCatalog } from './views/catalog.js';
 import { renderPortal, userStartPath } from './views/portal.js';
+import { coffeeBox } from './coffee.js';
 import { renderCmdb } from './views/cmdb.js';
 import { renderRate } from './views/survey.js';
 import { state } from './state.js';
@@ -43,14 +44,9 @@ let leaveGuard = null;
 let guardUrl = null;
 /** Sidebar footer: link to the website (new tab) and version (→ news) */
 export const HOME_URL = 'https://helfi.space';
-/** Support link for the developer – shown to admins only */
-export const COFFEE_URL = 'https://buymeacoffee.com/soleil0815';
-export function coffeeButton(cls = 'a.coffee-btn') {
-  return h(cls, { href: COFFEE_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.coffeeTitle') }, icon('coffee'), h('span', 'Buy me a coffee'));
-}
 function sidebarFoot() {
   return h('div.sidebar-foot',
-    state.isAdmin ? coffeeButton() : null,
+    state.isAdmin ? coffeeBox({ stacked: true }) : null,
     // Website and version always together on their own line
     h('div.sidebar-meta',
       h('a.home-link', { href: HOME_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.website') }, 'Helfi.Space'),

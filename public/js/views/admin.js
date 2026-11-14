@@ -1,5 +1,6 @@
 // Administration, grouped by topic: organisation, tickets, email, sign-in & security, appearance, system
 import { PORTAL_ICONS, PORTAL_COLORS } from './portal-choices.js';
+import { coffeeBox } from '../coffee.js';
 import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
@@ -1090,6 +1091,7 @@ function mailOutPage(body, s) {
 async function systemPage(body) {
   const sys = await api.admin.system();
   mount(body,
+    coffeeBox(),
     sys.warnings.length ? h('section.panel', sys.warnings.map((w) => h('div.banner.banner-warn', icon('warning'), t(`warn.${w.code}`, w)))) : null,
     h('section.panel',
       h('h2', t('system.info')),
