@@ -310,6 +310,58 @@ test('Too many attempts with one passkey are blocked', async () => {
   assert.equal((await signIn(pk)).r.status, 429, 'blocked even with a valid answer');
 });
 
+test('Hint on the start page: only without passkey and where adding works; "later" 14 days, "never" for good', async () => {
+  await S.user('hanna', 'user');
+  const c = await jar().login('hanna');
+  const prompt = async () => (await c('GET', '/api/me/passkeys')).body.prompt;
+  assert.equal(await prompt(), true);
+  // Switched off by the admin
+  S.ctx.settings.set('passkeys.prompt', false);
+  assert.equal(await prompt(), false);
+  S.ctx.settings.set('passkeys.prompt', true);
+  // "Later": hidden for 14 days, then back
+  assert.equal((await c('POST', '/api/me/passkeys/prompt', { action: 'later' })).status, 200);
+  assert.equal(await prompt(), false);
+  const until = S.db.prepare('SELECT passkey_prompt_until v FROM users WHERE id=?').get(S.ids.hanna).v;
+  const days = (until - Date.now()) / 86400000;
+  assert.ok(days > 13.9 && days <= 14, `${days}`);
+  S.db.prepare('UPDATE users SET passkey_prompt_until=? WHERE id=?').run(Date.now() - 1000, S.ids.hanna);
+  assert.equal(await prompt(), true, 'shown again after the 14 days');
+  // Only "later" and "never"
+  assert.equal((await c('POST', '/api/me/passkeys/prompt', { action: 'forever' })).status, 400);
+  // "Never": gone for good
+  await c('POST', '/api/me/passkeys/prompt', { action: 'never' });
+  assert.equal(S.db.prepare('SELECT passkey_prompt_until v FROM users WHERE id=?').get(S.ids.hanna).v, -1);
+  assert.equal(await prompt(), false);
+  // Admin setting is saved as a boolean
+  await S.admin('PUT', '/api/admin/settings', { settings: { 'passkeys.prompt': 0 } });
+  assert.equal(S.ctx.settings.get('passkeys.prompt'), false);
+  await S.admin('PUT', '/api/admin/settings', { settings: { 'passkeys.prompt': 1 } });
+  assert.equal(S.ctx.settings.get('passkeys.prompt'), true);
+});
+
+test('Hint: not once a passkey exists, not where adding is not allowed', async () => {
+  await S.user('ida', 'user');
+  const c = await jar().login('ida');
+  assert.equal((await c('GET', '/api/me/passkeys')).body.prompt, true);
+  assert.equal((await c('GET', '/api/bootstrap')).body.mfa.passkey, false);
+  await addPasskey(c, softPasskey());
+  assert.equal((await c('GET', '/api/me/passkeys')).body.prompt, false, 'has a passkey');
+  assert.equal((await c('GET', '/api/bootstrap')).body.mfa.passkey, true, 'a passkey counts as second factor: no "set up 2FA" banner');
+
+  await S.user('jan', 'user');
+  const s = S.ctx.settings;
+  s.set('mfa.internalNetworks', '10.0.10.0/24');
+  s.set('mfa.external', 'none');
+  try {
+    const j = await jar().login('jan');
+    assert.equal((await j('GET', '/api/me/passkeys')).body.prompt, false, 'outside without second factor');
+  } finally {
+    s.set('mfa.external', '');
+    s.set('mfa.internalNetworks', '127.0.0.1, ::1');
+  }
+});
+
 test('Flood of passkey requests from one address: 429 after 120 per minute', async () => {
   const karl = await jar().login('karl');
   const pk = softPasskey();

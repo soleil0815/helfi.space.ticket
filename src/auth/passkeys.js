@@ -25,6 +25,7 @@ export const PASSKEY_COOKIE = 'helfi_pk';
 const CHALLENGE_TTL = 5 * 60 * 1000;
 const MAX_PER_USER = 20;
 const MAX_PENDING = 5000;
+export const PROMPT_LATER_DAYS = 14;
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
 
@@ -110,11 +111,21 @@ export function createPasskeys(ctx) {
     /** For the profile: state and own passkeys */
     status(req, u) {
       const reason = blockedReason(u);
+      const canAdd = !reason && canAddHere(req, u);
+      const passkeys = rows(u.id).map(view);
+      const until = db.prepare('SELECT passkey_prompt_until v FROM users WHERE id=?').get(u.id)?.v;
       return {
-        available: !reason, reason,
-        canAdd: !reason && canAddHere(req, u),
-        passkeys: rows(u.id).map(view),
+        available: !reason, reason, canAdd, passkeys,
+        // Hint on the start page: only where adding works right away, for people without any passkey
+        prompt: canAdd && !passkeys.length && !!settings.get('passkeys.prompt') && until !== -1 && !(until > Date.now()),
       };
+    },
+
+    /** Hint on the start page: "later" (14 days) or "never ask again" */
+    snoozePrompt(u, action) {
+      if (action !== 'later' && action !== 'never') throw new HttpError(400, 'err.badRequest', 'action');
+      const v = action === 'never' ? -1 : Date.now() + PROMPT_LATER_DAYS * 24 * 3600 * 1000;
+      db.prepare('UPDATE users SET passkey_prompt_until=? WHERE id=?').run(v, u.id);
     },
 
     async registrationOptions(req, u) {

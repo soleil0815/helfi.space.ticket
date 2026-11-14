@@ -214,6 +214,7 @@ Mit einem Passkey meldet man sich per Face ID, Touch ID, Windows Hello oder Ger�
 
 - **Einrichten:** Jeder unter *Profil → Passkeys* bzw. in der Handy-App unter *Ich → Passkeys*. Den ersten Passkey nur dort, wo auch 2FA eingerichtet werden darf (Firmennetz, „Ersteinrichtung auch von außen“ oder nach einer Anmeldung mit zweitem Faktor) – sonst könnte jemand mit erbeutetem Kennwort von außen seinen eigenen Passkey hinterlegen.
 - **Anmelden:** Knopf *Mit Passkey anmelden* auf der Anmeldeseite, oder der Browser schlägt den Passkey direkt im Feld „Benutzername“ vor.
+- **Hinweis auf der Startseite:** Wer noch keinen Passkey hat, sieht nach der Anmeldung oben auf der Startseite (und im ersten Reiter der Handy-App) *Schneller anmelden – mit Passkey* mit *Passkey einrichten*, *Später* (14 Tage) und *Nicht mehr fragen* – nur wo das Anlegen direkt geht. Abschaltbar über *Auf Passkeys hinweisen*.
 - **Adresse:** Passkeys gehören zum Namen aus `HELFI_BASE_URL` und brauchen HTTPS mit einem Namen (keine IP-Adresse). Intern und extern denselben Namen nutzen (z. B. Split-DNS). Ändert sich der Name, müssen alle ihre Passkeys neu anlegen.
 - **Active Directory:** braucht ein **Dienstkonto** (Leserechte genügen). Ohne Kennwort prüft Helfi.Space bei jeder Passkey-Anmeldung mit dem Dienstkonto, ob das Konto noch existiert, aktiv ist und in der erlaubten Gruppe steckt, und übernimmt Rolle und Projektgruppen wie bei der Anmeldung mit Kennwort.
 - **SSO-Konten** melden sich beim Identitätsanbieter an und haben hier keine Passkeys.

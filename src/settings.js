@@ -83,6 +83,7 @@ export const DEFAULTS = {
   'mfa.ssoSecondFactor': 'confirmed',
   // Passkeys (Face ID, Touch ID, Windows Hello, device PIN) – need HTTPS; AD accounts also a service account
   'passkeys.enabled': true,
+  'passkeys.prompt': true, // hint on the start page for people without a passkey
   'general.defaultLanguage': 'de', // de | en – for emails to senders without an account
 
   // Active Directory / LDAP

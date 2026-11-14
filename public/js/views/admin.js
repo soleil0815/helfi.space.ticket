@@ -337,6 +337,7 @@ function passkeyPanel(s, netInfo) {
     h('h2', t('passkey.adminTitle')),
     h('p.muted', t('passkey.adminIntro')),
     field(t('passkey.enabled'), bindCheck(s, 'passkeys.enabled'), t('passkey.enabledHint')),
+    field(t('passkey.promptSetting'), bindCheck(s, 'passkeys.prompt'), t('passkey.promptSettingHint')),
     netInfo.passkeyRp
       ? h('div.hint-box', icon('check'), h('div', t('passkey.adminRp', { host: netInfo.passkeyRp })))
       : h('div.hint-box.hint-warn', icon('warning'), h('div', t('passkey.adminNoHttps', { url: netInfo.baseUrl }))),

@@ -949,3 +949,11 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-passkey-add { margin: 16px 0; display: grid; gap: 8px; }
 .m-passkey-none { margin: 12px 4px; }
 #m-passkey .m-btn-danger { margin-top: 4px; }
+
+/* Hint "set up a passkey" on the first tab */
+.m-passkey-hint { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; margin: 0 0 14px; padding: 14px; border-radius: 12px; background: var(--m-card); border: 1px solid var(--border); }
+.m-passkey-hint-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--blue-subtlest); color: var(--blue-text); }
+.m-passkey-hint-text strong { display: block; }
+.m-passkey-hint-text p { margin: 2px 0 0; font-size: 14px; color: var(--text-subtle); }
+.m-passkey-hint-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m-passkey-hint-actions .m-btn-primary { grid-column: 1 / -1; min-height: 44px; }

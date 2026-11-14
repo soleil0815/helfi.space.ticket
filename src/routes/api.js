@@ -62,7 +62,7 @@ export function createApi(ctx) {
     handler: (req, res, next) => next(new HttpError(429, 'err.tooManyAttempts')),
   });
   const passkeyAuthLimit = perMinute(120);
-  const passkeyMeLimit = perMinute(60);
+  const passkeyMeLimit = perMinute(120);
   // Full user list of the administration (with passkey counts); the agents list for assigning stays unlimited
   const usersListLimit = perMinute(120, (req) => req.query.all !== '1');
 
@@ -110,6 +110,8 @@ export function createApi(ctx) {
       mfa: {
         mode: req.user ? policy.userMode(req.user) : (policy.levels().external === 'none' ? 'off' : 'external'),
         internal: policy.isInternal(req), enabled: !!req.user?.totp_enabled,
+        // A passkey is a second factor too: no "set up 2FA" banner for people who have one
+        passkey: !!req.user && ctx.passkeys.available() && ctx.passkeys.count(req.user.id) > 0,
       },
       warnings: req.user?.role === 'admin' ? adminWarnings() : [],
     });
@@ -321,6 +323,7 @@ export function createApi(ctx) {
   r.get('/me/passkeys', passkeyMeLimit, (req, res) => res.json(ctx.passkeys.status(req, req.user)));
   r.post('/me/passkeys/options', passkeyMeLimit, wrap(async (req, res) => res.json(await ctx.passkeys.registrationOptions(req, req.user))));
   r.post('/me/passkeys', passkeyMeLimit, wrap(async (req, res) => res.json({ passkey: await ctx.passkeys.register(req, req.user, req.body?.response, str(req.body?.name, 200)) })));
+  r.post('/me/passkeys/prompt', passkeyMeLimit, (req, res) => { ctx.passkeys.snoozePrompt(req.user, str(req.body?.action, 10)); res.json({ ok: true }); });
   r.patch('/me/passkeys/:id', passkeyMeLimit, (req, res) => { ctx.passkeys.rename(req.user, int(req.params.id), str(req.body?.name, 200)); res.json({ ok: true }); });
   r.delete('/me/passkeys/:id', passkeyMeLimit, (req, res) => { ctx.passkeys.remove(req.user, int(req.params.id)); res.json({ ok: true }); });
   r.post('/me/mfa/recovery', wrap(async (req, res) => res.json({ recoveryCodes: mfa.newRecoveryCodes(req, req.user, str(req.body.code, 40)) })));
@@ -1032,7 +1035,7 @@ export function createApi(ctx) {
     }
     if (incoming['ai.reasoning'] !== undefined && !REASONING.includes(incoming['ai.reasoning'])) throw new HttpError(400, 'err.badRequest', 'ai.reasoning');
     if (incoming['ai.classifyMode'] !== undefined && !CLASSIFY_MODES.includes(incoming['ai.classifyMode'])) throw new HttpError(400, 'err.badRequest', 'ai.classifyMode');
-    if (incoming['passkeys.enabled'] !== undefined) incoming['passkeys.enabled'] = !!incoming['passkeys.enabled'];
+    for (const k of ['passkeys.enabled', 'passkeys.prompt']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
     for (const k of ['ai.summary', 'ai.reply', 'ai.rewrite', 'ai.classify', 'ai.kb', 'ai.duplicates']) if (incoming[k] !== undefined) incoming[k] = !!incoming[k];
     if (incoming['ai.baseUrl'] !== undefined && String(incoming['ai.baseUrl']).trim()) {
       let u = null;
