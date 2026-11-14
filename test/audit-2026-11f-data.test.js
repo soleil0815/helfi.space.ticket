@@ -146,6 +146,9 @@ test('A manual move settles pending AI hints; a stale suggestion never moves the
   const acc = await S.admin('POST', `/api/tickets/${moved}/component-suggestion/accept`);
   assert.equal(acc.status, 409);
   assert.equal(row('Gerät piept').project_key, 'HM', 'ticket stays where the agent put it');
+  assert.equal(S.db.prepare('SELECT state FROM component_suggestions WHERE ticket_id=?').get(t.id).state, 'corrected',
+    'a suggestion that was not applied is never counted as accepted (hit rate)');
+  S.db.prepare("UPDATE component_suggestions SET state='pending' WHERE ticket_id=?").run(t.id);
   const many = await S.admin('POST', '/api/component-suggestions/decide', { keys: [moved], action: 'accept' });
   assert.equal(many.body.done, 0);
   assert.equal(row('Gerät piept').project_key, 'HM');
@@ -250,4 +253,25 @@ test('A sender rule naming an archived project is ignored: the mail goes to the 
     S.ctx.settings.set('imap.senderRules', '[]');
     S.ctx.settings.set('imap.project', '');
   }
+});
+
+test('Reopening a closed ticket releases an assignee who no longer works on the project (web and mail reply)', async () => {
+  const P = (await S.admin('POST', '/api/projects', { key: 'RO', name: 'ro' })).body.project.id;
+  await S.admin('PUT', `/api/projects/${P}/agents`, { members: [{ userId: S.ids.anna }] });
+  const a = await newTicket('Rollo klemmt im Büro', P);
+  const b = await newTicket('Wasserhahn tropft RO', P);
+  for (const x of [a, b]) {
+    await assign(x.key, S.ids.anna);
+    assert.equal((await S.admin('PATCH', `/api/tickets/${x.key}`, { status: 'done' })).status, 200);
+  }
+  assert.equal((await S.admin('PUT', `/api/projects/${P}/agents`, { members: [] })).status, 200);
+  assert.equal(row('Rollo klemmt im Büro').assignee_id, S.ids.anna, 'closed tickets keep who handled them');
+  // reopened in the web UI
+  assert.equal((await S.admin('PATCH', `/api/tickets/${a.key}`, { status: 'open' })).status, 200);
+  assert.equal(row('Rollo klemmt im Büro').assignee_id, null);
+  // reopened by the reporter's reply
+  assert.equal((await karl('POST', `/api/tickets/${b.key}/comments`, { body: 'Tropft wieder' })).status, 201);
+  const rb = row('Wasserhahn tropft RO');
+  assert.equal(rb.status, 'open');
+  assert.equal(rb.assignee_id, null);
 });

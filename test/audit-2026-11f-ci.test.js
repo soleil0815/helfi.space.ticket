@@ -123,7 +123,8 @@ test('release and security update share one concurrency group and never cancel e
   const sec = wf('security-update.yml');
   const ci = wf('ci.yml');
   assert.match(sec, /^concurrency:\n {2}group: release\n {2}cancel-in-progress: false$/m);
-  assert.match(ci, /^concurrency:\n {2}group: \$\{\{ github\.event_name == 'workflow_dispatch' && 'release' \|\|/m);
+  assert.match(ci, /^concurrency:\n {2}group: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.release != 'nein' && 'release' \|\|/m,
+    'a test run by button (nein) must not join the release group: it would cancel a waiting security update');
   assert.match(ci, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/, 'releases are never cancelled');
 });
 

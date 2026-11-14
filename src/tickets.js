@@ -587,6 +587,8 @@ export function createTickets(db, users, { settings = null } = {}) {
           db.prepare('UPDATE tickets SET resolution=?, duplicate_of=? WHERE id=?').run(opts.resolution || 'done', opts.duplicateOf || null, row.id);
           if (opts.resolution && opts.resolution !== 'done') logActivity(row.id, user.id, 'resolution', opts.resolution, null, opts.duplicateKey || null);
         } else db.prepare('UPDATE tickets SET resolution=NULL, duplicate_of=NULL WHERE id=?').run(row.id);
+        // Reopened: a closed ticket kept its assignee as a record – they must still work on the project
+        if (changes.status.old === 'done' && changes.status.new !== 'done') releaseUnassignable(db, { ticketId: row.id, actorId: user.id });
       }
       if (rankChanged) db.prepare('UPDATE tickets SET rank=? WHERE id=?').run(Number(data.rank), row.id);
       if (changes.description) {
@@ -781,6 +783,8 @@ export function createTickets(db, users, { settings = null } = {}) {
       if (fromCustomer && (row.status === 'waiting' || row.status === 'done')) {
         db.prepare("UPDATE tickets SET status='open', resolved_at=NULL, resolution=NULL, duplicate_of=NULL WHERE id=?").run(row.id);
         logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'open');
+        // A closed ticket kept its assignee as a record – reopened, they must still work on the project
+        releaseUnassignable(db, { ticketId: row.id, actorId: user ? user.id : null });
       }
       return r;
     })();

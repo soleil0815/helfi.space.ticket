@@ -193,7 +193,8 @@ export async function renderTicket(page, ctx) {
   // ---------- Approval (catalog request or change waiting for this person) ----------
   function approvalCard() {
     const catalog = tk.approval || null;
-    const change = agent && tk.type === 'change' ? tk.change : null;
+    // Approvers without project rights get the approval part of the change too (canDecide decides)
+    const change = tk.type === 'change' ? tk.change : null;
     const canDecide = (catalog?.canDecide) || (change?.canDecide && (change.approvals?.items || []).some((x) => !x.decision));
     if (!canDecide) {
       // Others only see the state of a catalog approval (as in the desktop box)

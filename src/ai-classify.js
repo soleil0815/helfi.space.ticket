@@ -147,8 +147,16 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
     const { row, s } = pending(user, key);
     // A component of another project moves the ticket only while it is still in the inbox project
     // (otherwise refused: the stale suggestion is settled and the ticket stays where it is)
-    decide(row.id, 'accepted', user.id);
-    return tickets.applyComponent(row.id, s.component_id, { kind: 'aiAccepted', detail: s.model, userId: user.id, backfill: !!s.backfill, allowMove: inboxMode(row, !!s.backfill) });
+    try {
+      return db.transaction(() => {
+        decide(row.id, 'accepted', user.id);
+        return tickets.applyComponent(row.id, s.component_id, { kind: 'aiAccepted', detail: s.model, userId: user.id, backfill: !!s.backfill, allowMove: inboxMode(row, !!s.backfill) });
+      })();
+    } catch (e) {
+      // Not applied (e.g. a component of another project): settled as "corrected", not counted as a hit
+      if (e.status === 409) decide(row.id, 'corrected', user.id);
+      throw e;
+    }
   }
 
   /** Dismiss: no component; counts as not fitting in the hit rate */
