@@ -569,15 +569,9 @@ export function createApi(ctx) {
     if (!p) throw notFound();
     const body = req.body || {};
     // Tickets are never deleted: with tickets only together with moving them (otherwise archive)
-    // First check whether deleting is allowed (like projects.remove), then back up – otherwise every rejection would leave a copy behind
-    if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
-    if (db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0 && !body.moveTo) throw new HttpError(400, 'err.projectHasTickets');
-    if (body.moveTo) {
-      // also without tickets: canned responses, knowledge articles and offerings move there
-      const target = tickets.projects.get(body.moveTo);
-      if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
-      if (target.archived) throw new HttpError(400, 'err.projectArchived');
-    }
+    // First check whether deleting is allowed (the same check projects.remove makes), then back up –
+    // otherwise every rejection would leave a copy behind
+    tickets.projects.checkRemove(p.id, body.moveTo || null);
     await backupDatabase(db, `vor-loeschen-${p.key}`);
     pruneBackups(settings.get('backup.keep'));
     const out = tickets.projects.remove(req.user, p.id, { moveTo: body.moveTo || null });

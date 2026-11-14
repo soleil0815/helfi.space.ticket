@@ -161,7 +161,11 @@ export function createTickets(db, users, { settings = null } = {}) {
      * project (public ones stay public, internal ones are then for admins only) and the offerings are
      * switched off and lose the project key (a new project with the same key must not adopt them).
      */
-    remove(user, id, { moveTo = null } = {}) {
+    /**
+     * May the project be deleted (moveTo: key or id of the target project)? Throws the reason if not;
+     * returns { p, ticketRows, target }. The route checks this before the backup.
+     */
+    checkRemove(id, moveTo = null) {
       const p = db.prepare('SELECT * FROM projects WHERE id=?').get(int(id) || 0);
       if (!p) throw notFound();
       if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
@@ -169,10 +173,16 @@ export function createTickets(db, users, { settings = null } = {}) {
       let target = null;
       if (ticketRows.length && !moveTo) throw new HttpError(400, 'err.projectHasTickets');
       if (moveTo) {
+        // also without tickets: canned responses, knowledge articles and offerings move there
         target = projects.get(moveTo);
         if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
         if (target.archived) throw new HttpError(400, 'err.projectArchived');
       }
+      return { p, ticketRows, target };
+    },
+
+    remove(user, id, { moveTo = null } = {}) {
+      const { p, ticketRows, target } = projects.checkRemove(id, moveTo);
       db.transaction(() => {
         for (const { id: tid } of ticketRows) moveToProject(rawById(tid), target, user ? user.id : null);
         if (target) {
