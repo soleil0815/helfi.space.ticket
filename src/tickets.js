@@ -11,6 +11,7 @@ import { createSearch } from './search.js';
 import { log } from './lib/log.js';
 import { normalizeMentions } from './mentions.js';
 import { createComponents, matchComponent, reasonDetail } from './components.js';
+import { imageType } from './itil/kb.js';
 import { PORTAL_ICONS, PORTAL_COLORS } from './portal.js';
 import { releaseUnassignable } from './assignments.js';
 
@@ -862,8 +863,16 @@ export function createTickets(db, users, { settings = null } = {}) {
     if (!MAIL_IMAGE_TYPES.includes(String(a.mime).toLowerCase()) || a.size > MAIL_IMAGE_MAX) return null;
     if (a.comment_id && !allowInternal && db.prepare('SELECT internal FROM comments WHERE id=?').get(a.comment_id)?.internal) return null;
     const file = path.join(paths.attachments, String(a.ticket_id), a.storage_name);
-    if (!fs.existsSync(file)) return null;
-    return { id: a.id, filename: a.filename, mime: String(a.mime).toLowerCase(), path: file };
+    // Type and size from the stored file itself, not from what the browser claimed at upload
+    let size; let head;
+    try {
+      size = fs.statSync(file).size;
+      const fd = fs.openSync(file, 'r');
+      try { head = Buffer.alloc(12); head = head.subarray(0, fs.readSync(fd, head, 0, 12, 0)); } finally { fs.closeSync(fd); }
+    } catch { return null; }
+    const type = imageType(head);
+    if (!type || size > MAIL_IMAGE_MAX) return null;
+    return { id: a.id, filename: a.filename, mime: type.mime, path: file, size };
   }
 
   function deleteAttachment(user, attId) {
