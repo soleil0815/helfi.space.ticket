@@ -4,10 +4,13 @@
 #   Catalytix, AssetLotse, Pocket Knife, SAMAUDIT and SAMonboarding. The schedule starts every Tuesday,
 #   .github/scripts/patchday.sh only lets the second one through (a cron line cannot say "second Tuesday").
 #   By hand at any time (urgent fix): Actions → Security update → Run workflow (branch main).
-# What: the code of the highest release (tag v<version>, never unreleased commits from main), with
+# What: the code of the highest release (tag v<version> on main with a published GitHub release – never unreleased
+#   commits, a reserved tag of a failed release or a tag from another branch), with
 #   - the newest base image of the same Node line (e.g. node:24-alpine, new digest – never a new Node version),
 #   - all Alpine packages upgraded (the Dockerfile runs "apk upgrade" in a build without cache),
-#   - npm security fixes that need no version jump ("npm audit fix", never --force).
+#   - npm security fixes that need no version jump ("npm audit fix", never --force), only with package versions
+#     published at least 7 days ago (--before: a hijacked package is usually found and pulled within days)
+#     and without running install scripts during the fix.
 # Checks: tests with the updated packages, build natively for amd64 and arm64 (no QEMU), smoke test per
 #   architecture, compare with the published image (nothing changed → nothing happens), Trivy on both platforms
 #   (fixable HIGH/CRITICAL blocks). Only if everything passed: tag v<version>-s<n>, image <version>-s<n> and
@@ -22,8 +25,10 @@ on:
 
 permissions: {}
 
+# Shared with the CI release (ci.yml): a security update and a program release never run at the same time,
+# otherwise the security update of an older version could move "latest" back (audit 2026-11f)
 concurrency:
-  group: security-update
+  group: release
   cancel-in-progress: false
 
 env:
@@ -49,12 +54,15 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
         run: |
-          if [ "$EVENT" != schedule ] || sh .github/scripts/patchday.sh; then
-            echo "due=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "due=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Security update::Not patch day – the security update runs on the second Tuesday of the month."
-          fi
+          # 0 = patch day, 1 = not patch day, anything else = broken check → the run fails (never a silent skip)
+          rc=0
+          [ "$EVENT" != schedule ] || sh .github/scripts/patchday.sh || rc=$?
+          case "$rc" in
+            0) echo "due=true" >> "$GITHUB_OUTPUT" ;;
+            1) echo "due=false" >> "$GITHUB_OUTPUT"
+               echo "::notice title=Security update::Not patch day – the security update runs on the second Tuesday of the month." ;;
+            *) echo "::error title=Patch day check::patchday.sh failed (exit code $rc)"; exit 1 ;;
+          esac
 
   # Release state + newer packages, tests – no write permissions
   prepare:
@@ -78,8 +86,11 @@ jobs:
           node-version: 24
       - name: Highest release and next security update number
         id: t
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # read the GitHub releases (contents: read)
         run: |
-          out="$(sh .github/scripts/security-tag.sh)" || { echo "::error title=No release::Publish a program version first."; exit 1; }
+          # highest version with a published (non-draft) GitHub release whose tag is on main
+          out="$(sh .github/scripts/security-tag.sh)" || { echo "::error title=No release::No published release found (see the log) – publish a program version first."; exit 1; }
           echo "$out" >> "$GITHUB_OUTPUT"
           v="$(printf '%s\n' "$out" | sed -n 's/^version=//p')"
           echo "sha=$(git rev-list -n 1 "v$v")" >> "$GITHUB_OUTPUT"
@@ -98,8 +109,10 @@ jobs:
         working-directory: release
         run: |
           npm ci --no-audit --no-fund
-          # never --force: only fixes within the version ranges of package.json
-          npm audit fix --no-fund || true
+          # never --force: only fixes within the version ranges of package.json; only versions published at
+          # least 7 days ago (cooling-off period against hijacked packages), no install scripts during the fix
+          before="$(date -u -d '7 days ago' +%Y-%m-%d)"
+          npm audit fix --no-fund --ignore-scripts --before="$before" || true
           npm ci --no-audit --no-fund
           git --no-pager diff --stat -- package-lock.json
       - name: Version for the image
@@ -246,7 +259,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git fetch -q --tags origin
+          git fetch -q --tags origin +refs/heads/main:refs/remotes/origin/main
           now="$(sh .github/scripts/security-tag.sh)"
           [ "$now" = "$(printf 'version=%s\ntag=%s' "$V" "$TAG")" ] \
             || { echo "::error title=Release meanwhile::A new version or security update appeared during the run ($now) – start the security update again."; exit 1; }
@@ -330,20 +343,33 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$TAG" -f sha="$SHA" >/dev/null
       - name: Publish the checked image (same digest)
+        id: pub
         if: steps.diff.outputs.changed == 'true'
         env:
           DIGEST: ${{ steps.cand.outputs.digest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Never overwrite a published tag
           if old="$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest.Digest}}' 2>inspect.err)"; then
             echo "::error::$IMAGE:$TAG exists already ($old) – not overwritten"; exit 1
           fi
           case "$(cat inspect.err)" in *"not found"*|*"manifest unknown"*|*"MANIFEST_UNKNOWN"*|*"404"*) ;; *) echo "::error::Cannot check $IMAGE:$TAG: $(cat inspect.err)"; exit 1 ;; esac
-          # the security update of the highest version is always the newest state → latest
-          docker buildx imagetools create -t "$IMAGE:$TAG" -t "$IMAGE:latest" "$IMAGE@$DIGEST"
+          # latest only if this is still the highest released version right now (checked again just before
+          # publishing: a newer program release must never be moved back to an older version)
+          git fetch -q --tags origin +refs/heads/main:refs/remotes/origin/main
+          highest="$(sh .github/scripts/security-tag.sh | sed -n 's/^version=//p')"
+          [ -n "$highest" ] || { echo "::error::Cannot determine the highest release"; exit 1; }
+          if [ "$highest" = "$V" ]; then
+            docker buildx imagetools create -t "$IMAGE:$TAG" -t "$IMAGE:latest" "$IMAGE@$DIGEST"
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Not latest::v$highest was released during this run – $TAG is published without moving latest."
+            docker buildx imagetools create -t "$IMAGE:$TAG" "$IMAGE@$DIGEST"
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
           now="$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           [ "$now" = "$DIGEST" ] || { echo "::error::Published image ($now) is not the checked candidate ($DIGEST)"; exit 1; }
-          echo "### Published $IMAGE:$TAG (and latest)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Published $IMAGE:$TAG (latest: $highest)" >> "$GITHUB_STEP_SUMMARY"
       - name: GitHub release
         if: steps.diff.outputs.changed == 'true'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -351,6 +377,6 @@ jobs:
           tag_name: v${{ env.TAG }}
           name: v${{ env.TAG }} (security update)
           target_commitish: ${{ env.SHA }}
-          make_latest: 'true'
+          make_latest: ${{ steps.pub.outputs.latest }}
           body_path: release-notes.md
           files: release/*

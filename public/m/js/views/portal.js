@@ -37,12 +37,13 @@ export async function renderPortal(page) {
   const load = async () => {
     const data = await api.portal();
     const c = data.counts;
-    const stat = (n, label, filter, cls = '') => h(`a.m-stat${cls}`, { href: `/m/requests?filter=${filter}`, 'data-link': '' }, h('span.m-stat-n', String(n)), h('span.m-stat-l', label));
+    // The counters count the user's own reports by status: the list behind them shows exactly those
+    const stat = (n, label, filter, cls = '') => h(`a.m-stat${cls}`, { href: `/m/requests?filter=${filter}&mine=1`, 'data-link': '' }, h('span.m-stat-n', String(n)), h('span.m-stat-l', label));
     page.body.replaceChildren(
       h('div.m-portal-search', icon('search'), q),
       results,
       section(t('portal.mine'),
-        h('div.m-stats.m-portal-stats', stat(c.active, t('portal.count.active'), 'open'), stat(c.waiting, t('portal.count.waiting'), 'waiting', c.waiting ? '.warn' : ''), stat(c.done, t('portal.count.done'), 'done')),
+        h('div.m-stats.m-portal-stats', stat(c.active, t('portal.count.active'), 'active'), stat(c.waiting, t('portal.count.waiting'), 'waiting', c.waiting ? '.warn' : ''), stat(c.done, t('portal.count.done'), 'done')),
         data.recent[0] ? h('div.m-group-rows', data.recent.slice(0, 2).map((r) => listRow({ label: r.title, hint: `${r.key} · ${r.project} · ${t(`status.${r.status}`)}`, href: `/m/t/${encodeURIComponent(r.key)}` }))) : null),
       data.departments.length
         ? section(t('portal.departments'), h('div.m-group-rows.m-portal-depts', data.departments.map((d) => h('a.m-row', { href: `/m/portal/${d.key.toLowerCase()}`, 'data-link': '', 'data-dept': d.key },
@@ -63,7 +64,7 @@ export async function renderPortalDepartment(page, ctx) {
     section(t('portal.whatToRequest'),
       offers.length
         ? h('div.m-group-rows', offers.map((x) => listRow({ label: `${x.emoji || '📦'}  ${x.title}`, hint: x.description, href: `/m/new/c/${x.id}` })))
-        : emptyState('inbox', t('portal.noOffers'), null),
+        : emptyState('inbox', t(canReport() ? 'portal.noOffers' : 'portal.noOffersNoReport'), null),
       canReport() ? h('a.m-btn.m-btn-block.m-portal-report', { href: `/m/new/report?project=${encodeURIComponent(d.key)}`, 'data-link': '', 'data-report': '' }, icon('plus'), t('portal.report')) : null),
     faq.length ? section(t('portal.faq'), h('div.m-group-rows', faq.map((a) => listRow({ icon: 'book', label: a.title, href: `/m/kb/${a.id}` })))) : null);
 }

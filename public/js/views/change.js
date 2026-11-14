@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, mount, icon, toast, field, select, modal, fmtDate, richText, avatar } from '../dom.js';
 import { t, getLang } from '../i18n.js';
 import { state } from '../app.js';
+import { changePlanView } from '../changeplan.js';
 
 const PHASES = ['draft', 'approval', 'approved', 'scheduled', 'implementing', 'review', 'closed'];
 const TEXT_FIELDS = ['reason', 'implementationPlan', 'backoutPlan', 'testPlan'];
@@ -99,6 +100,16 @@ export function changeSection(tk, refresh) {
     editable ? h('div.form-actions', h('button.btn', { type: 'button', onclick: save }, t('app.save'))) : null);
 }
 
+/** Approvers who do not work on the change's project: the approval round (to decide) and the plan read-only */
+export function changeApprovalBox(tk, refresh) {
+  const c = tk.change;
+  if (!c?.approvals?.round) return null;
+  return h('section.ticket-section.itil-box.change-box',
+    h('div.section-head', h('h3', icon('type-change'), ' ', t('change.title')), h(`span.badge.phase-${c.phase}`, t(`change.phase.${c.phase}`))),
+    approvalsBox(tk, c, refresh),
+    changePlanView(c.plan));
+}
+
 function approvalsBox(tk, c, refresh) {
   const a = c.approvals;
   if (!a.round) return null;
@@ -108,7 +119,7 @@ function approvalsBox(tk, c, refresh) {
     h('div.approvals-head', h('strong', t('change.approvals')), ' ', h('span.muted.small', t(`change.mode.${c.mode}`)), a.round > 1 ? h('span.muted.small', ` · ${t('change.round', { n: a.round })}`) : null),
     a.items.map((x) => h('div.approval-row', avatar({ displayName: x.name }, 'sm'), h('span', x.name),
       h(`span.badge.decision-${x.decision || 'pending'}`, t(`change.decision.${x.decision || 'pending'}`)),
-      x.comment ? h('span.muted.small', `„${x.comment}“`) : null)),
+      x.comment ? h('span.muted.small', t('app.quoted', { text: x.comment })) : null)),
     c.canDecide ? h('div.approval-actions', comment,
       h('button.btn.btn-primary.small', { type: 'button', onclick: () => decide('approve') }, icon('check'), t('change.approve')),
       h('button.btn.btn-danger.small', { type: 'button', onclick: () => decide('reject') }, t('change.reject'))) : null);

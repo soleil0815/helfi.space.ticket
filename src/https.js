@@ -103,12 +103,23 @@ export function httpsMiddleware(app, { baseUrl, mode = 'auto', hsts = 'on', host
   const store = hosts || createHttpsHosts(null);
   const active = () => mode === '1' || store.known(host);
 
+  // Only a request for the HELFI_BASE_URL host itself proves anything about that host: an HTTPS hit on another
+  // vhost of the proxy (IP address, default site) must not switch it to HTTPS (audit). req.hostname honours
+  // X-Forwarded-Host only from the trusted proxy.
+  const forHost = (req) => String(req.hostname || '').toLowerCase() === host;
+  // Learn only from a single, unambiguous protocol value: a proxy that appends to X-Forwarded-Proto would
+  // otherwise let the client choose the leftmost value (audit)
+  const unambiguous = (req) => {
+    const h = req.get('x-forwarded-proto') ? 'x-forwarded-proto' : 'x-forwarded-port';
+    return String(req.get(h) || '').split(',').length === 1;
+  };
+
   return (req, res, next) => {
     if (req.path === '/healthz') return next();
     const proto = proxyProtocol(app, req);
     if (!proto) return next();                               // direct request: never redirected, no HSTS
     if (proto === 'https') {
-      if (mode === 'auto') store.learn(host);
+      if (mode === 'auto' && forHost(req) && unambiguous(req)) store.learn(host);
       const send = hsts === 'preload' || (hsts !== 'off' && (mode === '1' || store.wasRedirected(host)));
       if (send && !res.getHeader('Strict-Transport-Security')) {
         res.setHeader('Strict-Transport-Security', hsts === 'preload' ? HSTS_PRELOAD : HSTS);
@@ -116,7 +127,7 @@ export function httpsMiddleware(app, { baseUrl, mode = 'auto', hsts = 'on', host
       return next();
     }
     if (!active()) return next();
-    if (mode === 'auto') store.markRedirected(host);
+    if (mode === 'auto' && forHost(req)) store.markRedirected(host);
     // originalUrl starts with "/": never "//host" (that would be another site)
     const pathAndQuery = `/${String(req.originalUrl || '/').replace(/^\/+/, '')}`;
     res.setHeader('Cache-Control', 'no-store');

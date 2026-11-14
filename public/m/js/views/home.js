@@ -55,28 +55,38 @@ const USER_FILTERS = [
   { id: 'waiting', label: 'portal.count.waiting', params: { status: 'waiting' } },
   { id: 'done', label: 'm.req.done', params: { status: 'done' } },
   { id: 'participant', label: 'm.req.participant', params: { participant: 'me' } },
+  // Target of the portal counter "Active" (open + in progress); its chip only shows while it is chosen
+  { id: 'active', label: 'portal.count.active', params: { status: 'open,in_progress' }, onlyActive: true },
 ];
 
 async function userHome(page, ctx) {
   page.title(t('m.req.title'));
   let filter = USER_FILTERS.find((f) => f.id === ctx.params.get('filter')) || null;
+  // mine=1 (from the portal counters, which count only the user's own reports): only tickets they reported
+  let mine = ctx.params.get('mine') === '1';
   const chips = h('div');
   const listHost = h('div', skeletonList(3));
   page.body.replaceChildren(chips, listHost);
-  const drawChips = () => chips.replaceChildren(chipRow(USER_FILTERS.map((f) => chip(t(f.label), {
-    active: filter?.id === f.id,
-    onClick: () => {
-      filter = filter?.id === f.id ? null : f;
-      const base = location.pathname === '/m/requests' ? '/m/requests' : '/m/';
-      replaceUrl(filter ? `${base}?filter=${filter.id}` : base);
-      drawChips();
-      load();
-    },
-  })), t('m.req.title')));
+  const sync = () => {
+    const base = location.pathname === '/m/requests' ? '/m/requests' : '/m/';
+    const q = new URLSearchParams();
+    if (filter) q.set('filter', filter.id);
+    if (mine) q.set('mine', '1');
+    replaceUrl(q.toString() ? `${base}?${q}` : base);
+    drawChips();
+    load();
+  };
+  const drawChips = () => chips.replaceChildren(chipRow([
+    ...USER_FILTERS.filter((f) => !f.onlyActive || filter?.id === f.id).map((f) => chip(t(f.label), {
+      active: filter?.id === f.id,
+      onClick: () => { filter = filter?.id === f.id ? null : f; sync(); },
+    })),
+    mine ? chip(t('filter.reportedByMe'), { active: true, onClick: () => { mine = false; sync(); } }) : null,
+  ], t('m.req.title')));
   let seq = 0;
   const load = async () => {
     const my = ++seq;
-    const { tickets } = await api.tickets({ ...(filter?.params || {}), sort: 'updated' });
+    const { tickets } = await api.tickets({ ...(filter?.params || {}), ...(mine ? { reporter: 'me' } : {}), sort: 'updated' });
     if (my !== seq) return;
     listHost.replaceChildren(tickets.length
       ? ticketList(tickets)

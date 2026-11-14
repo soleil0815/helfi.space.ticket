@@ -67,27 +67,34 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
   const decide = (ticketId, state, userId) => db.prepare("UPDATE component_suggestions SET state=?, decided_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), decided_by=? WHERE ticket_id=?")
     .run(state, userId, ticketId);
 
+  /** A mail no component matched landed in the inbox project: the AI chooses from the components of
+   *  all projects – the ticket then moves to the chosen one's project. Only there may a component move it. */
+  function inboxMode(row, backfill) {
+    const inbox = tickets.projects.get(settings.get('imap.project') || settings.get('general.defaultProject') || '');
+    return !backfill && row.source === 'email' && !!inbox && row.project_id === inbox.id;
+  }
+
   /** backfill: sorting an existing ticket afterwards (see applyComponent); modeOverride: suggest | auto */
   async function classify(ticketId, { backfill = false, modeOverride = null } = {}) {
     const save = { run: (...a) => saveStmt.run(...a, backfill ? 1 : 0) };
     const row = tickets.rawById(ticketId);
     if (!row || row.component_id || !on()) return null; // set meanwhile (by hand) or switched off
-    // A mail no component matched landed in the inbox project: the AI chooses from the components of
-    // all projects – the ticket then moves to the chosen one's project (named "Project / Component")
-    const inbox = tickets.projects.get(settings.get('imap.project') || settings.get('general.defaultProject') || '');
-    const all = !backfill && row.source === 'email' && inbox && row.project_id === inbox.id;
+    // Inbox: components of all projects (named "Project / Component")
+    const all = inboxMode(row, backfill);
     let comps = all ? tickets.components.activeAll() : tickets.components.active(row.project_id);
     if (all && new Set(comps.map((c) => c.projectId)).size > 1) comps = comps.map((c) => ({ ...c, name: `${c.projectName} / ${c.name}` }));
     if (!comps.length) return null;
     const cfg = ai.config();
     const answer = await ai.timed('classify', `${row.project_key}-${row.number}`, cfg, () => ai.chat(classifyMessages(comps, row), { maxTokens: 300, cfg }));
     const { component, reason } = parseClassification(answer, comps);
-    // The ticket may have got a component while the model was thinking
-    if (tickets.rawById(ticketId)?.component_id) return null;
+    // The ticket may have got a component – or been moved to another project by hand – while the
+    // model was thinking: the answer no longer applies (it would undo the move)
+    const now = tickets.rawById(ticketId);
+    if (!now || now.component_id || now.project_id !== row.project_id) return null;
     if (!component) { save.run(ticketId, null, '', reason, cfg.model, 'none'); return { state: 'none' }; }
     if ((modeOverride || mode()) === 'auto') {
       save.run(ticketId, component.id, component.name, reason, cfg.model, 'auto');
-      tickets.applyComponent(ticketId, component.id, { kind: 'ai', detail: cfg.model, backfill });
+      tickets.applyComponent(ticketId, component.id, { kind: 'ai', detail: cfg.model, backfill, allowMove: all });
       return { state: 'auto', component: component.name };
     }
     save.run(ticketId, component.id, component.name, reason, cfg.model, 'pending');
@@ -121,6 +128,8 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
   tickets.addDetailExtra((user, row) => {
     if (!agentOn(user, row.project_id) || row.component_id) return {};
     const s = db.prepare("SELECT * FROM component_suggestions WHERE ticket_id=? AND state='pending' AND component_id IS NOT NULL").get(row.id);
+    // A suggestion of another project (left from before a move) is not offered outside the inbox
+    if (s && tickets.components.activeById(s.component_id)?.projectId !== row.project_id && !inboxMode(row, !!s.backfill)) return {};
     return s ? { componentSuggestion: { id: s.component_id, name: s.component_name, reason: s.reason, model: s.model } } : {};
   });
 
@@ -136,8 +145,18 @@ export function createAiClassifier({ db, settings, tickets, ai }) {
   /** Accept: set the component (history "AI suggestion"; nobody is assigned) */
   function accept(user, key) {
     const { row, s } = pending(user, key);
-    decide(row.id, 'accepted', user.id);
-    return tickets.applyComponent(row.id, s.component_id, { kind: 'aiAccepted', detail: s.model, userId: user.id, backfill: !!s.backfill });
+    // A component of another project moves the ticket only while it is still in the inbox project
+    // (otherwise refused: the stale suggestion is settled and the ticket stays where it is)
+    try {
+      return db.transaction(() => {
+        decide(row.id, 'accepted', user.id);
+        return tickets.applyComponent(row.id, s.component_id, { kind: 'aiAccepted', detail: s.model, userId: user.id, backfill: !!s.backfill, allowMove: inboxMode(row, !!s.backfill) });
+      })();
+    } catch (e) {
+      // Not applied (e.g. a component of another project): settled as "corrected", not counted as a hit
+      if (e.status === 409) decide(row.id, 'corrected', user.id);
+      throw e;
+    }
   }
 
   /** Dismiss: no component; counts as not fitting in the hit rate */

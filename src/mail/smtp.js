@@ -109,24 +109,40 @@ export function commentAsText(comment, lang) {
 
 const IMAGE_SRC = /^\/api\/attachments\/(\d+)$/;
 export const MAIL_IMAGES_MAX = 5;
+// Total raw size of all inline pictures of one mail (before base64): keeps the mail below the
+// usual 10 MB limit of mail servers
+export const MAIL_IMAGES_TOTAL = 5 * 1024 * 1024;
 
 /**
  * HTML part for a comment: the mail template with the comment in its place. Pictures in the comment
  * travel with the mail as inline attachments (cid:) – the recipient sees them without signing in,
  * nothing becomes reachable without sign-in. pickImage(id) decides per picture (tickets.mailImage);
- * at most MAIL_IMAGES_MAX, the rest stay a note "[Image: name]" (the ticket link is in the mail).
+ * at most MAIL_IMAGES_MAX different pictures and MAIL_IMAGES_TOTAL bytes in all, the rest stay a note
+ * "[Image: name]" (the ticket link is in the mail). A picture used several times is attached once.
  * Plain comments without pictures: no HTML part (undefined).
  */
 export function commentMail(comment, lang, template, vars, pickImage = () => null) {
   const attachments = [];
+  const cids = new Map(); // attachment id → cid (each picture travels only once)
+  let total = 0;
   const image = (name, src) => {
     const m = IMAGE_SRC.exec(String(src));
-    if (!m || attachments.length >= MAIL_IMAGES_MAX) return null;
-    const a = pickImage(Number(m[1]));
-    if (!a) return null;
-    const cid = `img${a.id}.${crypto.randomBytes(8).toString('hex')}@helfi`;
-    attachments.push({ filename: a.filename, path: a.path, contentType: a.mime, cid, contentDisposition: 'inline' });
-    const alt = String(name || a.filename).replace(/[&<>"']/g, '');
+    if (!m) return null;
+    const aid = Number(m[1]);
+    let cid = cids.get(aid);
+    if (!cid) {
+      if (attachments.length >= MAIL_IMAGES_MAX) return null;
+      const a = pickImage(aid);
+      if (!a) return null;
+      const size = Number(a.size) || 0;
+      if (total + size > MAIL_IMAGES_TOTAL) return null;
+      total += size;
+      cid = `img${a.id}.${crypto.randomBytes(8).toString('hex')}@helfi`;
+      cids.set(aid, cid);
+      attachments.push({ filename: a.filename, path: a.path, contentType: a.mime, cid, contentDisposition: 'inline' });
+      name = name || a.filename;
+    }
+    const alt = String(name || attachments.find((x) => x.cid === cid)?.filename || '').replace(/[&<>"']/g, '');
     return `<img src="cid:${cid}" alt="${alt}" style="display:block;max-width:100%;height:auto;margin:4px 0 8px;border:1px solid #dcdfe4;border-radius:4px">`;
   };
   const md = comment.format === 'md';
@@ -180,6 +196,24 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
   tickets.events.on('created', safe(async ({ ticket, notifyReporter }) => { if (notifyReporter) await toNewReporter(ticket, 'createdFor'); }));
   tickets.events.on('reporterChanged', safe(async ({ ticket }) => toNewReporter(ticket, 'reporterChanged')));
 
+  /** Sends one notification; a failure never stops the mails to further recipients. If a mail with
+   *  HTML part/inline pictures is refused (e.g. too big), it is sent once more as plain text only –
+   *  the text part already shows the pictures as "[Image: name]". */
+  async function deliver(msg) {
+    try {
+      return await mailer.send(msg);
+    } catch (e) {
+      if (!msg.html && !msg.attachments?.length) { log.warn('Notification failed', { to: msg.to, error: e.message }); return false; }
+      log.warn('Notification failed, retrying without pictures', { to: msg.to, error: e.message });
+      try {
+        return await mailer.send({ ...msg, html: undefined, attachments: undefined });
+      } catch (e2) {
+        log.warn('Notification failed', { to: msg.to, error: e2.message });
+        return false;
+      }
+    }
+  }
+
   /** One separate mail per recipient (reporter and request participants) in their language – no
    *  addresses of other parties in the headers. The person who triggered it gets nothing. */
   async function toCustomers(ticket, actorId, build) {
@@ -189,7 +223,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
       const built = build(lang, r.displayName || t(lang, 'mail.greetingFallback'), r);
       if (!built) continue; // builder decided: no mail to this recipient
       const { subject, text, html, attachments } = built;
-      await mailer.send({ to: r.email, subject, text, html, attachments, ticketId: ticket.id, customer: true });
+      await deliver({ to: r.email, subject, text, html, attachments, ticketId: ticket.id, customer: true });
     }
   }
 
@@ -231,7 +265,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
         kind: t(lang, internal ? 'mail.mention.inNote' : 'mail.mention.inReply'),
       };
       const { html, attachments } = commentMail(comment, lang, 'mail.mention.body', vars, (aid) => tickets.mailImage(ticket.id, aid, { allowInternal: agentRecipient }));
-      await mailer.send({ to: u.email, subject: t(lang, 'mail.mention.subject', vars), text: t(lang, 'mail.mention.body', vars), html, attachments, ticketId: ticket.id, customer: !agentRecipient });
+      await deliver({ to: u.email, subject: t(lang, 'mail.mention.subject', vars), text: t(lang, 'mail.mention.body', vars), html, attachments, ticketId: ticket.id, customer: !agentRecipient });
     }
   }));
 

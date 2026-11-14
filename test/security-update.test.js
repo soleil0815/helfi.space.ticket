@@ -33,7 +33,13 @@ test('security-tag.sh: highest program release, next free -s number', () => {
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'x');
-  const run = () => sh('security-tag.sh', [], { cwd: dir });
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+  // every tag has a published release here (release checks: test/audit-2026-11f-ci.test.js)
+  const bin = path.join(dir, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'gh'), '#!/bin/sh\necho false\n', { mode: 0o755 });
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: 'firma/helfi' };
+  const run = () => sh('security-tag.sh', [], { cwd: dir, env });
   assert.equal(run().status, 1, 'no release yet');
   for (const t of ['v1.9.0', 'v1.10.0', 'v1.2.0', 'v1.10.0-beta', 'v01.99.0']) git('tag', t);
   assert.equal(run().stdout, 'version=1.10.0\ntag=1.10.0-s1\n', 'numeric order, only real releases');
@@ -72,7 +78,8 @@ test('security-update.yml: patch day only, from main, release state, checks befo
   assert.match(job('prepare'), /if: needs\.patchday\.outputs\.due == 'true' && github\.ref == 'refs\/heads\/main'/);
   assert.doesNotMatch(job('prepare'), /: write/, 'preparing writes nothing');
   assert.match(job('prepare'), /git worktree add --detach release "v\$v"/, 'code of the highest release, not main');
-  assert.match(job('prepare'), /npm audit fix --no-fund/);
+  assert.match(job('prepare'), /npm audit fix --no-fund --ignore-scripts --before="\$before"/);
+  assert.match(job('prepare'), /before="\$\(date -u -d '7 days ago' \+%Y-%m-%d\)"/, 'only versions published at least 7 days ago');
   assert.doesNotMatch(yml, /^\s+npm audit fix.*--force/m, 'no version jumps');
   assert.match(job('prepare'), /run: npm test/);
   assert.match(job('build'), /no-cache: true/);
@@ -86,7 +93,7 @@ test('security-update.yml: patch day only, from main, release state, checks befo
   assert.ok(pos.every((p) => p > 0), JSON.stringify(pos));
   assert.deepEqual(pos, [...pos].sort((x, y) => x - y), 'compare → still highest → scan → sign → tag → publish → release');
   assert.match(pub, /not overwritten/);
-  assert.match(yml, /concurrency:\n {2}group: security-update\n {2}cancel-in-progress: false/);
+  assert.match(yml, /concurrency:\n {2}group: release\n {2}cancel-in-progress: false/, 'shared with the CI release');
   assert.match(yml, /^permissions: \{\}$/m);
   for (const u of yml.match(/uses: \S+/g)) assert.match(u, /@[0-9a-f]{40}$/, u);
 });

@@ -2,6 +2,7 @@
 import { hashPassword } from './lib/crypto.js';
 import { HttpError } from './lib/http.js';
 import { withProjects } from './auth/access.js';
+import { releaseUnassignable } from './assignments.js';
 
 export function publicUser(u) {
   if (!u) return null;
@@ -213,6 +214,8 @@ export function createUsers(db) {
       db.prepare('UPDATE users SET username=? WHERE id=?').run(username, u.id);
     }
     applyAccess(u, access);
+    // Lost a project group or the role at this sign-in: taken off the open tickets they may no longer work on
+    releaseUnassignable(db, { userId: u.id });
     return scoped(byId.get(u.id));
   }
 
@@ -240,7 +243,8 @@ export function createUsers(db) {
 
   /** Active agents and admins – of these projects (ids), or of every project (null) */
   function agentsOf(projectIds = null) {
-    if (projectIds === null) return db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin') ORDER BY display_name").all();
+    // All projects: admins, legacy agents and everyone who works on a project (role 'user' + project_agents)
+    if (projectIds === null) return db.prepare("SELECT * FROM users WHERE active=1 AND (role IN ('agent','admin') OR id IN (SELECT user_id FROM project_agents)) ORDER BY display_name").all();
     return db.prepare(`SELECT * FROM users WHERE active=1 AND (role IN ('admin','agent')
       OR id IN (SELECT user_id FROM project_agents WHERE project_id IN (SELECT value FROM json_each(?)))) ORDER BY display_name`).all(JSON.stringify(projectIds));
   }

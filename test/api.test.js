@@ -84,9 +84,11 @@ test('Error messages in the browser language', async () => {
 
 test('Create users and log in', async () => {
   for (const [u, role] of [['agent1', 'agent'], ['user1', 'user'], ['user2', 'user']]) {
-    const r = await admin('POST', '/api/users', { username: u, displayName: u, email: `${u}@firma.local`, role, password: 'Sehrgeheim123' });
+    const r = await admin('POST', '/api/users', { username: u, displayName: u, email: `${u}@firma.local`, role: role === 'agent' ? 'user' : role, password: 'Sehrgeheim123' });
     assert.equal(r.status, 201);
   }
+  // legacy all-projects agents: the API no longer gives out role 'agent'
+  db.prepare("UPDATE users SET role='agent' WHERE username IN ('agent1')").run();
   assert.equal((await agent('POST', '/api/auth/login', { username: 'agent1', password: 'Sehrgeheim123' })).status, 200);
   assert.equal((await user1('POST', '/api/auth/login', { username: 'user1', password: 'Sehrgeheim123' })).status, 200);
   assert.equal((await user2('POST', '/api/auth/login', { username: 'USER2', password: 'Sehrgeheim123' })).status, 200, 'case does not matter');
@@ -115,10 +117,10 @@ test('Users only see their own tickets and no internal notes', async () => {
   assert.deepEqual(seen.comments.map((c) => c.body), ['öffentlich']);
   assert.deepEqual(seen.activity, []);
 
-  // A user cannot write internal comments
-  await user1('POST', `/api/tickets/${t1.key}/comments`, { body: 'von mir', internal: true });
+  // A user cannot write internal comments: refused, never saved as a public reply instead
+  assert.equal((await user1('POST', `/api/tickets/${t1.key}/comments`, { body: 'von mir', internal: true })).status, 403);
   const all = (await agent('GET', `/api/tickets/${t1.key}`)).body.ticket.comments;
-  assert.equal(all.find((c) => c.body === 'von mir').internal, false);
+  assert.equal(all.find((c) => c.body === 'von mir'), undefined);
 });
 
 test('Users may not change status/assignment, agents may', async () => {
@@ -162,7 +164,7 @@ test('Secrets never leave the server in plain text', async () => {
 });
 
 test('The last admin cannot be removed', async () => {
-  const r = await admin('PATCH', '/api/users/1', { role: 'agent' });
+  const r = await admin('PATCH', '/api/users/1', { role: 'user' });
   assert.equal(r.status, 400);
   assert.equal(r.body.error.code, 'err.lastAdmin');
   assert.equal((await admin('PATCH', '/api/users/1', { active: false })).status, 400);

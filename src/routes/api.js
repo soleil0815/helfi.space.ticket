@@ -36,6 +36,7 @@ import { REASONING, normalizeBaseUrl, listModels } from '../ai.js';
 import { LINK_KINDS } from '../itil/links.js';
 import { createSavedFilters } from '../filters.js';
 import { CLASSIFY_MODES } from '../ai-classify.js';
+import { releaseUnassignable } from '../assignments.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -443,6 +444,9 @@ export function createApi(ctx) {
   r.post('/users', requireRole('admin'), wrap(async (req, res) => {
     const username = str(req.body.username, 64).trim();
     if (!/^[\p{L}\p{N}._@-]{2,64}$/u.test(username)) throw new HttpError(400, 'err.badRequest', 'username');
+    // Roles are user and admin; agent rights come from projects. The legacy role 'agent' (every
+    // project) is not given out any more.
+    if (req.body.role === 'agent') throw new HttpError(400, 'err.badRequest', 'role');
     const u = users.createLocal({
       username, displayName: str(req.body.displayName, 120).trim(), email: str(req.body.email, 254).trim(),
       role: oneOf(req.body.role, ['admin', 'agent', 'user'], 'user'), password: str(req.body.password, 1024),
@@ -454,6 +458,8 @@ export function createApi(ctx) {
     // the stored row: its role is the base role (rights from projects are not a role)
     const u = users.rawById(int(req.params.id));
     if (!u) throw notFound();
+    // Legacy role 'agent' (every project): kept on accounts that have it, never given to another one
+    if (req.body.role === 'agent' && u.role !== 'agent') throw new HttpError(400, 'err.badRequest', 'role');
     const role = req.body.role !== undefined ? oneOf(req.body.role, ['admin', 'agent', 'user'], u.role) : u.role;
     const active = req.body.active !== undefined ? (req.body.active ? 1 : 0) : u.active;
     if (u.role === 'admin' && u.active && (role !== 'admin' || !active) && users.countActiveAdmins(u.id) === 0) {
@@ -484,6 +490,8 @@ export function createApi(ctx) {
       );
       if (email !== undefined) users.setEmail(u.id, email);
       if (newHash) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
+      // Deactivated or no longer an agent (role): taken off the open tickets they may not work on
+      releaseUnassignable(db, { userId: u.id, actorId: req.user.id });
     })();
     if (newHash || !active) sessions.destroyAllForUser(u.id);
     if (req.body.resetMfa) {
@@ -576,13 +584,15 @@ export function createApi(ctx) {
         if (group.toLowerCase() !== String(p.agent_group || '').toLowerCase()) db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='group'").run(p.id);
       }
       if (lead !== undefined || deputy !== undefined) {
-        tickets.projects.update(p.id, { leadId: lead === undefined ? undefined : (lead ? lead.id : null), deputyId: deputy === undefined ? undefined : (deputy ? deputy.id : null) });
+        tickets.projects.update(p.id, { leadId: lead === undefined ? undefined : (lead ? lead.id : null), deputyId: deputy === undefined ? undefined : (deputy ? deputy.id : null) }, { release: false });
       }
       if (members) {
         db.prepare("DELETE FROM project_agents WHERE project_id=? AND source='manual'").run(p.id);
         const add = db.prepare("INSERT OR IGNORE INTO project_agents(project_id, user_id, source) VALUES(?,?,'manual')");
         for (const u of members) add.run(p.id, u.id);
       }
+      // Whoever no longer works on the project is taken off its open tickets (they could not open them)
+      releaseUnassignable(db, { projectId: p.id, actorId: req.user.id });
     })();
     log.info(`People of project ${p.key} changed by ${req.user.username}`, { lead: lead !== undefined, deputy: deputy !== undefined, group: group !== null, people: members ? members.length : undefined });
     res.json(projectPeople(tickets.projects.get(p.id)));
@@ -593,14 +603,9 @@ export function createApi(ctx) {
     if (!p) throw notFound();
     const body = req.body || {};
     // Tickets are never deleted: with tickets only together with moving them (otherwise archive)
-    // First check whether deleting is allowed (like projects.remove), then back up – otherwise every rejection would leave a copy behind
-    if (db.prepare('SELECT COUNT(*) n FROM projects WHERE id<>?').get(p.id).n === 0) throw new HttpError(400, 'err.lastProject');
-    if (db.prepare('SELECT COUNT(*) n FROM tickets WHERE project_id=?').get(p.id).n > 0) {
-      if (!body.moveTo) throw new HttpError(400, 'err.projectHasTickets');
-      const target = tickets.projects.get(body.moveTo);
-      if (!target || target.id === p.id) throw new HttpError(400, 'err.badRequest', 'moveTo');
-      if (target.archived) throw new HttpError(400, 'err.projectArchived');
-    }
+    // First check whether deleting is allowed (the same check projects.remove makes), then back up –
+    // otherwise every rejection would leave a copy behind
+    tickets.projects.checkRemove(p.id, body.moveTo || null);
     await backupDatabase(db, `vor-loeschen-${p.key}`);
     pruneBackups(settings.get('backup.keep'));
     const out = tickets.projects.remove(req.user, p.id, { moveTo: body.moveTo || null });

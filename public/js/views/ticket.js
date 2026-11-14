@@ -20,7 +20,7 @@ import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
 import { slaChip } from './sla.js';
 import { problemSection, problemHint, createProblemButton } from './problem.js';
-import { changeSection } from './change.js';
+import { changeSection, changeApprovalBox } from './change.js';
 import { kbSuggestions, kbFromTicketButton } from './kb.js';
 import { catalogApprovalBox } from './catalog.js';
 import { ciSection } from './cmdb.js';
@@ -178,6 +178,8 @@ export async function renderTicket(content, key) {
       const old = oldest();
       mount(orderBtn, icon('arrow-down', old ? '' : 'flip'), t(old ? 'ticket.order.oldest' : 'ticket.order.newest'));
       orderBtn.title = t('ticket.order.switch');
+      // The visible text is the current state, the click reverses it: say both to screen readers
+      orderBtn.setAttribute('aria-label', `${t(old ? 'ticket.order.oldest' : 'ticket.order.newest')} – ${t('ticket.order.switch')}`);
     };
     orderBtn.addEventListener('click', async () => {
       const prev = state.user.activityOrder;
@@ -288,7 +290,12 @@ export async function renderTicket(content, key) {
     async function submit() {
       if (field.isEmpty() || sending) return;
       sending = true;
-      try { await api.comment(tk.key, field.getValue(), internal, [], 'md'); field.mentions?.close(); field.destroy(); await refresh(); }
+      try {
+        const { comment } = await api.comment(tk.key, field.getValue(), internal, [], 'md');
+        field.mentions?.close(); field.destroy(); await refresh();
+        // Oldest first: the new entry lands at the end, far below the reply box – bring it into view
+        if (state.user.activityOrder === 'oldest') document.querySelector(`[data-comment="${comment?.id}"]`)?.scrollIntoView({ block: 'center' });
+      }
       catch (e) { toast(e.message, 'error'); }
       finally { sending = false; }
     }
@@ -535,6 +542,7 @@ export async function renderTicket(content, key) {
         agent && state.boot.aiFeatures?.summary ? aiSummarySection(tk) : null,
         agent && tk.type === 'problem' ? problemSection(tk, refresh) : null,
         agent && tk.type === 'change' ? changeSection(tk, refresh) : null,
+        !agent && tk.type === 'change' ? changeApprovalBox(tk, refresh) : null,
         attachmentsEl(),
         linksEl,
         agent ? ciSection(tk, refresh) : null,

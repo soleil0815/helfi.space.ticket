@@ -15,6 +15,7 @@ import { replaceUrl, go, dataChanged } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
 import { openSheet } from '../sheet.js';
 import { section } from '../ui.js';
+import { changePlanView } from '/js/changeplan.js';
 import { replyBar } from '../reply.js';
 import {
   openActionSheet, openStatusSheet, openAssigneeSheet, openPrioritySheet, openTypeSheet, openParticipantsSheet, openLinkSheet, openChoiceSheet,
@@ -193,9 +194,18 @@ export async function renderTicket(page, ctx) {
   // ---------- Approval (catalog request or change waiting for this person) ----------
   function approvalCard() {
     const catalog = tk.approval || null;
-    const change = agent && tk.type === 'change' ? tk.change : null;
+    // Approvers without project rights get the approval part of the change too (canDecide decides)
+    const change = tk.type === 'change' ? tk.change : null;
     const canDecide = (catalog?.canDecide) || (change?.canDecide && (change.approvals?.items || []).some((x) => !x.decision));
     if (!canDecide) {
+      // Approver of the change (decided already or earlier round) without project rights: phase,
+      // decisions and the plan read-only (as in the desktop box)
+      if (!catalog && change?.plan) {
+        return h('div.m-card.m-approval.m-approval-info',
+          h('div.m-approval-head', icon('shield'), h('strong', t('change.title')), h('span.m-approval-state', t(`change.phase.${change.phase}`))),
+          approverList(change.approvals?.items || []),
+          changePlanView(change.plan));
+      }
       // Others only see the state of a catalog approval (as in the desktop box)
       if (!catalog) return null;
       return h('div.m-card.m-approval.m-approval-info', { class: `state-${catalog.state}` },
@@ -226,6 +236,8 @@ export async function renderTicket(page, ctx) {
         h('h2#m-approval-title', t('m.approval.title')),
         h('p', catalog?.canDecide ? t('m.approval.textCatalog') : t('m.approval.textChange')))),
       approverList(items),
+      // Approver without rights on the change's project: the plan read-only (agents see it in the desktop UI)
+      change && !catalog?.canDecide ? changePlanView(change.plan) : null,
       comment,
       h('div.m-approval-actions',
         h('button.m-btn.m-btn-danger', { type: 'button', onclick: (e) => decide('reject', e.currentTarget) }, icon('close'), t('change.reject')),
@@ -237,7 +249,7 @@ export async function renderTicket(page, ctx) {
     return h('ul.m-approvers', items.map((x) => h('li',
       avatar({ displayName: x.name }, 'xs'), h('span.m-approver-name', x.name),
       h(`span.m-approval-state.${x.decision || 'pending'}`, t(`change.decision.${x.decision || 'pending'}`)),
-      x.comment ? h('span.m-approver-comment', `„${x.comment}“`) : null)));
+      x.comment ? h('span.m-approver-comment', t('app.quoted', { text: x.comment })) : null)));
   }
 
   // ---------- Rating (reporter of a resolved ticket, as in the desktop UI) ----------

@@ -103,7 +103,7 @@ export async function renderList(content, params, { requests = false } = {}) {
         },
       }) : null,
     !requests && state.agentProjects.length > 1 ? select([['', t('nav.allProjects')], ...state.agentProjects.map((p) => [p.key, p.name])], f.project || '', { class: 'select-sm', onchange: (e) => set('project', e.target.value) }) : null,
-    select([['', t('filter.allStatus')], ['unresolved', t('status.unresolved')], ...STATUSES.map((s) => [s, t(`status.${s}`)])], f.status || '', { class: 'select-sm', onchange: (e) => set('status', e.target.value) }),
+    select([['', t('filter.allStatus')], ['unresolved', t('status.unresolved')], ['open,in_progress', t('portal.count.active')], ...STATUSES.map((s) => [s, t(`status.${s}`)])], f.status || '', { class: 'select-sm', onchange: (e) => set('status', e.target.value) }),
     // Resolution: only meaningful for done tickets
     f.status === 'done' || f.resolution ? select([['', t('filter.allResolutions')], ...['done', 'rejected', 'duplicate'].map((r) => [r, t(`resolution.${r}`)])], f.resolution || '', { class: 'select-sm', 'aria-label': t('field.resolution'), onchange: (e) => set('resolution', e.target.value) }) : null,
     !requests ? select([['', t('filter.allTypes')], ...TYPES.map((s) => [s, t(`type.${s}`)])], f.type || '', { class: 'select-sm', onchange: (e) => set('type', e.target.value) }) : null,

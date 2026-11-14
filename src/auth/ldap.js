@@ -201,20 +201,29 @@ export function groupSearchBase(baseDn) {
   return dc.length ? dc.join(',') : String(baseDn || '');
 }
 
+/** Security-group bit of groupType (ADS_GROUP_TYPE_SECURITY_ENABLED). */
+const SECURITY_GROUP_BIT = '2147483648';
+
+/** LDAP filter for a group given by name: sAMAccountName only, security groups only. */
+export function groupNameFilter(name) {
+  return `(&(objectClass=group)(groupType:1.2.840.113556.1.4.803:=${SECURITY_GROUP_BIT})(sAMAccountName=${escapeFilter(String(name).trim())}))`;
+}
+
 async function resolveGroupDn(client, cfg, value) {
   if (!value) return '';
   value = String(value).trim();
   if (value.includes('=')) return value;
   let base = groupSearchBase(cfg.baseDn);
   if (!base) base = (await readRootDse(client)).defaultNamingContext || '';
-  const v = escapeFilter(value);
-  // cn, pre-Windows-2000 name, name and display name – AD shows different ones in different places
+  // Only the pre-Windows-2000 name (sAMAccountName, unique per domain) of a SECURITY group. cn/name/displayName
+  // are not unique or are free text: whoever may create or rename (e.g. self-service distribution) groups could
+  // otherwise make the admin/project group ambiguous or, if the real one is missing, become the match.
   const { searchEntries } = await client.search(base, {
     scope: 'sub',
-    filter: `(&(objectClass=group)(|(cn=${v})(sAMAccountName=${v})(name=${v})(displayName=${v})))`,
+    filter: groupNameFilter(value),
     attributes: ['dn'],
   });
-  if (!searchEntries.length) { log.warn(`AD group not found: ${value}`); return ''; }
+  if (!searchEntries.length) { log.warn(`AD group not found: ${value} – enter the pre-Windows 2000 name (sAMAccountName) of a security group, or the full DN.`); return ''; }
   // Ambiguous (same name in several OUs) → better no role than the wrong one
   if (searchEntries.length > 1) { log.warn(`AD group "${value}" is ambiguous (${searchEntries.length} matches) – please enter the full DN.`); return ''; }
   return searchEntries[0].dn;

@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { HttpError, str } from '../lib/http.js';
 import { hashPassword, randomToken } from '../lib/crypto.js';
 import { normalizeEmail } from '../users.js';
+import { withProjects } from './access.js';
 import { t, normalizeLang } from '../i18n.js';
 import { log } from '../lib/log.js';
 
@@ -95,7 +96,8 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
   const registrationOpen = () => !!settings.get('register.enabled') && mailer.enabled();
 
   /** Accounts that may reset their password themselves */
-  const resetRoleSql = () => (resetMode() === 'all' ? '' : " AND role='user'");
+  // "users" = effective role user: no admins, no agents, no users who work on a project (they act as agents)
+  const resetRoleSql = () => (resetMode() === 'all' ? '' : " AND role='user' AND id NOT IN (SELECT user_id FROM project_agents)");
   function resetAvailable() {
     if (resetMode() === 'off' || !mailer.enabled()) return false;
     if (settings.get('register.enabled')) return true;
@@ -193,7 +195,8 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
   // ---------- Forgot password ----------
   function eligibleForReset(u) {
     if (!u || u.source !== 'local' || !u.active || !u.password_hash || !u.email) return false;
-    return resetMode() === 'all' || u.role === 'user';
+    // Effective role (a user with projects is an agent) – the same in requestReset and resetPassword
+    return resetMode() === 'all' || withProjects(db, u).role === 'user';
   }
 
   function requestReset(req) {

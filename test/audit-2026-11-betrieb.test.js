@@ -277,7 +277,7 @@ test('CI: release only via button from main – not "Run workflow" from a tag, n
   assert.ok(pub.indexOf('Publish the checked image') < pub.indexOf('GitHub release'));
   assert.match(pub, /imagetools create \$tags "\$IMAGE@\$DIGEST"/);
   assert.match(yml, /kandidat-\$\{\{ github\.run_id \}\}/);
-  assert.match(yml, /\nconcurrency:\n {2}group: \$\{\{ github\.event_name == 'workflow_dispatch' && 'release'/);
+  assert.match(yml, /\nconcurrency:\n {2}group: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.release != 'nein' && 'release'/);
 });
 
 test('Dockerfile: base image pinned by digest (Audit)', () => {

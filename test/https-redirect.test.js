@@ -27,7 +27,10 @@ async function serve(baseUrl = BASE, { mode = 'auto', hsts = 'on', trust = 'loop
   app.all('/{*rest}', (req, res) => res.json({ ok: true, path: req.originalUrl }));
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
-  const call = (p, { method = 'GET', headers = {} } = {}) => fetch(base + p, { method, headers, redirect: 'manual' });
+  // Like a real reverse proxy: the request is for the public name (only requests for the HELFI_BASE_URL host
+  // switch it to HTTPS – see test/audit-2026-11f-ops.test.js)
+  const fwdHost = new URL(baseUrl).host;
+  const call = (p, { method = 'GET', headers = {} } = {}) => fetch(base + p, { method, headers: { 'X-Forwarded-Host': fwdHost, ...headers }, redirect: 'manual' });
   return { call, close: () => server.close(), mw, file };
 }
 

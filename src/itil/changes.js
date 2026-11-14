@@ -86,17 +86,28 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
     return detail(user, key);
   }
 
+  /**
+   * Decision of an approver of the current round (any role – approvers need not work on the change's
+   * project). Vote and the resulting phase change happen in one transaction; the phase change is a
+   * system step done on the approver's behalf, so it does not need agent rights on the project.
+   */
   function decide(user, key, decision, comment) {
     const row = tickets.load(user, key);
     if (row.type !== 'change') throw new HttpError(400, 'err.notChange');
-    approvals.decide(user, row.id, decision, comment);
-    tickets.logActivity(row.id, user.id, 'approval', decision, null, str(comment, 200) || null);
-    const f = state(row);
-    const result = approvals.outcome(row.id, mode());
-    if (f.phase === 'approval' && (result === 'approved' || result === 'rejected')) {
-      setPhase(user, tickets.rawById(row.id), result);
-      notifyOwner(tickets.rawById(row.id), result);
-    }
+    const result = db.transaction(() => {
+      approvals.decide(user, row.id, decision, comment);
+      tickets.logActivity(row.id, user.id, 'approval', decision, null, str(comment, 200) || null);
+      const f = state(row);
+      const res = approvals.outcome(row.id, mode());
+      if (f.phase === 'approval' && (res === 'approved' || res === 'rejected')) {
+        // Acts as an agent of every project for this step only (own properties: no project limit)
+        const system = { ...user, role: 'agent' };
+        setPhase(system, tickets.rawById(row.id), res);
+        return res;
+      }
+      return null;
+    })();
+    if (result) notifyOwner(tickets.rawById(row.id), result);
     return detail(user, key);
   }
 
@@ -142,9 +153,25 @@ export function createChanges(db, tickets, fields, approvals, settings, { mailer
       .catch((e) => log.warn('Approval mail failed', { error: e.message }));
   }
 
+  // Plan fields an approver needs to decide (read-only view for approvers without project rights)
+  const PLAN_FIELDS = ['changeType', 'risk', 'services', 'plannedStart', 'plannedEnd', 'reason', 'implementationPlan', 'backoutPlan', 'testPlan'];
+  const cisOf = db.prepare('SELECT c.name, c.kind FROM ticket_cis x JOIN config_items c ON c.id=x.ci_id WHERE x.ticket_id=? ORDER BY c.name');
+  function planOf(row, f) {
+    const plan = Object.fromEntries(PLAN_FIELDS.map((n) => [n, f[n] ?? '']));
+    // Affected configuration items: name and kind only (no CMDB details, no links into the CMDB)
+    plan.cis = cisOf.all(row.id).map((c) => ({ name: c.name, kind: c.kind }));
+    return plan;
+  }
+
   tickets.addDetailExtra((user, row) => {
-    if (!agentOn(user, row.project_id) || row.type !== 'change') return {};
+    if (row.type !== 'change') return {};
     const f = state(row);
+    if (!agentOn(user, row.project_id)) {
+      // Approver (of any round) without rights on the project: phase, approval round (to decide) and
+      // the plan read-only – what is needed to decide; no transitions, no review/outcome, no edit
+      if (!user || !approvals.isApprover(row.id, user.id)) return {};
+      return { change: { phase: f.phase, next: [], approvals: approvals.current(row.id), mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id), plan: planOf(row, f) } };
+    }
     return { change: { phase: f.phase, next: nextPhases(f), approvals: approvals.current(row.id), mode: mode(), canDecide: approvals.isPendingApprover(row.id, user.id) } };
   });
 

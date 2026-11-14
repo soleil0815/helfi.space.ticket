@@ -155,7 +155,7 @@ export async function renderKbArticle(page, ctx) {
     tocBtn ? h('button.m-btn.m-btn-block.m-toc-inline', { type: 'button', onclick: () => openToc(page, doc) }, icon('ed-toc'), t('kb.toc'), h('span.m-muted', String(hs.length)), icon('chevron-right', 'm-push-right')) : null,
     a.body.trim() ? h('div.m-card.m-kb-doc', doc) : null,
     children,
-    agent ? h('p.m-kb-edit-hint', icon('monitor'), t('m.kb.editOnComputer')) : null,
+    agent && a.canEdit ? h('p.m-kb-edit-hint', icon('monitor'), t('m.kb.editOnComputer')) : null,
     a.body.trim() ? ratingBox(a, { compact: true }) : null,
     help,
     commentsSection(a)));

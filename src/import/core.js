@@ -5,7 +5,7 @@
 // - Comments (internal ones stay internal) and attachments
 // - Importing again updates already imported tickets instead of creating duplicates
 // - NO emails are sent during the import
-import { normalizeLabels } from '../tickets.js';
+import { normalizeLabels, AGENT_OF_PROJECT } from '../tickets.js';
 import { MAX_COMPONENTS } from '../components.js';
 import { log } from '../lib/log.js';
 import { HttpError } from '../lib/http.js';
@@ -125,13 +125,14 @@ export function createImportCore({ db, tickets, users }) {
   }
 
   const agentCache = new Map();
-  function agentFor(p) {
+  /** Assignee: an active account that works on the target project (admins, or the project's people) */
+  function agentFor(p, projectId) {
     if (!p) return null;
-    const cacheKey = p.ref || p.username || p.email || p.name;
+    const cacheKey = `${projectId}\n${p.ref || p.username || p.email || p.name}`;
     if (agentCache.has(cacheKey)) return agentCache.get(cacheKey);
     let id = null;
     const email = String(p.email || '').toLowerCase();
-    const agents = db.prepare("SELECT * FROM users WHERE active=1 AND role IN ('agent','admin')").all();
+    const agents = db.prepare(`SELECT * FROM users u WHERE u.active=1 AND ${AGENT_OF_PROJECT}`).all(projectId);
     const byMail = email && agents.find((a) => String(a.email || '').toLowerCase() === email);
     if (byMail) id = byMail.id;
     else {
@@ -167,7 +168,7 @@ export function createImportCore({ db, tickets, users }) {
     }
 
     const reporter = person(it.reporter);
-    const assigneeId = agentFor(it.assignee);
+    const assigneeId = agentFor(it.assignee, project.id);
     const statusName = it.statusName || '';
     const typeName = it.typeName || '';
     const values = {

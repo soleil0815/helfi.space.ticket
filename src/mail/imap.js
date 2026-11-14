@@ -374,10 +374,12 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
       // Which project: a sender rule with a project, otherwise the best-matching component of all
       // projects (keywords, sender) – nothing matches: the inbox project (cfg.project / default),
       // whose people sort it by hand (the AI may suggest one, see ai-classify.js)
-      const ruled = rule?.project && tickets.projects.get(rule.project) ? rule.project : '';
+      // An archived (or deleted) project counts as not set: the rule's project is ignored, so component
+      // routing and the inbox still apply; an archived inbox falls back to the default project.
+      const activeProject = (k) => { const p = k ? tickets.projects.get(k) : null; return p && !p.archived ? p : null; };
+      const ruled = rule?.project ? activeProject(rule.project) : null;
       const routed = ruled ? null : matchComponent(tickets.components.activeAll(), { title, description, sender: fromAddr });
-      const projectKey = ruled || routed?.component.projectKey || cfg.project || settings.get('general.defaultProject');
-      const project = projectKey ? tickets.projects.get(projectKey) : null;
+      const project = ruled || activeProject(routed?.component.projectKey) || activeProject(cfg.project) || activeProject(settings.get('general.defaultProject'));
       const ticket = tickets.create(sender, {
         title,
         description,

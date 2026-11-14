@@ -8,7 +8,8 @@ import { renderDoc, toMarkdown, linkTarget, safeImg, PANEL_KINDS, IMAGE_SIZES, p
 
 const IMAGE_TYPES = /^image\/(png|jpeg|gif|webp)$/;
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-const mod = isMac ? '⌘' : 'Strg+';
+// Modifier key prefix for tooltips: ⌘ on a Mac, otherwise the translated Ctrl key ("Strg" in German)
+const mod = () => (isMac ? '⌘' : `${t('app.ctrl')}+`);
 
 /**
  * variant 'article' (knowledge articles, full toolbar) or 'comment' (comments: compact toolbar,
@@ -548,8 +549,8 @@ export function createKbEditor({
   const slotRight = h('span.cm-slot.cm-slot-right', right);
   const commentToolbar = () => h('div.kb-toolbar.cm-toolbar', { role: 'toolbar', 'aria-label': t('kb.ed.toolbar') },
     slotLeft,
-    tb('bold', glyph('B', 'b'), t('kb.ed.bold'), () => exec('bold'), `${mod}B`),
-    tb('italic', glyph('I', 'i'), t('kb.ed.italic'), () => exec('italic'), `${mod}I`),
+    tb('bold', glyph('B', 'b'), t('kb.ed.bold'), () => exec('bold'), `${mod()}B`),
+    tb('italic', glyph('I', 'i'), t('kb.ed.italic'), () => exec('italic'), `${mod()}I`),
     tb('more', 'ed-more', t('kb.ed.moreFormats'), withSel((a) => dropdown(a, [
       { label: t('kb.ed.underline'), onClick: () => exec('underline') },
       { label: t('kb.ed.strike'), onClick: () => exec('strikeThrough') },
@@ -563,7 +564,7 @@ export function createKbEditor({
     tb('quote', 'ed-quote', t('kb.ed.quote'), () => blockToggle('blockquote')),
     tb('code', 'ed-code', t('kb.ed.code'), () => blockToggle('pre')),
     h('span.kb-tb-sep'),
-    tb('link', 'link', t('kb.ed.insertLink'), () => linkDialog(), `${mod}K`),
+    tb('link', 'link', t('kb.ed.insertLink'), () => linkDialog(), `${mod()}K`),
     upload ? tb('image', 'ed-image', t('kb.ed.image'), () => pickImage()) : null,
     emojiBtn(),
     mention ? tb('mention', 'at', t('mention.button'), () => insertAt()) : null,
@@ -572,9 +573,9 @@ export function createKbEditor({
   const toolbar = comment ? commentToolbar() : h('div.kb-toolbar', { role: 'toolbar', 'aria-label': t('kb.ed.toolbar') },
     blockBtn,
     h('span.kb-tb-sep'),
-    tb('bold', glyph('B', 'b'), t('kb.ed.bold'), () => exec('bold'), `${mod}B`),
-    tb('italic', glyph('I', 'i'), t('kb.ed.italic'), () => exec('italic'), `${mod}I`),
-    tb('underline', glyph('U', 'u'), t('kb.ed.underline'), () => exec('underline'), `${mod}U`),
+    tb('bold', glyph('B', 'b'), t('kb.ed.bold'), () => exec('bold'), `${mod()}B`),
+    tb('italic', glyph('I', 'i'), t('kb.ed.italic'), () => exec('italic'), `${mod()}I`),
+    tb('underline', glyph('U', 'u'), t('kb.ed.underline'), () => exec('underline'), `${mod()}U`),
     tb('more', 'ed-more', t('kb.ed.moreFormats'), withSel((a) => dropdown(a, [
       { label: t('kb.ed.strike'), onClick: () => exec('strikeThrough') },
       { label: t('kb.ed.inlineCode'), onClick: () => inlineCode() },
@@ -586,7 +587,7 @@ export function createKbEditor({
     tb('ol', 'ed-ol', t('kb.ed.numbers'), () => toggleList('ol')),
     tb('check', 'ed-check', t('kb.ed.checklist'), () => toggleList('check')),
     h('span.kb-tb-sep'),
-    tb('link', 'link', t('kb.ed.insertLink'), () => linkDialog(), `${mod}K`),
+    tb('link', 'link', t('kb.ed.insertLink'), () => linkDialog(), `${mod()}K`),
     tb('image', 'ed-image', t('kb.ed.image'), () => pickImage()),
     emojiBtn(),
     tb('panel', 'ed-panel', t('kb.ed.panel'), withSel((a) => dropdown(a, [
@@ -603,8 +604,8 @@ export function createKbEditor({
     ] : [{ label: t('kb.ed.insertTable'), onClick: () => insertTable() }]))),
     tb('hr', 'ed-hr', t('kb.ed.hr'), () => { const p = h('p', h('br')); insertBlock(h('hr')).after(p); caretTo(p); changed(); }),
     h('span.spacer'),
-    tb('undo', 'ed-undo', t('kb.ed.undo'), () => exec('undo'), `${mod}Z`),
-    tb('redo', 'ed-redo', t('kb.ed.redo'), () => exec('redo'), isMac ? '⇧⌘Z' : 'Strg+Y'),
+    tb('undo', 'ed-undo', t('kb.ed.undo'), () => exec('undo'), `${mod()}Z`),
+    tb('redo', 'ed-redo', t('kb.ed.redo'), () => exec('redo'), isMac ? '⇧⌘Z' : `${mod()}Y`),
   );
 
   function updateState() {

@@ -44,12 +44,18 @@ export async function startServer(name) {
   const s = await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' });
   if (s.status !== 200) throw new Error(`setup ${s.status}`);
   const ids = {};
-  /** Create a user and return a logged-in client */
+  /** Create a user and return a logged-in client. role 'agent' = legacy all-projects agent (set in the database: the API no longer gives it out) */
   const user = async (username, role) => {
-    const r = await admin('POST', '/api/users', { username, displayName: username, email: `${username}@firma.local`, role, password: 'Sehrgeheim123' });
+    const r = await admin('POST', '/api/users', { username, displayName: username, email: `${username}@firma.local`, role: role === 'agent' ? 'user' : role, password: 'Sehrgeheim123' });
     ids[username] = r.body.user.id;
+    if (role === 'agent') legacyAgent(db, r.body.user.id);
     return client().login(username);
   };
   const stop = async () => { await new Promise((r) => setTimeout(r, 100)); server.close(); db.close(); fs.rmSync(dataDir, { recursive: true, force: true }); };
   return { db, ctx, base, client, admin, user, ids, stop };
+}
+
+/** Turn an account into a legacy agent (role 'agent': every project) – the API no longer gives this role out */
+export function legacyAgent(db, id) {
+  db.prepare("UPDATE users SET role='agent' WHERE id=?").run(id);
 }
