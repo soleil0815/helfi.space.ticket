@@ -1,6 +1,7 @@
 // Passkeys in the browser (desktop and phone app): WebAuthn calls and conversion between the JSON from
 // the server (base64url) and the binary form the browser API wants. No library needed.
 import { api } from './api.js';
+import { state } from './state.js';
 
 const fromB64 = (s) => {
   const b = atob(String(s).replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(String(s).length / 4) * 4, '='));
@@ -77,7 +78,9 @@ export async function passkeyAdd(name) {
   };
   const cred = await navigator.credentials.create({ publicKey });
   if (!cred) throw Object.assign(new Error('cancelled'), { name: 'NotAllowedError' });
-  return api.passkeyAdd(credentialJson(cred), name);
+  const r = await api.passkeyAdd(credentialJson(cred), name);
+  if (state.boot?.mfa) state.boot.mfa.passkey = true; // no more "set up 2FA" banner
+  return r;
 }
 
 /** The person closed the system dialog or it timed out – no error message needed */

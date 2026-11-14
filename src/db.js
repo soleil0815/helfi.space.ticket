@@ -920,6 +920,14 @@ export const MIGRATIONS = [
     CREATE INDEX idx_user_passkeys_user ON user_passkeys(user_id);
     `,
   },
+  {
+    id: 47,
+    name: 'Passkey hint',
+    sql: `
+    -- Hint "set up a passkey" on the start page: NULL = show, -1 = never again, otherwise hidden until (ms)
+    ALTER TABLE users ADD COLUMN passkey_prompt_until INTEGER;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

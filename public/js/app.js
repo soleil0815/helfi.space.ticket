@@ -22,6 +22,7 @@ import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
 import { renderCatalog } from './views/catalog.js';
 import { renderPortal, userStartPath } from './views/portal.js';
+import { attachPasskeyHint } from './passkey-hint.js';
 import { coffeeBox } from './coffee.js';
 import { renderCmdb } from './views/cmdb.js';
 import { renderRate } from './views/survey.js';
@@ -352,12 +353,19 @@ function layout(content, path) {
   const m = state.boot.mfa;
   let mfaHidden = false;
   try { mfaHidden = sessionStorage.getItem('helfi.mfaBanner') === 'hidden'; } catch { /* ignore */ }
-  if (m && m.mode !== 'off' && !m.enabled && u.source !== 'oidc' && path !== '/profile' && !mfaHidden) {
+  if (m && m.mode !== 'off' && !m.enabled && !m.passkey && u.source !== 'oidc' && path !== '/profile' && !mfaHidden) {
     const b = h('div.banner.banner-info.banner-mfa', icon('shield'), h('span.banner-text', t('mfa.banner')), h('a', { href: '/profile', 'data-link': '' }, t('mfa.setup')),
       h('button.btn-icon.banner-close', { type: 'button', 'aria-label': t('app.close'), onclick: () => { try { sessionStorage.setItem('helfi.mfaBanner', 'hidden'); } catch { /* ignore */ } b.remove(); } }, icon('close')));
     warnings.push(b);
   }
   if (state.isAgent) refreshQueueCounts(p?.key);
+  // Start pages: hint "set up a passkey" for people without one (checked once per sign-in)
+  if (['/board', '/portal', '/requests', '/my'].includes(path)) {
+    const slot = h('div.passkey-hint-slot');
+    warnings.push(slot);
+    // The passkey hint replaces the "set up 2FA" banner (a passkey is a second factor too)
+    setTimeout(async () => { if (await attachPasskeyHint(slot)) slot.parentElement?.querySelector('.banner-mfa')?.remove(); }, 0);
+  }
   // After an update, show once what is new (not on the news page itself)
   if (state.boot.news && !state.newsShown && path !== '/news') {
     state.newsShown = true;

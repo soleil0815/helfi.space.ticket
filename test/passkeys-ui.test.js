@@ -133,3 +133,75 @@ test('Administration: passkey panel with host; user list shows the count and can
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+
+test('Start page hint: "Passkey einrichten" adds one directly, then the hint is gone', { skip }, async () => {
+  await S.user('lisa', 'user');
+  const { p, ctx, cdp, authenticatorId, errors } = await open('lisa');
+  await p.goto(`${base}/portal`);
+  await p.waitForSelector('[data-passkey-hint] >> text=Schneller anmelden – mit Passkey');
+  assert.equal(await p.locator('.banner-mfa').count(), 0, 'the hint replaces the "set up 2FA" banner');
+  await p.click('[data-passkey-hint-add]');
+  await p.waitForSelector('[data-passkey-hint]', { state: 'detached' });
+  assert.equal((await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials.length, 1);
+  assert.equal(S.db.prepare('SELECT COUNT(*) n FROM user_passkeys WHERE user_id=?').get(S.ids.lisa).n, 1);
+  // Not again on the next start page
+  await p.goto(`${base}/requests`);
+  await p.waitForSelector('.content');
+  await p.waitForTimeout(400);
+  assert.equal(await p.locator('[data-passkey-hint]').count(), 0);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('Start page hint: "Später" hides it (also after reloading); agents see it on the board', { skip }, async () => {
+  await S.user('moritz', 'agent');
+  const { p, ctx, errors } = await open('moritz');
+  await p.goto(`${base}/board`);
+  await p.waitForSelector('[data-passkey-hint]');
+  await p.click('[data-passkey-hint-later]');
+  await p.waitForSelector('[data-passkey-hint]', { state: 'detached' });
+  await p.reload();
+  await p.waitForSelector('.content');
+  await p.waitForTimeout(400);
+  assert.equal(await p.locator('[data-passkey-hint]').count(), 0);
+  assert.ok(S.db.prepare('SELECT passkey_prompt_until v FROM users WHERE id=?').get(S.ids.moritz).v > Date.now());
+  // Not on other pages (only start pages)
+  S.db.prepare('UPDATE users SET passkey_prompt_until=NULL WHERE id=?').run(S.ids.moritz);
+  await p.goto(`${base}/profile`);
+  await p.waitForSelector('[data-passkeys-panel]');
+  await p.waitForTimeout(400);
+  assert.equal(await p.locator('[data-passkey-hint]').count(), 0);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('Phone app: hint on the first tab, "Nicht mehr fragen" for good', { skip }, async () => {
+  await S.user('nina', 'user');
+  const { p, ctx, errors } = await open('nina', { mobile: true });
+  await p.goto(`${base}/m`);
+  await p.waitForSelector('[data-passkey-hint]');
+  await p.click('[data-passkey-hint-never]');
+  await p.waitForSelector('[data-passkey-hint]', { state: 'detached' });
+  assert.equal(S.db.prepare('SELECT passkey_prompt_until v FROM users WHERE id=?').get(S.ids.nina).v, -1);
+  await p.reload();
+  await p.waitForSelector('.m-page');
+  await p.waitForTimeout(400);
+  assert.equal(await p.locator('[data-passkey-hint]').count(), 0);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('Start page hint: not under another address (passkeys would not work there)', { skip }, async () => {
+  await S.user('olaf', 'user');
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await p.request.post(`${S.base}/api/auth/login`, { data: { username: 'olaf', password: 'Sehrgeheim123' }, headers: { 'X-Helfi-Request': '1' } });
+  let asked = false;
+  p.on('request', (r) => { if (r.url().includes('/api/me/passkeys')) asked = true; });
+  await p.goto(`${S.base}/portal`); // 127.0.0.1 instead of localhost
+  await p.waitForSelector('.content');
+  await p.waitForTimeout(400);
+  assert.equal(await p.locator('[data-passkey-hint]').count(), 0);
+  assert.equal(asked, false, 'no check at all');
+  await ctx.close();
+});

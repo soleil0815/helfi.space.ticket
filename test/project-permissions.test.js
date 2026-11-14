@@ -312,7 +312,7 @@ test('Migration 42: agents limited to projects (1.40) become users with the same
     const pid = d.prepare("INSERT INTO projects(key,name,lead_id) VALUES('HM','HM',?)").run(lead).lastInsertRowid;
     d.prepare("INSERT INTO project_agents(project_id,user_id,source) VALUES(?,?,'manual')").run(pid, scoped);
     d.prepare("INSERT OR REPLACE INTO settings(key,value,secret) VALUES('ldap.agentGroup','\"Helfi-Bearbeiter\"',0)").run();
-    d.exec('DROP TABLE user_passkeys; ALTER TABLE users DROP COLUMN activity_order; ALTER TABLE projects DROP COLUMN portal_show; ALTER TABLE projects DROP COLUMN portal_desc; ALTER TABLE projects DROP COLUMN portal_intro; ALTER TABLE projects DROP COLUMN portal_icon; ALTER TABLE projects DROP COLUMN portal_color; ALTER TABLE projects DROP COLUMN portal_sort; ALTER TABLE canned_responses DROP COLUMN project_id; DROP INDEX idx_kb_articles_project; ALTER TABLE kb_articles DROP COLUMN project_id; ALTER TABLE projects DROP COLUMN deputy_id');
+    d.exec('DROP TABLE user_passkeys; ALTER TABLE users DROP COLUMN passkey_prompt_until; ALTER TABLE users DROP COLUMN activity_order; ALTER TABLE projects DROP COLUMN portal_show; ALTER TABLE projects DROP COLUMN portal_desc; ALTER TABLE projects DROP COLUMN portal_intro; ALTER TABLE projects DROP COLUMN portal_icon; ALTER TABLE projects DROP COLUMN portal_color; ALTER TABLE projects DROP COLUMN portal_sort; ALTER TABLE canned_responses DROP COLUMN project_id; DROP INDEX idx_kb_articles_project; ALTER TABLE kb_articles DROP COLUMN project_id; ALTER TABLE projects DROP COLUMN deputy_id');
     d.prepare("UPDATE meta SET value='41' WHERE key='schema_version'").run();
     d.close();
     d = await openDatabase(file, { appVersion: '1.0.0', backupDir: path.join(dir, 'b') });

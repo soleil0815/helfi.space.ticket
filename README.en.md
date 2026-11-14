@@ -214,6 +214,7 @@ With a passkey you sign in using Face ID, Touch ID, Windows Hello or the device 
 
 - **Setup:** everyone under *Profile → Passkeys* or in the phone app under *Me → Passkeys*. The first passkey only where 2FA may be set up too (company network, "first-time setup from outside too" or after a sign-in with a second factor) – otherwise someone with a stolen password could register their own passkey from outside.
 - **Signing in:** the *Sign in with a passkey* button on the sign-in page, or the browser suggests the passkey right in the "Username" field.
+- **Hint on the start page:** people without a passkey see *Sign in faster – with a passkey* at the top of the start page (and in the first tab of the phone app) after signing in, with *Set up passkey*, *Later* (14 days) and *Don't ask again* – only where adding works right away. Can be switched off via *Suggest passkeys*.
 - **Address:** passkeys belong to the host name from `HELFI_BASE_URL` and need HTTPS with a name (not an IP address). Use the same name inside and outside (e.g. split DNS). If the name changes, everyone has to add their passkeys again.
 - **Active Directory:** needs a **service account** (read access is enough). Without a password, Helfi.Space uses the service account on every passkey sign-in to check that the account still exists, is enabled and is in the allowed group, and applies role and project groups as on a password sign-in.
 - **SSO accounts** sign in at the identity provider and have no passkeys here.

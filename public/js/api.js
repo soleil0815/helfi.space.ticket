@@ -52,6 +52,7 @@ export const api = {
   passkeys: () => request('GET', '/api/me/passkeys'),
   passkeyRegOptions: () => request('POST', '/api/me/passkeys/options'),
   passkeyAdd: (response, name) => request('POST', '/api/me/passkeys', { response, name }),
+  passkeyPrompt: (action) => request('POST', '/api/me/passkeys/prompt', { action }),
   passkeyRename: (id, name) => request('PATCH', `/api/me/passkeys/${id}`, { name }),
   passkeyRemove: (id) => request('DELETE', `/api/me/passkeys/${id}`),
   mfaStatus: () => request('GET', '/api/me/mfa'),

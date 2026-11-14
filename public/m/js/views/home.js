@@ -3,14 +3,18 @@ import { api } from '/js/api.js';
 import { h, icon } from '/js/dom.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
+import { attachPasskeyHint } from '/js/passkey-hint.js';
 import { replaceUrl } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
 import { ticketList, chip, chipRow, section, emptyState, skeletonList } from '../ui.js';
 import { renderPortal } from './portal.js';
 
 export async function renderHome(page, ctx) {
-  if (state.isAgent) return agentHome(page);
-  return state.boot?.userStart === 'requests' ? userHome(page, ctx) : renderPortal(page, ctx);
+  if (state.isAgent) await agentHome(page);
+  else if (state.boot?.userStart === 'requests') await userHome(page, ctx);
+  else await renderPortal(page, ctx);
+  // First tab: hint "set up a passkey" for people without one (checked once per sign-in)
+  attachPasskeyHint(page.body, { mobile: true });
 }
 /** Users' requests as their own tab (when the portal is the start page) */
 export const renderRequests = (page, ctx) => userHome(page, ctx);
