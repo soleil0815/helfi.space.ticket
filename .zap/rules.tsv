@@ -1,3 +1,4 @@
 # Known false positives for the ZAP scan (.github/scripts/zap-scan.sh): one line per rule, TAB separated:
 # <rule id>	IGNORE	<why it is not a problem here>
 # Only the code audit adds lines here, each with a reason – never to silence a real finding.
+90004	IGNORE	COEP only enables cross-origin isolation (SharedArrayBuffer, high-resolution timers), which the app does not use; it loads nothing cross-origin (CSP 'self') and all responses already send CORP same-origin and COOP same-origin (helmet, src/app.js)

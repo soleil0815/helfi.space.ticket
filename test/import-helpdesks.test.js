@@ -51,7 +51,9 @@ before(async () => {
   await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
   await call('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' });
-  await call('POST', '/api/users', { username: 'anna', displayName: 'Anna Agentin', email: 'anna@firma.local', role: 'agent', password: 'Sehrgeheim123' });
+  await call('POST', '/api/users', { username: 'anna', displayName: 'Anna Agentin', email: 'anna@firma.local', role: 'user', password: 'Sehrgeheim123' });
+  // legacy all-projects agents: the API no longer gives out role 'agent'
+  db.prepare("UPDATE users SET role='agent' WHERE username IN ('anna')").run();
   await call('POST', '/api/users', { username: 'kurt', displayName: 'Kurt Kunde', email: 'kurt@kunde.example', role: 'user', password: 'Sehrgeheim123' });
   kurt = (await call('POST', '/api/auth/login', { username: 'kurt', password: 'Sehrgeheim123' }, '')).cookie;
 });

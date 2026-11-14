@@ -31,9 +31,11 @@ on:
 permissions:
   contents: read
 
-# Never run releases concurrently (a second button press waits); other runs per branch/PR
+# Never run releases concurrently (a second button press waits); group "release" is shared with the security
+# update (security-update.yml), so it never moves "latest" back while a release runs. A button press without a
+# release (nein) stays out of that group, so it can never cancel a waiting security update. Other runs per branch/PR
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && 'release' || format('ci-{0}', github.ref) }}
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.release != 'nein' && 'release' || format('ci-{0}', github.ref) }}
   # outdated runs of a pull request are cancelled; releases and main never
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -196,7 +198,8 @@ jobs:
           # Only a tag WITHOUT a published release is an unfinished reservation: an earlier, completed release
           # of the same commit is never taken over (404 = no release; any other API error stops)
           if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
-            mine="$(git tag -l 'v*.*.*' --points-at "$GITHUB_SHA" | sort -V | tail -n 1)"
+            # program versions only – never a security update tag v1.2.3-s1 on the same commit
+            mine="$(git tag -l 'v*.*.*' --points-at "$GITHUB_SHA" | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sort -V | tail -n 1 || true)"
             if [ -n "$mine" ]; then
               if rel="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$mine" --jq .id 2>&1)"; then
                 echo "Version $mine is already released (release $rel) – not reused"

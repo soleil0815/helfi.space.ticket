@@ -100,7 +100,9 @@ test('Setup and internal login without second factor', async () => {
   const intern = client(INTERN);
   let r = await intern('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' });
   assert.equal(r.status, 200);
-  await intern('POST', '/api/users', { username: 'max', displayName: 'Max', role: 'agent', password: 'Sehrgeheim123' });
+  await intern('POST', '/api/users', { username: 'max', displayName: 'Max', role: 'user', password: 'Sehrgeheim123' });
+  // legacy all-projects agents: the API no longer gives out role 'agent'
+  db.prepare("UPDATE users SET role='agent' WHERE username IN ('max')").run();
   const max = client(INTERN);
   r = await max('POST', '/api/auth/login', { username: 'max', password: 'Sehrgeheim123' });
   assert.equal(r.status, 200);
@@ -226,7 +228,9 @@ test('Setup from outside only if explicitly allowed', async () => {
   assert.equal(r.status, 401);
   const adm = client(INTERN);
   await adm('POST', '/api/auth/login', { username: 'admin', password: 'Sehrgeheim123' });
-  await adm('POST', '/api/users', { username: 'remote', displayName: 'Remote', role: 'agent', password: 'Sehrgeheim123' });
+  await adm('POST', '/api/users', { username: 'remote', displayName: 'Remote', role: 'user', password: 'Sehrgeheim123' });
+  // legacy all-projects agents: the API no longer gives out role 'agent'
+  db.prepare("UPDATE users SET role='agent' WHERE username IN ('remote')").run();
   const rem = client(EXTERN);
   assert.deepEqual((await rem('POST', '/api/auth/login', { username: 'remote', password: 'Sehrgeheim123' })).body, { mfa: 'enroll' });
   ctx.settings.set('mfa.enrollExternal', false);

@@ -105,11 +105,14 @@ export function createSessions(db, { policy, settings } = {}) {
         // Older than the maximum lifetime or idle for too long: invalid (deleted below)
         if (row && !(Date.now() - Number(row.session_created) < SESSION_MAX_AGE_MS)) row = { ...row, expires_at: 0 };
         if (row && row.expires_at > 0 && remaining(req, row).remainingMs <= 0) row = { ...row, expires_at: 0 };
+        // Effective role first (project agents are role 'user' in the database): the 2FA level
+        // "agents" must apply to them exactly as at sign-in.
+        if (row && row.expires_at > Date.now() && row.active) row = loadProjects(db, row);
         if (row && row.expires_at > Date.now() && row.active && !row.session_mfa && policy?.mfaRequired(req, row)) {
           // Session without second factor (e.g. signed in at the office), but now from outside → sign in again
           req.mfaBlocked = true;
         } else if (row && row.expires_at > Date.now() && row.active) {
-          req.user = loadProjects(db, row);
+          req.user = row;
           req.sessionId = id;
           // Activity: remember it at most once per minute (never beyond the maximum lifetime).
           // Asking for the remaining time is not activity.

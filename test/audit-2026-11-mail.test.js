@@ -222,8 +222,9 @@ test('Notice about attachments not imported is kept with long text', async () =>
 test('CC limit: agents do not count', async () => {
   const agents = [];
   for (let i = 0; i < MAX_CC_PARTICIPANTS; i++) {
-    const res = await S.admin('POST', '/api/users', { username: `ag${i}`, displayName: `ag${i}`, email: `ag${i}@firma.local`, role: 'agent', password: 'Sehrgeheim123' });
+    const res = await S.admin('POST', '/api/users', { username: `ag${i}`, displayName: `ag${i}`, email: `ag${i}@firma.local`, role: 'user', password: 'Sehrgeheim123' });
     assert.ok(res.status < 300, `account ag${i}: ${res.status}`);
+    db.prepare("UPDATE users SET role='agent' WHERE id=?").run(res.body.user.id); // legacy all-projects agent
     agents.push(`ag${i}@firma.local`);
   }
   const r = await run(['From: viele@extern.example', `To: helpdesk@firma.local, ${agents.join(', ')}`, 'Cc: k1@extern.example, k2@extern.example',

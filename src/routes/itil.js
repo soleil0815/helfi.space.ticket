@@ -52,12 +52,12 @@ export function createItilRoutes(ctx) {
   r.post('/tickets/:key/change/request-approval', requireRole('agent'), wrap(async (req, res) => {
     res.json({ ticket: changes.requestLate(req.user, req.params.key) });
   }));
-  // Decision: change (agents) or catalog request (also non-agents, e.g. managers)
+  // Decision: change or catalog request – by an approver of the current round, whatever their role
+  // (approvals.decide refuses everyone else)
   r.post('/tickets/:key/approval', wrap(async (req, res) => {
     const row = tickets.load(req.user, req.params.key);
     const decision = str(req.body.decision, 10);
     if (row.type === 'change') {
-      if (!['agent', 'admin'].includes(req.user.role)) return res.status(403).json({ error: { code: 'err.forbidden' } });
       return res.json({ ticket: changes.decide(req.user, req.params.key, decision, req.body.comment) });
     }
     res.json({ ticket: catalog.decide(req.user, req.params.key, decision, req.body.comment) });

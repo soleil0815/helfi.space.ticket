@@ -57,7 +57,9 @@ let key;
 
 test('Setup', async () => {
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' })).status, 200);
-  for (const [u, role] of [['anna', 'agent'], ['karl', 'user']]) await admin('POST', '/api/users', { username: u, displayName: u, email: `${u}@firma.local`, role, password: 'Sehrgeheim123' });
+  for (const [u, role] of [['anna', 'agent'], ['karl', 'user']]) await admin('POST', '/api/users', { username: u, displayName: u, email: `${u}@firma.local`, role: role === 'agent' ? 'user' : role, password: 'Sehrgeheim123' });
+  // legacy all-projects agents: the API no longer gives out role 'agent'
+  db.prepare("UPDATE users SET role='agent' WHERE username IN ('anna')").run();
   for (const [c, u] of [[anna, 'anna'], [karl, 'karl']]) assert.equal((await c('POST', '/api/auth/login', { username: u, password: 'Sehrgeheim123' })).status, 200);
   key = (await karl('POST', '/api/tickets', { title: 'Fehlermeldung' })).body.ticket.key;
 });

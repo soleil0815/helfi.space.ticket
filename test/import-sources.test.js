@@ -62,7 +62,14 @@ before(async () => {
   await new Promise((r) => { server = built.app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
   await call('POST', '/api/setup', { token: 'code', username: 'admin', password: 'Sehrgeheim123', projectKey: 'IT', projectName: 'IT' });
-  await call('POST', '/api/users', { username: 'anna', displayName: 'Anna Agentin', email: 'anna@firma.local', role: 'agent', password: 'Sehrgeheim123' });
+  // Since migration 42 agents are users with project rights (no global role 'agent'): anna works on the
+  // import's target projects, which exist beforehand – only then can she be matched as assignee
+  const anna = (await call('POST', '/api/users', { username: 'anna', displayName: 'Anna Agentin', email: 'anna@firma.local', role: 'user', password: 'Sehrgeheim123' })).body.user;
+  for (const key of ['IT', 'SD', 'RAW']) {
+    let p = (await call('GET', '/api/projects')).body.projects.find((x) => x.key === key);
+    if (!p) p = (await call('POST', '/api/projects', { key, name: key })).body.project;
+    await call('PUT', `/api/projects/${p.id}/agents`, { members: [{ userId: anna.id }] });
+  }
 });
 after(() => { server?.close(); db?.close(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 

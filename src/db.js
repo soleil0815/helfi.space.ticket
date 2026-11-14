@@ -883,6 +883,22 @@ export const MIGRATIONS = [
     ALTER TABLE users ADD COLUMN activity_order TEXT;
     `,
   },
+  {
+    id: 46,
+    name: 'Bearbeiter ohne Rechte im Projekt entfernen',
+    sql: `
+    -- Open tickets stay assigned only to someone who may work on them (see src/assignments.js):
+    -- an active account that is an admin, a legacy agent or one of the project's people. Since
+    -- migration 42 former agents of all projects are users without projects – their open tickets
+    -- were invisible to them and missing from "unassigned". The release is kept in the history.
+    INSERT INTO activity(ticket_id, user_id, action, field, old_value, new_value)
+      SELECT t.id, NULL, 'changed', 'assignee', u.display_name, NULL FROM tickets t JOIN users u ON u.id=t.assignee_id
+      WHERE t.status<>'done' AND NOT (u.active=1 AND (u.role IN ('admin','agent') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=t.project_id)));
+    UPDATE tickets SET assignee_id=NULL WHERE id IN (
+      SELECT t.id FROM tickets t JOIN users u ON u.id=t.assignee_id
+      WHERE t.status<>'done' AND NOT (u.active=1 AND (u.role IN ('admin','agent') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=t.project_id))));
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

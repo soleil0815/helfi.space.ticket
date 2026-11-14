@@ -14,10 +14,13 @@ import { examplesButton } from './examples.js';
 
 const visBadge = (v) => h(`span.badge.kb-${v}`, t(`kb.vis.${v}`));
 
-/** Project select for top-level pages: the projects the user writes into (current one kept even if not among them) */
-function projectPicker(writable, currentId) {
+/** Project select for top-level pages: the projects the user writes into. The article's own project is
+ *  kept as an option even if it is not among them (e.g. archived), so saving never moves it silently. */
+function projectPicker(writable, current) {
   const opts = writable.map((p) => [p.id, p.name]);
-  const cur = currentId && opts.some(([v]) => v === currentId) ? currentId : opts[0]?.[0] ?? '';
+  const currentId = current?.id ?? current ?? null;
+  if (currentId && !opts.some(([v]) => v === currentId)) opts.unshift([currentId, current?.name || current?.key || String(currentId)]);
+  const cur = currentId || (opts[0]?.[0] ?? '');
   const el = select(opts, cur, { id: 'kb-project', 'aria-label': t('kb.f.project') });
   return { el, value: () => Number(el.value) || null };
 }
@@ -397,7 +400,7 @@ async function editor(content, opts = {}) {
   const pOpts = parentOptions(tree, id);
   const parentSel = select(pOpts, pOpts.some(([v]) => v === a.parentId) ? a.parentId : '', { class: 'kb-parent', id: 'kb-parent' });
   // Project: chosen for top-level pages; subpages take the one of their parent
-  const project = projectPicker(writable, a.project?.id ?? a.projectId ?? null);
+  const project = projectPicker(writable, a.project ?? a.projectId ?? null);
   const projInfo = h('span.muted.small.kb-project-inherit');
   const nodeOf = (pid) => { let f = null; const walk = (ns) => { for (const n of ns) { if (n.id === pid) f = n; else walk(n.children); } }; walk(tree); return f; };
   const syncProject = () => {
@@ -506,7 +509,7 @@ async function editor(content, opts = {}) {
       h('span.spacer'), status, note,
       !tplMode ? h('button.btn-icon', { type: 'button', title: t('kb.tpl.saveAs'), 'aria-label': t('kb.tpl.saveAs'), onclick: saveAsTemplate }, icon('copy')) : null,
       h('button.btn.btn-subtle', { type: 'button', onclick: cancel }, t('app.cancel')),
-      h('button.btn.btn-primary', { type: 'button', onclick: save, title: `${t('app.save')} (Strg+S)` }, tplMode ? t('app.save') : (id ? t('kb.update') : t('kb.publish')))),
+      h('button.btn.btn-primary', { type: 'button', onclick: save, title: `${t('app.save')} (${t('app.ctrl')}+S)` }, tplMode ? t('app.save') : (id ? t('kb.update') : t('kb.publish')))),
     banner,
     h('div.kb-edit',
       a.sourceTicket && !id ? h('p.muted.small', t('kb.fromTicket', { key: a.sourceTicket })) : null,

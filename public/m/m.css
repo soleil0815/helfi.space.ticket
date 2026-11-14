@@ -484,6 +484,8 @@ body.m a:hover { text-decoration: none; }
 .m-approval-state.pending { background: var(--yellow-bold); color: var(--warn-text); }
 .m-approval-state.approved, .m-approval-state.approve { background: var(--green-bold); color: var(--success-text); }
 .m-approval-state.rejected, .m-approval-state.reject { background: var(--red-bold); color: var(--danger-text); }
+.m-approval .change-plan { margin-top: 12px; border-top-color: var(--m-line); }
+.m-approval .change-plan-label { font-size: 13px; }
 .m-approvers { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .m-approvers li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
 .m-approver-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

@@ -68,8 +68,11 @@ test('Own request in a foreign project: no internal notes, no history, no agent 
   assert.ok(d.comments.every((c) => !c.internal), 'internal note hidden');
   assert.ok(!JSON.stringify(d).includes('geheimwort42'));
   assert.equal(d.assignableIds, undefined);
-  // writes a reply (internal flag ignored), cannot change status or priority
-  const c = await hma('POST', `/api/tickets/${keys.hmOwnIt}/comments`, { body: 'Danke!', internal: true });
+  // an internal note is refused (never downgraded to a public reply); a reply works,
+  // but status and priority cannot be changed
+  const n = await hma('POST', `/api/tickets/${keys.hmOwnIt}/comments`, { body: 'Danke!', internal: true });
+  assert.equal(n.status, 403);
+  const c = await hma('POST', `/api/tickets/${keys.hmOwnIt}/comments`, { body: 'Danke!' });
   assert.equal(c.status, 201);
   assert.equal(c.body.comment.internal, false);
   const u = await hma('PATCH', `/api/tickets/${keys.hmOwnIt}`, { priority: 'highest', status: 'done' });

@@ -87,10 +87,15 @@ export function templateDialog({ existing = null, body = '', shared = false, onS
   const sharedNow = () => (existing ? existing.shared : canShare && forAll.checked);
   const proj = h('select', { 'aria-label': t('canned.project') }, h('option', { value: '' }, t('canned.allProjects')));
   const projField = field(t('canned.project'), proj, t('canned.projectHint'));
+  // The template's own project is always an option (it may be archived and then missing from
+  // the project list); projectId is only sent when the admin really changed the select.
+  const ownProject = existing?.project || null;
+  const original = ownProject ? String(ownProject.id) : '';
+  if (ownProject) { proj.append(h('option', { value: ownProject.id }, ownProject.name || ownProject.key)); proj.value = original; }
   if (state.isAdmin) {
     api.projects().then(({ projects }) => {
-      for (const p of projects) proj.append(h('option', { value: p.id }, p.name));
-      proj.value = existing?.project?.id || '';
+      for (const p of projects) if (String(p.id) !== original) proj.append(h('option', { value: p.id }, p.name));
+      proj.value = original;
     }).catch(() => {});
   }
   const syncProj = () => { projField.hidden = !state.isAdmin || !sharedNow(); };
@@ -99,7 +104,7 @@ export function templateDialog({ existing = null, body = '', shared = false, onS
     onsubmit: async (e) => {
       e.preventDefault();
       try {
-        const data = { title: title.value, body: text.value, ...(state.isAdmin && sharedNow() ? { projectId: Number(proj.value) || null } : {}) };
+        const data = { title: title.value, body: text.value, ...(state.isAdmin && sharedNow() && (!existing || proj.value !== original) ? { projectId: Number(proj.value) || null } : {}) };
         const r = existing ? await api.canned.update(existing.id, data) : await api.canned.create({ ...data, shared: canShare && forAll.checked });
         cache = null;
         toast(t('app.saved'), 'success');
