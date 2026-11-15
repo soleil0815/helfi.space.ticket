@@ -921,8 +921,11 @@ export const MIGRATIONS = [
     `,
   },
   {
-    id: 47,
+    // Was released in 1.48.0 under the number 47 (twice 47 by mistake): databases of 1.48.0 already have the
+    // column (both ran in the same start) – then only the number is updated
+    id: 48,
     name: 'Passkey hint',
+    skipIf: (db) => db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name='passkey_prompt_until'").get(),
     sql: `
     -- Hint "set up a passkey" on the start page: NULL = show, -1 = never again, otherwise hidden until (ms)
     ALTER TABLE users ADD COLUMN passkey_prompt_until INTEGER;
@@ -1305,7 +1308,7 @@ export async function openDatabase(file = paths.db, { appVersion = config.versio
     if (m.foreignKeysOff) db.pragma('foreign_keys = OFF');
     try {
       db.transaction(() => {
-        db.exec(m.sql);
+        if (!m.skipIf?.(db)) db.exec(m.sql);
         // After a rebuild all references must still be valid, otherwise roll everything back
         if (m.foreignKeysOff && db.pragma('foreign_key_check').length) throw new Error(`Migration ${m.id}: Fremdschlüssel verletzt`);
         setMeta(db, 'schema_version', m.id);
