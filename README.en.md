@@ -851,3 +851,5 @@ In short (only the license text is binding):
 - Notices of the author and the license must not be removed.
 
 Versions up to and including 1.29.2 were released under the MIT license; it continues to apply to them.
+
+Fonts: Inter and IBM Plex Mono (SIL Open Font License, `public/fonts/OFL.txt`) – shipped with the program, nothing is loaded from the internet. On Apple devices Helfi.Space shows the system font, elsewhere Inter.
