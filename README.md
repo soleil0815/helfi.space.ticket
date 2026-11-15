@@ -852,3 +852,5 @@ Kurz gesagt (verbindlich ist nur der Lizenztext):
 
 Versionen bis einschließlich 1.29.2 wurden unter der MIT-Lizenz veröffentlicht; für sie gilt diese weiter.
 
+Schriften: Inter und IBM Plex Mono (SIL Open Font License, `public/fonts/OFL.txt`) – im Programm enthalten, aus dem Internet wird nichts geladen. Auf Apple-Geräten zeigt Helfi.Space die Systemschrift, sonst Inter.
+
