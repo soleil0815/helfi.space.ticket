@@ -64,6 +64,7 @@ export function createApi(ctx) {
   const passkeyAuthLimit = perMinute(120);
   const passkeyMeLimit = perMinute(120);
   // Full user list of the administration (with passkey counts); the agents list for assigning stays unlimited
+  const diagnosticsLimit = perMinute(20); // building the package reads the whole log and database counts
   const usersListLimit = perMinute(120, (req) => req.query.all !== '1');
 
   // ---------- Public ----------
@@ -116,6 +117,8 @@ export function createApi(ctx) {
       warnings: req.user?.role === 'admin' ? adminWarnings() : [],
     });
   });
+
+  ctx.diagnostics.register('Admin warnings', () => Object.fromEntries(adminWarnings().map((w, i) => [`${i + 1}. ${w.code}`, { ...w, code: undefined }])));
 
   function adminWarnings() {
     const w = [];
@@ -1178,6 +1181,17 @@ export function createApi(ctx) {
     });
   });
 
+  // Diagnosis package: anonymous text file about the state of this installation (src/diagnostics.js)
+  admin.get('/diagnostics', diagnosticsLimit, (req, res) => {
+    const text = ctx.diagnostics.build();
+    log.info(`Diagnosis package created by ${req.user.username}`);
+    res.set('Cache-Control', 'no-store');
+    if (req.query.download) {
+      const day = new Date().toISOString().slice(0, 10);
+      res.set('Content-Disposition', `attachment; filename="helfi-diagnose-${day}.md"`);
+      res.type('text/markdown; charset=utf-8').send(text);
+    } else res.json({ text });
+  });
   admin.post('/backup', wrap(async (req, res) => {
     const file = await backupDatabase(db, 'manuell');
     pruneBackups(settings.get('backup.keep'));

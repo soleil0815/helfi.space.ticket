@@ -787,6 +787,17 @@ docker compose exec helfi helfi-admin create notfall   # neuen lokalen Admin anl
 - Der Befehl wirkt nur auf **lokale** Konten. AD- und SSO-Konten werden dort verwaltet.
 - **Sicherheit:** Er ist nur mit einer Shell auf dem Docker-Host erreichbar – wer die hat, kann den Datenordner sowieso lesen. Über das Netz geht er nicht. Er läuft mit `PUID`/`PGID`, nie als root. Jede Benutzung steht unter *Administration → System → Notfallzugang* (dort stehen auch die Befehle für `reset` und `create`) und wird allen Admins mit E-Mail-Adresse gemailt.
 
+## Diagnosepaket
+
+*Administration → System → Diagnosepaket herunterladen* (oder ohne Oberfläche: `docker compose exec helfi helfi-admin diagnose > diagnose.md`)
+
+Eine anonyme Textdatei über den Zustand der Installation zum Weitergeben bei Fragen oder Fehlern – an den Support oder einen KI-Assistenten. Mit *Vorschau* siehst du vorher genau, was drinsteht.
+
+- **Inhalt:** Version und System, gesetzte Umgebungsvariablen (Werte nur bei harmlosen), Datenbank (Größe, Schema, Integritätsprüfung, Anzahlen), alle Einstellungen, Zustand der Dienste (Postfach, KI, Import, Backups, Passkeys), Admin-Warnungen, Fehlerübersicht und Log.
+- **Log:** letzte 1000 Zeilen seit dem Start und die gespeicherten Warnungen/Fehler aus `data/logs/helfi.log` (höchstens 2 × 1 MB, übersteht Neustarts).
+- **Anonym:** Namen, Benutzernamen, E-Mail- und IP-Adressen, Hostnamen, Domains und AD-Pfade werden zu Platzhaltern (`<person-3>`, `<ip-5 private>`, `<host-1>` …), innerhalb eines Pakets immer gleich. Freitext-Einstellungen nur als „gesetzt“/„leer“, Kennwörter und Schlüssel nur, ob gesetzt. Ticket-Inhalte, Betreffs, Kommentare und Anhänge sind nie dabei.
+- **Bleibt aktuell:** Neue Einstellungen erscheinen automatisch, neue Funktionen melden ihren Zustand über `ctx.diagnostics.register()` an. Ein Test füllt jede Freitext-Einstellung mit einem Testwert und prüft, dass keiner davon im Paket auftaucht.
+
 ## Sicherheit
 
 - Zwei-Faktor-Anmeldung nach RFC 6238. Jeder Code gilt nur einmal, nach 5 Fehlversuchen beginnt die Anmeldung von vorn. Der Schlüssel ist verschlüsselt gespeichert, die Wiederherstellungscodes nur als scrypt-Hash mit eigenem Salz je Code.

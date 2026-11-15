@@ -876,6 +876,18 @@ docker compose exec helfi helfi-admin create notfall   # neuen lokalen Admin anl
 <div class="warn"><p>Der Befehl ist nur mit einer Shell auf dem Docker-Host erreichbar – wer die hat, kann den Datenordner sowieso lesen. Über das Netz geht er nicht, und er läuft mit <code>PUID</code>/<code>PGID</code>, nie als root. Jede Benutzung steht unter <em>Administration → System → Notfallzugang</em> und wird allen Admins mit E-Mail-Adresse gemailt.</p></div>
 <figure><img src="img/de/admin-emergency.jpg" alt=""><figcaption>Administration → System: Notfallzugang mit der letzten Benutzung</figcaption></figure>
 
+<h3 id="diagnose">Diagnosepaket</h3>
+<p>Bei Fragen oder Fehlern hilft das <strong>Diagnosepaket</strong>: eine anonyme Textdatei (Markdown) über den Zustand der Installation, die du weitergeben kannst – an den Support oder einen KI-Assistenten. <em>Administration → System → Diagnosepaket herunterladen</em>; mit <em>Vorschau</em> siehst du vorher genau, was drinsteht, und kannst es kopieren. Startet die Oberfläche nicht, auf dem Docker-Host:</p>
+<pre><code>docker compose exec helfi helfi-admin diagnose &gt; diagnose.md</code></pre>
+<ul>
+  <li><strong>Inhalt:</strong> Version, Node, Betriebssystem, Speicher, Zeitzone, Proxy- und Compose-Einstellung; welche Umgebungsvariablen gesetzt sind (Werte nur bei harmlosen); Datenbank mit Größe, Schema, fehlenden Umstellungen, Integritätsprüfung und Anzahlen (Tickets je Status und Art, Konten je Rolle und Quelle, 2FA, Passkeys, Projekte, Anhänge); alle Einstellungen; Zustand von Postfach-Abruf, KI, Import, Backups und Passkeys; die Admin-Warnungen; eine Fehlerübersicht und das Log.</li>
+  <li><strong>Log:</strong> die letzten 1000 Zeilen seit dem Start und die gespeicherten Warnungen und Fehler. Diese schreibt Helfi.Space zusätzlich nach <code>data/logs/helfi.log</code> (höchstens 2 × 1 MB), damit sie einen Neustart überstehen.</li>
+  <li><strong>Anonym:</strong> Namen, Benutzernamen, E-Mail- und IP-Adressen, Hostnamen, Domains und AD-Pfade werden zu Platzhaltern wie <code>&lt;person-3&gt;</code>, <code>&lt;mail-2&gt;</code>, <code>&lt;ip-5 private&gt;</code> oder <code>&lt;host-1&gt;</code> – innerhalb eines Pakets immer gleich, damit sich Abläufe verfolgen lassen, über Pakete hinweg nicht zuordenbar. Einstellungen: Schalter, Zahlen und Auswahlwerte stehen da, Freitext (Hostnamen, Adressen, Gruppen, Filter …) nur als „gesetzt“ oder „leer“, Kennwörter und Schlüssel nur, ob sie gesetzt sind.</li>
+  <li><strong>Nie enthalten:</strong> Ticket-Inhalte, Betreffs, Kommentare, Anhänge, Kennwörter und Schlüssel.</li>
+  <li><strong>Aktuell:</strong> Neue Einstellungen erscheinen automatisch; neue Funktionen melden ihren Zustand selbst an. Ein Test prüft bei jeder Änderung, dass jede Einstellung vorkommt und nichts Persönliches durchrutscht.</li>
+</ul>
+<figure><img src="img/de/admin-diagnostics.jpg" alt=""><figcaption>Administration → System: Diagnosepaket mit Vorschau</figcaption></figure>
+
 <h2 id="sicherheit">Sicherheit</h2>
 <ul>
   <li>Kennwörter lokaler Konten mit scrypt, hinterlegte Zugangsdaten (Dienstkonto, Postfach, SSO) mit AES-256-GCM verschlüsselt; sie werden nie an den Browser geschickt.</li>

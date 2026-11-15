@@ -55,4 +55,5 @@ export const paths = {
   attachments: path.join(config.dataDir, 'attachments'),
   secretKey: path.join(config.dataDir, 'secret.key'),
   httpsHosts: path.join(config.dataDir, 'https-hosts.txt'),
+  logFile: path.join(config.dataDir, 'logs', 'helfi.log'), // warnings/errors (see src/lib/log.js)
 };

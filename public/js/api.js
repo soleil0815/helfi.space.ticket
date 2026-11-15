@@ -221,6 +221,7 @@ export const api = {
     backfillStatus: () => request('GET', '/api/admin/components/backfill/status'),
     backfillCancel: () => request('POST', '/api/admin/components/backfill/cancel'),
     system: () => request('GET', '/api/admin/system'),
+    diagnostics: () => request('GET', '/api/admin/diagnostics'),
     backup: () => request('POST', '/api/admin/backup'),
     deleteBackup: (name) => request('DELETE', `/api/admin/backups/${encodeURIComponent(name)}`),
     backupDownloadUrl: (name) => `/api/admin/backups/${encodeURIComponent(name)}/download`,

@@ -876,6 +876,18 @@ docker compose exec helfi helfi-admin create notfall   # create a new local admi
 <div class="warn"><p>The command is only reachable with a shell on the Docker host – whoever has that can read the data folder anyway. It does not work over the network, and it runs as <code>PUID</code>/<code>PGID</code>, never as root. Every use is listed under <em>Administration → System → Emergency access</em> and emailed to all admins with an email address.</p></div>
 <figure><img src="img/en/admin-emergency.jpg" alt=""><figcaption>Administration → System: emergency access with the last use</figcaption></figure>
 
+<h3 id="diagnose">Diagnosis package</h3>
+<p>For questions or errors there is the <strong>diagnosis package</strong>: an anonymous text file (Markdown) about the state of the installation that you can pass on – to support or an AI assistant. <em>Administration → System → Download diagnosis package</em>; <em>Preview</em> shows exactly what it contains and lets you copy it. If the web interface does not start, on the Docker host:</p>
+<pre><code>docker compose exec helfi helfi-admin diagnose &gt; diagnose.md</code></pre>
+<ul>
+  <li><strong>Contents:</strong> version, Node, operating system, memory, time zone, proxy and compose settings; which environment variables are set (values only for harmless ones); database with size, schema, missing migrations, integrity check and counts (tickets per status and type, accounts per role and source, 2FA, passkeys, projects, attachments); all settings; state of mail fetching, AI, import, backups and passkeys; the admin warnings; an error overview and the log.</li>
+  <li><strong>Log:</strong> the last 1000 lines since the start and the saved warnings and errors. Helfi.Space also writes these to <code>data/logs/helfi.log</code> (at most 2 × 1 MB) so they survive a restart.</li>
+  <li><strong>Anonymous:</strong> names, user names, email and IP addresses, host names, domains and AD paths become placeholders such as <code>&lt;person-3&gt;</code>, <code>&lt;mail-2&gt;</code>, <code>&lt;ip-5 private&gt;</code> or <code>&lt;host-1&gt;</code> – always the same within one package so flows can be followed, not traceable across packages. Settings: switches, numbers and choices are shown, free text (host names, addresses, groups, filters …) only as “set” or “empty”, passwords and keys only whether they are set.</li>
+  <li><strong>Never included:</strong> ticket contents, subjects, comments, attachments, passwords and keys.</li>
+  <li><strong>Up to date:</strong> new settings appear automatically; new features register their state themselves. A test checks with every change that every setting is included and nothing personal slips through.</li>
+</ul>
+<figure><img src="img/en/admin-diagnostics.jpg" alt=""><figcaption>Administration → System: diagnosis package with preview</figcaption></figure>
+
 <h2 id="security">Security</h2>
 <ul>
   <li>Passwords of local accounts are stored with scrypt, stored credentials (service account, mailbox, SSO) are encrypted with AES-256-GCM and never sent to the browser.</li>

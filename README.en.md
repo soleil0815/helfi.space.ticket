@@ -787,6 +787,17 @@ docker compose exec helfi helfi-admin create notfall   # create a new local admi
 - The command only works on **local** accounts. AD and SSO accounts are managed there.
 - **Security:** it is only reachable with a shell on the Docker host – whoever has that can read the data folder anyway. It does not work over the network. It runs as `PUID`/`PGID`, never as root. Every use is listed under *Administration → System → Emergency access* (which also shows the commands for `reset` and `create`) and emailed to all admins with an email address.
 
+## Diagnosis package
+
+*Administration → System → Download diagnosis package* (or without the web interface: `docker compose exec helfi helfi-admin diagnose > diagnose.md`)
+
+An anonymous text file about the state of the installation to pass on with questions or errors – to support or an AI assistant. *Preview* shows exactly what it contains.
+
+- **Contents:** version and system, environment variables that are set (values only for harmless ones), database (size, schema, integrity check, counts), all settings, state of the services (mailbox, AI, import, backups, passkeys), admin warnings, error overview and log.
+- **Log:** the last 1000 lines since the start and the saved warnings/errors from `data/logs/helfi.log` (at most 2 × 1 MB, survives restarts).
+- **Anonymous:** names, user names, email and IP addresses, host names, domains and AD paths become placeholders (`<person-3>`, `<ip-5 private>`, `<host-1>` …), always the same within one package. Free-text settings only as "set"/"empty", passwords and keys only whether set. Ticket contents, subjects, comments and attachments are never included.
+- **Stays current:** new settings appear automatically, new features register their state via `ctx.diagnostics.register()`. A test fills every free-text setting with a test value and checks that none of them appears in the package.
+
 ## Security
 
 - Two-factor sign-in per RFC 6238. Each code is valid only once; after 5 failed attempts sign-in starts over. The key is stored encrypted, recovery codes only as a scrypt hash with its own salt per code.
