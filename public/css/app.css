@@ -1703,3 +1703,13 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .diagnostics-preview { max-height: 420px; overflow: auto; margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-sunken); font-size: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .diagnostics-preview + p, [data-diagnostics] .form-actions + p { margin-top: 12px; }
 [data-diagnostics] .form-actions { flex-wrap: wrap; }
+
+/* Colour theme at the foot of the sidebar */
+.theme-switch { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.theme-switch-label { font-size: 12px; color: var(--text-subtle); }
+.theme-switch-options { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-sunken); }
+.theme-opt { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--text-subtle); cursor: pointer; }
+.theme-opt:hover { color: var(--text); background: var(--bg-neutral); }
+.theme-opt.active { background: var(--blue-subtlest); color: var(--blue-text); box-shadow: inset 0 0 0 1px var(--blue); }
+.theme-opt:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.theme-opt .icon { width: 16px; height: 16px; }

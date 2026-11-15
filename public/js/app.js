@@ -48,6 +48,7 @@ export const HOME_URL = 'https://helfi.space';
 function sidebarFoot() {
   return h('div.sidebar-foot',
     state.isAdmin ? coffeeBox({ stacked: true }) : null,
+    themeSwitch(),
     // Website and version always together on their own line
     h('div.sidebar-meta',
       h('a.home-link', { href: HOME_URL, target: '_blank', rel: 'noopener noreferrer', title: t('app.website') }, 'Helfi.Space'),
@@ -56,6 +57,22 @@ function sidebarFoot() {
       h('span', { 'aria-hidden': 'true' }, '·'),
       // AGPL-3.0: every user can get the source code of the running program
       h('a.source-link', { href: state.boot.app.sourceUrl, target: '_blank', rel: 'noopener noreferrer', title: t('app.sourceTitle') }, t('app.source'))));
+}
+
+/** Colour theme at the foot of the sidebar: System (follows the device) / Light / Dark – saved with the account */
+const THEME_ICONS = { system: 'contrast', light: 'sun', dark: 'moon' };
+function themeSwitch() {
+  const group = h('div.theme-switch-options', { role: 'radiogroup', 'aria-label': t('theme.title') });
+  const draw = () => {
+    const current = getTheme();
+    group.replaceChildren(...THEMES.map((th) => h(`button.theme-opt${current === th ? '.active' : ''}`, {
+      type: 'button', role: 'radio', 'aria-checked': String(current === th),
+      title: t(`theme.${th}`), 'aria-label': t(`theme.${th}`), 'data-theme-choice': th,
+      onclick: () => { const saved = setTheme(th); draw(); return saved; },
+    }, icon(THEME_ICONS[th]))));
+  };
+  draw();
+  return h('div.theme-switch', h('span.theme-switch-label', t('theme.title')), group);
 }
 
 export function setLeaveGuard(isDirty) { leaveGuard = isDirty; guardUrl = isDirty ? location.pathname + location.search : null; }
@@ -251,7 +268,6 @@ function layout(content, path) {
     showAll: (q) => { search.blur(); navigate(`/${state.isAgent ? 'issues' : 'requests'}?q=${encodeURIComponent(q)}`); },
   });
 
-  const THEME_ICONS = { system: 'contrast', light: 'sun', dark: 'moon' };
   const userBtn = h('button.topbar-user', {
     type: 'button', 'aria-label': u.displayName,
     onclick: (e) => dropdown(e.currentTarget, [
@@ -261,10 +277,6 @@ function layout(content, path) {
       '-',
       { label: 'Deutsch', active: getLang() === 'de', onClick: () => setLanguage('de') },
       { label: 'English', active: getLang() === 'en', onClick: () => setLanguage('en') },
-      '-',
-      // Colour theme: System (follows the device) / Light / Dark
-      h('div.menu-group', t('theme.title')),
-      ...THEMES.map((th) => ({ label: t(`theme.${th}`), icon: icon(THEME_ICONS[th]), active: getTheme() === th, onClick: () => setTheme(th) })),
       '-',
       // Phone user who chose the desktop view: way back to the mobile UI
       ...(isPhone() ? [{
