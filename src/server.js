@@ -5,11 +5,13 @@ import { openDatabase, backupDatabase, pruneBackups, packPendingBackups, Databas
 import { initMasterKey } from './lib/crypto.js';
 import { createApp } from './app.js';
 import * as ldap from './auth/ldap.js';
-import { log } from './lib/log.js';
+import { log, setLogFile } from './lib/log.js';
 
 async function main() {
-  log.info(`Helfi.Space ${config.version} starting (data: ${config.dataDir})`);
   fs.mkdirSync(config.dataDir, { recursive: true });
+  // Warnings and errors also into data/logs/helfi.log (for the diagnosis package, survives restarts)
+  setLogFile(paths.logFile);
+  log.info(`Helfi.Space ${config.version} starting (data: ${config.dataDir})`);
   initMasterKey();
 
   let db;

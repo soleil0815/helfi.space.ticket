@@ -1124,8 +1124,44 @@ async function systemPage(body) {
         h('dt', t('system.dbSize')), h('dd', fmtSize(sys.dbSize)),
         h('dt', 'Node.js'), h('dd', sys.node),
         h('dt', ''), h('dd', ['Users', 'Contacts', 'Tickets'].map((k) => { const n = sys.counts[k.toLowerCase()] || 0; return t(n === 1 ? `system.count${k}1` : `system.count${k}`, { n }); }).join(', ')))),
+    diagnosticsPanel(),
     backupPanel(body, sys),
     emergencyPanel(sys));
+}
+
+/** Diagnosis package: anonymous text file for support (preview, copy, download) */
+function diagnosticsPanel() {
+  const preview = h('pre.diagnostics-preview', { hidden: true, tabindex: 0, 'aria-label': t('diag.preview') });
+  const copy = h('button.btn', {
+    type: 'button', hidden: true,
+    onclick: async () => {
+      try { await navigator.clipboard.writeText(preview.textContent); toast(t('diag.copied'), 'success'); }
+      catch { toast(t('diag.copyFailed'), 'error'); }
+    },
+  }, icon('copy'), t('diag.copy'));
+  const show = h('button.btn', {
+    type: 'button', 'data-diag-preview': '',
+    onclick: async () => {
+      if (!preview.hidden) { preview.hidden = true; copy.hidden = true; show.textContent = t('diag.preview'); return; }
+      show.disabled = true;
+      try {
+        preview.textContent = (await api.admin.diagnostics()).text;
+        preview.hidden = false;
+        copy.hidden = !navigator.clipboard;
+        show.textContent = t('diag.hidePreview');
+      } catch (e) { toast(e.message, 'error'); }
+      finally { show.disabled = false; }
+    },
+  }, t('diag.preview'));
+  return h('section.panel', { 'data-diagnostics': '' },
+    h('h2', t('diag.title')),
+    h('p.muted', t('diag.intro')),
+    h('ul.diag-list', ['diag.contains', 'diag.anonymous', 'diag.never'].map((k) => h('li', t(k)))),
+    h('div.form-actions',
+      h('button.btn.btn-primary', { type: 'button', 'data-diag-download': '', onclick: () => startDownload('/api/admin/diagnostics?download=1') }, icon('download'), t('diag.download')),
+      show, copy),
+    preview,
+    h('p.muted.small', t('diag.cli'), ' ', h('code', 'docker compose exec helfi helfi-admin diagnose > diagnose.md')));
 }
 
 /** Emergency access: how it works, and its last uses (helfi-admin on the Docker host) */

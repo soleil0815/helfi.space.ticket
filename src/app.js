@@ -26,7 +26,8 @@ import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
 import { createNetworkPolicy } from './auth/network.js';
 import { createMfa } from './auth/mfa.js';
-import { createPasskeys } from './auth/passkeys.js';
+import { createPasskeys, relyingParty } from './auth/passkeys.js';
+import { createDiagnostics } from './diagnostics.js';
 import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
@@ -127,6 +128,12 @@ export function createApp(db) {
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
   // Passkeys use ctx.directory at sign-in time (tests replace it)
   ctx.passkeys = createPasskeys(ctx);
+  // Diagnosis package (Administration → System); parts of the program add sections via register()
+  ctx.diagnostics = createDiagnostics(ctx);
+  ctx.diagnostics.register('Passkeys', () => ({
+    available: ctx.passkeys.available() ? 'yes' : 'no',
+    'bound to': relyingParty()?.rpID || 'not possible (no HTTPS or an IP address in HELFI_BASE_URL)',
+  }));
 
   const app = express();
   app.disable('x-powered-by');

@@ -1696,3 +1696,10 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .passkey-hint-text p { margin: 2px 0 0; color: var(--text-subtle); }
 .passkey-hint-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 760px) { .passkey-hint { margin: 12px 16px 0; } }
+
+/* Diagnosis package (Administration → System) */
+.diag-list { margin: 0 0 14px; padding-left: 20px; color: var(--text-subtle); }
+.diag-list li + li { margin-top: 4px; }
+.diagnostics-preview { max-height: 420px; overflow: auto; margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-sunken); font-size: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.diagnostics-preview + p, [data-diagnostics] .form-actions + p { margin-top: 12px; }
+[data-diagnostics] .form-actions { flex-wrap: wrap; }

@@ -6,6 +6,7 @@
  *   docker compose exec helfi helfi-admin list
  *   docker compose exec helfi helfi-admin reset <name> [--generate] [--keep-2fa]
  *   docker compose exec helfi helfi-admin create <name> [--email a@firma.local] [--name "Vor Nachname"] [--generate]
+ *   docker compose exec helfi helfi-admin diagnose > diagnose.md   (anonymous diagnosis package, see src/diagnostics.js)
  *
  * Only reachable with a shell on the Docker host (who has that can read the data folder anyway) –
  * never over the network. Every use is recorded (shown under Administration → System) and all admins
@@ -22,6 +23,7 @@ import { createSettings } from './settings.js';
 import { createMailer } from './mail/smtp.js';
 import { t, normalizeLang } from './i18n.js';
 import { addEmergencyLog } from './emergency.js';
+import { createDiagnostics } from './diagnostics.js';
 
 const MIN_PASSWORD = 10;
 const USERNAME = /^[A-Za-z0-9._@-]{2,64}$/;
@@ -38,6 +40,8 @@ const TEXT = {
       '      --password-stdin                   Kennwort aus der Standardeingabe lesen',
       '  helfi-admin create <name>              neuen lokalen Admin anlegen',
       '      --email <adresse>  --name "<Anzeigename>"  --generate  --password-stdin',
+      '  helfi-admin diagnose                   anonymes Diagnosepaket ausgeben (Markdown)',
+      '      Beispiel: docker compose exec helfi helfi-admin diagnose > diagnose.md',
       '',
       'Aufruf auf dem Docker-Host:  docker compose exec helfi helfi-admin reset admin',
     ].join('\n'),
@@ -80,6 +84,8 @@ const TEXT = {
       '      --password-stdin                   read the password from standard input',
       '  helfi-admin create <name>              create a new local admin',
       '      --email <address>  --name "<display name>"  --generate  --password-stdin',
+      '  helfi-admin diagnose                   print an anonymous diagnosis package (Markdown)',
+      '      Example: docker compose exec helfi helfi-admin diagnose > diagnose.md',
       '',
       'Run on the Docker host:  docker compose exec helfi helfi-admin reset admin',
     ].join('\n'),
@@ -231,6 +237,12 @@ export async function main(argv, io = { stdin: process.stdin, stdout: process.st
     }
     if (cmd === 'help' || args.flags.has('help')) { say(L.usage); return 0; }
     if (!db) throw new CliError(fmt(L.noDb, { file: dbFile }));
+    // Diagnosis package – also (and especially) when the database does not match the program
+    if (cmd === 'diagnose') {
+      const settings = createSettings(db);
+      io.stdout.write(createDiagnostics({ db, settings }).build());
+      return 0;
+    }
     const schema = Number(db.prepare("SELECT value FROM meta WHERE key='schema_version'").get()?.value || 0);
     if (schema !== SCHEMA_VERSION) throw new CliError(fmt(L.schema, { db: schema, app: SCHEMA_VERSION }));
     const url = (baseUrl || '').replace(/\/+$/, '') || 'https://<helfi>';
