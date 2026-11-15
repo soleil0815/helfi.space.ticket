@@ -49,19 +49,29 @@ async function page(username, { mobile = false, colorScheme = 'light' } = {}) {
 const theme = (p) => p.evaluate(() => document.documentElement.dataset.theme);
 const bg = (p) => p.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
-test('Desktop: user menu switches the theme, it survives a reload and follows to another device', { skip }, async () => {
+test('Desktop: switch at the foot of the sidebar, survives a reload and follows to another device', { skip }, async () => {
   const { p, errors } = await page('anna');
   await p.goto(`${S.base}/my`);
-  await p.locator('.topbar-user, .topbar .avatar').first().waitFor();
+  const sw = p.locator('.sidebar .theme-switch');
+  await sw.waitFor();
   assert.equal(await theme(p), 'light');
+  assert.equal(await sw.locator('[data-theme-choice="system"]').getAttribute('aria-checked'), 'true', 'System is the default');
   const lightBg = await bg(p);
-  await p.locator('.topbar-user, .topbar .avatar').first().click();
-  await p.getByRole('menuitem', { name: 'Dunkel' }).or(p.locator('.dropdown-item:has-text("Dunkel")')).first().click();
+  await sw.getByRole('radio', { name: 'Dunkel' }).click();
   assert.equal(await theme(p), 'dark');
+  assert.equal(await sw.locator('[data-theme-choice="dark"]').getAttribute('aria-checked'), 'true');
+  assert.equal(await sw.locator('.theme-opt.active').count(), 1);
   assert.notEqual(await bg(p), lightBg, 'colours change');
   await p.waitForFunction(async () => (await (await fetch('/api/me')).json()).user.theme === 'dark');
   await p.reload();
   assert.equal(await theme(p), 'dark', 'set before the first paint on reload');
+  await sw.waitFor();
+  assert.equal(await sw.locator('[data-theme-choice="dark"]').getAttribute('aria-checked'), 'true', 'switch shows the saved choice');
+  // The user menu no longer has a second copy of the choice
+  await p.locator('.topbar-user').click();
+  await p.locator('.dropdown, [role="menu"]').first().waitFor();
+  assert.equal(await p.locator('.dropdown :text("Dunkel"), [role="menu"] :text("Dunkel")').count(), 0);
+  await p.keyboard.press('Escape');
   // another device (no local choice yet) takes it over from the account
   const other = await page('anna', { mobile: true });
   await other.p.request.patch(`${S.base}/api/me`, { data: { theme: 'dark' } });
