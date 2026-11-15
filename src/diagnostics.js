@@ -315,8 +315,10 @@ export function createDiagnostics(ctx) {
     const table = (obj) => {
       const rows = Object.entries(obj || {}).filter(([, v]) => v !== undefined);
       if (!rows.length) return '_(none)_\n';
-      return `| | |\n|---|---|\n${rows.map(([k, v]) => `| ${String(k).replace(/\|/g, '\\|')} | ${fmt(v).replace(/\|/g, '\\|').replace(/\n/g, ' ')} |`).join('\n')}\n`;
+      return `| | |\n|---|---|\n${rows.map(([k, v]) => `| ${cell(k)} | ${cell(fmt(v))} |`).join('\n')}\n`;
     };
+    // Markdown table cell: backslash and | escaped, one line
+    const cell = (x) => String(x).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
     const fmt = (v) => (v === null ? '–' : typeof v === 'object' ? JSON.stringify(v) : String(v));
     const block = (lines) => `\`\`\`\n${lines.join('\n').replace(/```/g, "'''")}\n\`\`\`\n`;
 
