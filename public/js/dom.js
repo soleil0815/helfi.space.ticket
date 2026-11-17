@@ -217,7 +217,9 @@ export function modal(title, body, { footer = null, wide = false, onClose } = {}
     ));
   document.body.append(overlay);
   document.addEventListener('keydown', esc);
-  setTimeout(() => overlay.querySelector('input:not([type=hidden]),textarea,select')?.focus(), 30);
+  // Focus the first field – unless the person (or a test) already clicked or typed into the dialog meanwhile:
+  // a late focus would move their typing into the first field
+  setTimeout(() => { if (!overlay.contains(document.activeElement)) overlay.querySelector('input:not([type=hidden]),textarea,select')?.focus(); }, 30);
   return { el: overlay, close };
 }
 

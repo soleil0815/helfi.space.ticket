@@ -74,6 +74,29 @@ test('KB: saving a top-level article of an archived project does not move it to 
   await c.close();
 });
 
+test('Dialogs: the late auto-focus never pulls focus away from a field already in use', { skip }, async () => {
+  const { c, p, errors } = await page('admin');
+  await p.goto(`${S.base}/admin/projects`);
+  await p.waitForSelector('text=Neues Projekt');
+  const r = await p.evaluate(async () => {
+    const { modal, h } = await import('/js/dom.js');
+    const a = h('input', { name: 'a' }); const b = h('input', { name: 'b' }); const x = h('input', { name: 'x' });
+    const d1 = modal('Test', h('form', a, b));
+    b.focus(); b.value = 'getippt';
+    await new Promise((ok) => setTimeout(ok, 80));
+    const kept = document.activeElement?.name;
+    d1.close();
+    const d2 = modal('Test 2', h('form', x));
+    await new Promise((ok) => setTimeout(ok, 80));
+    const auto = document.activeElement?.name;
+    d2.close();
+    return { kept, value: b.value, auto };
+  });
+  assert.deepEqual(r, { kept: 'b', value: 'getippt', auto: 'x' });
+  assert.deepEqual(errors, []);
+  await c.close();
+});
+
 test('Project dialog: after a partly failed create, saving again updates the new project', { skip }, async () => {
   const { c, p, errors } = await page('admin');
   let fail = true;
