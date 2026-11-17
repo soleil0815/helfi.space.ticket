@@ -13,16 +13,23 @@ export function fillPlaceholders(text, tk, user = state.user) {
 }
 
 let cache = null;
+let managed = []; // projects whose shared templates this person maintains (admins: all; leads/deputies: their own)
 async function load(force = false) {
-  if (!cache || force) cache = (await api.canned.list()).responses;
+  if (!cache || force) {
+    const r = await api.canned.list();
+    cache = r.responses;
+    managed = r.manageProjects || [];
+  }
   return cache;
 }
+/** Projects whose shared templates the signed-in person may maintain (loads once) */
+export async function manageableProjects() { await load(); return managed; }
 
 /** Shared templates of another project do not fit this ticket */
 export const forProject = (items, projectId) => (projectId ? items.filter((x) => !x.project || x.project.id === projectId) : items);
 
 /** Forget the loaded templates (personal ones belong to one account) – on sign-in/sign-out */
-export function resetCannedCache() { cache = null; }
+export function resetCannedCache() { cache = null; managed = []; }
 
 /** Dropdown list with search; onPick(template) on selection. */
 /** footer: further entries below the list, e.g. [{ label, onClick }] for “Save as canned response” */
@@ -76,35 +83,43 @@ export async function openTemplatePicker(anchor, onPick, { footer = [], projectI
   search.focus();
 }
 
-/** Dialog for creating/editing. shared: for everyone (admins only). */
-export function templateDialog({ existing = null, body = '', shared = false, onSaved } = {}) {
+/**
+ * Dialog for creating/editing. shared: shared template (admins: for everyone or a project; leads/deputies:
+ * for one of their projects). projectId: preselected project (e.g. the ticket's).
+ */
+export async function templateDialog({ existing = null, body = '', shared = false, projectId = null, onSaved } = {}) {
+  try { await load(); } catch { /* the save will report it */ }
+  const isAdmin = state.isAdmin;
+  const isLead = !isAdmin && managed.length > 0;
   const title = h('input', { required: true, maxLength: 100, value: existing?.title || '' });
   const text = h('textarea', { rows: 8, required: true, maxLength: 10000 });
   text.value = existing?.body ?? body;
   const forAll = h('input', { type: 'checkbox', checked: existing ? existing.shared : shared });
-  const canShare = state.isAdmin && !existing;
+  const canShare = (isAdmin || isLead) && !existing;
+  const mayEditProject = isAdmin || isLead;
   // Shared templates: optionally only for one project (its agents see it, and only in its tickets)
   const sharedNow = () => (existing ? existing.shared : canShare && forAll.checked);
-  const proj = h('select', { 'aria-label': t('canned.project') }, h('option', { value: '' }, t('canned.allProjects')));
-  const projField = field(t('canned.project'), proj, t('canned.projectHint'));
+  // "All projects" only for admins; leads/deputies choose one of their projects
+  const proj = h('select', { 'aria-label': t('canned.project') }, isAdmin ? h('option', { value: '' }, t('canned.allProjects')) : null);
+  const projField = field(t('canned.project'), proj, isAdmin ? t('canned.projectHint') : t('canned.projectHintLead'));
   // The template's own project is always an option (it may be archived and then missing from
   // the project list); projectId is only sent when the admin really changed the select.
   const ownProject = existing?.project || null;
   const original = ownProject ? String(ownProject.id) : '';
   if (ownProject) { proj.append(h('option', { value: ownProject.id }, ownProject.name || ownProject.key)); proj.value = original; }
-  if (state.isAdmin) {
-    api.projects().then(({ projects }) => {
-      for (const p of projects) if (String(p.id) !== original) proj.append(h('option', { value: p.id }, p.name));
-      proj.value = original;
-    }).catch(() => {});
-  }
-  const syncProj = () => { projField.hidden = !state.isAdmin || !sharedNow(); };
+  for (const p of managed) if (String(p.id) !== original) proj.append(h('option', { value: p.id }, p.name));
+  // New template: preselect the ticket's project if this person maintains it, otherwise (leads) the first own one
+  if (!existing) {
+    const pre = projectId && managed.some((p) => p.id === projectId) ? String(projectId) : '';
+    proj.value = pre || (isAdmin ? '' : String(managed[0]?.id || ''));
+  } else proj.value = original;
+  const syncProj = () => { projField.hidden = !mayEditProject || !sharedNow(); };
   forAll.addEventListener('change', syncProj);
   const form = h('form#template-form', {
     onsubmit: async (e) => {
       e.preventDefault();
       try {
-        const data = { title: title.value, body: text.value, ...(state.isAdmin && sharedNow() && (!existing || proj.value !== original) ? { projectId: Number(proj.value) || null } : {}) };
+        const data = { title: title.value, body: text.value, ...(mayEditProject && sharedNow() && (!existing || proj.value !== original) ? { projectId: Number(proj.value) || null } : {}) };
         const r = existing ? await api.canned.update(existing.id, data) : await api.canned.create({ ...data, shared: canShare && forAll.checked });
         cache = null;
         toast(t('app.saved'), 'success');
@@ -115,7 +130,7 @@ export function templateDialog({ existing = null, body = '', shared = false, onS
   },
   field(t('canned.name'), title, t('canned.nameHint')),
   field(t('canned.text'), withEmoji(text), t('canned.placeholders')),
-  canShare ? h('label.check-inline', forAll, t('canned.forAll')) : null,
+  canShare ? h('label.check-inline', forAll, isAdmin ? t('canned.forAll') : t('canned.forProject')) : null,
   projField);
   syncProj();
   const dlg = modal(existing ? t('canned.edit') : t('canned.new'), form, {
@@ -126,19 +141,24 @@ export function templateDialog({ existing = null, body = '', shared = false, onS
   setTimeout(() => title.focus(), 40);
 }
 
-/** Management: shared = templates for everyone (administration), otherwise own ones (profile). */
+/**
+ * Management: shared = shared templates (administration: all; profile of a project lead/deputy: those of
+ * their projects), otherwise own ones (profile).
+ */
 export function templatesPanel({ shared }) {
   const panel = h('section.panel', h('div.loading', t('app.loading')));
+  const lead = shared && !state.isAdmin;
   const draw = async () => {
     let items;
-    try { items = (await load(true)).filter((x) => (shared ? x.shared : x.mine)); }
+    try { items = (await load(true)).filter((x) => (shared ? x.shared && x.canEdit : x.mine)); }
     catch (e) { return mount(panel, h('p.error-text', e.message)); }
+    if (lead && !managed.length) { panel.hidden = true; return; }
     mount(panel,
-      h('div.section-head', h('h2', shared ? t('canned.sharedTitle') : t('canned.personalTitle')),
+      h('div.section-head', h('h2', lead ? t('canned.leadTitle') : shared ? t('canned.sharedTitle') : t('canned.personalTitle')),
         h('div.actions',
           shared && state.user?.role === 'admin' ? examplesButton('canned', () => { cache = null; draw(); }) : null,
           h('button.btn.btn-primary', { type: 'button', onclick: () => templateDialog({ shared, onSaved: draw }) }, icon('plus'), t('canned.new')))),
-      h('p.muted', shared ? t('canned.sharedIntro') : t('canned.personalIntro')),
+      h('p.muted', lead ? t('canned.leadIntro', { projects: managed.map((p) => p.name).join(', ') }) : shared ? t('canned.sharedIntro') : t('canned.personalIntro')),
       items.length
         ? h('div.template-list', items.map((x) => h('div.template-row',
           h('div.template-main', h('strong', x.title), shared ? h('span.badge.template-project', x.project ? x.project.name : t('canned.allProjects')) : null, h('div.template-preview.muted', x.body.replace(/\s+/g, ' ').slice(0, 160))),
