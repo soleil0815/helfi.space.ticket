@@ -266,7 +266,7 @@ export async function renderTicket(content, key) {
           projectId: tk.projectId,
           footer: [{
             label: t('canned.saveAs'), icon: icon('plus'),
-            onClick: () => { if (field.isEmpty()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: field.getValue() }); },
+            onClick: () => { if (field.isEmpty()) { toast(t('canned.emptyText'), 'error'); return; } templateDialog({ body: field.getValue(), projectId: tk.projectId }); },
           }],
         });
       },

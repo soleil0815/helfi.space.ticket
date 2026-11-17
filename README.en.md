@@ -571,6 +571,7 @@ For replies that are always the same (e.g. "Please restart your computer"):
 - **Create:**
   - Write a text in the comment box and choose **Save as template**.
   - Admins manage templates for everyone under *Administration → Reply templates*. Optionally such a template belongs to a **project**: then only its agents see it, and only in its tickets. Without a project it is for everyone.
+  - **Project lead and deputy** maintain the shared templates of **their** project themselves – in the *profile* under *Reply templates of my projects* or right in the ticket with *Save as template* → *Shared for the project*. Templates for all projects stay with the admins; component leads and the other agents only use them. Whoever hands over the lead or whose project is archived loses the right at once.
   - Every agent manages personal templates in their *profile*; only they can see them.
 - **Take over examples:** under *Administration → Reply templates*, *Examples* creates ten frequent replies for everyone (confirm receipt, more details needed, please restart, password reset, arrange remote session, waiting for vendor, hardware ordered, known outage, solved – please confirm, closing without reply) with placeholders, in German (formal) or English. Existing ones with the same title are skipped.
 

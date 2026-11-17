@@ -96,6 +96,8 @@ export function renderProfile(content) {
     pkPanel,
     mfaPanel,
     pwForm,
+    // Project leads/deputies (not admins – they use the administration): shared templates of their projects
+    state.isAgent && !state.isAdmin ? (() => { const tp = templatesPanel({ shared: true }); tp.id = 'project-templates'; tp.dataset.projectTemplates = ''; return tp; })() : null,
     state.isAgent ? (() => { const tp = templatesPanel({ shared: false }); tp.id = 'templates'; return tp; })() : null,
   );
   if (location.hash === '#templates') setTimeout(() => document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }), 50);

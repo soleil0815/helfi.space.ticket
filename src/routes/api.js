@@ -889,7 +889,11 @@ export function createApi(ctx) {
   r.get('/reports', requireRole('agent'), (req, res) => res.json(reports.report(req.query, req.user)));
 
   // ---------- Canned responses (agents only) ----------
-  r.get('/canned', requireRole('agent'), (req, res) => res.json({ responses: canned.list(req.user) }));
+  r.get('/canned', requireRole('agent'), (req, res) => res.json({
+    responses: canned.list(req.user),
+    // Projects whose shared templates this person maintains (admins: all; leads/deputies: their own)
+    manageProjects: canned.manageable(req.user).map((p) => ({ id: p.id, key: p.key, name: p.name })),
+  }));
   r.post('/canned', requireRole('agent'), wrap(async (req, res) => res.status(201).json({ response: canned.create(req.user, req.body || {}) })));
   r.patch('/canned/:id', requireRole('agent'), wrap(async (req, res) => res.json({ response: canned.update(req.user, req.params.id, req.body || {}) })));
   r.delete('/canned/:id', requireRole('agent'), (req, res) => { canned.remove(req.user, req.params.id); res.json({ ok: true }); });

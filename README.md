@@ -571,6 +571,7 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
 - **Anlegen:**
   - Text im Kommentarfeld schreiben und **Als Vorlage speichern** wählen.
   - Vorlagen für alle pflegen Admins unter *Administration → Antwortvorlagen*. Optional gehört eine solche Vorlage zu einem **Projekt**: Dann sehen sie nur dessen Bearbeiter, und nur in dessen Tickets. Ohne Projekt gilt sie für alle.
+  - **Projektleitung und Vertretung** pflegen die gemeinsamen Vorlagen **ihres** Projekts selbst – im *Profil* unter *Antwortvorlagen meiner Projekte* oder direkt im Ticket mit *Als Vorlage speichern* → *Gemeinsam für das Projekt*. Vorlagen für alle Projekte bleiben bei den Admins; Komponenten-Verantwortliche und die übrigen Bearbeiter nutzen die Vorlagen nur. Wer die Leitung abgibt oder das Projekt archiviert, verliert das Recht sofort.
   - Persönliche Vorlagen pflegt jeder Bearbeiter in seinem *Profil*; sie sieht nur er selbst.
 - **Beispiele übernehmen:** Unter *Administration → Antwortvorlagen* legt *Beispiele* zehn häufige Antworten für alle an (Eingang bestätigen, weitere Angaben nötig, bitte neu starten, Kennwort zurückgesetzt, Fernwartung vereinbaren, wartet auf Hersteller, Hardware bestellt, bekannte Störung, gelöst – bitte bestätigen, schließen ohne Rückmeldung), mit Platzhaltern, auf Deutsch (Sie-Form) oder Englisch. Vorhandene mit gleichem Titel werden übersprungen.
 
