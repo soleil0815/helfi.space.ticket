@@ -827,6 +827,8 @@ sudo scripts/test-samba-ad.sh && HELFI_TEST_LDAP_HOST=dc01.firma.local npm run t
 
 Rebuild the manual (after changes in `docs/manual/`): `npm install --no-save playwright && npx playwright install chromium && node scripts/build-manual.mjs`.
 
+Regenerate the screenshots for README and manual (on every visible change, so the pictures match the version): `node scripts/screenshots.mjs` – starts a demo server with sample data and writes all pictures in both languages to `docs/images/` and `docs/manual/img/`; single pictures with `--only=board,ticket`, one language with `--lang=en`. Rebuild the manual afterwards. A test checks that every picture in the manual and README comes from the script.
+
 Structure: `src/` server (Express, better-sqlite3), `public/` UI (plain JavaScript without a build step), `src/i18n.js` and `public/js/i18n.js` for the texts (de/en).
 
 What's new: `src/news.json`, per version items for `all`, `agent` or `admin` (de/en). New items go into an entry with `"version": ""` (create it at the top if there is none) – a number is never filled in by hand: at release, `scripts/news-versions.mjs` assigns each item, based on the release tags, to the version it was first shipped with; new items get the version being built. So nothing needs to be done after a release. Users see the items once after the update, all versions are listed under *What's new*.
