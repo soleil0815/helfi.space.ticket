@@ -116,7 +116,9 @@ export class Anonymizer {
     // (AD DNs end with DC=…; values of the other parts may contain spaces)
     s = s.replace(/\b(?:(?:CN|OU|DC|O|L|ST|C|UID)=[^,;"'\n=]+,\s*)+DC=[^,;"'\s]+/gi, (m) => this.placeholder('dn', m));
     // URLs: keep scheme and path, hide the host
-    s = s.replace(/\b([a-z][a-z0-9+.-]{0,20}:\/\/)(\[[0-9a-f:.]+\]|[^/\s:'"<>]+)/gi, (m, scheme, host) => {
+    // Host: letters, digits, dots, hyphens (plus user info before @, and # from the error overview's number
+    // folding) – never brackets or punctuation after a bare scheme such as "https://)"
+    s = s.replace(/\b([a-z][a-z0-9+.-]{0,20}:\/\/)(\[[0-9a-f:.]+\]|[\p{L}\p{N}][\p{L}\p{N}._@%#-]{0,252})/giu, (m, scheme, host) => {
       if (host.startsWith('<')) return m;
       const h = host.replace(/^\[|\]$/g, '');
       return scheme + (net.isIP(h) ? this.placeholder('ip', h, this.ipNote(h)) : this.placeholder('host', h));
@@ -162,8 +164,14 @@ export function describeSetting(key, value) {
       return Array.isArray(j) ? `set (JSON, ${j.length} entries)` : `set (JSON, ${Object.keys(j).length} keys)`;
     } catch { return 'set (invalid JSON)'; }
   }
-  const lines = v.split(/[\n,]+/).filter((x) => x.trim()).length;
-  return lines > 1 ? `set (${lines} entries)` : 'set';
+  // Certificates and AD DNs: count nothing (DN parts or PEM lines are no "entries")
+  if (/-----BEGIN /.test(v)) { const n = (v.match(/-----BEGIN /g) || []).length; return `set (PEM, ${n} ${n === 1 ? 'certificate' : 'certificates'})`; }
+  if (/(?:^|,)\s*(?:CN|OU|DC|O)=/i.test(v) && !v.includes('\n')) return 'set';
+  const lines = v.split('\n').filter((x) => x.trim()).length;
+  if (lines > 1) return `set (${lines} lines)`;
+  // One line: a list ("a, b") counts its entries, other text is only "set"
+  const items = v.split(',').map((x) => x.trim()).filter(Boolean);
+  return items.length > 1 && items.every((x) => !/\s/.test(x)) ? `set (${items.length} entries)` : 'set';
 }
 
 export function createDiagnostics(ctx) {
@@ -250,7 +258,7 @@ export function createDiagnostics(ctx) {
       'Tickets by status': all('SELECT status k, COUNT(*) n FROM tickets GROUP BY status'),
       'Tickets by type': all('SELECT type k, COUNT(*) n FROM tickets GROUP BY type'),
       'Comments': one('SELECT COUNT(*) n FROM comments')?.n,
-      'Accounts by role': all("SELECT role k, COUNT(*) n FROM users WHERE source<>'email' GROUP BY role"),
+      'Accounts by role (without e-mail contacts)': all("SELECT role k, COUNT(*) n FROM users WHERE source<>'email' GROUP BY role"),
       'Accounts by source': all('SELECT source k, COUNT(*) n FROM users GROUP BY source'),
       'Inactive accounts': one("SELECT COUNT(*) n FROM users WHERE active=0 AND source<>'email'")?.n,
       'With 2FA': one('SELECT COUNT(*) n FROM users WHERE totp_enabled=1')?.n,

@@ -689,6 +689,7 @@ Also:
 - **`docker compose up` fails** (e.g. invalid `docker-compose.yml`): `update.sh` reports an error, restores `.env` and `docker-compose.yml` and exits with code 1. If there is a previous version, it first asks whether to start it again (automatically with `-y`).
 - **Still starting:** if the new version is still "starting" after `HELFI_UPDATE_WAIT` (e.g. database migration on large databases), `update.sh` asks whether to wait once more (automatically once with `-y`).
 - **Going back:** afterwards `.env` holds the previous version again. If `update.sh` does not restore the database, it says so explicitly, e.g. if the backups are not readable for this user (then `sudo ./update.sh -y`) or if there is no backup or only an incomplete one (then the database has not been migrated yet).
+- **Text after a value in `.env`:** up to version 1.11, `env.example` had the explanation in the same line as the value (`# HELFI_SECURE_COOKIES=true cookies over HTTPS only …`). Removing only the `#` made the whole sentence the value. `update.sh` reports such lines by number and name (never the value) and changes nothing; Helfi.Space uses the default for them, logs a warning and shows it in the administration. Fix: leave only the value, e.g. `HELFI_SECURE_COOKIES=true`, and restart the container.
 
 ### Cleaning up
 

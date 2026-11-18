@@ -12,7 +12,7 @@ import { glpiAdapter } from '../import/glpi.js';
 import { zendeskAdapter } from '../import/zendesk.js';
 import { freshdeskAdapter } from '../import/freshdesk.js';
 import { csvAdapter, readCsv, suggestColumns, CSV_FIELDS, MAX_CSV_BYTES } from '../import/csv.js';
-import { config, paths, COMPOSE_VERSION } from '../config.js';
+import { config, paths, COMPOSE_VERSION, envProblems } from '../config.js';
 import { HttpError, notFound, forbidden, str, oneOf, int } from '../lib/http.js';
 import { verifyPassword, hashPassword, safeEqual } from '../lib/crypto.js';
 import { requireAuth, requireRole, isAgent, agentOn, agentProjects, idleMinutes } from '../auth/session.js';
@@ -130,6 +130,8 @@ export function createApi(ctx) {
     const ps = poller.status();
     if (settings.get('imap.enabled') && ps.lastError) w.push({ code: 'imapError', message: ps.lastError });
     if (!config.baseUrl.startsWith('https://')) w.push({ code: 'noHttps' });
+    else if (!config.secureCookies) w.push({ code: 'cookiesInsecure' });
+    if (envProblems.length) w.push({ code: 'envInvalid', message: envProblems.join(', ') });
     if (policy.proxyWarning()) w.push({ code: 'proxyUntrusted' });
     const nets = parseNetworks(settings.get('mfa.internalNetworks'));
     if (nets.invalid.length) w.push({ code: 'networksInvalid', message: nets.invalid.join(', ') });
