@@ -88,7 +88,7 @@ test('Report for one of our own mails: internal note, no reopening, address bloc
   assert.match(notes[0].body, /monitor@firma\.local/);
   assert.equal(ctx.tickets.rawById(first.ticketId).status, 'waiting', 'is not reopened');
   assert.equal(ctx.suppressions.isBlocked('Monitor@firma.local'), true);
-  assert.equal(ctx.mailer.blocked('monitor@firma.local'), 'gesperrt (unzustellbar)');
+  assert.equal(ctx.mailer.blocked('monitor@firma.local'), 'blocked (undeliverable)');
   assert.equal((await run(exchangeNdr(outId))).action, 'duplicate');
 });
 
@@ -151,7 +151,7 @@ test('Rule "never reply": ticket in the chosen project, no mail to the sender', 
   const r = await run(eml(['From: backup@firma.local', 'To: helpdesk@firma.local', 'Subject: Sicherung fehlgeschlagen', 'Message-ID: <bk1@x>', '', 'Fehler']));
   assert.equal(r.action, 'ticket');
   assert.match(r.key, /^MON-/);
-  assert.equal(ctx.mailer.blocked('Backup@firma.local'), 'Regel');
+  assert.match(ctx.mailer.blocked('Backup@firma.local'), /^sender rule "/);
   const ig = await run(eml(['From: werbung@spam.example', 'Subject: Angebot', 'Message-ID: <sp1@x>', '', 'x']));
   assert.equal(ig.reason, 'rule');
   // Rule with unknown project → default project instead of error
@@ -170,7 +170,7 @@ test('Automatically generated mails (Proxmox, monitoring): only with rule "never
   ctx.settings.set('imap.senderRules', JSON.stringify([{ pattern: '*@pve.firma.local', action: 'noreply' }, { pattern: 'noreply@firma.local', action: 'noreply' }]));
   r = await run(pve('pv2'));
   assert.equal(r.action, 'ticket', 'accepted with rule');
-  assert.equal(ctx.mailer.blocked('pve@pve.firma.local'), 'Regel', 'and never replied to');
+  assert.match(ctx.mailer.blocked('pve@pve.firma.local'), /^sender rule "/, 'and never replied to');
   // noreply senders and Precedence: bulk likewise
   assert.equal((await run(pve('pv3', 'noreply@firma.local', 'Precedence: bulk'))).action, 'ticket');
   // still discarded without a matching rule

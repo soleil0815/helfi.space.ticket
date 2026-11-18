@@ -343,3 +343,24 @@ test('update.sh output language follows the locale (default English)', () => {
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /^ERROR: Invalid version: 9/);
 });
+
+test('.env lines with text after the value (old env.example) are reported by line and name, never changed', () => {
+  const envText = 'HELFI_BASE_URL=https://helfi.firma.local\nHELFI_VERSION=latest\n'
+    + 'HELFI_SECURE_COOKIES=true   cookies over HTTPS only (default: on if HELFI_BASE_URL starts with https://)\r\n'
+    + 'HELFI_TRUST_PROXY=loopback, 10.0.10.5\n'
+    + 'HELFI_HSTS=on # comment that docker compose strips\n'
+    + 'HELFI_SETUP_TOKEN="quoted value stays"\n'
+    + '# HELFI_SESSION_HOURS=12 still commented out\n';
+  const ctx = setup({ envText });
+  const r = run(ctx, [], { FAKE_NEW_VERSION: '1.1.0' });
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(r.stderr, /HINWEIS: In der \.env steht hinter diesen Werten noch Text/);
+  assert.match(r.stderr, /Zeile 3: HELFI_SECURE_COOKIES\n/);
+  for (const name of ['HELFI_TRUST_PROXY', 'HELFI_HSTS', 'HELFI_SETUP_TOKEN', 'HELFI_SESSION_HOURS', 'HELFI_BASE_URL']) assert.doesNotMatch(r.stderr, new RegExp(`: ${name}\\n`), name);
+  assert.doesNotMatch(r.stderr, /cookies over HTTPS/, 'values are never printed');
+  assert.match(read(ctx, '.env'), /^HELFI_SECURE_COOKIES=true {3}cookies over HTTPS only/m, '.env is not changed');
+  // English output, and no note for a clean .env
+  const en = run(setup({ envText }), [], { FAKE_NEW_VERSION: '1.1.0', LANG: 'en_US.UTF-8' });
+  assert.match(en.stderr, /NOTE: In \.env these values are followed by more text[\s\S]*line 3: HELFI_SECURE_COOKIES/);
+  assert.doesNotMatch(run(setup(), [], { FAKE_NEW_VERSION: '1.1.0' }).stderr, /HINWEIS/);
+});

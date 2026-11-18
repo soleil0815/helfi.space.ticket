@@ -189,6 +189,30 @@ fi
 [ -f docker-compose.yml ] || { err "docker-compose.yml fehlt in $(pwd)" "docker-compose.yml is missing in $(pwd)"; exit 1; }
 [ -f .env ] || { err ".env fehlt – bitte aus env.example erstellen." ".env is missing – please create it from env.example."; exit 1; }
 
+# Up to 1.11, env.example had the explanation in the same line as the value ("# HELFI_SECURE_COOKIES=true cookies
+# over HTTPS only …"): with only the "#" removed, the whole sentence becomes the value. Report such lines (number and
+# name only – values can be secrets); .env belongs to the admin, so nothing is changed here.
+# Allowed: quoted values, lists "a, b", a comment after " #" (docker compose strips it).
+env_text_after_value() {
+  tr -d '\r' < .env | awk '
+    /^[ \t]*HELFI_[A-Z0-9_]*=/ {
+      v = $0; sub(/^[ \t]*HELFI_[A-Z0-9_]*=/, "", v)
+      if (v ~ /^["\047]/) next
+      sub(/[ \t]+#.*$/, "", v); gsub(/,[ \t]+/, ",", v); sub(/[ \t]+$/, "", v)
+      if (v ~ /[ \t]/) { n = $0; sub(/^[ \t]*/, "", n); sub(/=.*/, "", n); print NR " " n }
+    }'
+}
+ENV_BAD="$(env_text_after_value)"
+if [ -n "$ENV_BAD" ]; then
+  { msg 'HINWEIS: ' 'NOTE: '
+    say "In der .env steht hinter diesen Werten noch Text (z. B. ein Kommentar aus einer alten env.example):" \
+        "In .env these values are followed by more text (e.g. a comment from an old env.example):"
+    printf '%s\n' "$ENV_BAD" | while read -r line name; do say "  Zeile $line: $name" "  line $line: $name"; done
+    say "Helfi.Space nutzt dafür den Standard. Bitte nur den Wert stehen lassen, z. B. HELFI_SECURE_COOKIES=true" \
+        "Helfi.Space uses the default for them. Please leave only the value, e.g. HELFI_SECURE_COOKIES=true"
+  } >&2
+fi
+
 env_get() {
   # Strip Windows line endings and quotes
   sed -n "s/^$1=//p" .env | tail -n 1 | tr -d '\r"' | tr -d "'"

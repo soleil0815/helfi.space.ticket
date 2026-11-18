@@ -21,7 +21,7 @@ import { createSurvey } from './itil/survey.js';
 import { createItilReports } from './itil/itilReports.js';
 import { createKbComments } from './itil/kbcomments.js';
 import { createKbVotes } from './itil/kbvotes.js';
-import { config, paths } from './config.js';
+import { config, paths, envProblems } from './config.js';
 import { createSettings } from './settings.js';
 import { createSessions, parseCookies, createLoginLimiter } from './auth/session.js';
 import { createNetworkPolicy } from './auth/network.js';
@@ -134,6 +134,9 @@ export function createApp(db) {
     available: ctx.passkeys.available() ? 'yes' : 'no',
     'bound to': relyingParty()?.rpID || 'not possible (no HTTPS or an IP address in HELFI_BASE_URL)',
   }));
+
+  // Unusable .env values (default applies; also an admin warning): only names, never values (some are secrets)
+  for (const name of envProblems) log.warn(`${name} in .env has a value Helfi.Space cannot use – the default applies. Is there text after the value (e.g. a comment from an old env.example)?`);
 
   const app = express();
   app.disable('x-powered-by');

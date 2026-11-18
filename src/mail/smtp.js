@@ -45,8 +45,8 @@ export function createMailer(db, settings, { suppressions = null } = {}) {
   /** No mails to senders with a "never reply" rule or to blocked (undeliverable) addresses. */
   function blocked(to) {
     const rule = matchRule(parseRules(settings.get('imap.senderRules')), to);
-    if (rule) return 'Regel';
-    if (suppressions?.isBlocked(to)) return 'gesperrt (unzustellbar)';
+    if (rule) return `sender rule "${rule.pattern}" (${rule.action})`;
+    if (suppressions?.isBlocked(to)) return 'blocked (undeliverable)';
     return null;
   }
 

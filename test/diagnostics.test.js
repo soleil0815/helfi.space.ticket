@@ -67,6 +67,8 @@ test('Anonymizer: placeholders per kind, consistent within one package; code, fi
   assert.match(text, /Bind <dn-1> failed; getaddrinfo ENOTFOUND <host-2>/);
   assert.match(text, /src\/auth\/passkeys\.js ctx\.poller v1\.48\.0 Node v24\.1\.0 at 12:34:56 erika\.musterhaus stays/, 'only whole names are replaced');
   // A new instance numbers anew
+  // A bare scheme in a sentence is no host (from an .env comment: "… starts with https://)")
+  assert.equal(new D.Anonymizer().text('default: on if HELFI_BASE_URL starts with https://)'), 'default: on if HELFI_BASE_URL starts with https://)');
   const b = new D.Anonymizer();
   assert.equal(b.text('198.51.100.99'), '<ip-1 public>');
 });
@@ -80,7 +82,12 @@ test('Settings: switches, numbers and choices visible; free text only "set"; sec
   assert.equal(D.describeSetting('ldap.host', 'dc01.firma.local'), 'set');
   assert.equal(D.describeSetting('imap.folder', 'INBOX'), 'default (INBOX)');
   assert.equal(D.describeSetting('ldap.bindPassword', 'x'), 'secret, set');
-  assert.equal(D.describeSetting('register.domains', 'firma.local\nfirma.de'), 'set (2 entries)');
+  assert.equal(D.describeSetting('register.domains', 'firma.local\nfirma.de'), 'set (2 lines)');
+  assert.equal(D.describeSetting('mfa.internalNetworks', '10.0.10.0/24, 192.168.0.0/16'), 'set (2 entries)');
+  assert.equal(D.describeSetting('ldap.bindDn', 'CN=Dienst Helfi,OU=Dienste,DC=firma,DC=local'), 'set');
+  assert.equal(D.describeSetting('ldap.baseDn', 'DC=firma,DC=local'), 'set');
+  assert.equal(D.describeSetting('ldap.caPem', '-----BEGIN CERTIFICATE-----\nAAA\nBBB\n-----END CERTIFICATE-----'), 'set (PEM, 1 certificate)');
+  assert.equal(D.describeSetting('login.textDe', 'Willkommen, bitte anmelden'), 'set');
   assert.equal(D.describeSetting('imap.senderRules', '[{"pattern":"a@b.de"},{"pattern":"c"}]'), 'set (JSON, 2 entries)');
   assert.equal(D.describeSetting('reminder.time', '07:30'), '07:30');
 });
