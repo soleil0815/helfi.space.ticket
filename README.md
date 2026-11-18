@@ -827,6 +827,8 @@ sudo scripts/test-samba-ad.sh && HELFI_TEST_LDAP_HOST=dc01.firma.local npm run t
 
 Handbuch neu bauen (nach Änderungen an `docs/manual/`): `npm install --no-save playwright && npx playwright install chromium && node scripts/build-manual.mjs`.
 
+Screenshots für README und Handbuch neu erzeugen (bei jeder sichtbaren Änderung, damit die Bilder zur Version passen): `node scripts/screenshots.mjs` – startet einen Demo-Server mit Beispieldaten und schreibt alle Bilder in beiden Sprachen nach `docs/images/` und `docs/manual/img/`; einzelne Bilder mit `--only=board,ticket`, nur eine Sprache mit `--lang=de`. Danach das Handbuch neu bauen. Ein Test prüft, dass jedes Bild im Handbuch und im README vom Skript kommt.
+
 Aufbau: `src/` Server (Express, better-sqlite3), `public/` Oberfläche (reines JavaScript ohne Build-Schritt), `src/i18n.js` und `public/js/i18n.js` für die Texte (de/en).
 
 Neuigkeiten: `src/news.json`, je Version Punkte für `all`, `agent` oder `admin` (de/en). Neue Punkte kommen in einen Eintrag mit `"version": ""` (oben anlegen, falls es keinen gibt) – eine Nummer wird nie von Hand eingetragen: Beim Release ordnet `scripts/news-versions.mjs` jeden Punkt anhand der Release-Tags der Version zu, mit der er zum ersten Mal ausgeliefert wurde; Neues bekommt die gerade gebaute Version. Nach einem Release ist also kein Nacharbeiten nötig. Benutzer sehen die Punkte nach dem Update einmal, alle Versionen stehen unter *Neuigkeiten*.
