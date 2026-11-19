@@ -68,8 +68,8 @@ export function renderLogin(page) {
       try {
         const r = await api.login(user.value, pass.value);
         stopPasskeyWait();
-        if (r.mfa === 'code') return renderCode(page);
-        if (r.mfa) return renderEnroll(page);
+        if (r.mfa === 'code') return renderCode(page, { passkey: r.passkey });
+        if (r.mfa) return renderEnroll(page, { passkey: r.passkey });
         await signedIn(r.user);
       } catch (ex) {
         err.textContent = ex.message;
@@ -123,8 +123,28 @@ export function renderLogin(page) {
   waitForPasskey();
 }
 
+/**
+ * Instead of the code: confirm with a passkey of this account (offered by the server after the password if the
+ * account has one). Typical on the phone: the password manager filled in the saved password instead of the passkey.
+ */
+function passkeyConfirm({ passkey } = {}, err, enroll = false) {
+  if (!passkey || !passkeysHere(state.boot.auth.passkeys)) return null;
+  const btn = h('button.m-btn.m-btn-block.m-btn-passkey', {
+    type: 'button', 'data-passkey-confirm': '',
+    onclick: async () => {
+      err.hidden = true;
+      btn.disabled = true;
+      try { const r = await passkeySignIn({ confirm: true }); await signedIn(r.user); }
+      catch (ex) { if (!passkeyCancelled(ex)) { err.textContent = ex.message; err.hidden = false; } }
+      finally { btn.disabled = false; }
+    },
+  }, icon('passkey'), t('passkey.confirm'));
+  if (enroll) return h('div.m-passkey-confirm', h('p.m-muted', t('passkey.confirmEnrollHint')), btn, h('div.m-divider', h('span', t('login.or'))));
+  return [h('div.m-divider', h('span', t('login.or'))), btn, h('p.m-muted.m-small.m-center', t('passkey.confirmHint'))];
+}
+
 /** Second step: code from the authenticator app (or a recovery code) */
-function renderCode(page) {
+function renderCode(page, opts = {}) {
   const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
   const code = h('input.m-code', { inputmode: 'numeric', autocomplete: 'one-time-code', maxLength: 6, pattern: '[0-9]{6}', required: true, placeholder: '123456', 'aria-label': t('mfa.codeTitle') });
   const recovery = h('input.m-mono', { autocomplete: 'off', autocapitalize: 'off', spellcheck: false, placeholder: 'abcd-efgh', hidden: true, 'aria-label': t('mfa.useRecovery') });
@@ -162,6 +182,7 @@ function renderCode(page) {
   h('p.m-muted', t('mfa.codeHint')),
   err, code, recovery, btn,
   h('div.m-center', toggle),
+  passkeyConfirm(opts, err),
   h('div.m-center', h('button.m-link', { type: 'button', onclick: () => renderLogin(page) }, t('mfa.back'))));
   code.addEventListener('input', () => { if (/^\d{6}$/.test(code.value)) form.requestSubmit(); });
   frame(page, form);
@@ -169,7 +190,7 @@ function renderCode(page) {
 }
 
 /** Two-factor sign-in has to be set up first: right here on the phone (key + app link, QR for another device) */
-async function renderEnroll(page) {
+async function renderEnroll(page, opts = {}) {
   const back = () => h('div.m-center', h('button.m-link', { type: 'button', onclick: () => renderLogin(page) }, t('mfa.back')));
   frame(page, h('div.m-form', h('div.m-spinner', { 'aria-label': t('app.loading') })));
   let info;
@@ -178,9 +199,12 @@ async function renderEnroll(page) {
     return;
   }
   let user = null;
+  const pkErr = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
   frame(page, h('div.m-form.m-enroll',
     h('div.m-login-icon', icon('shield')),
     h('h1', t('mfa.enrollTitle')),
+    pkErr,
+    passkeyConfirm(opts, pkErr, true),
     h('p.m-muted', t('m.login.enrollText')),
     mfaSetupSteps(info, {
       confirm: async (code) => {

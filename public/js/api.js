@@ -48,7 +48,7 @@ export const api = {
   mfaEnrollInfo: () => request('POST', '/api/auth/mfa/enroll'),
   mfaVerify: (code) => request('POST', '/api/auth/mfa', { code }),
   passkeyOptions: () => request('POST', '/api/auth/passkey/options'),
-  passkeyLogin: (response) => request('POST', '/api/auth/passkey/login', { response }),
+  passkeyLogin: (response, confirm = false) => request('POST', '/api/auth/passkey/login', confirm ? { response, confirm: true } : { response }),
   passkeys: () => request('GET', '/api/me/passkeys'),
   passkeyRegOptions: () => request('POST', '/api/me/passkeys/options'),
   passkeyAdd: (response, name) => request('POST', '/api/me/passkeys', { response, name }),

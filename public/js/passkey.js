@@ -57,14 +57,15 @@ function credentialJson(cred) {
 
 /**
  * Sign in with a passkey. conditional: wait for the person to pick a passkey in the user name field
- * (runs until chosen or aborted via signal). Result: { user }.
+ * (runs until chosen or aborted via signal). confirm: second step after the password – only a passkey of
+ * that account is accepted. Result: { user }.
  */
-export async function passkeySignIn({ conditional = false, signal } = {}) {
+export async function passkeySignIn({ conditional = false, signal, confirm = false } = {}) {
   const o = await api.passkeyOptions();
   const publicKey = { ...o, challenge: fromB64(o.challenge), allowCredentials: (o.allowCredentials || []).map((c) => ({ ...c, id: fromB64(c.id) })) };
   const cred = await navigator.credentials.get({ publicKey, signal, ...(conditional ? { mediation: 'conditional' } : {}) });
   if (!cred) throw Object.assign(new Error('cancelled'), { name: 'NotAllowedError' });
-  return api.passkeyLogin(credentialJson(cred));
+  return api.passkeyLogin(credentialJson(cred), confirm);
 }
 
 /** Add a passkey to the own account (Face ID/Touch ID/PIN prompt of the device). Result: { passkey }. */

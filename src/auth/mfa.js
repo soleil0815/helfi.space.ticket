@@ -91,6 +91,21 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       return { id, p };
     },
 
+    /** Account of the half sign-in (null if there is none or it has expired) */
+    pendingUserId(req) {
+      cleanup();
+      const id = req.cookies?.[PENDING_COOKIE];
+      return (id && pending.get(id)?.userId) || null;
+    },
+
+    /** Signed in fully another way (passkey): the half sign-in is no longer needed */
+    dropPending(req, res) {
+      const id = req.cookies?.[PENDING_COOKIE];
+      if (!id) return;
+      pending.delete(id);
+      res.clearCookie(PENDING_COOKIE, { path: '/' });
+    },
+
     /** Initial enrollment during sign-in: key + QR code */
     async enrollInfo(req) {
       const { p } = this.getPending(req);

@@ -205,3 +205,36 @@ test('Start page hint: not under another address (passkeys would not work there)
   assert.equal(asked, false, 'no check at all');
   await ctx.close();
 });
+
+test('Password filled in instead of the passkey: the code step offers "Mit Passkey bestätigen" (desktop and phone)', { skip }, async () => {
+  await S.user('nora', 'user');
+  const s = S.ctx.settings;
+  for (const mobile of [false, true]) {
+    const { p, ctx, errors, logout } = await open('nora', { mobile });
+    await p.goto(`${base}${mobile ? '/m/me/passkeys' : '/profile'}`);
+    await p.click('[data-passkey-add]');
+    await p.waitForFunction((n) => document.body.textContent.includes(n), mobile ? 'Noch nicht benutzt' : 'Entfernen');
+    await logout();
+    s.set('mfa.internal', 'all');
+    S.db.prepare("UPDATE users SET totp_enabled=1 WHERE username='nora'").run();
+    try {
+      // No suggestion in the user name field: sign in with the password like the phone's password manager does
+      await p.addInitScript(() => { window.PublicKeyCredential.isConditionalMediationAvailable = async () => false; });
+      await p.goto(`${base}${mobile ? '/m/login' : '/login'}`);
+      await p.fill('input[name="username"]', 'nora');
+      await p.fill('input[name="password"]', 'Sehrgeheim123');
+      await p.click('button[type=submit]');
+      await p.waitForSelector('[data-passkey-confirm]');
+      await p.click('[data-passkey-confirm]');
+      await p.waitForFunction((m) => !location.pathname.startsWith(m ? '/m/login' : '/login'), mobile);
+      assert.equal((await (await p.request.get(`${base}/api/me`)).json()).user.username, 'nora');
+      assert.equal(S.db.prepare('SELECT auth_method, mfa FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 1').get(S.ids.nora).mfa, 1);
+      assert.deepEqual(errors, []);
+    } finally {
+      s.set('mfa.internal', '');
+      S.db.prepare("UPDATE users SET totp_enabled=0 WHERE username='nora'").run();
+      S.db.prepare('DELETE FROM user_passkeys WHERE user_id=?').run(S.ids.nora);
+      await ctx.close();
+    }
+  }
+});

@@ -957,3 +957,6 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 .m-passkey-hint-text p { margin: 2px 0 0; font-size: 14px; color: var(--text-subtle); }
 .m-passkey-hint-actions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .m-passkey-hint-actions .m-btn-primary { grid-column: 1 / -1; min-height: 44px; }
+/* Second sign-in step: confirm with a passkey instead of the code */
+.m-passkey-confirm { margin: 4px 0 8px; }
+.m-passkey-confirm > p { margin: 0 0 12px; }

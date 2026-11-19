@@ -362,6 +362,62 @@ test('Hint: not once a passkey exists, not where adding is not allowed', async (
   }
 });
 
+test('Second step after the password: the server offers the passkey; confirming with it completes the sign-in', async () => {
+  await S.user('jana', 'user');
+  await S.user('olaf', 'user');
+  await S.user('paul', 'user');
+  const pkJana = softPasskey(); const pkOlaf = softPasskey();
+  await addPasskey(await jar().login('jana'), pkJana);
+  await addPasskey(await jar().login('olaf'), pkOlaf);
+  const s = S.ctx.settings;
+  s.set('mfa.internal', 'all'); // 2FA everywhere, also for the test client
+  S.db.prepare("UPDATE users SET totp_enabled=1, totp_secret=NULL WHERE username IN ('jana', 'paul')").run();
+  try {
+    // Password correct → second step, with passkey offered (jana has one)
+    const c = jar();
+    let r = await c('POST', '/api/auth/login', { username: 'jana', password: 'Sehrgeheim123' });
+    assert.deepEqual(r.body, { mfa: 'code', passkey: true });
+    assert.ok(c.cookies.has('helfi_mfa'));
+    // Without a passkey: no offer (paul has none)
+    r = await jar()('POST', '/api/auth/login', { username: 'paul', password: 'Sehrgeheim123' });
+    assert.deepEqual(r.body, { mfa: 'code' });
+    // Another account's passkey is refused – no session, the half sign-in stays
+    let o = await c('POST', '/api/auth/passkey/options');
+    r = await c('POST', '/api/auth/passkey/login', { response: pkOlaf.signIn(o.body), confirm: true });
+    assert.equal(r.status, 401);
+    assert.equal(r.body.error.code, 'err.passkeyOtherAccount');
+    assert.equal((await c('GET', '/api/me')).status, 401);
+    assert.ok(c.cookies.has('helfi_mfa'));
+    // Own passkey: signed in with 2FA, the half sign-in is gone
+    o = await c('POST', '/api/auth/passkey/options');
+    r = await c('POST', '/api/auth/passkey/login', { response: pkJana.signIn(o.body), confirm: true });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.user.username, 'jana');
+    assert.ok(!c.cookies.has('helfi_mfa'));
+    const me = await c('GET', '/api/me');
+    assert.equal(me.status, 200);
+    assert.equal(S.db.prepare("SELECT s.mfa, s.auth_method FROM sessions s JOIN users u ON u.id=s.user_id WHERE u.username='jana' ORDER BY s.created_at DESC LIMIT 1").get().mfa, 1);
+    // Confirming without a half sign-in (expired, or never there): refused
+    const d = jar();
+    o = await d('POST', '/api/auth/passkey/options');
+    r = await d('POST', '/api/auth/passkey/login', { response: pkJana.signIn(o.body), confirm: true });
+    assert.equal(r.status, 401);
+    assert.equal(r.body.error.code, 'err.mfaExpired');
+    // Not yet enrolled in 2FA but a passkey: also offered in the enrollment step
+    S.db.prepare("UPDATE users SET totp_enabled=0 WHERE username='jana'").run();
+    r = await jar()('POST', '/api/auth/login', { username: 'jana', password: 'Sehrgeheim123' });
+    assert.deepEqual(r.body, { mfa: 'enroll', passkey: true });
+    // Passkeys switched off: no offer
+    s.set('passkeys.enabled', false);
+    r = await jar()('POST', '/api/auth/login', { username: 'jana', password: 'Sehrgeheim123' });
+    assert.deepEqual(r.body, { mfa: 'enroll' });
+  } finally {
+    s.set('passkeys.enabled', true);
+    s.set('mfa.internal', '');
+    S.db.prepare("UPDATE users SET totp_enabled=0 WHERE username IN ('jana', 'paul')").run();
+  }
+});
+
 test('Flood of passkey requests from one address: 429 after 120 per minute', async () => {
   const karl = await jar().login('karl');
   const pk = softPasskey();
