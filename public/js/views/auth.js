@@ -86,6 +86,16 @@ async function renderMfaStep(root, step) {
     },
   }, t('mfa.useRecovery')) : null;
 
+  // Has a passkey? It replaces the whole sign-in including the code (two factors in one)
+  const passkeyAlt = passkeysHere(state.boot.auth.passkeys) ? h('button.btn.btn-block.btn-passkey', {
+    type: 'button', 'data-mfa-passkey': '',
+    onclick: async () => {
+      err.hidden = true;
+      try { const r = await passkeySignIn(); await finishLogin(r.user); }
+      catch (ex) { if (!passkeyCancelled(ex)) { err.textContent = ex.message; err.hidden = false; } }
+    },
+  }, icon('passkey'), t('mfa.usePasskey')) : null;
+
   const form = h('form', {
     onsubmit: async (e) => {
       e.preventDefault();
@@ -116,6 +126,7 @@ async function renderMfaStep(root, step) {
   codeInput, recoveryInput,
   btn,
   toggle ? h('div.center', toggle) : null,
+  passkeyAlt,
   h('div.center', h('a.link', { href: '/login', onclick: (e) => { e.preventDefault(); history.replaceState({}, '', '/login'); renderLogin(root); } }, t('mfa.back'))));
   codeInput.addEventListener('input', () => { if (/^\d{6}$/.test(codeInput.value)) form.requestSubmit(); });
   mount(root, authFrame(form));
@@ -150,10 +161,14 @@ export function renderLogin(root) {
   const form = h('form', {
     onsubmit: async (e) => {
       e.preventDefault();
+      // A passkey answer is already being checked (e.g. password manager submitted the form after Face ID/PIN)
+      if (pkVerifying || pkDone) return;
       btn.disabled = true;
       err.hidden = true;
       try {
         const r = await api.login(user.value, pass.value);
+        // The passkey won the race: it is two factors already – never ask for a code on top
+        if (pkVerifying || pkDone) return;
         stopPasskeyWait();
         if (r.mfa) return renderMfaStep(root, r.mfa);
         await finishLogin(r.user);
@@ -180,11 +195,20 @@ export function renderLogin(root) {
   accountLinks(state.boot.auth, 'div.login-links', 'a.link'),
   );
   let pkFails = 0; // stop suggesting after repeated errors (e.g. server not reachable) instead of retrying forever
+  let pkVerifying = false; // the device has answered, the server is checking
+  let pkDone = false;      // signed in with the passkey – the first finished sign-in wins
+  const viaPasskey = async (opts = {}) => {
+    try {
+      const r = await passkeySignIn({ ...opts, onCredential: () => { pkVerifying = true; } });
+      pkDone = true;
+      return r;
+    } finally { pkVerifying = false; }
+  };
   const showErr = (ex) => { err.textContent = ex.message; err.hidden = false; };
   async function passkeyButton() {
     stopPasskeyWait();
     err.hidden = true;
-    try { const r = await passkeySignIn(); await finishLogin(r.user); }
+    try { const r = await viaPasskey(); await finishLogin(r.user); }
     catch (ex) { if (!passkeyCancelled(ex)) showErr(ex); waitForPasskey(); }
   }
   // Suggest passkeys in the user name field; renewed before the server's challenge (5 minutes) expires
@@ -194,7 +218,7 @@ export function renderLogin(root) {
     const ctl = new AbortController();
     pkWait = ctl;
     const renew = setTimeout(() => { if (pkWait === ctl) waitForPasskey(); }, 4 * 60 * 1000);
-    try { const r = await passkeySignIn({ conditional: true, signal: ctl.signal }); clearTimeout(renew); await finishLogin(r.user); }
+    try { const r = await viaPasskey({ conditional: true, signal: ctl.signal }); clearTimeout(renew); await finishLogin(r.user); }
     catch (ex) {
       clearTimeout(renew);
       if (ctl.signal.aborted) return;

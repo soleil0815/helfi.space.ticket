@@ -63,10 +63,14 @@ export function renderLogin(page) {
   const form = h('form.m-form', {
     onsubmit: async (e) => {
       e.preventDefault();
+      // A passkey answer is already being checked (e.g. password manager submitted the form after Face ID/PIN)
+      if (pkVerifying || pkDone) return;
       btn.disabled = true;
       err.hidden = true;
       try {
         const r = await api.login(user.value, pass.value);
+        // The passkey won the race: it is two factors already – never ask for a code on top
+        if (pkVerifying || pkDone) return;
         stopPasskeyWait();
         if (r.mfa === 'code') return renderCode(page);
         if (r.mfa) return renderEnroll(page);
@@ -94,10 +98,19 @@ export function renderLogin(page) {
   const showErr = (ex) => { err.textContent = ex.message; err.hidden = false; };
   const done = async (user) => { stopPasskeyWait(); await signedIn(user); };
   let pkFails = 0;
+  let pkVerifying = false; // the device has answered, the server is checking
+  let pkDone = false;      // signed in with the passkey – the first finished sign-in wins
+  const viaPasskey = async (opts = {}) => {
+    try {
+      const r = await passkeySignIn({ ...opts, onCredential: () => { pkVerifying = true; } });
+      pkDone = true;
+      return r;
+    } finally { pkVerifying = false; }
+  };
   async function passkeyButton() {
     stopPasskeyWait();
     err.hidden = true;
-    try { const r = await passkeySignIn(); await done(r.user); }
+    try { const r = await viaPasskey(); await done(r.user); }
     catch (ex) { if (!passkeyCancelled(ex)) showErr(ex); waitForPasskey(); }
   }
   // Suggest passkeys above the keyboard / in the user name field (iPhone, Android)
@@ -107,7 +120,7 @@ export function renderLogin(page) {
     const ctl = new AbortController();
     pkWait = ctl;
     const renew = setTimeout(() => { if (pkWait === ctl) waitForPasskey(); }, 4 * 60 * 1000);
-    try { const r = await passkeySignIn({ conditional: true, signal: ctl.signal }); clearTimeout(renew); await done(r.user); }
+    try { const r = await viaPasskey({ conditional: true, signal: ctl.signal }); clearTimeout(renew); await done(r.user); }
     catch (ex) {
       clearTimeout(renew);
       if (ctl.signal.aborted) return;
@@ -121,6 +134,19 @@ export function renderLogin(page) {
   }
   frame(page, form);
   waitForPasskey();
+}
+
+/** Has a passkey? It replaces the whole sign-in including the code (two factors in one) */
+function passkeyAlt(err) {
+  if (!passkeysHere(state.boot.auth.passkeys)) return null;
+  return h('button.m-btn.m-btn-block.m-btn-passkey', {
+    type: 'button', 'data-mfa-passkey': '',
+    onclick: async () => {
+      err.hidden = true;
+      try { const r = await passkeySignIn(); await signedIn(r.user); }
+      catch (ex) { if (!passkeyCancelled(ex)) { err.textContent = ex.message; err.hidden = false; } }
+    },
+  }, icon('passkey'), t('mfa.usePasskey'));
 }
 
 /** Second step: code from the authenticator app (or a recovery code) */
@@ -162,6 +188,7 @@ function renderCode(page) {
   h('p.m-muted', t('mfa.codeHint')),
   err, code, recovery, btn,
   h('div.m-center', toggle),
+  passkeyAlt(err),
   h('div.m-center', h('button.m-link', { type: 'button', onclick: () => renderLogin(page) }, t('mfa.back'))));
   code.addEventListener('input', () => { if (/^\d{6}$/.test(code.value)) form.requestSubmit(); });
   frame(page, form);
@@ -178,10 +205,12 @@ async function renderEnroll(page) {
     return;
   }
   let user = null;
+  const pkErr = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
   frame(page, h('div.m-form.m-enroll',
     h('div.m-login-icon', icon('shield')),
     h('h1', t('mfa.enrollTitle')),
     h('p.m-muted', t('m.login.enrollText')),
+    pkErr, passkeyAlt(pkErr),
     mfaSetupSteps(info, {
       confirm: async (code) => {
         try {

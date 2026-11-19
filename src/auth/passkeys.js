@@ -19,6 +19,7 @@ import { randomToken } from '../lib/crypto.js';
 import { config } from '../config.js';
 import { HttpError } from '../lib/http.js';
 import { log } from '../lib/log.js';
+import { PENDING_COOKIE } from './mfa.js';
 import { roleFromGroups, projectAccessFromGroups, withProjectGroups } from '../users.js';
 
 export const PASSKEY_COOKIE = 'helfi_pk';
@@ -256,6 +257,9 @@ export function createPasskeys(ctx) {
       limiter.success(req.ip, key);
       // Device + Face ID/Touch ID/PIN = two factors: the session counts as signed in with 2FA
       sessions.create(res, u.id, req.ip, 'passkey', { mfa: true });
+      // A password sign-in started in parallel (e.g. filled in by the password manager) waits for a code:
+      // the passkey already counts as two factors, so that step is void
+      res.clearCookie(PENDING_COOKIE, { path: '/' });
       log.info(`Signed in with passkey: ${u.username} ("${row.name}")`);
       return users.byId(u.id);
     },
