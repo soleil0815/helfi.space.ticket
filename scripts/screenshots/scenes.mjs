@@ -522,7 +522,7 @@ const displayPhoto = (p, text) => p.evaluate(async (txt) => {
 }, text).then((a) => Buffer.from(a));
 
 // ---------- Passkeys (served as localhost, so that the browser offers them) ----------
-scene('passkeys', ['login-passkey', 'profile-passkeys', 'passkey-hint', 'm-passkeys', 'm-passkey-hint'], async (S) => {
+scene('passkeys', ['login-passkey', 'mfa-passkey', 'm-mfa-passkey', 'profile-passkeys', 'passkey-hint', 'm-passkeys', 'm-passkey-hint'], async (S) => {
   const { page, go, shot, step, d, T, db, B } = S;
   const { config } = await import('../../src/config.js');
   const before = config.baseUrl;
@@ -536,6 +536,23 @@ scene('passkeys', ['login-passkey', 'profile-passkeys', 'passkey-hint', 'm-passk
       const p = await page(null, { height: 900 });
       await go(p, '/login'); await p.waitForSelector('[data-passkey-login]');
       await shot.el(p, 'login-passkey', '.auth-card', { pad: 0 });
+    });
+    await step('mfa', async () => {
+      // Password filled in instead of the passkey: the code step offers the passkey
+      S.ctx.settings.set('mfa.internal', 'all');
+      try {
+        for (const mobile of [false, true]) {
+          const p = await page(null, mobile ? { mobile: true } : { height: 900 });
+          await p.addInitScript(() => { if (window.PublicKeyCredential) window.PublicKeyCredential.isConditionalMediationAvailable = async () => false; });
+          await go(p, mobile ? '/m/login' : '/login');
+          await p.fill('input[name="username"]', 'm.mustermann');
+          await p.fill('input[name="password"]', 'Demo-Kennwort-2026');
+          await p.click('button[type=submit]');
+          await p.waitForSelector('[data-passkey-confirm]'); await p.evaluate(() => document.activeElement?.blur()); await S.settle(p);
+          if (mobile) await shot.full(p, 'm-mfa-passkey');
+          else await shot.el(p, 'mfa-passkey', '.auth-card', { pad: 0 });
+        }
+      } finally { S.ctx.settings.set('mfa.internal', ''); }
     });
     await step('profile', async () => {
       const p = await page('m.mustermann', { width: 1100, height: 1400 });

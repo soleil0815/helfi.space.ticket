@@ -55,7 +55,7 @@ export function recoveryCodesBox(codes) {
 }
 
 /** Second login step: enter code or set up 2FA for the first time */
-async function renderMfaStep(root, step) {
+async function renderMfaStep(root, step, { passkey = false } = {}) {
   const err = h('div.form-error', { role: 'alert', hidden: true });
   const codeInput = h('input.code-input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxLength: 6, pattern: '[0-9]{6}', required: true, placeholder: '123456' });
   const recoveryInput = h('input.mono', { autocomplete: 'off', placeholder: 'abcd-efgh', hidden: true });
@@ -117,6 +117,22 @@ async function renderMfaStep(root, step) {
   btn,
   toggle ? h('div.center', toggle) : null,
   h('div.center', h('a.link', { href: '/login', onclick: (e) => { e.preventDefault(); history.replaceState({}, '', '/login'); renderLogin(root); } }, t('mfa.back'))));
+  // Instead of the code: a passkey of this account (the server offers it after the password if there is one)
+  if (passkey && passkeysHere(state.boot.auth.passkeys)) {
+    const pkBtn = h('button.btn.btn-block.btn-passkey', {
+      type: 'button', 'data-passkey-confirm': '',
+      onclick: async () => {
+        err.hidden = true;
+        pkBtn.disabled = true;
+        try { const r = await passkeySignIn({ confirm: true }); await finishLogin(r.user); }
+        catch (ex) { if (!passkeyCancelled(ex)) { err.textContent = ex.message; err.hidden = false; } }
+        finally { pkBtn.disabled = false; }
+      },
+    }, icon('passkey'), t('passkey.confirm'));
+    const block = [h('div.divider', h('span', t('login.or'))), pkBtn, h('p.muted.small.center', t(step === 'enroll' ? 'passkey.confirmEnrollHint' : 'passkey.confirmHint'))];
+    if (step === 'enroll') form.insertBefore(h('div.passkey-confirm', block[2], block[1], block[0]), form.children[2]);
+    else form.insertBefore(h('div.passkey-confirm', ...block), form.lastElementChild);
+  }
   codeInput.addEventListener('input', () => { if (/^\d{6}$/.test(codeInput.value)) form.requestSubmit(); });
   mount(root, authFrame(form));
   setTimeout(() => codeInput.focus(), 0);
@@ -155,7 +171,7 @@ export function renderLogin(root) {
       try {
         const r = await api.login(user.value, pass.value);
         stopPasskeyWait();
-        if (r.mfa) return renderMfaStep(root, r.mfa);
+        if (r.mfa) return renderMfaStep(root, r.mfa, { passkey: r.passkey });
         await finishLogin(r.user);
       } catch (ex) {
         err.textContent = ex.message;

@@ -166,6 +166,10 @@ export function createApi(ctx) {
     res.json({ user: publicUser(user) });
   }));
 
+  // Second step after a correct password: offer the account's passkey instead of the code (only known after the
+  // password, so the sign-in page reveals nothing about accounts)
+  const passkeyOffer = (u) => (ctx.passkeys.usableFor(users.rawById(u.id)) ? { passkey: true } : {});
+
   r.post('/auth/login', wrap(async (req, res) => {
     const username = str(req.body.username, 256).trim();
     const password = str(req.body.password, 1024);
@@ -184,7 +188,7 @@ export function createApi(ctx) {
       if (!local.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r1 = mfa.afterPrimary(req, res, local, 'local');
       if (r1.done) limiter.success(req.ip, username);
-      return res.json(r1.done ? { user: publicUser(local) } : { mfa: r1.step });
+      return res.json(r1.done ? { user: publicUser(local) } : { mfa: r1.step, ...passkeyOffer(local) });
     }
 
     // 2. Active Directory
@@ -209,7 +213,7 @@ export function createApi(ctx) {
       if (!u.active) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
       const r2 = mfa.afterPrimary(req, res, u, 'ldap');
       if (r2.done) limiter.success(req.ip, username);
-      return res.json(r2.done ? { user: publicUser(u) } : { mfa: r2.step });
+      return res.json(r2.done ? { user: publicUser(u) } : { mfa: r2.step, ...passkeyOffer(u) });
     }
 
     limiter.fail(req.ip, username);
@@ -226,7 +230,11 @@ export function createApi(ctx) {
   // Passkeys: options (challenge in a short-lived cookie), then the signed answer of the device
   r.post('/auth/passkey/options', passkeyAuthLimit, wrap(async (req, res) => res.json(await ctx.passkeys.loginOptions(req, res))));
   r.post('/auth/passkey/login', passkeyAuthLimit, wrap(async (req, res) => {
-    const u = await ctx.passkeys.login(req, res, req.body?.response);
+    // confirm: second step of a password sign-in – only with a passkey of that account
+    const expectUserId = req.body?.confirm === true ? mfa.pendingUserId(req) : null;
+    if (req.body?.confirm === true && !expectUserId) throw new HttpError(401, 'err.mfaExpired');
+    const u = await ctx.passkeys.login(req, res, req.body?.response, { expectUserId });
+    mfa.dropPending(req, res);
     res.json({ user: publicUser(u) });
   }));
 

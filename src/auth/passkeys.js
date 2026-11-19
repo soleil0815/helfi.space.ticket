@@ -202,6 +202,11 @@ export function createPasskeys(ctx) {
     },
     count: (userId) => db.prepare('SELECT COUNT(*) n FROM user_passkeys WHERE user_id=?').get(userId).n,
 
+    /** Can this account confirm a sign-in with one of its passkeys right now? (offered in the 2FA step) */
+    usableFor(u) {
+      return !!u && !blockedReason(u) && this.count(u.id) > 0;
+    },
+
     // ---------- Sign-in ----------
     async loginOptions(req, res) {
       cleanup();
@@ -216,7 +221,11 @@ export function createPasskeys(ctx) {
       return options;
     },
 
-    async login(req, res, response) {
+    /**
+     * expectUserId: confirming the second step of a password sign-in – the passkey has to belong to the same
+     * account (otherwise one would end up signed in as someone else without noticing).
+     */
+    async login(req, res, response, { expectUserId = null } = {}) {
       cleanup();
       if (!available()) throw new HttpError(404, 'err.passkey.off');
       const id = req.cookies?.[PASSKEY_COOKIE];
@@ -243,6 +252,7 @@ export function createPasskeys(ctx) {
         throw new HttpError(401, 'err.passkeyInvalid');
       }
       if (!v.verified) { limiter.fail(req.ip, key); throw new HttpError(401, 'err.passkeyInvalid'); }
+      if (expectUserId && row.user_id !== expectUserId) throw new HttpError(401, 'err.passkeyOtherAccount');
 
       let u = users.rawById(row.user_id);
       if (!u) throw new HttpError(401, 'err.passkeyInvalid');

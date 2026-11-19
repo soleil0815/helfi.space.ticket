@@ -1719,3 +1719,6 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .theme-opt.active { background: var(--blue-subtlest); color: var(--blue-text); box-shadow: inset 0 0 0 1px var(--blue); }
 .theme-opt:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 .theme-opt .icon { width: 16px; height: 16px; }
+/* Second sign-in step: confirm with a passkey instead of the code */
+.passkey-confirm .center { margin: 8px 0 0; }
+.passkey-confirm > p.muted:first-child { margin: 0 0 12px; }
