@@ -71,6 +71,14 @@ after(async () => { if (config) config.baseUrl = oldBase; await browser?.close()
 
 const use = (which) => { ({ page: p, errs: errors } = pages[which]); };
 const mode = (delay, noConditional) => p.evaluate(([d, n]) => { localStorage.setItem('test.pkDelay', String(d)); localStorage.setItem('test.noConditional', n ? '1' : '0'); }, [delay, noConditional]);
+// Wait until the sign-in page is left; on failure say what the page shows (helps on CI)
+async function leave(path) {
+  try { await p.waitForFunction((pp) => !location.pathname.startsWith(pp), path, { timeout: 15000 }); }
+  catch (e) {
+    const text = await p.evaluate(() => document.body.innerText).catch(() => '?');
+    throw new Error(`still on ${p.url()}: ${text.slice(0, 400)} | page errors: ${errors.join('; ')}`);
+  }
+}
 const me = async () => (await (await p.request.get(`${base}/api/me`)).json()).user?.username;
 const signOut = async () => { await p.request.post(`${base}/api/auth/logout`, { headers: hdr }); await p.unrouteAll(); };
 
@@ -85,7 +93,7 @@ for (const [name, which, path, code] of [['Phone app', 'phone', '/m/login', 'inp
     await p.fill('input[name="username"]', 'karl');
     await p.fill('input[name="password"]', 'Sehrgeheim123');
     await p.click('button[type="submit"]');
-    await p.waitForFunction((pp) => !location.pathname.startsWith(pp), path);
+    await leave(path);
     await p.waitForTimeout(2500); // the password answer has arrived by now
     assert.equal(await p.locator(code).count(), 0, 'no code step after the passkey sign-in');
     assert.ok(!new URL(p.url()).pathname.startsWith(path));
@@ -111,7 +119,7 @@ for (const [name, which, path, code] of [['Phone app', 'phone', '/m/login', 'inp
     await p.waitForSelector(code);
     assert.equal(await me(), undefined, 'not signed in yet');
     await p.click('[data-mfa-passkey]');
-    await p.waitForFunction((pp) => !location.pathname.startsWith(pp), path);
+    await leave(path);
     assert.equal(await me(), 'karl');
     assert.deepEqual(errors, []);
   });
