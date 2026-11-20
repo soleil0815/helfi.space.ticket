@@ -28,6 +28,7 @@ import { createNetworkPolicy } from './auth/network.js';
 import { createMfa } from './auth/mfa.js';
 import { createPasskeys, relyingParty } from './auth/passkeys.js';
 import { createDiagnostics } from './diagnostics.js';
+import { createUpdateCheck } from './update-check.js';
 import { createUsers } from './users.js';
 import { createTickets } from './tickets.js';
 import { createMailer, wireNotifications } from './mail/smtp.js';
@@ -130,6 +131,8 @@ export function createApp(db) {
   ctx.passkeys = createPasskeys(ctx);
   // Diagnosis package (Administration → System); parts of the program add sections via register()
   ctx.diagnostics = createDiagnostics(ctx);
+  ctx.updates = createUpdateCheck({ settings: ctx.settings });
+  ctx.diagnostics.register('Update check', () => ctx.updates.diagnostics());
   ctx.diagnostics.register('Passkeys', () => ({
     available: ctx.passkeys.available() ? 'yes' : 'no',
     'bound to': relyingParty()?.rpID || 'not possible (no HTTPS or an IP address in HELFI_BASE_URL)',

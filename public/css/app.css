@@ -1722,3 +1722,16 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 /* Second sign-in step: confirm with a passkey instead of the code */
 .passkey-confirm .center { margin: 8px 0 0; }
 .passkey-confirm > p.muted:first-child { margin: 0 0 12px; }
+/* Newer version available (admins): notice in the administration, dot in the sidebar */
+.nav-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); margin-left: auto; flex: none; }
+.update-notice { border: 1px solid var(--border); border-left: 4px solid var(--blue); border-radius: 8px; background: var(--surface); padding: 14px 16px; margin: 0 0 16px; }
+.update-head { display: flex; gap: 10px; align-items: flex-start; }
+.update-head > .icon { width: 20px; height: 20px; color: var(--blue); flex: none; margin-top: 1px; }
+.update-sub { color: var(--text-subtle); font-size: 13px; margin-top: 2px; }
+.update-how { margin: 12px 0 6px; font-size: 13px; color: var(--text-subtle); }
+.update-cmd { display: flex; align-items: center; gap: 6px; background: var(--bg-neutral); border-radius: 6px; padding: 6px 6px 6px 10px; margin: 4px 0; max-width: 560px; }
+.update-cmd code { flex: 1; font-family: var(--font-mono, monospace); font-size: 13px; overflow-wrap: anywhere; background: none; }
+.update-copy { border: 0; background: none; color: var(--text-subtle); cursor: pointer; padding: 4px; border-radius: 4px; display: inline-flex; }
+.update-copy:hover { background: var(--bg-neutral); color: var(--text); }
+.update-copy .icon { width: 16px; height: 16px; }
+.update-actions { margin-top: 10px; }

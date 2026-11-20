@@ -37,6 +37,7 @@ import { LINK_KINDS } from '../itil/links.js';
 import { createSavedFilters } from '../filters.js';
 import { CLASSIFY_MODES } from '../ai-classify.js';
 import { releaseUnassignable } from '../assignments.js';
+import { parseVersion } from '../update-check.js';
 
 const DUMMY_HASH = hashPassword('helfi-dummy-kennwort');
 
@@ -115,6 +116,8 @@ export function createApi(ctx) {
         passkey: !!req.user && ctx.passkeys.available() && ctx.passkeys.count(req.user.id) > 0,
       },
       warnings: req.user?.role === 'admin' ? adminWarnings() : [],
+      // Newer version available (admins only): notice in the administration, dot in the sidebar
+      update: req.user?.role === 'admin' ? ctx.updates.available() : null,
     });
   });
 
@@ -1192,8 +1195,24 @@ export function createApi(ctx) {
       backupKeep: settings.get('backup.keep'),
       emergency: readEmergencyLog(db).slice(0, 5),
       warnings: adminWarnings(),
+      updates: ctx.updates.status(),
     });
   });
+
+  // Check for a newer version now (button in Administration → System; at most every 30 seconds)
+  let lastManualCheck = 0;
+  admin.post('/updates/check', wrap(async (req, res) => {
+    if (Date.now() - lastManualCheck > 30_000) { lastManualCheck = Date.now(); await ctx.updates.check(); }
+    res.json(ctx.updates.status());
+  }));
+  // "Skip this version" (hides the notice until the next one) – or show it again (version '')
+  admin.post('/updates/skip', wrap(async (req, res) => {
+    const v = str(req.body?.version, 20).trim();
+    if (v && !parseVersion(v)) throw new HttpError(400, 'err.badRequest', 'version');
+    settings.set('update.skip', v.replace(/^v/, ''));
+    log.info(v ? `Update notice for version ${v} hidden by ${req.user.username}` : `Update notice shown again by ${req.user.username}`);
+    res.json(ctx.updates.status());
+  }));
 
   // Diagnosis package: anonymous text file about the state of this installation (src/diagnostics.js)
   admin.get('/diagnostics', diagnosticsLimit, (req, res) => {

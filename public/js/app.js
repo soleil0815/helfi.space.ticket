@@ -344,7 +344,12 @@ function layout(content, path) {
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
       state.isAdmin ? nav('/admin/mail-in', t('nav.channelsMail'), 'mail', path === '/admin/mail-in') : null,
       state.isAdmin ? h('div.sidebar-label', t('nav.admin')) : null,
-      state.isAdmin ? nav('/admin', t('app.settings'), 'settings', path.startsWith('/admin')) : null,
+      state.isAdmin ? (() => {
+        const a = nav('/admin', t('app.settings'), 'settings', path.startsWith('/admin'));
+        // Newer version available: small dot (the notice itself is in the administration)
+        if (state.boot.update) a.append(h('span.nav-dot', { 'data-update-dot': '', title: t('update.available', state.boot.update), 'aria-label': t('update.available', state.boot.update) }));
+        return a;
+      })() : null,
       sidebarFoot(),
     );
   } else {

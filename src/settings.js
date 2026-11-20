@@ -126,6 +126,9 @@ export const DEFAULTS = {
 
   // Email fetching (IMAP)
   // Backup
+  // Ask GitHub daily whether a newer version is out (notice for admins); off for installations without internet
+  'update.check': true,
+  'update.skip': '', // version whose notice an admin has hidden ("Skip this version")
   'backup.keep': 10, // keep this many backups per kind (1–100)
 
   'imap.enabled': false,

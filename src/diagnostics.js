@@ -50,7 +50,7 @@ const CHOICES = {
 const SAFE_JSON = new Set(['sla.hours', 'sla.targets']);
 // Environment variables whose value is harmless (others only "set")
 const ENV_VALUES = new Set(['HELFI_LOG_LEVEL', 'HELFI_PORT', 'HELFI_SECURE_COOKIES', 'HELFI_FORCE_HTTPS', 'HELFI_HSTS',
-  'HELFI_COMPOSE_VERSION', 'HELFI_MAX_UPLOAD_MB', 'HELFI_SESSION_HOURS', 'HELFI_TRUST_PROXY', 'NODE_ENV', 'TZ']);
+  'HELFI_COMPOSE_VERSION', 'HELFI_VERSION', 'HELFI_MAX_UPLOAD_MB', 'HELFI_SESSION_HOURS', 'HELFI_TRUST_PROXY', 'NODE_ENV', 'TZ']);
 
 // Host names in free text: only with a usual top-level domain (code names such as "ctx.poller" stay);
 // host names from the settings and the own address are replaced in any case

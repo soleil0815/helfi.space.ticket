@@ -37,6 +37,8 @@ async function main() {
   ctx.poller.start();
   ctx.sla.start();
   ctx.reminders.start();
+  // Newer version available? (daily, only if switched on)
+  ctx.updates.start();
 
   // Clean up old backups right at startup (e.g. after an update)
   try { pruneBackups(ctx.settings.get('backup.keep')); } catch (e) { log.warn('Backup cleanup failed', { error: e.message }); }
