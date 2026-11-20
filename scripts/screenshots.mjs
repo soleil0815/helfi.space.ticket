@@ -62,6 +62,9 @@ const port = server.address().port;
 const B = `http://localhost:${port}`;
 const { COMPOSE_VERSION } = await import(pathToFileURL(path.join(root, 'src/config.js')));
 config.composeVersion = COMPOSE_VERSION;
+// As in a real installation behind HTTPS (no "cookies not secure" warning for admins). Chromium keeps
+// secure cookies for http://localhost.
+config.secureCookies = true;
 // Mails are not sent, only kept (rating links, reminders)
 const sent = [];
 ctx.mailer.enabled = () => true;

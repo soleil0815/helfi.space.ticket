@@ -960,3 +960,14 @@ body.m-offline-page { overflow: auto; background: var(--m-bg); }
 /* Second sign-in step: confirm with a passkey instead of the code */
 .m-passkey-confirm { margin: 4px 0 8px; }
 .m-passkey-confirm > p { margin: 0 0 12px; }
+/* Newer version available (admins) – shared markup with the desktop (public/js/update-notice.js) */
+.update-notice { border: 1px solid var(--m-line); border-left: 4px solid var(--blue); border-radius: 12px; background: var(--m-card); padding: 14px; margin: 16px var(--m-pad) 0; }
+.update-head { display: flex; gap: 10px; align-items: flex-start; }
+.update-head > .icon { width: 22px; height: 22px; color: var(--blue); flex: none; }
+.update-sub { color: var(--text-subtle); font-size: 14px; margin-top: 2px; }
+.update-how { margin: 12px 0 6px; font-size: 14px; color: var(--text-subtle); }
+.update-cmd { display: flex; align-items: center; gap: 6px; background: var(--m-bg); border-radius: 8px; padding: 6px 6px 6px 10px; margin: 4px 0; }
+.update-cmd code { flex: 1; font-family: var(--font-mono, monospace); font-size: 13px; overflow-wrap: anywhere; background: none; }
+.update-copy { border: 0; background: none; color: inherit; padding: 8px; display: inline-flex; }
+.update-copy .icon { width: 18px; height: 18px; }
+.update-actions { margin-top: 10px; }

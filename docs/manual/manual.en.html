@@ -838,6 +838,16 @@ docker compose logs helfi # shows the setup code</code></pre>
 </ul>
 <div class="note"><p>After an update the browser loads the new interface immediately (from version 1.5.0). If an older version still shows the old interface, press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> once.</p></div>
 
+<h3>Notice about new versions</h3>
+<p>If you do not update automatically, Helfi.Space itself tells you about a new version. Once a day the server asks GitHub for the latest release – a plain request without any data about your installation. If there is a newer version, the top of the administration shows <em>Version … is available</em> with <em>What is new?</em> and the command to update (⧉ copies it). In the sidebar a dot marks <em>Administration</em>; in the phone app the notice is under <em>Me</em>. Only admins see the notice.</p>
+<figure><img src="img/en/update-notice.jpg" alt=""><figcaption>Notice about a new version in the administration</figcaption></figure>
+<ul>
+  <li><strong>Skip this version</strong> hides the notice until the next version appears.</li>
+  <li><strong>Pinned version in <code>.env</code>:</strong> if it says e.g. <code>HELFI_VERSION=1.51.1</code>, the notice mentions it. <code>./update.sh</code> enters the new number itself; without <code>update.sh</code> change the line, otherwise <code>docker compose pull</code> fetches the old version again.</li>
+  <li><strong>Switch on and off</strong> under <em>Administration → System → New versions</em> (on by default), e.g. for installations without internet. There also <em>Check now</em> and when the last check ran. If GitHub is not reachable, nothing appears – only the diagnosis package names the failed check.</li>
+  <li><strong>Proxy for the internet:</strong> add <code>HTTPS_PROXY=http://proxy.firma.local:3128</code> and <code>NODE_USE_ENV_PROXY=1</code> to <code>.env</code>.</li>
+</ul>
+
 <h2 id="rollback">Pinning a version and going back</h2>
 <ol>
   <li>Enter a fixed version in <code>.env</code>, e.g. <code>HELFI_VERSION=1.4.0</code>.</li>

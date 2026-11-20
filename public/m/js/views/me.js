@@ -6,6 +6,7 @@ import { h, icon, avatar, fmtDate, toast } from '/js/dom.js';
 import { t, getLang } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { coffeeBox } from '/js/coffee.js';
+import { updateNotice } from '/js/update-notice.js';
 import { setUiPref, desktopUrlFor } from '/js/uimode.js';
 import { setLanguage, signOut, reloadBase } from '../main.js';
 import { listRow, emptyState, skeletonList } from '../ui.js';
@@ -44,6 +45,8 @@ export function renderMe(page) {
       avatar(u, 'xl'),
       h('div.m-profile-name', u.displayName),
       h('div.m-profile-sub', [t(`role.${u.role}`), u.email].filter(Boolean).join(' · '))),
+    // Admins: newer version available
+    u.role === 'admin' ? updateNotice(state.boot?.update) : null,
     group(t('m.me.account'),
       local ? listRow({ icon: 'user', label: t('profile.personal'), hint: u.email || u.displayName, onClick: openPersonal, trailing: icon('chevron-right', 'm-row-chevron') }) : null,
       local && u.hasPassword ? listRow({ icon: 'key', label: t('profile.changePassword'), onClick: openPassword, trailing: icon('chevron-right', 'm-row-chevron') }) : null,

@@ -1,6 +1,7 @@
 // Administration, grouped by topic: organisation, tickets, email, sign-in & security, appearance, system
 import { PORTAL_ICONS, PORTAL_COLORS } from './portal-choices.js';
 import { coffeeBox } from '../coffee.js';
+import { updateNotice } from '../update-notice.js';
 import { api } from '../api.js';
 import { h, mount, icon, avatar, field, select, toast, modal, fmtDate, relTime, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
@@ -37,6 +38,8 @@ export async function renderAdmin(content, section) {
     GROUPS.map(([g, list]) => h('optgroup', { label: t(g) }, list.map(([id, label]) => h('option', { value: id, selected: id === section }, t(label))))));
   mount(content,
     h('div.page-head', h('h1', t('admin.title'))),
+    // Newer version available: on every page of the administration (until updated or skipped)
+    updateNotice(state.boot.update, { onChange: () => section === 'system' && systemPage(body) }),
     h('div.admin',
       h('nav.admin-nav', { 'aria-label': t('admin.title') }, GROUPS.map(([g, list]) => h('div.admin-nav-group',
         h('div.admin-nav-head', t(g)),
@@ -1124,9 +1127,53 @@ async function systemPage(body) {
         h('dt', t('system.dbSize')), h('dd', fmtSize(sys.dbSize)),
         h('dt', 'Node.js'), h('dd', sys.node),
         h('dt', ''), h('dd', ['Users', 'Contacts', 'Tickets'].map((k) => { const n = sys.counts[k.toLowerCase()] || 0; return t(n === 1 ? `system.count${k}1` : `system.count${k}`, { n }); }).join(', ')))),
+    updatesPanel(body, sys.updates),
     diagnosticsPanel(),
     backupPanel(body, sys),
     emergencyPanel(sys));
+}
+
+/** Check for new versions: switch, state of the last check, "Check now" */
+function updatesPanel(body, u) {
+  // After a change: fresh state from the server, draw the page (and the dot in the sidebar) anew
+  const refresh = async () => { state.boot = await api.bootstrap(); route(); };
+  const sw = h('input', { type: 'checkbox', checked: u.enabled, 'data-update-switch': '' });
+  sw.addEventListener('change', async () => {
+    try {
+      await api.admin.saveSettings({ 'update.check': sw.checked });
+      if (sw.checked) await api.admin.checkUpdates();
+      toast(t('app.saved'), 'success');
+      await refresh();
+    } catch (e) { toast(e.message, 'error'); sw.checked = !sw.checked; }
+  });
+  let line;
+  if (!u.enabled) line = t('update.off');
+  else if (!u.checkedAt) line = t('update.notYet');
+  else if (u.failed) line = t('update.failed', { time: fmtDate(u.checkedAt) });
+  else if (u.available) line = t('update.newer', { version: u.latest, time: fmtDate(u.checkedAt) });
+  else if (u.skipped && u.skipped === u.latest) line = t('update.skippedState', { version: u.latest, time: fmtDate(u.checkedAt) });
+  else line = t('update.current', { time: fmtDate(u.checkedAt) });
+  const checkNow = h('button.btn', {
+    type: 'button', 'data-update-check': '', disabled: !u.enabled,
+    onclick: async () => {
+      checkNow.disabled = true;
+      try {
+        const r = await api.admin.checkUpdates();
+        if (r.failed) toast(t('update.failedShort'), 'error');
+        else toast(r.available ? t('update.available', r.available) : t('update.upToDate'), 'success');
+        await refresh();
+      } catch (e) { toast(e.message, 'error'); checkNow.disabled = false; }
+    },
+  }, icon('refresh'), t('update.checkNow'));
+  const showAgain = u.skipped && u.skipped === u.latest ? h('button.btn.btn-subtle', {
+    type: 'button',
+    onclick: async () => { try { await api.admin.skipUpdate(''); await refresh(); } catch (e) { toast(e.message, 'error'); } },
+  }, t('update.showAgain')) : null;
+  return h('section.panel.updates-panel', { 'data-updates': '' },
+    h('h2', t('update.title')),
+    field(t('update.switch'), sw, t('update.switchHint')),
+    h('p', { 'data-update-state': '' }, line),
+    h('div.btn-row', checkNow, showAgain));
 }
 
 /** Diagnosis package: anonymous text file for support (preview, copy, download) */

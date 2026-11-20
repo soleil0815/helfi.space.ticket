@@ -194,5 +194,16 @@ export async function seed(S) {
   ago(d.keys.mail, 25);
 
   await (await import('./seed-itil.mjs')).seedItil(S);
+
+  // Check for new versions: a stand-in for GitHub (no request leaves this machine). "Latest" is the installed
+  // version – Administration → System shows "up to date"; the update scene raises it for the notice.
+  const { createUpdateCheck } = await import('../../src/update-check.js');
+  const { config } = await import('../../src/config.js');
+  S.githubLatest = config.version;
+  ctx.updates = createUpdateCheck({
+    settings: ctx.settings, version: config.version, env: {},
+    fetchImpl: async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ tag_name: `v${S.githubLatest}` }) }),
+  });
+  await ctx.updates.check();
   return d;
 }

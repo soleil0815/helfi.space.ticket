@@ -668,3 +668,23 @@ scene('mobile', ['m-portal', 'mobile-app-1', 'mobile-app-2', 'm-mail', 'm-image'
     await shot.clip(p, 'saved-filters-mobile', { x: 0, y: 0, width: 390, height: 360 });
   });
 });
+
+// ---------- Notice about a new version ----------
+scene('updates', ['update-notice'], async (S) => {
+  const { page, go, shot, step, ctx } = S;
+  const installed = S.githubLatest;
+  const v = installed.split('.').map(Number);
+  S.githubLatest = `${v[0]}.${v[1] + 1}.0`;
+  try {
+    await ctx.updates.check();
+    await step('notice', async () => {
+      const a = await page('admin', { height: 900 });
+      await go(a, '/admin/users');
+      const box = await a.locator('[data-update-notice]').boundingBox();
+      await shot.clip(a, 'update-notice', { x: 0, y: 0, width: 1280, height: Math.ceil(box.y + box.height + 20) });
+    });
+  } finally {
+    S.githubLatest = installed;
+    await ctx.updates.check();
+  }
+});

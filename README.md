@@ -692,6 +692,14 @@ Außerdem gilt:
 - **Rückweg:** Danach steht in der `.env` wieder die vorherige Version. Spielt `update.sh` die Datenbank nicht zurück, sagt es das ausdrücklich, z. B. wenn die Sicherungen für diesen Benutzer nicht lesbar sind (dann `sudo ./update.sh -y`) oder wenn es keine bzw. nur eine unvollständige Sicherung gibt (dann wurde die Datenbank noch nicht umgestellt).
 - **Text hinter einem Wert in der `.env`:** Bis Version 1.11 stand in der `env.example` die Erklärung in derselben Zeile wie der Wert (`# HELFI_SECURE_COOKIES=true cookies over HTTPS only …`). Wer nur das `#` entfernt hat, hat den ganzen Satz zum Wert gemacht. `update.sh` meldet solche Zeilen mit Nummer und Namen (nie den Wert) und ändert nichts; Helfi.Space nutzt für sie den Standardwert, schreibt eine Warnung ins Log und zeigt sie in der Administration. Abhilfe: nur den Wert stehen lassen, z. B. `HELFI_SECURE_COOKIES=true`, und den Container neu starten.
 
+### Hinweis auf neue Versionen
+
+Wer nicht automatisch aktualisiert, erfährt in Helfi.Space selbst von einer neuen Version: Einmal am Tag fragt der Server bei GitHub nach dem neuesten Release – eine einfache Abfrage ohne Daten über die Installation. Gibt es eine neuere Version, sehen **Admins** oben in der Administration *Version … ist verfügbar* mit Link zu den Neuerungen und dem Befehl zum Aktualisieren (in der Handy-App unter *Ich*), in der Seitenleiste markiert ein Punkt *Administration*. *Diese Version überspringen* blendet den Hinweis bis zur nächsten Version aus.
+
+- Steht in der `.env` eine feste Version (`HELFI_VERSION=1.51.1`), sagt der Hinweis das dazu: `./update.sh` trägt die neue Nummer selbst ein, ohne `update.sh` die Zeile anpassen.
+- Abschalten (z. B. ohne Internet): *Administration → System → Neue Versionen*. Dort auch *Jetzt prüfen* und der Stand der letzten Prüfung. Ist GitHub nicht erreichbar, erscheint nichts – nur das Diagnosepaket nennt die fehlgeschlagene Prüfung.
+- Braucht der Server für das Internet einen Proxy: in der `.env` `HTTPS_PROXY=http://proxy.firma.local:3128` und `NODE_USE_ENV_PROXY=1` eintragen.
+
 ### Aufräumen
 
 Mit der Zeit sammeln sich im Ordner ältere Sicherheitskopien der `docker-compose.yml` und geladene Image-Dateien aus dem Release. `./update.sh --cleanup` zeigt diese Dateien an und löscht sie erst nach Rückfrage (mit `-y` ohne). Die neueste `docker-compose.yml.alt-…` bleibt.

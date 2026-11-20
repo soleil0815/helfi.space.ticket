@@ -692,6 +692,14 @@ Also:
 - **Going back:** afterwards `.env` holds the previous version again. If `update.sh` does not restore the database, it says so explicitly, e.g. if the backups are not readable for this user (then `sudo ./update.sh -y`) or if there is no backup or only an incomplete one (then the database has not been migrated yet).
 - **Text after a value in `.env`:** up to version 1.11, `env.example` had the explanation in the same line as the value (`# HELFI_SECURE_COOKIES=true cookies over HTTPS only …`). Removing only the `#` made the whole sentence the value. `update.sh` reports such lines by number and name (never the value) and changes nothing; Helfi.Space uses the default for them, logs a warning and shows it in the administration. Fix: leave only the value, e.g. `HELFI_SECURE_COOKIES=true`, and restart the container.
 
+### Notice about new versions
+
+If you do not update automatically, Helfi.Space itself tells you about a new version: once a day the server asks GitHub for the latest release – a plain request without any data about the installation. If there is a newer version, **admins** see *Version … is available* at the top of the administration with a link to what is new and the command to update (in the phone app under *Me*); in the sidebar a dot marks *Administration*. *Skip this version* hides the notice until the next version.
+
+- If `.env` pins a version (`HELFI_VERSION=1.51.1`), the notice says so: `./update.sh` enters the new number itself; without `update.sh` change the line.
+- Switch off (e.g. without internet): *Administration → System → New versions*. There also *Check now* and the state of the last check. If GitHub is not reachable, nothing appears – only the diagnosis package names the failed check.
+- If the server needs a proxy for the internet: add `HTTPS_PROXY=http://proxy.firma.local:3128` and `NODE_USE_ENV_PROXY=1` to `.env`.
+
 ### Cleaning up
 
 Over time, older backup copies of `docker-compose.yml` and loaded image files from the release pile up in the folder. `./update.sh --cleanup` lists these files and only deletes them after confirmation (no prompt with `-y`). The newest `docker-compose.yml.alt-…` is kept.

@@ -838,6 +838,16 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
 </ul>
 <div class="note"><p>Nach einem Update lädt der Browser die neue Oberfläche sofort (ab Version 1.5.0). Erscheint bei älteren Versionen noch die alte Oberfläche, hilft einmal <kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>R</kbd>.</p></div>
 
+<h3>Hinweis auf neue Versionen</h3>
+<p>Wer nicht automatisch aktualisiert, erfährt in Helfi.Space selbst von einer neuen Version. Einmal am Tag fragt der Server bei GitHub nach dem neuesten Release – eine einfache Abfrage ohne Daten über deine Installation. Gibt es eine neuere Version, steht oben in der Administration <em>Version … ist verfügbar</em> mit <em>Was ist neu?</em> und dem Befehl zum Aktualisieren (⧉ kopiert ihn). In der Seitenleiste markiert ein Punkt <em>Administration</em>, in der Handy-App steht der Hinweis unter <em>Ich</em>. Den Hinweis sehen nur Admins.</p>
+<figure><img src="img/de/update-notice.jpg" alt=""><figcaption>Hinweis auf eine neue Version in der Administration</figcaption></figure>
+<ul>
+  <li><strong>Diese Version überspringen</strong> blendet den Hinweis aus, bis die nächste Version erscheint.</li>
+  <li><strong>Feste Version in der <code>.env</code>:</strong> Steht dort z. B. <code>HELFI_VERSION=1.51.1</code>, sagt der Hinweis das dazu. <code>./update.sh</code> trägt die neue Nummer selbst ein; ohne <code>update.sh</code> die Zeile ändern, sonst holt <code>docker compose pull</code> wieder die alte Version.</li>
+  <li><strong>Ein- und ausschalten</strong> unter <em>Administration → System → Neue Versionen</em> (standardmäßig an), z. B. für Installationen ohne Internet. Dort auch <em>Jetzt prüfen</em> und wann zuletzt geprüft wurde. Ist GitHub nicht erreichbar, erscheint nichts – nur das Diagnosepaket nennt die fehlgeschlagene Prüfung.</li>
+  <li><strong>Proxy fürs Internet:</strong> in der <code>.env</code> <code>HTTPS_PROXY=http://proxy.firma.local:3128</code> und <code>NODE_USE_ENV_PROXY=1</code> eintragen.</li>
+</ul>
+
 <h2 id="zurueck">Version festhalten und zurückgehen</h2>
 <ol>
   <li>In der <code>.env</code> eine feste Version eintragen, z. B. <code>HELFI_VERSION=1.4.0</code>.</li>
