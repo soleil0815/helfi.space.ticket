@@ -2,7 +2,7 @@
 # Built by GitHub Actions for linux/amd64 and linux/arm64 (ghcr.io/soleil0815/helfi.space.ticket)
 
 # Base image pinned by digest (reproducible); Dependabot proposes new digests
-FROM node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85 AS deps
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS deps
 WORKDIR /app
 # Build tools only in case better-sqlite3 finds no prebuilt binary
 RUN apk add --no-cache python3 make g++
@@ -15,7 +15,7 @@ COPY docker/prune-modules.sh /tmp/prune-modules.sh
 RUN sh /tmp/prune-modules.sh /app/node_modules \
  && node -e "const D=require('better-sqlite3');console.log('SQLite',new D(':memory:').prepare('select sqlite_version() v').get().v)"
 
-FROM node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Helfi.Space" \
       org.opencontainers.image.description="Ticket system with Active Directory integration, SSO and email retrieval" \
