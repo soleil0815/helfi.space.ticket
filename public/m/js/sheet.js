@@ -10,7 +10,9 @@ export const sheetOpen = () => !!active;
 
 /**
  * Open a sheet. content: node(s); footer: optional node(s) fixed at the bottom.
- * Returns { el, body, close }.
+ * Returns { el, body, close, isOpen }. To go from one sheet to the next, open the next one directly (it replaces the
+ * open sheet and keeps its history entry) – do not close() first: the closing "back" step arrives later and would
+ * close the new sheet right away.
  */
 export function openSheet({ title, content, footer = null, onClose, className = '' } = {}) {
   // Replacing an open sheet keeps its history entry
@@ -100,7 +102,9 @@ export function openSheet({ title, content, footer = null, onClose, className = 
     else dismissSheet({ fromHistory: true });
   }
   me.close = close;
-  return { el: sheet, body, close };
+  // Still the open sheet? (false once closed or replaced by another sheet)
+  const isOpen = () => active === me;
+  return { el: sheet, body, close, isOpen };
 }
 
 /** Close the open sheet. fromHistory: its history entry is already gone (or is reused by the router). */

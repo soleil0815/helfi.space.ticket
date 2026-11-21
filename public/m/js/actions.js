@@ -428,7 +428,9 @@ export function openReporterSheet({ exclude = () => new Set(), onPick, intro = '
   input.setAttribute('aria-controls', results.id);
   peopleSearch({
     input, results, adOn: !!state.boot?.adPeople, allowEmail: true, exclude,
-    onChoose: async (choice, person) => { sheet.close(); await onPick(choice, person); return false; },
+    // onPick may open the next sheet (e.g. the confirmation): it replaces this one. Closing first would let the
+    // late "back" step of this sheet close the confirmation right away (reporter could not be changed on the phone).
+    onChoose: async (choice, person) => { await onPick(choice, person); if (sheet.isOpen()) sheet.close(); return false; },
   });
   const sheet = openSheet({
     title: t('ticket.reporter'),
