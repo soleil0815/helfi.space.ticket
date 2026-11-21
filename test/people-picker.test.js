@@ -177,3 +177,28 @@ test('Mobile: users get no AD search and no email entry', { skip }, async () => 
   assert.deepEqual(errors, []);
   await close();
 });
+
+test('Mobile: changing the reporter – pick, confirm, saved (the confirmation must not vanish)', { skip }, async () => {
+  const { p, errors, close } = await phone('anna');
+  await p.goto(`${S.base}/m/t/IT-1`);
+  await p.waitForSelector('.m-details-btn');
+  await p.tap('.m-details-btn');
+  await p.waitForSelector('.m-sheet-details');
+  await p.tap('.m-drow-edit[aria-label^="Melder"]');
+  await p.waitForSelector('.m-sheet-people .m-sheet-search-input');
+  await p.locator('.m-sheet-people .m-sheet-search-input').fill('ebert');
+  await p.waitForSelector('.m-person-hit');
+  await p.locator('.m-person-hit').first().tap();
+  // The confirmation stays open (it used to close right away when the first sheet's history step arrived)
+  await p.waitForSelector('.m-reporter-confirm');
+  await p.waitForTimeout(800);
+  assert.ok(await p.isVisible('.m-reporter-confirm'), 'confirmation still open');
+  await p.locator('.m-reporter-confirm .m-btn-primary').tap();
+  await p.waitForSelector('.m-reporter-confirm', { state: 'detached' });
+  const tk = (await S.admin('GET', '/api/tickets/IT-1')).body.ticket;
+  assert.equal(tk.reporter.username, 'ebert');
+  // Back button afterwards stays on the ticket (no orphaned history step)
+  assert.match(p.url(), /\/m\/t\/IT-1$/);
+  assert.deepEqual(errors, []);
+  await close();
+});
