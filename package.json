@@ -17,19 +17,19 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.1.0",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^13.2.0",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.4",
     "helmet": "^8.3.0",
     "html-to-text": "^10.0.1",
-    "imapflow": "^2.11.0",
-    "ldapts": "^9.2.0",
-    "mailparser": "^3.14.3",
+    "imapflow": "^2.12.1",
+    "ldapts": "^9.3.1",
+    "mailparser": "^3.14.5",
     "multer": "^2.5.0",
     "nodemailer": "^10.3.1",
-    "openid-client": "^6.8.9",
+    "openid-client": "^6.9.0",
     "qrcode": "^1.5.4",
-    "sanitize-html": "^2.18.1"
+    "sanitize-html": "^2.18.2"
   },
   "repository": {
     "type": "git",
