@@ -36,15 +36,23 @@ test('F2b: display names that are just mail addresses are shortened for users (c
   assert.ok(JSON.stringify(agentView.comments.map((c) => c.author)).includes('carl.private@extern.example'), 'agents see the address');
 });
 
-test('F1: profile address change refuses an email contact address instead of merging it', async () => {
+test('F1: profile address change never merges an email contact without proof of the address', async () => {
   const r = await mail(['From: CEO <ceo@partner.example>', 'Subject: Confidential', 'Message-ID: <f1@x>', '', 'secret']);
   const contact = S.ctx.users.byEmail('ceo@partner.example');
   assert.equal(contact.source, 'email');
   const mallory = await S.user('mallory', 'user');
+  // Since audit 2026-11 a new address only counts after the link sent to it was opened – the link goes
+  // to the CEO's mailbox, so mallory never gets the contact or its tickets
+  const sent = [];
+  const { enabled, send } = S.ctx.mailer;
+  S.ctx.mailer.enabled = () => true;
+  S.ctx.mailer.send = async (m) => { sent.push(m); return true; };
   const k = await mallory('PATCH', '/api/me', { email: 'CEO@partner.example', currentPassword: PW });
-  assert.equal(k.status, 409);
-  assert.equal(k.body.error.code, 'err.emailKnownContact');
-  assert.match(k.body.error.message, /administrator/i);
+  S.ctx.mailer.enabled = enabled; S.ctx.mailer.send = send;
+  assert.equal(k.status, 200);
+  assert.equal(k.body.emailPending, 'ceo@partner.example');
+  await new Promise((res) => setTimeout(res, 30));
+  assert.ok(sent.every((m) => m.to !== 'mallory@firma.local' || !/email\/confirm#/.test(m.text)), 'no link to mallory');
   assert.ok(S.ctx.users.byId(contact.id), 'contact still exists');
   assert.equal(S.ctx.users.byName('mallory').email, 'mallory@firma.local', 'address unchanged');
   assert.equal((await mallory('GET', `/api/tickets/${r.ticketId}`)).status, 404, 'ticket stays invisible');

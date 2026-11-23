@@ -54,6 +54,10 @@ export function renderProfile(content) {
     const pwRow = field(t('profile.currentPassword'), pwField, t('profile.emailNeedsPassword'));
     const syncPw = () => { const changed = email.value.trim().toLowerCase() !== (u.email || '').toLowerCase(); pwRow.hidden = !changed; pwField.required = changed; };
     email.addEventListener('input', syncPw);
+    // A new address waits for its confirmation link (until then the old one applies)
+    const pending = h('div.hint-box', { hidden: true, 'data-email-pending': '' }, icon('mail'), h('div'));
+    const showPending = (addr) => { pending.hidden = !addr; if (addr) pending.lastChild.textContent = t('profile.emailPending', { email: addr }); };
+    api.me().then((r) => showPending(r.emailPending)).catch(() => {});
     personal = h('form.panel', {
       onsubmit: async (e) => {
         e.preventDefault();
@@ -62,12 +66,18 @@ export function renderProfile(content) {
           if (!pwRow.hidden) patch.currentPassword = pwField.value;
           const r = await api.updateMe(patch);
           Object.assign(state.user, r.user);
-          toast(t('app.saved'), 'success');
+          if (r.emailPending) {
+            // Not changed yet: the field shows the address that applies, the note the pending one
+            email.value = r.user.email || ''; pwField.value = ''; syncPw();
+            showPending(r.emailPending);
+            toast(t('profile.emailLinkSent', { email: r.emailPending }), 'success');
+          } else toast(t('app.saved'), 'success');
           await reloadBase();
         } catch (ex) { toast(ex.message, 'error'); }
       },
     }, h('h2', t('profile.personal')),
     h('div.grid-2', field(t('users.displayName'), name), field(t('users.email'), email, t(u.selfRegistered ? 'profile.emailFixed' : 'profile.emailHint'))),
+    pending,
     pwRow,
     h('button.btn.btn-primary', { type: 'submit' }, t('app.save')));
     syncPw();
@@ -125,7 +135,7 @@ async function drawPasskeys(panel) {
         p.synced ? h('span.badge', { title: t('passkey.syncedHint') }, t('passkey.synced')) : null),
       h('div.passkey-actions',
         h('button.btn.btn-subtle.small', {
-          type: 'button',
+          type: 'button', disabled: !st.canManage,
           onclick: async () => {
             const name = prompt(t('passkey.renamePrompt'), p.name);
             if (name === null || !name.trim()) return;
@@ -133,17 +143,34 @@ async function drawPasskeys(panel) {
           },
         }, t('passkey.rename')),
         h('button.btn.btn-subtle.small', {
-          type: 'button', 'data-passkey-remove': '',
+          type: 'button', 'data-passkey-remove': '', disabled: !st.canManage,
           onclick: async () => {
             if (!confirm(t('passkey.removeConfirm', { name: p.name }))) return;
             try { await api.passkeyRemove(p.id); toast(t('passkey.removed')); drawPasskeys(panel); } catch (e) { toast(e.message, 'error'); }
           },
         }, t('passkey.remove'))))))
     : h('p.muted', t('passkey.none'));
+  // Rename/remove only after the second factor in this session (the box below offers the code step)
+  const manageNote = st.passkeys.length && !st.canManage ? h('p.muted.small', t('passkey.manageNeedsFactor')) : null;
 
   let add = null;
   if (!passkeySupported()) add = h('div.hint-box', icon('info'), h('div', t('passkey.unsupported')));
   else if (!passkeysHere(state.boot.auth.passkeys)) add = h('div.hint-box', icon('info'), h('div', t('passkey.wrongHost', { host: state.boot.auth.passkeys })));
+  else if (!st.canAdd && st.confirmWith === 'code') {
+    // The account already has a second factor: confirm this session with the code first
+    const code = h('input.code-input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxLength: 9, placeholder: '123456', 'aria-label': t('passkey.confirmCode') });
+    const err = h('div.form-error', { hidden: true, role: 'alert' });
+    const ok = h('button.btn.btn-primary', {
+      type: 'button', 'data-passkey-confirm': '',
+      onclick: async () => {
+        ok.disabled = true;
+        try { await api.mfaConfirm(code.value.trim()); drawPasskeys(panel); }
+        catch (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; code.focus(); }
+      },
+    }, t('passkey.confirmWithCode'));
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok.click(); });
+    add = h('div', h('div.hint-box', icon('info'), h('div', t('passkey.confirmCodeHint'))), err, field(t('passkey.confirmCode'), h('div.inline-form', code, ok)));
+  } else if (!st.canAdd && st.confirmWith === 'passkey') add = h('div.hint-box', icon('info'), h('div', t('passkey.confirmPasskeyHint')));
   else if (!st.canAdd) add = h('div.hint-box', icon('info'), h('div', t('passkey.addOnlyInternal')));
   else {
     const name = h('input', { value: defaultPasskeyName(), maxLength: 60, 'aria-label': t('passkey.name'), name: 'passkey-name' });
@@ -158,7 +185,7 @@ async function drawPasskeys(panel) {
     }, icon('passkey'), t('passkey.add'));
     add = h('div', field(t('passkey.name'), h('div.inline-form', name, btn), t('passkey.nameHint')));
   }
-  mount(panel, head, intro, list, add);
+  mount(panel, head, intro, list, manageNote, add);
 }
 
 async function drawMfa(panel) {
@@ -207,7 +234,7 @@ async function drawMfa(panel) {
       h('p', h('span.badge', t('mfa.statusOff')), ' ', modeText),
       ssoNote,
       where,
-      st.canSetup ? null : h('div.hint-box', icon('info'), h('div', t('mfa.setupOnlyInternal'))),
+      st.canSetup ? null : h('div.hint-box', icon('info'), h('div', t(st.setupNeedsPasskey ? 'mfa.setupNeedsPasskey' : 'mfa.setupOnlyInternal'))),
       start);
   }
 

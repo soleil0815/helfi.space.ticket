@@ -97,6 +97,8 @@ function openPersonal() {
   email.addEventListener('input', sync);
   sync();
   const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
+  const pending = h('div.m-alert.m-alert-info', { hidden: true, 'data-email-pending': '' }, icon('mail'), h('span'));
+  api.me().then((r) => { if (r.emailPending) { pending.lastChild.textContent = t('profile.emailPending', { email: r.emailPending }); pending.hidden = false; } }).catch(() => {});
   const btn = h('button.m-btn.m-btn-primary', { type: 'submit', form: 'm-personal' }, t('app.save'));
   const form = h('form#m-personal.m-form', {
     onsubmit: async (e) => {
@@ -110,12 +112,13 @@ function openPersonal() {
         const r = await api.updateMe(patch);
         Object.assign(state.user, r.user);
         await reloadBase().catch(() => {});
-        toast(t('app.saved'), 'success');
+        // A new address only counts after the link sent there was opened
+        toast(r.emailPending ? t('profile.emailLinkSent', { email: r.emailPending }) : t('app.saved'), 'success');
         sheet.close();
         rerender();
       } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
     },
-  }, err, fieldEl(t('users.displayName'), name), fieldEl(t('users.email'), email, t(u.selfRegistered ? 'profile.emailFixed' : 'profile.emailHint')), pwRow);
+  }, err, fieldEl(t('users.displayName'), name), fieldEl(t('users.email'), email, t(u.selfRegistered ? 'profile.emailFixed' : 'profile.emailHint')), pending, pwRow);
   const sheet = openSheet({ title: t('profile.personal'), content: form, footer: [h('button.m-btn', { type: 'button', onclick: () => sheet.close() }, t('app.cancel')), btn] });
 }
 
@@ -192,11 +195,24 @@ export async function renderPasskeys(page) {
     const rows = st.passkeys.map((p) => listRow({
       icon: 'passkey', label: p.name,
       hint: [p.lastUsedAt ? t('passkey.lastUsed', { date: fmtDate(p.lastUsedAt) }) : t('passkey.neverUsed'), p.synced ? t('passkey.synced') : null].filter(Boolean).join(' · '),
-      onClick: () => openPasskey(p),
+      onClick: () => openPasskey(p, st.canManage),
     }));
     let add;
     if (!passkeySupported()) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.unsupported')));
     else if (!passkeysHere(state.boot.auth.passkeys)) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.wrongHost', { host: state.boot.auth.passkeys })));
+    else if (!st.canAdd && st.confirmWith === 'code') {
+      // The account already has a second factor: confirm this session with the code first
+      const code = h('input.m-code', { inputmode: 'numeric', autocomplete: 'one-time-code', maxLength: 9, placeholder: '123456', 'aria-label': t('passkey.confirmCode') });
+      const ok = h('button.m-btn.m-btn-primary.m-btn-block', {
+        type: 'button', 'data-passkey-confirm': '',
+        onclick: async () => {
+          ok.disabled = true;
+          try { await api.mfaConfirm(code.value.trim()); await draw(); }
+          catch (e) { toast(e.message, 'error'); ok.disabled = false; }
+        },
+      }, t('passkey.confirmWithCode'));
+      add = h('div.m-passkey-add', h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.confirmCodeHint'))), code, ok);
+    } else if (!st.canAdd && st.confirmWith === 'passkey') add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.confirmPasskeyHint')));
     else if (!st.canAdd) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.addOnlyInternal')));
     else {
       const btn = h('button.m-btn.m-btn-primary.m-btn-block', {
@@ -215,8 +231,8 @@ export async function renderPasskeys(page) {
       add);
   }
 
-  function openPasskey(p) {
-    const name = h('input', { value: p.name, maxLength: 60, required: true });
+  function openPasskey(p, canManage = true) {
+    const name = h('input', { value: p.name, maxLength: 60, required: true, disabled: !canManage });
     const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
     const sheet = openSheet({
       title: p.name,
@@ -228,10 +244,11 @@ export async function renderPasskeys(page) {
         },
       },
       err,
+      canManage ? null : h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.manageNeedsFactor'))),
       fieldEl(t('passkey.name'), name, t('passkey.created', { date: fmtDate(p.createdAt, false) })),
-      h('button.m-btn.m-btn-primary.m-btn-block', { type: 'submit' }, t('app.save')),
+      h('button.m-btn.m-btn-primary.m-btn-block', { type: 'submit', disabled: !canManage }, t('app.save')),
       h('button.m-btn.m-btn-block.m-btn-danger', {
-        type: 'button', 'data-passkey-remove': '',
+        type: 'button', 'data-passkey-remove': '', disabled: !canManage,
         onclick: async () => {
           if (!confirm(t('passkey.removeConfirm', { name: p.name }))) return;
           try { await api.passkeyRemove(p.id); sheet.close(); toast(t('passkey.removed')); await draw(); } catch (ex) { err.textContent = ex.message; err.hidden = false; }
@@ -282,7 +299,7 @@ export async function renderMfa(page) {
       page.body.replaceChildren(
         statusCard(false),
         st.sso === 'confirmed' ? h('div.m-alert.m-alert-info', icon('info'), h('span', t('mfa.ssoInfoConfirmed'))) : null,
-        st.canSetup ? h('p.m-intro', t('m.mfa.startText')) : h('div.m-alert.m-alert-info', icon('info'), h('span', t('mfa.setupOnlyInternal'))),
+        st.canSetup ? h('p.m-intro', t('m.mfa.startText')) : h('div.m-alert.m-alert-info', icon('info'), h('span', t(st.setupNeedsPasskey ? 'mfa.setupNeedsPasskey' : 'mfa.setupOnlyInternal'))),
         start);
       return;
     }

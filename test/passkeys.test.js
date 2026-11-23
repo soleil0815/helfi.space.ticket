@@ -39,7 +39,14 @@ function jar() {
 }
 
 async function addPasskey(c, pk, name = 'iPhone') {
-  const o = await c('POST', '/api/me/passkeys/options');
+  let o = await c('POST', '/api/me/passkeys/options');
+  if (o.status === 403 && o.body?.error?.code === 'err.passkeyAddSecondFactor') {
+    // The account already has a second factor: this session confirms it first (as the step-up with the
+    // code or a passkey sign-in does) – tested on its own in audit-2026-11-signin.test.js
+    const me = (await c('GET', '/api/me')).body.user;
+    S.db.prepare('UPDATE sessions SET mfa=1 WHERE user_id=?').run(me.id);
+    o = await c('POST', '/api/me/passkeys/options');
+  }
   assert.equal(o.status, 200, JSON.stringify(o.body));
   const r = await c('POST', '/api/me/passkeys', { response: pk.register(o.body), name });
   assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -83,14 +90,17 @@ test('Add a passkey and sign in with it: no password, no code, counts as 2FA', a
   const added = await addPasskey(karl, pk, 'iPhone von Karl');
   assert.equal(added.name, 'iPhone von Karl');
   assert.equal(added.synced, true);
-  // Options demand user verification (Face ID/PIN) and a discoverable passkey; the own passkey is excluded
-  const o = await karl('POST', '/api/me/passkeys/options');
-  assert.equal(o.body.authenticatorSelection.userVerification, 'required');
-  assert.equal(o.body.authenticatorSelection.residentKey, 'required');
-  assert.deepEqual(o.body.excludeCredentials.map((c) => c.id), [pk.id]);
-  assert.equal(o.body.rp.id, 'localhost');
+  // With a passkey the password-only session cannot add another one (it would get around the factor)
+  assert.equal((await karl('POST', '/api/me/passkeys/options')).status, 403);
+  assert.equal((await karl('GET', '/api/me/passkeys')).body.confirmWith, 'passkey');
 
   const { c, r } = await signIn(pk);
+  // Options demand user verification (Face ID/PIN) and a discoverable passkey; the own passkey is excluded
+  const o = await c('POST', '/api/me/passkeys/options');
+  assert.equal(o.body.authenticatorSelection.userVerification, 'required');
+  assert.equal(o.body.authenticatorSelection.residentKey, 'required');
+  assert.deepEqual(o.body.excludeCredentials.map((x) => x.id), [pk.id]);
+  assert.equal(o.body.rp.id, 'localhost');
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.user.username, 'karl');
   assert.equal((await c('GET', '/api/me')).body.user.username, 'karl');
@@ -148,6 +158,8 @@ test('Rename and remove only own passkeys; a removed passkey no longer signs in'
   const anna = await jar().login('anna');
   const pk = softPasskey();
   const p = await addPasskey(karl, pk, 'Alt');
+  // Renaming/removing needs the second factor in the session (audit 2026-11): as after the code step
+  S.db.prepare('UPDATE sessions SET mfa=1 WHERE user_id IN (?, ?)').run(S.ids.karl, S.ids.anna);
   assert.equal((await anna('PATCH', `/api/me/passkeys/${p.id}`, { name: 'Fremd' })).status, 404);
   assert.equal((await anna('DELETE', `/api/me/passkeys/${p.id}`)).status, 404);
   assert.equal((await karl('PATCH', `/api/me/passkeys/${p.id}`, { name: '  Büro-Mac\u0007 ' })).status, 200);

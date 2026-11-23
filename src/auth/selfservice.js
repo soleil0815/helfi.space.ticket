@@ -14,6 +14,7 @@ import { log } from '../lib/log.js';
 
 export const REGISTER_TTL_MS = 24 * 3600 * 1000;
 export const RESET_TTL_MS = 3600 * 1000;
+export const EMAIL_TTL_MS = 24 * 3600 * 1000;
 export const RESET_MODES = ['off', 'users', 'all'];
 const MIN_PASSWORD = 10;
 
@@ -228,7 +229,8 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
     }
     db.transaction(() => {
       db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(password), u.id);
-      db.prepare("DELETE FROM account_tokens WHERE kind='reset' AND user_id=?").run(u.id);
+      // Also a pending new address: whoever knew the old password may have asked for it
+      db.prepare("DELETE FROM account_tokens WHERE kind IN ('reset','email') AND user_id=?").run(u.id);
     })();
     // Sign out everywhere: whoever knew the old password is out now
     sessions.destroyAllForUser(u.id);
@@ -238,6 +240,53 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
     return { ok: true };
   }
 
+  // ---------- New address in the profile ----------
+  /**
+   * A local account wants a new address: it only counts once its owner opened the link sent there
+   * (otherwise anyone could claim an address and receive the tickets mailed from it). Until then the
+   * old address stays. Returns the pending address.
+   */
+  /** Before anything of the profile is saved: can a link be sent at all? (counts against the limits) */
+  function checkEmailChange(req, email) {
+    if (!mailer.enabled()) throw new HttpError(400, 'err.emailChangeNoMail');
+    limit(req.ip, email);
+  }
+
+  function requestEmailChange(req, u, email) {
+    purgeExpired();
+    db.prepare("DELETE FROM account_tokens WHERE kind='email' AND user_id=?").run(u.id);
+    const token = newToken({ kind: 'email', email, userId: u.id, ttl: EMAIL_TTL_MS });
+    const lang = normalizeLang(u.language, settings.get('general.defaultLanguage'));
+    sendLater(email, lang, 'emailChange', { name: u.display_name, app: appName(), link: `${baseUrl}/email/confirm#${token}`, hours: EMAIL_TTL_MS / 3600000, username: u.username });
+    // The old address learns about it (someone with the password could be trying to take the account over)
+    if (u.email) sendLater(u.email, lang, 'emailChangeNotice', { name: u.display_name, app: appName(), email });
+    log.info(`Email change requested for "${u.username}", confirmation link sent`);
+    return email;
+  }
+
+  /** Pending new address of an account (or null) */
+  function pendingEmail(userId) {
+    return db.prepare("SELECT email FROM account_tokens WHERE kind='email' AND user_id=? AND expires_at >= ?").get(userId, Date.now())?.email || null;
+  }
+
+  function cancelEmailChange(userId) {
+    db.prepare("DELETE FROM account_tokens WHERE kind='email' AND user_id=?").run(userId);
+  }
+
+  /** The link was opened: the address is proven – now it counts (email contacts of it move to the account) */
+  function confirmEmailChange(token) {
+    const row = findToken('email', token);
+    if (!row) throw new HttpError(400, 'err.linkInvalid');
+    db.prepare('DELETE FROM account_tokens WHERE id=?').run(row.id);
+    const u = users.byId(row.user_id);
+    if (!u || u.source !== 'local' || !u.active || u.self_registered) throw new HttpError(400, 'err.linkInvalid');
+    const email = row.email.toLowerCase();
+    // Taken by another account meanwhile: refused (contacts are merged – the address is proven now)
+    const updated = users.setEmail(u.id, email);
+    log.info(`Email change confirmed for "${u.username}"`);
+    return { ok: true, email: updated.email };
+  }
+
   /** An admin approved a self-registered account: tell the person they can sign in now */
   function notifyApproved(u) {
     if (!u?.email) return;
@@ -245,5 +294,5 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
     sendLater(u.email, lang, 'registerApproved', { name: u.display_name, app: appName(), login: loginUrl(), username: u.username });
   }
 
-  return { status, register, confirmRegistration, requestReset, resetPassword, purgeExpired, eligibleForReset, notifyApproved };
+  return { status, register, confirmRegistration, requestReset, resetPassword, purgeExpired, eligibleForReset, notifyApproved, checkEmailChange, requestEmailChange, confirmEmailChange, pendingEmail, cancelEmailChange };
 }

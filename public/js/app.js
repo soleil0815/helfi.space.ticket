@@ -5,7 +5,7 @@ import { api } from './api.js';
 import { h, mount, icon, avatar, dropdown, toast, loadSprite } from './dom.js';
 import { t, setLang, getLang, browserLang } from './i18n.js';
 import { renderLogin, renderSetup } from './views/auth.js';
-import { renderRegister, renderRegisterConfirm, renderForgot, renderReset } from './views/account.js';
+import { renderRegister, renderRegisterConfirm, renderForgot, renderReset, renderEmailConfirm } from './views/account.js';
 import { initIdle } from './idle.js';
 import { renderBoard } from './views/board.js';
 import { renderList, renderMyWork } from './views/list.js';
@@ -185,6 +185,8 @@ export async function route() {
   // Rating link from the email: no login required
   if (path.startsWith('/rate/')) return renderRate(root, path, url.searchParams);
   if (state.boot.setupRequired && !state.user) return renderSetup(root);
+  // New address from the profile: the link works signed in or not
+  if (path === '/email/confirm') return renderEmailConfirm(root);
   // Account pages from the sign-in page and from mails (only without sign-in)
   const accountPage = { '/register': renderRegister, '/register/confirm': renderRegisterConfirm, '/forgot': renderForgot, '/reset': renderReset }[path];
   if (accountPage) {

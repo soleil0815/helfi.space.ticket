@@ -36,7 +36,7 @@ export function rememberPending(pending, id, p, { max = MAX_PENDING, perIp = MAX
 /**
  * AD account for the AD identifier from the claim. If AD is connected (service account), AD is checked on EVERY
  * SSO sign-in – as with a password sign-in: disabled, no longer in the group or a changed role take effect
- * immediately. Without a service account the known AD account is used.
+ * immediately. Without a service account the known AD account is used and the caller applies the groups of the token.
  * Result: { user } | { none: true } (not in AD) | { denied: 'notInGroup' | 'noAccount' }.
  * Throws if AD fails – then the sign-in is aborted instead of creating a separate account.
  */
@@ -45,7 +45,8 @@ export async function adAccountFor(ctx, adId, { allowCreate = true } = {}) {
   const known = users.byAdId(adId);
   const ldapCfg = withProjectGroups(ctx.db, settings.group('ldap'));
   const directory = ctx.directory; // at runtime (replaceable in tests)
-  if (!directory || !settings.get('ldap.enabled') || !ldapCfg.bindDn) return known ? { user: known } : { none: true };
+  // Without a service account AD cannot be asked: the caller applies the groups from the token (synced: false)
+  if (!directory || !settings.get('ldap.enabled') || !ldapCfg.bindDn) return known ? { user: known, synced: false } : { none: true };
   const info = adId.guid ? await directory.byGuid(ldapCfg, adId.guid) : await directory.bySid(ldapCfg, adId.sid);
   if (!info) return known ? { denied: 'noAccount' } : { none: true }; // deleted or disabled
   const role = roleFromGroups(info.groups, ldapCfg);
@@ -54,8 +55,44 @@ export async function adAccountFor(ctx, adId, { allowCreate = true } = {}) {
   return user ? { user } : { denied: 'noAccount' };
 }
 
+/**
+ * Account for a finished SSO sign-in (claims → info): merged into the AD account via the AD identifier
+ * if configured, else the SSO account. Result: { user } (may be null: no account) or { error }.
+ */
+export async function accountForSso(ctx, info, cfg) {
+  const { users } = ctx;
+  // Merge via the stable AD identifier (if configured): sign in directly as the AD account –
+  // even if a separate SSO account already exists (e.g. from before the setting)
+  let u = null;
+  if (info.adId) {
+    let ad;
+    try { ad = await adAccountFor(ctx, info.adId, { allowCreate: cfg.allowCreate }); }
+    catch (e) {
+      log.warn('SSO: AD not reachable for identifier – sign-in aborted', { error: e.message });
+      return { error: 'ldapUnavailable' };
+    }
+    if (ad.denied) {
+      log.warn(`SSO sign-in rejected: AD account ${ad.denied === 'notInGroup' ? 'not in the "allowed users" group' : 'disabled, deleted or not permitted'}`);
+      return { error: ad.denied === 'notInGroup' ? 'notInGroup' : 'oidcNoAccount' };
+    }
+    if (ad.user) u = ad.user;
+    // AD could not be asked (no service account): role and projects come from the groups in the token,
+    // as for any SSO sign-in – a person removed from the admin group must not stay admin
+    // Without the groups claim in the token nothing is changed (it would take everyone's rights away) – logged
+    if (ad.user && ad.synced === false) {
+      if (info.groupsPresent === false) log.warn(`SSO: token without groups claim for AD account "${ad.user.username}" – role and projects unchanged (set up the groups claim at the provider or an AD service account)`);
+      else u = users.applyGroups(ad.user.id, { role: roleFromGroups(info.groups, cfg), access: projectAccessFromGroups(info.groups, cfg) });
+    }
+  }
+  if (!u) {
+    const role = roleFromGroups(info.groups, cfg);
+    u = users.upsertExternal({ source: 'oidc', ...info, role, access: projectAccessFromGroups(info.groups, cfg), allowCreate: cfg.allowCreate });
+  }
+  return { user: u };
+}
+
 export function createOidcRoutes(ctx) {
-  const { settings, users, mfa } = ctx;
+  const { settings, mfa } = ctx;
   const r = express.Router();
   const pending = new Map(); // id → { verifier, state, nonce, at } – in insertion order (oldest first)
 
@@ -83,26 +120,9 @@ export function createOidcRoutes(ctx) {
       const cfg = withProjectGroups(ctx.db, settings.group('oidc'));
       const currentUrl = new URL(req.originalUrl, config.baseUrl);
       const info = await finishLogin(cfg, currentUrl, p);
-      // Merge via the stable AD identifier (if configured): sign in directly as the AD account –
-      // even if a separate SSO account already exists (e.g. from before the setting)
-      let u = null;
-      if (info.adId) {
-        let ad;
-        try { ad = await adAccountFor(ctx, info.adId, { allowCreate: cfg.allowCreate }); }
-        catch (e) {
-          log.warn('SSO: AD not reachable for identifier – sign-in aborted', { error: e.message });
-          return res.redirect('/login?error=ldapUnavailable');
-        }
-        if (ad.denied) {
-          log.warn(`SSO sign-in rejected: AD account ${ad.denied === 'notInGroup' ? 'not in the "allowed users" group' : 'disabled, deleted or not permitted'}`);
-          return res.redirect(`/login?error=${ad.denied === 'notInGroup' ? 'notInGroup' : 'oidcNoAccount'}`);
-        }
-        if (ad.user) u = ad.user;
-      }
-      if (!u) {
-        const role = roleFromGroups(info.groups, cfg);
-        u = users.upsertExternal({ source: 'oidc', ...info, role, access: projectAccessFromGroups(info.groups, cfg), allowCreate: cfg.allowCreate });
-      }
+      const acc = await accountForSso(ctx, info, cfg);
+      if (acc.error) return res.redirect(`/login?error=${acc.error}`);
+      const u = acc.user;
       if (!u) return res.redirect('/login?error=oidcNoAccount');
       if (!u.active) return res.redirect('/login?error=accountDisabled');
       // MFA at the identity provider counts as a second factor depending on the setting – otherwise a code as with password

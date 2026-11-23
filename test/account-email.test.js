@@ -43,8 +43,13 @@ function client() {
 const admin = client();
 const karl = client();
 const PW = 'Sehrgeheim123';
+const sent = [];
+const linkTo = (addr) => { const m = [...sent].reverse().find((x) => x.to === addr && /email\/confirm#/.test(x.text)); return m && /email\/confirm#([A-Za-z0-9_-]+)/.exec(m.text)[1]; };
+const wait = () => new Promise((r) => setTimeout(r, 30));
 
 test('Setup', async () => {
+  ctx.mailer.enabled = () => true;
+  ctx.mailer.send = async (m) => { sent.push(m); return true; };
   assert.equal((await admin('POST', '/api/setup', { token: 'code', username: 'admin', password: PW, projectKey: 'IT', projectName: 'IT' })).status, 200);
   assert.equal((await admin('POST', '/api/users', { username: 'karl', displayName: 'Karl', email: 'Karl@Firma.local', role: 'user', password: PW })).status, 201);
   assert.equal((await karl('POST', '/api/auth/login', { username: 'karl', password: PW })).status, 200);
@@ -63,13 +68,53 @@ test('Local admin changes name and address in the profile – address only with 
   assert.equal(ctx.users.byName('admin').email, null, 'nothing saved');
   r = await admin('PATCH', '/api/me', { email: 'Admin@Firma.local', currentPassword: PW });
   assert.equal(r.status, 200);
-  assert.equal(r.body.user.email, 'admin@firma.local');
+  // Not taken over yet: only after the link sent to the new address was opened (Audit 2026-11)
+  assert.equal(r.body.emailPending, 'admin@firma.local');
+  assert.equal(ctx.users.byName('admin').email, null, 'still the old (no) address');
+  assert.equal((await admin('GET', '/api/me')).body.emailPending, 'admin@firma.local');
+  await wait();
+  const token = linkTo('admin@firma.local');
+  assert.ok(token, 'confirmation link sent to the new address');
+  assert.equal((await client()('POST', '/api/auth/email/confirm', { token: 'falsch' })).status, 400);
+  r = await client()('POST', '/api/auth/email/confirm', { token });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(ctx.users.byName('admin').email, 'admin@firma.local');
+  assert.equal((await client()('POST', '/api/auth/email/confirm', { token })).status, 400, 'link works once');
+  assert.equal((await admin('GET', '/api/me')).body.emailPending, undefined);
 
   // Same address (only different case) needs no password
   assert.equal((await admin('PATCH', '/api/me', { email: 'ADMIN@firma.local', displayName: 'Anna A.' })).status, 200);
-  // Clearing works (with password)
+  // Clearing works (with password) and needs no link
   assert.equal((await admin('PATCH', '/api/me', { email: '', currentPassword: PW })).body.user.email, '');
   assert.equal((await admin('PATCH', '/api/me', { email: 'admin@firma.local', currentPassword: PW })).status, 200);
+  await wait();
+  assert.equal((await client()('POST', '/api/auth/email/confirm', { token: linkTo('admin@firma.local') })).status, 200);
+  assert.equal(ctx.users.byName('admin').email, 'admin@firma.local');
+});
+
+test('A new address is never taken over without the link: mails from it stay with their sender (Audit 2026-11)', async () => {
+  const before = sent.length;
+  const r = await karl('PATCH', '/api/me', { email: 'chefin@firma.local', currentPassword: PW });
+  assert.equal(r.status, 200);
+  assert.equal(ctx.users.byName('karl').email, 'karl@firma.local');
+  const p = ctx.processor;
+  const m = await p.process(await p.parse(Buffer.from(['From: chefin@firma.local', 'Subject: Gehaltsliste', 'Message-ID: <c1@x>', '', 'vertraulich'].join('\r\n'))));
+  assert.notEqual(db.prepare('SELECT reporter_id FROM tickets WHERE id=?').get(m.ticketId).reporter_id, ctx.users.byName('karl').id, 'not Karl\'s ticket');
+  await wait();
+  // the old address is told about it
+  assert.ok(sent.slice(before).some((x) => x.to === 'karl@firma.local' && /chefin@firma\.local/.test(x.text)));
+  // a newer request replaces the older link
+  await karl('PATCH', '/api/me', { email: 'karl.neu@firma.local', currentPassword: PW });
+  await wait();
+  const old = linkTo('chefin@firma.local');
+  assert.equal((await client()('POST', '/api/auth/email/confirm', { token: old })).status, 400);
+  assert.equal(ctx.users.byName('karl').email, 'karl@firma.local');
+  // without mail sending no self-service change (an admin changes it)
+  ctx.mailer.enabled = () => false;
+  const off = await karl('PATCH', '/api/me', { email: 'karl.x@firma.local', currentPassword: PW });
+  assert.equal(off.status, 400);
+  assert.equal(off.body.error.code, 'err.emailChangeNoMail');
+  ctx.mailer.enabled = () => true;
 });
 
 test('Invalid or foreign addresses are rejected', async () => {
@@ -82,19 +127,21 @@ test('Invalid or foreign addresses are rejected', async () => {
   assert.equal((await admin('POST', '/api/users', { username: 'karl2', email: 'karl@firma.local', password: PW })).status, 409, 'also when creating');
 });
 
-test('Address of an email contact: refused in the profile, an admin link takes the contact including tickets over', async () => {
+test('Address of an email contact: taken over with the link from the profile (or by an admin), including tickets', async () => {
   const p = ctx.processor;
   const r = p.process(await p.parse(Buffer.from(['From: Karl Privat <karl.privat@example.org>', 'Subject: Laptop', 'Message-ID: <k1@x>', '', 'Hilfe'].join('\r\n'))));
   const contact = ctx.users.byEmail('karl.privat@example.org');
   assert.equal(contact.source, 'email');
 
-  // Self-service: knowing one's own password does not prove the address → no merge
+  // Self-service: knowing one's own password does not prove the address → nothing merged yet …
   const k = await karl('PATCH', '/api/me', { email: 'karl.privat@example.org', currentPassword: PW });
-  assert.equal(k.status, 409);
-  assert.equal(k.body.error.code, 'err.emailKnownContact');
+  assert.equal(k.status, 200);
   assert.equal(ctx.users.byId(contact.id).source, 'email', 'contact untouched');
   const karlId = ctx.users.byName('karl').id;
-  assert.equal((await admin('PATCH', `/api/users/${karlId}`, { email: 'karl.privat@example.org' })).status, 200);
+  assert.notEqual(db.prepare('SELECT reporter_id FROM tickets WHERE id=?').get(r.ticketId).reporter_id, karlId);
+  // … only the link to that address proves it: then the contact (with its tickets) is taken over
+  await wait();
+  assert.equal((await client()('POST', '/api/auth/email/confirm', { token: linkTo('karl.privat@example.org') })).status, 200);
   assert.equal(ctx.users.byId(contact.id), undefined, 'contact deleted');
   assert.equal(db.prepare('SELECT reporter_id FROM tickets WHERE id=?').get(r.ticketId).reporter_id, karlId);
   assert.ok((await karl('GET', '/api/tickets')).body.tickets.some((x) => x.id === r.ticketId), 'Karl sees his ticket');

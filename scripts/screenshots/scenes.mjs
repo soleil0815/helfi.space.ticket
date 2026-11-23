@@ -556,6 +556,8 @@ scene('passkeys', ['login-passkey', 'mfa-passkey', 'm-mfa-passkey', 'profile-pas
     });
     await step('profile', async () => {
       const p = await page('m.mustermann', { width: 1100, height: 1400 });
+      // Has passkeys already: adding another one needs a session with the second factor (as after a passkey sign-in)
+      db.prepare('UPDATE sessions SET mfa=1 WHERE user_id=?').run(d.ids['m.mustermann']);
       await go(p, '/profile'); await p.waitForSelector('[data-passkeys-panel] .passkey-item');
       await p.fill('[data-passkeys-panel] input[name="passkey-name"]', T('Büro-Mac', 'Office Mac'));
       await shot.el(p, 'profile-passkeys', '[data-passkeys-panel]', { pad: 0 });
@@ -573,6 +575,7 @@ scene('passkeys', ['login-passkey', 'mfa-passkey', 'm-mfa-passkey', 'profile-pas
       const l = await page(null, { mobile: true });
       await go(l, '/m/login'); await l.waitForSelector('[data-passkey-login]');
       const m = await page('m.mustermann', { mobile: true });
+      db.prepare('UPDATE sessions SET mfa=1 WHERE user_id=?').run(d.ids['m.mustermann']);
       await go(m, '/m/me/passkeys'); await m.waitForSelector('[data-passkey-add]');
       await shot.phones('m-passkeys', [l, m]);
     });

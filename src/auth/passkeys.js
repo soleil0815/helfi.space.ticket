@@ -67,9 +67,16 @@ export function createPasskeys(ctx) {
     return 'sso';
   }
 
-  const canAddHere = (req, u) => policy.isInternal(req) || !!settings.get('mfa.enrollExternal') || !!u.session_mfa;
-
   const rows = (userId) => db.prepare('SELECT * FROM user_passkeys WHERE user_id=? ORDER BY created_at').all(userId);
+  const hasTotp = (u) => !!db.prepare('SELECT totp_enabled FROM users WHERE id=?').get(u.id)?.totp_enabled;
+  const hasSecondFactor = (u) => hasTotp(u) || rows(u.id).length > 0;
+  /**
+   * May this session add a passkey? With a second factor in this session always. Without it only for an
+   * account that has no second factor yet, and only inside the company network (or if enrolling from
+   * outside is allowed) – an account that already has TOTP or a passkey must never get another one
+   * with the password alone, not even inside the network (that would get around the existing factor).
+   */
+  const canAddHere = (req, u) => !!u.session_mfa || (!hasSecondFactor(u) && (policy.isInternal(req) || !!settings.get('mfa.enrollExternal')));
   const view = (p) => ({
     id: p.id, name: p.name, createdAt: p.created_at, lastUsedAt: p.last_used_at,
     synced: !!p.backed_up, // in iCloud Keychain / Google Password Manager (available on the person's other devices)
@@ -113,9 +120,14 @@ export function createPasskeys(ctx) {
       const reason = blockedReason(u);
       const canAdd = !reason && canAddHere(req, u);
       const passkeys = rows(u.id).map(view);
+      // Already has a second factor, but not used in this session: confirm with the code (TOTP) or sign
+      // in with a passkey first
+      const confirmWith = !u.session_mfa && hasSecondFactor(u) ? (hasTotp(u) ? 'code' : 'passkey') : null;
       const until = db.prepare('SELECT passkey_prompt_until v FROM users WHERE id=?').get(u.id)?.v;
       return {
-        available: !reason, reason, canAdd, passkeys,
+        available: !reason, reason, canAdd, confirmWith, passkeys,
+        // Rename/remove: only with the second factor in this session (see remove)
+        canManage: !!u.session_mfa,
         // Hint on the start page: only where adding works right away, for people without any passkey
         prompt: canAdd && !passkeys.length && !!settings.get('passkeys.prompt') && until !== -1 && !(until > Date.now()),
       };
@@ -132,7 +144,7 @@ export function createPasskeys(ctx) {
       cleanup();
       const reason = blockedReason(u);
       if (reason) throw new HttpError(400, `err.passkey.${reason}`);
-      if (!canAddHere(req, u)) throw new HttpError(403, 'err.passkeyAddInternal');
+      if (!canAddHere(req, u)) throw new HttpError(403, hasSecondFactor(u) ? 'err.passkeyAddSecondFactor' : 'err.passkeyAddInternal');
       const existing = rows(u.id);
       if (existing.length >= MAX_PER_USER) throw new HttpError(400, 'err.passkeyLimit');
       const { rpID } = rp();
@@ -161,7 +173,7 @@ export function createPasskeys(ctx) {
       if (!pending) throw new HttpError(400, 'err.passkeyExpired');
       const reason = blockedReason(u);
       if (reason) throw new HttpError(400, `err.passkey.${reason}`);
-      if (!canAddHere(req, u)) throw new HttpError(403, 'err.passkeyAddInternal');
+      if (!canAddHere(req, u)) throw new HttpError(403, hasSecondFactor(u) ? 'err.passkeyAddSecondFactor' : 'err.passkeyAddInternal');
       const { rpID, origin } = rp();
       let v;
       try {
@@ -184,15 +196,23 @@ export function createPasskeys(ctx) {
     },
 
     rename(u, id, rawName) {
+      if (!u.session_mfa) throw new HttpError(403, 'err.passkeyManageSecondFactor');
       const name = String(rawName || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 60);
       if (!name) throw new HttpError(400, 'err.badRequest', 'name');
       const r = db.prepare('UPDATE user_passkeys SET name=? WHERE id=? AND user_id=?').run(name, id, u.id);
       if (!r.changes) throw new HttpError(404, 'err.notFound');
     },
 
-    remove(u, id) {
+    remove(u, id, req = null) {
+      // Removing a factor needs that factor (or another one) in this session – like turning off TOTP needs
+      // the code. Otherwise the password alone could remove the passkey and then add an own one.
+      if (!u.session_mfa) throw new HttpError(403, 'err.passkeyManageSecondFactor');
       const r = db.prepare('DELETE FROM user_passkeys WHERE id=? AND user_id=?').run(id, u.id);
       if (!r.changes) throw new HttpError(404, 'err.notFound');
+      // Like turning off TOTP or changing the password: a lost or stolen passkey may have opened other
+      // sessions – they end, only this one stays
+      if (req?.sessionId) db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
+      else db.prepare('DELETE FROM sessions WHERE user_id=?').run(u.id);
       log.info(`Passkey #${id} removed by ${u.username}`);
     },
 

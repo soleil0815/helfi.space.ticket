@@ -87,6 +87,22 @@ export async function renderRegisterConfirm(root) {
   }
 }
 
+// ---------- New address from the profile (link from the mail; signed in or not) ----------
+export async function renderEmailConfirm(root) {
+  const token = takeToken();
+  mount(root, authFrame(h('div.loading', t('app.loading'))));
+  const next = () => (state.user
+    ? h('div.center', h('a.link', { href: '/profile', 'data-link': '' }, t('account.toProfile')))
+    : toLogin());
+  try {
+    const r = await api.confirmEmail(token);
+    if (state.user) state.user.email = r.email;
+    mount(root, authFrame(h('div.account-done', h('div.account-done-icon', icon('check')), h('h1', t('account.emailConfirmedTitle')), h('p', t('account.emailConfirmed', { email: r.email })), next())));
+  } catch (ex) {
+    mount(root, authFrame(h('div', h('h1', t('account.emailConfirmFailed')), h('div.form-error', { role: 'alert' }, ex.message), next())));
+  }
+}
+
 // ---------- Forgot password ----------
 export function renderForgot(root) {
   const email = h('input', { type: 'email', required: true, maxLength: 254, autocomplete: 'email', autocapitalize: 'off', spellcheck: false });
