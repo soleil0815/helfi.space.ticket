@@ -114,6 +114,8 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       const { p } = this.getPending(req);
       if (!p.enroll) throw new HttpError(400, 'err.badRequest');
       const u = users.byId(p.userId);
+      // Has a passkey: that is the second factor – the password alone must never add an app next to it
+      if (hasPasskey(u)) throw new HttpError(403, 'err.mfaUsePasskey');
       if (!p.secret) p.secret = generateSecret();
       const uri = otpauthUri(p.secret, u.username, settings.get('general.title') || 'Helfi.Space');
       return { secret: p.secret, uri, qr: await qrDataUrl(uri) };
@@ -133,6 +135,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
         pending.delete(id); res.clearCookie(PENDING_COOKIE, { path: '/' });
         throw new HttpError(401, 'err.mfaExpired');
       }
+      if (p.enroll && hasPasskey(u)) throw new HttpError(403, 'err.mfaUsePasskey');
       if (p.enroll) {
         const step = p.secret ? verifyTotp(p.secret, code) : null;
         ok = step !== null;
@@ -204,6 +207,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       if (!u.totp_enabled) throw new HttpError(400, 'err.mfaNotEnabled');
       limiter.check(req.ip, mfaKey(u));
       if (!checkCode(users.byId(u.id), code)) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
+      limiter.success(req.ip, mfaKey(u));
       if (req.sessionId) db.prepare('UPDATE sessions SET mfa=1 WHERE id=?').run(req.sessionId);
     },
 

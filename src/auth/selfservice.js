@@ -229,7 +229,8 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
     }
     db.transaction(() => {
       db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(password), u.id);
-      db.prepare("DELETE FROM account_tokens WHERE kind='reset' AND user_id=?").run(u.id);
+      // Also a pending new address: whoever knew the old password may have asked for it
+      db.prepare("DELETE FROM account_tokens WHERE kind IN ('reset','email') AND user_id=?").run(u.id);
     })();
     // Sign out everywhere: whoever knew the old password is out now
     sessions.destroyAllForUser(u.id);
@@ -245,9 +246,13 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
    * (otherwise anyone could claim an address and receive the tickets mailed from it). Until then the
    * old address stays. Returns the pending address.
    */
-  function requestEmailChange(req, u, email) {
+  /** Before anything of the profile is saved: can a link be sent at all? (counts against the limits) */
+  function checkEmailChange(req, email) {
     if (!mailer.enabled()) throw new HttpError(400, 'err.emailChangeNoMail');
     limit(req.ip, email);
+  }
+
+  function requestEmailChange(req, u, email) {
     purgeExpired();
     db.prepare("DELETE FROM account_tokens WHERE kind='email' AND user_id=?").run(u.id);
     const token = newToken({ kind: 'email', email, userId: u.id, ttl: EMAIL_TTL_MS });
@@ -289,5 +294,5 @@ export function createSelfService({ db, settings, users, sessions, mailer, baseU
     sendLater(u.email, lang, 'registerApproved', { name: u.display_name, app: appName(), login: loginUrl(), username: u.username });
   }
 
-  return { status, register, confirmRegistration, requestReset, resetPassword, purgeExpired, eligibleForReset, notifyApproved, requestEmailChange, confirmEmailChange, pendingEmail, cancelEmailChange };
+  return { status, register, confirmRegistration, requestReset, resetPassword, purgeExpired, eligibleForReset, notifyApproved, checkEmailChange, requestEmailChange, confirmEmailChange, pendingEmail, cancelEmailChange };
 }

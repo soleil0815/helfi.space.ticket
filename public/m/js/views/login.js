@@ -195,7 +195,9 @@ async function renderEnroll(page, opts = {}) {
   frame(page, h('div.m-form', h('div.m-spinner', { 'aria-label': t('app.loading') })));
   let info;
   try { info = await api.mfaEnrollInfo(); } catch (ex) {
-    frame(page, h('div.m-form', h('h1', t('mfa.enrollTitle')), h('div.m-alert.m-alert-error', { role: 'alert' }, ex.message), back()));
+    // An account with a passkey confirms with it instead of setting up the app
+    const e = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
+    frame(page, h('div.m-form', h('h1', t('mfa.enrollTitle')), h('div.m-alert.m-alert-error', { role: 'alert' }, ex.message), e, passkeyConfirm(opts, e), back()));
     return;
   }
   let user = null;

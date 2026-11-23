@@ -122,10 +122,12 @@ export function createPasskeys(ctx) {
       const passkeys = rows(u.id).map(view);
       // Already has a second factor, but not used in this session: confirm with the code (TOTP) or sign
       // in with a passkey first
-      const confirmWith = !reason && !canAdd && hasSecondFactor(u) ? (hasTotp(u) ? 'code' : 'passkey') : null;
+      const confirmWith = !u.session_mfa && hasSecondFactor(u) ? (hasTotp(u) ? 'code' : 'passkey') : null;
       const until = db.prepare('SELECT passkey_prompt_until v FROM users WHERE id=?').get(u.id)?.v;
       return {
         available: !reason, reason, canAdd, confirmWith, passkeys,
+        // Rename/remove: only with the second factor in this session (see remove)
+        canManage: !!u.session_mfa,
         // Hint on the start page: only where adding works right away, for people without any passkey
         prompt: canAdd && !passkeys.length && !!settings.get('passkeys.prompt') && until !== -1 && !(until > Date.now()),
       };
@@ -194,6 +196,7 @@ export function createPasskeys(ctx) {
     },
 
     rename(u, id, rawName) {
+      if (!u.session_mfa) throw new HttpError(403, 'err.passkeyManageSecondFactor');
       const name = String(rawName || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 60);
       if (!name) throw new HttpError(400, 'err.badRequest', 'name');
       const r = db.prepare('UPDATE user_passkeys SET name=? WHERE id=? AND user_id=?').run(name, id, u.id);
@@ -201,6 +204,9 @@ export function createPasskeys(ctx) {
     },
 
     remove(u, id, req = null) {
+      // Removing a factor needs that factor (or another one) in this session – like turning off TOTP needs
+      // the code. Otherwise the password alone could remove the passkey and then add an own one.
+      if (!u.session_mfa) throw new HttpError(403, 'err.passkeyManageSecondFactor');
       const r = db.prepare('DELETE FROM user_passkeys WHERE id=? AND user_id=?').run(id, u.id);
       if (!r.changes) throw new HttpError(404, 'err.notFound');
       // Like turning off TOTP or changing the password: a lost or stolen passkey may have opened other

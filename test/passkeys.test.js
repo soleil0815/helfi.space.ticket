@@ -158,6 +158,8 @@ test('Rename and remove only own passkeys; a removed passkey no longer signs in'
   const anna = await jar().login('anna');
   const pk = softPasskey();
   const p = await addPasskey(karl, pk, 'Alt');
+  // Renaming/removing needs the second factor in the session (audit 2026-11): as after the code step
+  S.db.prepare('UPDATE sessions SET mfa=1 WHERE user_id IN (?, ?)').run(S.ids.karl, S.ids.anna);
   assert.equal((await anna('PATCH', `/api/me/passkeys/${p.id}`, { name: 'Fremd' })).status, 404);
   assert.equal((await anna('DELETE', `/api/me/passkeys/${p.id}`)).status, 404);
   assert.equal((await karl('PATCH', `/api/me/passkeys/${p.id}`, { name: '  Büro-Mac\u0007 ' })).status, 200);

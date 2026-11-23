@@ -135,7 +135,7 @@ async function drawPasskeys(panel) {
         p.synced ? h('span.badge', { title: t('passkey.syncedHint') }, t('passkey.synced')) : null),
       h('div.passkey-actions',
         h('button.btn.btn-subtle.small', {
-          type: 'button',
+          type: 'button', disabled: !st.canManage,
           onclick: async () => {
             const name = prompt(t('passkey.renamePrompt'), p.name);
             if (name === null || !name.trim()) return;
@@ -143,13 +143,15 @@ async function drawPasskeys(panel) {
           },
         }, t('passkey.rename')),
         h('button.btn.btn-subtle.small', {
-          type: 'button', 'data-passkey-remove': '',
+          type: 'button', 'data-passkey-remove': '', disabled: !st.canManage,
           onclick: async () => {
             if (!confirm(t('passkey.removeConfirm', { name: p.name }))) return;
             try { await api.passkeyRemove(p.id); toast(t('passkey.removed')); drawPasskeys(panel); } catch (e) { toast(e.message, 'error'); }
           },
         }, t('passkey.remove'))))))
     : h('p.muted', t('passkey.none'));
+  // Rename/remove only after the second factor in this session (the box below offers the code step)
+  const manageNote = st.passkeys.length && !st.canManage ? h('p.muted.small', t('passkey.manageNeedsFactor')) : null;
 
   let add = null;
   if (!passkeySupported()) add = h('div.hint-box', icon('info'), h('div', t('passkey.unsupported')));
@@ -165,7 +167,7 @@ async function drawPasskeys(panel) {
         try { await api.mfaConfirm(code.value.trim()); drawPasskeys(panel); }
         catch (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; code.focus(); }
       },
-    }, t('passkey.confirm'));
+    }, t('passkey.confirmWithCode'));
     code.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok.click(); });
     add = h('div', h('div.hint-box', icon('info'), h('div', t('passkey.confirmCodeHint'))), err, field(t('passkey.confirmCode'), h('div.inline-form', code, ok)));
   } else if (!st.canAdd && st.confirmWith === 'passkey') add = h('div.hint-box', icon('info'), h('div', t('passkey.confirmPasskeyHint')));
@@ -183,7 +185,7 @@ async function drawPasskeys(panel) {
     }, icon('passkey'), t('passkey.add'));
     add = h('div', field(t('passkey.name'), h('div.inline-form', name, btn), t('passkey.nameHint')));
   }
-  mount(panel, head, intro, list, add);
+  mount(panel, head, intro, list, manageNote, add);
 }
 
 async function drawMfa(panel) {

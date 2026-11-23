@@ -296,6 +296,8 @@ export function createApi(ctx) {
         if (email !== String(u.email || '').toLowerCase()) {
           limiter.check(req.ip, u.username);
           if (!u.password_hash || !verifyPassword(str(req.body.currentPassword, 1024), u.password_hash)) { limiter.fail(req.ip, u.username); throw new HttpError(400, 'err.invalidLogin'); }
+          // A new address needs a link: refused before anything else of this request is saved
+          if (email) ctx.selfService.checkEmailChange(req, email);
         } else email = undefined;
       }
     }
@@ -332,8 +334,10 @@ export function createApi(ctx) {
       if (email === '') { users.setEmail(u.id, ''); ctx.selfService.cancelEmailChange(u.id); }
       if (newHash) {
         db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
-        // Password changed → end all other (possibly stolen) sessions
+        // Password changed → end all other (possibly stolen) sessions and drop a pending new address
+        // (unless it is asked for in this same request)
         db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
+        if (!email) ctx.selfService.cancelEmailChange(u.id);
       }
     })();
     const emailPending = email ? ctx.selfService.requestEmailChange(req, u, email) : undefined;
@@ -520,6 +524,8 @@ export function createApi(ctx) {
       );
       if (email !== undefined) users.setEmail(u.id, email);
       if (newHash) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
+      // An admin set the address or the password: an older self-service link must not change it later
+      if (email !== undefined || newHash) ctx.selfService.cancelEmailChange(u.id);
       // Deactivated or no longer an agent (role): taken off the open tickets they may not work on
       releaseUnassignable(db, { userId: u.id, actorId: req.user.id });
     })();

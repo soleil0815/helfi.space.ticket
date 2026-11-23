@@ -195,7 +195,7 @@ export async function renderPasskeys(page) {
     const rows = st.passkeys.map((p) => listRow({
       icon: 'passkey', label: p.name,
       hint: [p.lastUsedAt ? t('passkey.lastUsed', { date: fmtDate(p.lastUsedAt) }) : t('passkey.neverUsed'), p.synced ? t('passkey.synced') : null].filter(Boolean).join(' · '),
-      onClick: () => openPasskey(p),
+      onClick: () => openPasskey(p, st.canManage),
     }));
     let add;
     if (!passkeySupported()) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.unsupported')));
@@ -210,7 +210,7 @@ export async function renderPasskeys(page) {
           try { await api.mfaConfirm(code.value.trim()); await draw(); }
           catch (e) { toast(e.message, 'error'); ok.disabled = false; }
         },
-      }, t('passkey.confirm'));
+      }, t('passkey.confirmWithCode'));
       add = h('div.m-passkey-add', h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.confirmCodeHint'))), code, ok);
     } else if (!st.canAdd && st.confirmWith === 'passkey') add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.confirmPasskeyHint')));
     else if (!st.canAdd) add = h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.addOnlyInternal')));
@@ -231,8 +231,8 @@ export async function renderPasskeys(page) {
       add);
   }
 
-  function openPasskey(p) {
-    const name = h('input', { value: p.name, maxLength: 60, required: true });
+  function openPasskey(p, canManage = true) {
+    const name = h('input', { value: p.name, maxLength: 60, required: true, disabled: !canManage });
     const err = h('div.m-alert.m-alert-error', { role: 'alert', hidden: true });
     const sheet = openSheet({
       title: p.name,
@@ -244,10 +244,11 @@ export async function renderPasskeys(page) {
         },
       },
       err,
+      canManage ? null : h('div.m-alert.m-alert-info', icon('info'), h('span', t('passkey.manageNeedsFactor'))),
       fieldEl(t('passkey.name'), name, t('passkey.created', { date: fmtDate(p.createdAt, false) })),
-      h('button.m-btn.m-btn-primary.m-btn-block', { type: 'submit' }, t('app.save')),
+      h('button.m-btn.m-btn-primary.m-btn-block', { type: 'submit', disabled: !canManage }, t('app.save')),
       h('button.m-btn.m-btn-block.m-btn-danger', {
-        type: 'button', 'data-passkey-remove': '',
+        type: 'button', 'data-passkey-remove': '', disabled: !canManage,
         onclick: async () => {
           if (!confirm(t('passkey.removeConfirm', { name: p.name }))) return;
           try { await api.passkeyRemove(p.id); sheet.close(); toast(t('passkey.removed')); await draw(); } catch (ex) { err.textContent = ex.message; err.hidden = false; }
