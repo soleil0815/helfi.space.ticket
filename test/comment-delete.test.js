@@ -147,3 +147,34 @@ test('A comment id of another ticket is refused', async () => {
   assert.equal((await del(karl, c.id)).status, 404);
   assert.equal(row(c.id).deleted_at, null);
 });
+
+test('A deleted approval comment also leaves the approval box and the history; the decision stays', async () => {
+  const item = (await S.admin('POST', '/api/catalog', { title: 'Monitor', approverIds: [S.ids.lena], fields: [], projectId: it })).body.item;
+  const tk = (await karl('POST', `/api/catalog/${item.id}/order`, { answers: {} })).body.ticket;
+  const d = await lena('POST', `/api/tickets/${tk.key}/approval`, { decision: 'approve', comment: 'Geht klar, Kostenstelle 4711' });
+  assert.equal(d.status, 200, JSON.stringify(d.body));
+  const c = S.db.prepare("SELECT id FROM comments WHERE ticket_id=? AND body LIKE '%Kostenstelle 4711%'").get(tk.id);
+  assert.ok(c, 'decision written as a comment');
+  assert.equal((await lena('DELETE', `/api/tickets/${tk.key}/comments/${c.id}`)).status, 200);
+  const a = S.db.prepare('SELECT decision, comment FROM approvals WHERE ticket_id=? AND approver_id=?').get(tk.id, S.ids.lena);
+  assert.equal(a.decision, 'approve');
+  assert.equal(a.comment, null);
+  assert.equal(S.db.prepare("SELECT COUNT(*) n FROM activity WHERE ticket_id=? AND new_value LIKE '%4711%'").get(tk.id).n, 0);
+  assert.equal(S.db.prepare("SELECT COUNT(*) n FROM activity WHERE ticket_id=? AND action='approval'").get(tk.id).n, 1, 'the decision stays in the history');
+});
+
+test('Someone whose only comment was deleted is no longer a participant by mail; merging keeps who deleted', async () => {
+  const k = (await karl('POST', '/api/tickets', { title: 'Mailtest', projectId: it })).body.ticket.key;
+  await karl('POST', `/api/tickets/${k}/participants`, { userId: S.ids.otto });
+  const c = (await otto('POST', `/api/tickets/${k}/comments`, { body: 'Ich auch' })).body.comment;
+  await karl('DELETE', `/api/tickets/${k}/participants/${S.ids.otto}`);
+  const tid = S.ctx.tickets.load(null, k).id;
+  assert.equal(S.db.prepare('SELECT COUNT(*) n FROM comments WHERE ticket_id=? AND author_id=? AND deleted_at IS NULL').get(tid, S.ids.otto).n, 1);
+  assert.equal((await lena('DELETE', `/api/tickets/${k}/comments/${c.id}`)).status, 200);
+  assert.equal(S.db.prepare('SELECT COUNT(*) n FROM comments WHERE ticket_id=? AND author_id=? AND deleted_at IS NULL').get(tid, S.ids.otto).n, 0);
+  // an email contact taken over by an account: "deleted by" moves along (users rows are only deleted there)
+  const contact = S.ctx.users.contactForEmail('vertretung@firma.local', 'Vertretung');
+  S.db.prepare('UPDATE comments SET deleted_by=? WHERE id=?').run(contact.id, c.id);
+  S.ctx.users.mergeContact(contact.id, S.ids.lena);
+  assert.equal(row(c.id).deleted_by, S.ids.lena);
+});

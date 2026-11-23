@@ -339,7 +339,7 @@ export async function renderTicket(page, ctx) {
           c.source === 'email' && !c.deleted ? h('span.m-msg-src', { title: t('source.email') }, icon('mail')) : null,
           c.canDelete ? h('button.m-iconbtn.m-msg-del', { type: 'button', 'aria-label': t('comment.delete'), onclick: () => deleteSheet(c, el) }, icon('trash')) : null),
         c.deleted
-          ? h('p.m-msg-deleted', icon('trash'), t('comment.deletedBy', { who: c.deleted.by?.displayName || '—', when: fmtDate(c.deleted.at) }))
+          ? h('p.m-msg-deleted', { tabindex: '-1' }, icon('trash'), t('comment.deletedBy', { who: c.deleted.by?.displayName || '—', when: fmtDate(c.deleted.at) }))
           : [commentView(c),
             c.hasHtml ? mailNote(mailSrc(c.id), () => commentView(c)) : null,
             files.length ? attachmentsEl(files) : null],
@@ -358,8 +358,11 @@ export async function renderTicket(page, ctx) {
           // Only this message changes – a reply being written stays as it is
           tk.comments = tk.comments.map((x) => (x.id === c.id ? comment : x));
           tk.attachments = tk.attachments.filter((a) => a.commentId !== c.id);
+          const fresh = bubble(comment);
+          el.replaceWith(fresh);
           sheet.close();
-          el.replaceWith(bubble(comment));
+          // The button that opened the sheet is gone: keep the focus on the message
+          setTimeout(() => fresh.querySelector('.m-msg-deleted')?.focus({ preventScroll: true }), 300);
           dataChanged();
           toast(t('comment.deleted'));
         } catch (e) { ok.disabled = false; toast(e.message, 'error'); }

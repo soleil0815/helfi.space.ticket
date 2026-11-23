@@ -365,7 +365,7 @@ A comment can be deleted, e.g. when a password ended up in the ticket by mistake
 
 - **Who may:** everyone their **own** comments; **agents of the project** and **admins** also those of others, internal notes included. Notices of Helfi.Space itself (e.g. “Delivery failed”) stay.
 - **What happens:** the text, attached files (also pasted pictures) and the stored original email are deleted **for good** – also from the search and from a stored AI summary. In their place it then says *Comment deleted by … on …*, the history notes it.
-- **What stays:** notification emails already sent cannot be recalled. The ticket itself is never deleted.
+- **What stays:** notification emails already sent cannot be recalled, older backups still contain the comment. The decision of an approval stays, only its comment goes. The ticket itself is never deleted.
 
 ## Formatting replies
 

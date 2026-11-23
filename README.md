@@ -365,7 +365,7 @@ Ein Kommentar lässt sich löschen, z. B. wenn ein Kennwort versehentlich im Tic
 
 - **Wer darf:** jeder seine **eigenen** Kommentare; **Bearbeiter des Projekts** und **Admins** auch die von anderen, interne Notizen eingeschlossen. Hinweise von Helfi.Space selbst (z. B. „Zustellung fehlgeschlagen“) bleiben.
 - **Was passiert:** Text, angehängte Dateien (auch eingefügte Bilder) und die gespeicherte Original-Mail werden **endgültig** gelöscht – auch aus der Suche und einer gespeicherten KI-Zusammenfassung. An der Stelle steht danach *Kommentar gelöscht von … am …*, der Verlauf vermerkt es.
-- **Was bleibt:** Schon verschickte Benachrichtigungen per Mail lassen sich nicht zurückholen. Das Ticket selbst wird nie gelöscht.
+- **Was bleibt:** Schon verschickte Benachrichtigungen per Mail lassen sich nicht zurückholen, ältere Sicherungen enthalten den Kommentar weiterhin. Die Entscheidung einer Genehmigung bleibt, nur ihr Kommentar verschwindet. Das Ticket selbst wird nie gelöscht.
 
 ## Antworten formatieren
 

@@ -37,8 +37,12 @@ const fake = http.createServer((req, res) => {
       : sys.includes('single word OK') ? 'OK'
         : sys.includes('write a reply') ? 'Bitte starten Sie den Drucker neu.'
           : `REWRITTEN: ${json.messages[1].content}`;
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content, reasoning: 'internal thoughts' } }] }));
+    const answer = () => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content, reasoning: 'internal thoughts' } }] }));
+    };
+    if (mode === 'delay') return setTimeout(answer, 500);
+    answer();
   });
 });
 
@@ -131,6 +135,21 @@ test('Summary: stored, think block removed, internal notes left out by default, 
   await admin('POST', `/api/tickets/${key}/ai/summary`);
   assert.ok(calls.at(-1).body.messages[1].content.includes('GEHEIME INTERNE NOTIZ'));
   ctx.settings.set('ai.includeInternal', false);
+});
+
+test('Summary: a comment deleted while the AI writes is not kept in a stored summary', async () => {
+  const c = (await admin('POST', `/api/tickets/${key}/comments`, { body: 'Kennwort versehentlich gepostet' })).body.comment;
+  db.prepare('DELETE FROM ai_summaries').run();
+  mode = 'delay';
+  try {
+    const running = admin('POST', `/api/tickets/${key}/ai/summary`);
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal((await admin('DELETE', `/api/tickets/${key}/comments/${c.id}`)).status, 200);
+    const r = await running;
+    assert.equal(r.status, 200);
+    assert.equal(r.body.summary.outdated, true, 'shown once, marked outdated');
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM ai_summaries').get().n, 0, 'not stored');
+  } finally { mode = 'ok'; }
 });
 
 test('Reply suggestion and rewrite', async () => {

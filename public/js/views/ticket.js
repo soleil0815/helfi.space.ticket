@@ -25,7 +25,7 @@ import { kbSuggestions, kbFromTicketButton } from './kb.js';
 import { catalogApprovalBox } from './catalog.js';
 import { ciSection } from './cmdb.js';
 import { ratingBox } from './survey.js';
-import { aiSummarySection, aiComposerTools, editorField } from '../aiassist.js';
+import { aiSummarySection, aiComposerTools, editorField, forgetSummary } from '../aiassist.js';
 import { createCommentField, commentView } from '../commentfield.js';
 
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'];
@@ -212,7 +212,7 @@ export async function renderTicket(content, key) {
 
   /** Placeholder of a deleted comment: who deleted it and when */
   function deletedNote(c) {
-    return h('p.comment-deleted', icon('trash'), t('comment.deletedBy', { who: c.deleted.by?.displayName || '—', when: fmtDate(c.deleted.at) }));
+    return h('p.comment-deleted', { tabindex: '-1' }, icon('trash'), t('comment.deletedBy', { who: c.deleted.by?.displayName || '—', when: fmtDate(c.deleted.at) }));
   }
 
   function deleteCommentDialog(c, el) {
@@ -227,8 +227,15 @@ export async function renderTicket(content, key) {
           // Only this comment and the file list change – a reply being written stays as it is
           tk.comments = tk.comments.map((x) => (x.id === c.id ? comment : x));
           tk.attachments = tk.attachments.filter((a) => a.commentId !== c.id);
-          el.replaceWith(commentEl(comment));
+          tk.activity?.push({ id: 0, action: 'commentDeleted', createdAt: comment.deleted.at, user: { id: state.user.id, displayName: state.user.displayName } });
+          const fresh = commentEl(comment);
+          el.replaceWith(fresh);
           if (files) document.querySelector('[data-attachments-section]')?.replaceWith(attachmentsEl());
+          // A summary shown may quote the deleted text – the server dropped it, so does the page
+          const ai = document.querySelector('.ai-summary');
+          forgetSummary(tk.key);
+          if (ai) ai.replaceWith(aiSummarySection(tk));
+          fresh.querySelector('.comment-deleted')?.focus();
           toast(t('comment.deleted'));
         } catch (e) { btn.disabled = false; toast(e.message, 'error'); }
       },

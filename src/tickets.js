@@ -787,17 +787,40 @@ export function createTickets(db, users, { settings = null } = {}) {
     if (c.deleted_at) return comments(user, row.id).find((x) => x.id === c.id); // already deleted (double click)
     if (!canDeleteComment(user, c, agent)) throw forbidden();
     const files = db.prepare('SELECT id, ticket_id, storage_name FROM attachments WHERE comment_id=?').all(c.id);
-    db.transaction(() => {
-      db.prepare('DELETE FROM attachments WHERE comment_id=?').run(c.id);
-      db.prepare('DELETE FROM mail_html WHERE comment_id=?').run(c.id);
-      db.prepare('DELETE FROM comment_mentions WHERE comment_id=?').run(c.id);
-      db.prepare("UPDATE comments SET body='', format='text', deleted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), deleted_by=? WHERE id=?").run(user.id, c.id);
-      // A stored AI summary may quote the deleted text
-      db.prepare('DELETE FROM ai_summaries WHERE ticket_id=?').run(row.id);
-      logActivity(row.id, user.id, 'commentDeleted');
-    })();
+    // Overwrite the freed database pages instead of leaving the old text in the file
+    const secure = db.pragma('secure_delete', { simple: true });
+    db.pragma('secure_delete = ON');
+    try {
+      db.transaction(() => {
+        removeCommentCopies(row.id, c);
+        db.prepare('DELETE FROM attachments WHERE comment_id=?').run(c.id);
+        db.prepare('DELETE FROM mail_html WHERE comment_id=?').run(c.id);
+        db.prepare('DELETE FROM comment_mentions WHERE comment_id=?').run(c.id);
+        db.prepare("UPDATE comments SET body='', format='text', deleted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), deleted_by=? WHERE id=?").run(user.id, c.id);
+        // A stored AI summary may quote the deleted text
+        db.prepare('DELETE FROM ai_summaries WHERE ticket_id=?').run(row.id);
+        logActivity(row.id, user.id, 'commentDeleted');
+      })();
+    } finally { db.pragma(`secure_delete = ${Number(secure) || 0}`); }
     for (const a of files) removeFile(a);
     return comments(user, row.id).find((x) => x.id === c.id);
+  }
+
+  /**
+   * Other places holding the same text: an approver's decision on a catalog request is also kept in
+   * the approval (shown in the approval box) and – shortened – in the history. Deleting the comment
+   * removes the text there as well; the decision itself stays.
+   */
+  function removeCommentCopies(ticketId, c) {
+    if (!c.author_id || !c.body) return;
+    const own = db.prepare('SELECT id, comment FROM approvals WHERE ticket_id=? AND approver_id=? AND comment IS NOT NULL').all(ticketId, c.author_id)
+      .filter((a) => c.body.includes(a.comment));
+    for (const a of own) {
+      db.prepare('UPDATE approvals SET comment=NULL WHERE id=?').run(a.id);
+      for (const h of db.prepare("SELECT id, new_value FROM activity WHERE ticket_id=? AND user_id=? AND action='approval' AND new_value IS NOT NULL").all(ticketId, c.author_id)) {
+        if (a.comment.startsWith(h.new_value.trim())) db.prepare('UPDATE activity SET new_value=NULL WHERE id=?').run(h.id);
+      }
+    }
   }
 
   /** system: notice from Helfi.Space itself (e.g. delivery failure) – always internal, reopens nothing. */
