@@ -186,6 +186,30 @@ test('Rollback from a damaged packed backup: specific message, database unchange
   assert.doesNotMatch(r.stderr, /Platz\? Rechte\?/);
 });
 
+test('Rollback ignores a backup that is a symlink (no host file read into the database)', () => {
+  const ctx = setup();
+  const secret = path.join(ctx.dir, 'host-geheim.txt');
+  fs.writeFileSync(secret, 'host-secret');
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_BACKUP_SYMLINK: secret });
+  assert.equal(r.status, 1);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-neu', 'the real backup is used, the link is skipped');
+  assert.doesNotMatch(read(ctx, 'data/helfi.sqlite'), /host-secret/);
+});
+
+for (const gz of ['', '1']) {
+  test(`Rollback never writes through a planted helfi.sqlite.zurueck symlink${gz ? ' (packed backup)' : ''}`, () => {
+    const ctx = setup();
+    const victim = path.join(ctx.dir, 'host-datei.txt');
+    fs.writeFileSync(victim, 'unberuehrt');
+    const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0', FAKE_ZURUECK_SYMLINK: victim, ...(gz ? { FAKE_BACKUP_GZ: '1' } : {}) });
+    assert.equal(r.status, 1);
+    assert.equal(fs.readFileSync(victim, 'utf8'), 'unberuehrt', 'host file not overwritten');
+    assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-neu');
+    assert.equal(fs.lstatSync(path.join(ctx.dir, 'data/helfi.sqlite')).isSymbolicLink(), false);
+    assert.equal(fs.statSync(path.join(ctx.dir, 'data/helfi.sqlite')).mode & 0o077, 0);
+  });
+}
+
 test('Manual rollback hints also name the packed backup (.sqlite.gz)', () => {
   const ctx = setup();
   const r = run(ctx, [], { FAKE_HEALTH_NEW: 'exited', FAKE_NEW_VERSION: '1.2.0' });

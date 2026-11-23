@@ -495,7 +495,9 @@ if [ -n "$NEW_VERSION" ]; then
     # already be partly migrated). .part or an accompanying -journal/-wal = not finished.
     backup=""; partial=""
     # Helfi.Space keeps this backup unpacked for a day; packed (.sqlite.gz) it is accepted too
-    found="$(find "$bdir" -maxdepth 1 \( -name "helfi-vor-$NEW_VERSION-*.sqlite" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.gz" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.part" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.gz.part" \) -newer "$MARKER" 2>/dev/null | sort)"
+    # -type f: only regular files – a symlink planted in the data directory (it belongs to the
+    # container user) must not make this script read a host file into the database
+    found="$(find "$bdir" -maxdepth 1 -type f \( -name "helfi-vor-$NEW_VERSION-*.sqlite" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.gz" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.part" -o -name "helfi-vor-$NEW_VERSION-*.sqlite.gz.part" \) -newer "$MARKER" 2>/dev/null | sort)"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       if [ "${f%.part}" != "$f" ] || [ -e "$f-journal" ] || [ -e "$f-wal" ]; then
@@ -517,6 +519,9 @@ EOF_BACKUPS
           "The backup $partial is incomplete (startup was aborted during the backup)."
       err "Sie wird NICHT zurückgespielt; die Datenbank wurde noch nicht umgestellt und bleibt unverändert." \
           "It will NOT be restored; the database has not been migrated yet and stays unchanged."
+    elif [ -L "$backup" ] || [ ! -f "$backup" ]; then
+      err "Sicherung $backup ist keine normale Datei – Datenbank NICHT zurückgespielt." \
+          "Backup $backup is not a regular file – database NOT restored."
     elif [ ! -r "$backup" ]; then
       err "Sicherung $backup ist nicht lesbar – Datenbank NICHT zurückgespielt. Bitte mit sudo ausführen." \
           "Backup $backup is not readable – database NOT restored. Please run with sudo."
@@ -536,15 +541,18 @@ EOF_BACKUPS
                   err "gzip fehlt – die gepackte Sicherung $backup lässt sich nicht entpacken." "gzip is missing – the packed backup $backup cannot be unpacked."
                   return 1
                 fi
-                if ! (umask 077; gzip -dc "$backup" > "$DATA_DIR/helfi.sqlite.zurueck"); then
+                if ! (umask 077; set -C; gzip -dc "$backup" > "$DATA_DIR/helfi.sqlite.zurueck"); then
                   restore_err=1
                   err "Die gepackte Sicherung $backup ließ sich nicht entpacken (gzip -dc; beschädigt oder kein Platz?)." \
                       "The packed backup $backup could not be unpacked (gzip -dc; damaged or out of disk space?)."
                   return 1
                 fi
               } ;;
-        *) restore() { (umask 077; cp "$backup" "$DATA_DIR/helfi.sqlite.zurueck"); } ;;
+        *) restore() { (umask 077; set -C; cat "$backup" > "$DATA_DIR/helfi.sqlite.zurueck"); } ;;
       esac
+      # The copy is always a new file of this script: remove whatever is there (also a symlink – rm
+      # removes the link, not its target) and create it exclusively (set -C), never write through a link
+      rm -f "$DATA_DIR/helfi.sqlite.zurueck"
       if restore && sync; then
         for ext in "" -wal -shm; do
           [ -f "$DATA_DIR/helfi.sqlite$ext" ] && mv "$DATA_DIR/helfi.sqlite$ext" "$DATA_DIR/helfi.sqlite.fehlgeschlagen-$stamp$ext"

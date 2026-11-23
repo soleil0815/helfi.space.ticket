@@ -15,6 +15,8 @@
 #   FAKE_BACKUP_PART=1                           … bzw. nur unter dem Zwischennamen .sqlite.part
 #   FAKE_BACKUP_OLDER=1                          zusätzlich eine ältere vollständige Sicherung (Neustart-Schleife)
 #   FAKE_NO_BACKUP=1                             neue Version legt keine Sicherung an
+#   FAKE_BACKUP_SYMLINK=<Pfad>                   zusätzlich ein Symlink als (ältere) Sicherung
+#   FAKE_ZURUECK_SYMLINK=<Pfad>                  vorab ein Symlink helfi.sqlite.zurueck im Datenordner
 #   FAKE_NEW_IMAGE                               Image-ID des neuen Containers (Standard sha256:neu; z. B. eigene Registry)
 #   FAKE_LOAD_REF                                Name, den "docker load" meldet (Standard: …:9.9.9)
 #   FAKE_LOAD_VERSION                            Versions-Label des geladenen Images (Standard: FAKE_NEW_VERSION)
@@ -48,6 +50,9 @@ case "$1" in
             [ -n "${FAKE_BACKUP_PART:-}" ] && b="$b.part"
             if [ "${FAKE_BACKUP_GZ:-}" = broken ]; then printf 'kein gzip' > "$b.gz"
             elif [ -n "${FAKE_BACKUP_GZ:-}" ]; then printf sicherung-neu | gzip -c > "$b.gz"; else printf sicherung-neu > "$b"; fi
+            # Planted by a compromised container (runs as the container user in /data):
+            [ -n "${FAKE_BACKUP_SYMLINK:-}" ] && ln -s "$FAKE_BACKUP_SYMLINK" "$data/backups/helfi-vor-$FAKE_NEW_VERSION-2026-10-31T10-00-00.sqlite"
+            [ -n "${FAKE_ZURUECK_SYMLINK:-}" ] && ln -s "$FAKE_ZURUECK_SYMLINK" "$data/helfi.sqlite.zurueck"
             [ -n "${FAKE_BACKUP_JOURNAL:-}" ] && printf halb > "$data/backups/helfi-vor-$FAKE_NEW_VERSION-2026-10-31T12-00-00.sqlite-journal"
           fi
           [ -f "$data/helfi.sqlite" ] && printf migriert > "$data/helfi.sqlite"
