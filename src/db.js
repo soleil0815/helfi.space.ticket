@@ -950,6 +950,31 @@ export const MIGRATIONS = [
     UPDATE catalog_items SET project_key='', active=0 WHERE project_key<>'' AND project_key NOT IN (SELECT key FROM projects);
     `,
   },
+  {
+    id: 51,
+    name: 'Confirm a new email address',
+    sql: `
+    -- One-time links also for a new address in the profile (kind 'email'): the address only counts once
+    -- its owner opened the link. SQLite cannot change a CHECK: rebuild the table, keeping open links.
+    CREATE TABLE account_tokens_new (
+      id INTEGER PRIMARY KEY,
+      kind TEXT NOT NULL CHECK (kind IN ('register','reset','email')),
+      token_hash TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL COLLATE NOCASE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      display_name TEXT,
+      password_hash TEXT,
+      language TEXT,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    INSERT INTO account_tokens_new SELECT id, kind, token_hash, email, user_id, display_name, password_hash, language, created_at, expires_at FROM account_tokens;
+    DROP TABLE account_tokens;
+    ALTER TABLE account_tokens_new RENAME TO account_tokens;
+    CREATE INDEX idx_account_tokens_email ON account_tokens(email, kind);
+    CREATE INDEX idx_account_tokens_exp ON account_tokens(expires_at);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

@@ -191,5 +191,23 @@ export function createLoginLimiter({ max = 8, ipMax = 40, windowMs = 15 * 60 * 1
       if (hits.size > 10000) for (const [k, v] of hits) if (v.until < Date.now()) hits.delete(k);
     },
     success(_ip, user) { hits.delete(nameKey(user)); },
+    /**
+     * Count an attempt BEFORE an asynchronous check (AD bind): parallel requests see each other's
+     * attempts, so a burst cannot run past the limit while the directory answers. release() gives the
+     * attempt back once the password proved right (or the directory could not be asked at all).
+     */
+    begin(ip, user) {
+      this.check(ip, user);
+      const keys = [nameKey(user), ipKey(ip)];
+      for (const k of keys) bump(k);
+      let open = true;
+      return {
+        release() {
+          if (!open) return;
+          open = false;
+          for (const k of keys) { const e = hits.get(k); if (e && e.count > 0) e.count--; }
+        },
+      };
+    },
   };
 }

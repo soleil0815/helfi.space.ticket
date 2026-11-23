@@ -198,14 +198,19 @@ export function createApi(ctx) {
     if (settings.get('ldap.enabled')) {
       const cfg = withProjectGroups(db, settings.group('ldap'));
       let info;
+      // Counted before asking AD: parallel guesses see each other (see createLoginLimiter.begin)
+      const attempt = limiter.begin(req.ip, username);
       try {
         info = await ldap.authenticate(cfg, username, password);
       } catch (e) {
+        attempt.release();
         log.error('AD sign-in: connection problem', { error: e.message });
         // Local accounts still work – point that out
         throw new HttpError(503, 'err.ldapUnavailable');
       }
-      if (!info) { limiter.fail(req.ip, username); throw new HttpError(401, 'err.invalidLogin'); }
+      // Wrong password: the attempt already counts
+      if (!info) throw new HttpError(401, 'err.invalidLogin');
+      attempt.release();
       const role = roleFromGroups(info.groups, cfg);
       if (!info.groups.user && role !== 'admin' && role !== 'agent' && !info.groups.projects?.length) {
         // Deliberately a separate message (helps support); admins see in the log who was rejected
@@ -246,6 +251,8 @@ export function createApi(ctx) {
   r.post('/auth/register/confirm', wrap(async (req, res) => res.json(ctx.selfService.confirmRegistration(req.body.token))));
   r.post('/auth/password/forgot', wrap(async (req, res) => res.json(ctx.selfService.requestReset(req))));
   r.post('/auth/password/reset', wrap(async (req, res) => res.json(ctx.selfService.resetPassword(req))));
+  // New address from the profile: the link from the mail (also opened without being signed in)
+  r.post('/auth/email/confirm', wrap(async (req, res) => res.json(ctx.selfService.confirmEmailChange(req.body.token))));
 
   // Automatic sign-out: "status" does not count as activity (see session.js), "ping" does
   r.get('/session/status', requireAuth, (req, res) => res.json(ctx.sessions.info(req)));
@@ -265,7 +272,10 @@ export function createApi(ctx) {
   r.use(createItilRoutes(ctx));
 
   // ---------- Own account ----------
-  r.get('/me', (req, res) => res.json({ user: publicUser(req.user) }));
+  r.get('/me', (req, res) => {
+    const emailPending = req.user.source === 'local' ? ctx.selfService.pendingEmail(req.user.id) : null;
+    res.json({ user: publicUser(req.user), ...(emailPending ? { emailPending } : {}) });
+  });
 
   r.patch('/me', wrap(async (req, res) => {
     const u = req.user;
@@ -313,27 +323,28 @@ export function createApi(ctx) {
       }
       if (displayName) db.prepare('UPDATE users SET display_name=? WHERE id=?').run(displayName, u.id);
       if (email) {
-        // Self-service must never merge an email contact: knowing the password of one's own account
-        // does not prove ownership of the address. Accounts first (409 emailTaken as before),
-        // then contacts – only an admin may link them (PATCH /users/:id merges).
+        // Another account already uses it: refused right away (an email contact is fine – once the
+        // owner confirms the address, its tickets move to the account)
         const others = db.prepare('SELECT source FROM users WHERE lower(email)=? AND id<>?').all(email, u.id);
         if (others.some((o) => o.source !== 'email')) throw new HttpError(409, 'err.emailTaken');
-        if (others.length) throw new HttpError(409, 'err.emailKnownContact');
       }
-      if (email !== undefined) users.setEmail(u.id, email);
+      // Removing the address needs no proof; a new one only counts after the link sent there was opened
+      if (email === '') { users.setEmail(u.id, ''); ctx.selfService.cancelEmailChange(u.id); }
       if (newHash) {
         db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(newHash, u.id);
         // Password changed → end all other (possibly stolen) sessions
         db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
       }
     })();
-    res.json({ user: publicUser(users.byId(u.id)) });
+    const emailPending = email ? ctx.selfService.requestEmailChange(req, u, email) : undefined;
+    res.json({ user: publicUser(users.byId(u.id)), ...(emailPending ? { emailPending } : {}) });
   }));
 
   // ---------- Two-factor in the profile ----------
   r.get('/me/mfa', (req, res) => res.json(mfa.status(req, req.user)));
   r.post('/me/mfa/setup', wrap(async (req, res) => res.json(await mfa.startSetup(req, req.user))));
   r.post('/me/mfa/enable', wrap(async (req, res) => res.json({ recoveryCodes: mfa.confirmSetup(req, req.user, str(req.body.code, 40)) })));
+  r.post('/me/mfa/confirm', wrap(async (req, res) => { mfa.confirmSession(req, req.user, str(req.body.code, 40)); res.json({ ok: true }); }));
   r.post('/me/mfa/disable', wrap(async (req, res) => { mfa.disable(req, req.user, str(req.body.code, 40)); res.json({ ok: true }); }));
   // Own passkeys (src/auth/passkeys.js)
   r.get('/me/passkeys', passkeyMeLimit, (req, res) => res.json(ctx.passkeys.status(req, req.user)));
@@ -341,7 +352,7 @@ export function createApi(ctx) {
   r.post('/me/passkeys', passkeyMeLimit, wrap(async (req, res) => res.json({ passkey: await ctx.passkeys.register(req, req.user, req.body?.response, str(req.body?.name, 200)) })));
   r.post('/me/passkeys/prompt', passkeyMeLimit, (req, res) => { ctx.passkeys.snoozePrompt(req.user, str(req.body?.action, 10)); res.json({ ok: true }); });
   r.patch('/me/passkeys/:id', passkeyMeLimit, (req, res) => { ctx.passkeys.rename(req.user, int(req.params.id), str(req.body?.name, 200)); res.json({ ok: true }); });
-  r.delete('/me/passkeys/:id', passkeyMeLimit, (req, res) => { ctx.passkeys.remove(req.user, int(req.params.id)); res.json({ ok: true }); });
+  r.delete('/me/passkeys/:id', passkeyMeLimit, (req, res) => { ctx.passkeys.remove(req.user, int(req.params.id), req); res.json({ ok: true }); });
   r.post('/me/mfa/recovery', wrap(async (req, res) => res.json({ recoveryCodes: mfa.newRecoveryCodes(req, req.user, str(req.body.code, 40)) })));
 
   // ---------- Users ----------

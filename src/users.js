@@ -156,6 +156,25 @@ export function createUsers(db) {
     })();
   }
 
+  /** Role from the groups of a sign-in: a locked role stays, the last active admin is never demoted */
+  function groupRole(u, role) {
+    const newRole = u.role_locked || !role ? u.role : role;
+    return u.role === 'admin' && newRole !== 'admin' && countActiveAdmins(u.id) === 0 ? 'admin' : newRole;
+  }
+
+  /**
+   * Apply role and project groups of a sign-in to an existing account without touching its identity
+   * (SSO into a known AD account when AD itself cannot be asked): same rules as upsertExternal.
+   */
+  function applyGroups(userId, { role, access = null }) {
+    const u = byId.get(userId);
+    if (!u) return null;
+    db.prepare('UPDATE users SET role=? WHERE id=?').run(groupRole(u, role), u.id);
+    applyAccess(u, access);
+    releaseUnassignable(db, { userId: u.id });
+    return scoped(byId.get(u.id));
+  }
+
   function upsertExternal({ source, username, displayName, email, externalId, role, access = null, trustName = true, trustEmail = true, allowCreate = true, sid = '' }) {
     // Store objectSid only for AD accounts (stable identifier for merging with SSO)
     const adSid = source === 'ldap' && /^S-1-[\d-]+$/.test(String(sid || '')) ? String(sid) : null;
@@ -200,9 +219,7 @@ export function createUsers(db) {
       return scoped(byId.get(info.lastInsertRowid));
     }
 
-    const newRole = u.role_locked || !role ? u.role : role;
-    // Do not demote the last admin through a group change
-    const safeRole = u.role === 'admin' && newRole !== 'admin' && countActiveAdmins(u.id) === 0 ? 'admin' : newRole;
+    const safeRole = groupRole(u, role);
     // Take over the source only if the account was an email contact or already belongs to this source
     const adopt = u.source === 'email' || u.source === source;
     db.prepare(
@@ -260,7 +277,7 @@ export function createUsers(db) {
     return byUser;
   }
 
-  return { all, agentsOf, projectsByUser, rawById: (id) => byId.get(id), byAdId: (adId) => scoped(byAdId(adId)), byId: (id) => scoped(byId.get(id)), byName: (n) => scoped(byName.get(n)), byEmail: (e) => scoped(byEmail.get(e)), createLocal, upsertExternal, contactForEmail, mergeContact, countActiveAdmins, setEmail };
+  return { all, agentsOf, projectsByUser, rawById: (id) => byId.get(id), byAdId: (adId) => scoped(byAdId(adId)), byId: (id) => scoped(byId.get(id)), byName: (n) => scoped(byName.get(n)), byEmail: (e) => scoped(byEmail.get(e)), createLocal, upsertExternal, applyGroups, contactForEmail, mergeContact, countActiveAdmins, setEmail };
 }
 
 /** Settings of a directory (AD or SSO) plus the project groups of active projects: projectGroups [{ id, key, group }] */

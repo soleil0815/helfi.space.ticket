@@ -57,6 +57,9 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
   // Initial enrollment only internally (or if explicitly allowed) – even in mode "never", otherwise someone
   // with a stolen password could register their own factor in advance that applies after switching
   const canEnrollHere = (req) => policy.isInternal(req) || settings.get('mfa.enrollExternal');
+  const hasPasskey = (u) => !!db.prepare('SELECT 1 FROM user_passkeys WHERE user_id=? LIMIT 1').get(u.id);
+  /** TOTP setup: with a second factor in this session, or for an account without any factor where enrolling is allowed */
+  const canSetupHere = (req, u) => !!u.session_mfa || (!hasPasskey(u) && !!canEnrollHere(req));
   // Separate counter for the second factor – NOT reset by a correct password
   // By user ID: the name would be normalized ("max@firma.local" = "max") and could collide with
   // another account
@@ -160,7 +163,9 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
         enabled: !!u.totp_enabled, recoveryCodesLeft: left, mode: policy.userMode(u),
         network: { ip: net.ip, internal: net.internal, reason: net.reason },
         required: policy.mfaRequired(req, u),
-        canSetup: canEnrollHere(req) || !!u.session_mfa,
+        canSetup: canSetupHere(req, u),
+        // Has a passkey but did not use it in this session: sign in with the passkey first
+        setupNeedsPasskey: !u.totp_enabled && !u.session_mfa && hasPasskey(u),
         // SSO accounts: does the sign-in at the provider count as a second factor? (always | confirmed | never)
         sso: u.source === 'oidc' ? settings.get('mfa.ssoSecondFactor') : null,
       };
@@ -169,7 +174,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
     async startSetup(req, u) {
       // Never replace an enrolled factor without the old code: disable first (requires code)
       if (u.totp_enabled) throw new HttpError(409, 'err.mfaAlreadyEnabled');
-      if (!canEnrollHere(req) && !u.session_mfa) throw new HttpError(403, 'err.mfaEnrollInternal');
+      if (!canSetupHere(req, u)) throw new HttpError(403, hasPasskey(u) ? 'err.mfaSetupSecondFactor' : 'err.mfaEnrollInternal');
       const secret = generateSecret();
       setups.set(u.id, { secret, at: Date.now() });
       const uri = otpauthUri(secret, u.username, settings.get('general.title') || 'Helfi.Space');
@@ -181,6 +186,7 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
       const s = setups.get(u.id);
       if (!s) throw new HttpError(400, 'err.mfaExpired');
       if (users.byId(u.id).totp_enabled) throw new HttpError(409, 'err.mfaAlreadyEnabled');
+      if (!canSetupHere(req, u)) throw new HttpError(403, hasPasskey(u) ? 'err.mfaSetupSecondFactor' : 'err.mfaEnrollInternal');
       limiter.check(req.ip, mfaKey(u));
       if (verifyTotp(s.secret, code) === null) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
       setups.delete(u.id);
@@ -191,6 +197,14 @@ export function createMfa({ db, settings, sessions, users, policy, limiter }) {
         db.prepare('DELETE FROM sessions WHERE user_id=? AND id<>?').run(u.id, req.sessionId);
       }
       return codes;
+    },
+
+    /** Confirm this session with the second factor (code or recovery code), e.g. before adding a passkey */
+    confirmSession(req, u, code) {
+      if (!u.totp_enabled) throw new HttpError(400, 'err.mfaNotEnabled');
+      limiter.check(req.ip, mfaKey(u));
+      if (!checkCode(users.byId(u.id), code)) { limiter.fail(req.ip, mfaKey(u)); throw new HttpError(400, 'err.mfaInvalid'); }
+      if (req.sessionId) db.prepare('UPDATE sessions SET mfa=1 WHERE id=?').run(req.sessionId);
     },
 
     disable(req, u, code) {
