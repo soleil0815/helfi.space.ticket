@@ -172,11 +172,33 @@ Users sign in with `m.muster`, `FIRMA\m.muster` or `m.muster@firma.local`. Users
 
 **Good to know**
 
-- A Windows DC only offers LDAPS if it has a certificate (AD CS or installed manually). Samba AD creates one itself during provisioning.
+- A Windows DC only offers LDAPS if it has a certificate (AD CS or installed manually, see [Domain without LDAPS](#domain-without-ldaps)). Samba AD creates one itself during provisioning.
 - Every day Helfi.Space checks whether the stored certificate still matches and whether it expires soon. Problems appear as a notice for admins. After a renewal on the DC, simply **fetch the certificate** again.
 - **Suggest participants from AD** (default: on, requires the service account): see [Request participants](#request-participants).
 - Local accounts take precedence: if a local account has the same name as an AD account, the local one wins.
 - If the AD is unreachable, local accounts (the emergency admin) can still sign in.
+
+### Domain without LDAPS
+
+Helfi.Space signs in with an **LDAP bind** (user name and password go to the DC, which checks them) – no NTLM, no Kerberos, no computer account in the domain. This works with every Active Directory (Windows Server 2003 to 2025) and with Samba AD. The only difference is whether the DC accepts unencrypted sign-ins:
+
+| | older Windows DCs | Windows Server 2025, hardened domains | Samba AD |
+|---|---|---|---|
+| **LDAPS / StartTLS** | works | works | works |
+| **None** (port 389) | usually works | often refused (“LDAP signing required”) | refused (default) |
+
+“No LDAPS” almost always means: the DC has no certificate. You do not need your own certificate authority – a self-signed certificate is enough, with *Fetched certificate* Helfi.Space trusts exactly that one. On the Windows DC, in PowerShell as administrator:
+
+```powershell
+New-SelfSignedCertificate -DnsName "dc01.firma.local" `
+  -CertStoreLocation "Cert:\LocalMachine\My" `
+  -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1") `
+  -NotAfter (Get-Date).AddYears(5)
+```
+
+Then choose **LDAPS** or **StartTLS** in Helfi.Space, *Fetch certificate*, compare the fingerprint, accept and test. If the certificate is renewed, the daily check reports it – then fetch it once more.
+
+**Without any encryption** (setting *None*) it also works as long as the DC allows it (Windows: policy *Domain controller: LDAP server signing requirements* set to “None”; Samba: `ldap server require strong auth = no`). But then all passwords travel through the network in plain text – only for testing or in an isolated network.
 
 ## Two-factor sign-in (2FA)
 

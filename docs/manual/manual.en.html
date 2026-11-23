@@ -650,7 +650,7 @@ docker compose logs helfi # shows the setup code</code></pre>
 <p><em>Administration → Active Directory</em></p>
 <figure><img src="img/en/admin-ldap.jpg" alt=""><figcaption>Active Directory settings</figcaption></figure>
 <ol>
-  <li>Enter the <strong>domain controller</strong> with the name in its certificate (e.g. <code>dc01.firma.local</code>). Encryption: LDAPS (636) or StartTLS (389).</li>
+  <li>Enter the <strong>domain controller</strong> with the name in its certificate (e.g. <code>dc01.firma.local</code>). Encryption: LDAPS (636) or StartTLS (389) – if the DC has no certificate yet, see <a href="#ad-without-ldaps">Domain without LDAPS</a>.</li>
   <li><strong>Fetch certificate</strong>, compare the SHA-256 fingerprint with the one on the server, then <strong>Accept certificate</strong>.
     <br>Windows: <code>certlm.msc</code> → Personal → certificate of the DC. Samba: <code>openssl x509 -in /var/lib/samba/private/tls/cert.pem -noout -fingerprint -sha256</code></li>
   <li>Enter a <strong>service account</strong>, e.g. <code>svc-helfi@firma.local</code> – a normal domain account without special rights.</li>
@@ -659,6 +659,27 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Enable AD sign-in</strong> and save.</li>
 </ol>
 <p>Users are created at their first sign-in or when an agent adds them as a participant from AD (<strong>Suggest participants from AD</strong>, on by default, requires the service account). Their role follows the groups at every sign-in unless an admin locked it under <em>Users</em> with “Role locked”. Helfi.Space checks daily whether the certificate still matches and whether it expires soon, and shows problems as a notice.</p>
+
+<h3 id="ad-without-ldaps">Domain without LDAPS</h3>
+<p>Helfi.Space signs users in with an <strong>LDAP bind</strong>: user name and password go to the domain controller, which checks them – no NTLM, no Kerberos, no computer account in the domain. This works with every Active Directory (Windows Server 2003 to 2025) and with Samba AD. The only difference is whether the DC accepts unencrypted sign-ins:</p>
+<table>
+  <tr><th></th><th>older Windows DCs</th><th>Windows Server 2025, hardened domains</th><th>Samba AD</th></tr>
+  <tr><td><strong>LDAPS / StartTLS</strong></td><td>works</td><td>works</td><td>works</td></tr>
+  <tr><td><strong>None</strong> (port 389)</td><td>usually works</td><td>often refused (“LDAP signing required”)</td><td>refused (default)</td></tr>
+</table>
+<p>“No LDAPS” almost always just means: the DC has no certificate. You do not need your own certificate authority – a self-signed certificate is enough, in the mode <em>Fetched certificate</em> Helfi.Space trusts exactly that one:</p>
+<ol>
+  <li>On the <strong>Windows DC</strong>, in PowerShell as administrator (adjust the name):
+<pre><code>New-SelfSignedCertificate -DnsName "dc01.firma.local" `
+  -CertStoreLocation "Cert:\LocalMachine\My" `
+  -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1") `
+  -NotAfter (Get-Date).AddYears(5)</code></pre>
+  The DC uses the certificate for LDAPS (636) and StartTLS (389) without a restart; at the latest after restarting the service or server it is active. <strong>Samba AD</strong> has its own certificate from setup on (<code>tls enabled = yes</code>), nothing to do there.</li>
+  <li>In Helfi.Space under <em>Active Directory</em>: encryption <strong>LDAPS</strong> or <strong>StartTLS</strong>, trust <strong>Fetched certificate</strong>, <strong>Fetch certificate</strong>, compare the fingerprint with the one on the DC (<code>Get-ChildItem Cert:\LocalMachine\My</code>) and accept it.</li>
+  <li><strong>Test the connection</strong> with a test sign-in.</li>
+</ol>
+<p>If the certificate is renewed later, Helfi.Space reports it in its daily check; then fetch and accept it once more.</p>
+<div class="note"><p><strong>Without any encryption</strong> (setting “None”) it also works as long as the DC allows it (Windows: policy <em>Domain controller: LDAP server signing requirements</em> set to “None”; Samba: <code>ldap server require strong auth = no</code>). But then the passwords of all users and of the service account travel through the network in plain text – only for testing or in an isolated network.</p></div>
 
 <h2 id="sso">Single sign-on</h2>
 <p><em>Administration → Single sign-on</em> (OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …)</p>
