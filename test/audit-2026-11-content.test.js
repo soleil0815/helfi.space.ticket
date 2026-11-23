@@ -66,8 +66,11 @@ test('Address check: same answers, no quadratic runtime', () => {
   for (const [v, ok] of [['karl@firma.local', true], ['a@b.c.d', true], ['a@b', false], ['@b.c', false], ['a@.c', false], ['a@b.', false], ['a b@c.d', false], ['a@b@c.d', false], ['<a@b.c>', false], ['', false]]) {
     assert.equal(isEmail(v), ok, v);
   }
-  const { ms } = timed(() => isEmail(`a@${'.'.repeat(200000)}!`));
-  assert.ok(ms < 50, `took ${ms} ms`);
+  // the old pattern needed seconds here (domain with many dots and a trailing space or @)
+  for (const tail of [' ', '@']) {
+    const { ms } = timed(() => isEmail(`a@${'b.'.repeat(20000)}${tail}`));
+    assert.ok(ms < 50, `took ${ms} ms`);
+  }
   const { ms: ms2 } = timed(() => isEmail(`${'a'.repeat(100000)}@${'b.'.repeat(100000)}`));
   assert.ok(ms2 < 50, `took ${ms2} ms`);
 });
