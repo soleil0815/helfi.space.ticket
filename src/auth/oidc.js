@@ -138,6 +138,8 @@ export function claimsToUser(claims, cfg) {
     groups: { admin: has(cfg.adminGroup), projects: (cfg.projectGroups || []).filter((pg) => has(pg.group)).map((pg) => pg.id) },
     // Did the token carry the groups claim at all? (missing: not configured at the provider, or too many groups)
     groupsPresent: claims[cfg.groupsClaim] !== undefined && claims[cfg.groupsClaim] !== null,
+    // Entra ID leaves the groups out for people in too many groups (> 200) and points to Graph instead
+    groupsOverage: !!(claims._claim_names && claims._claim_names[cfg.groupsClaim]) || claims.hasgroups === true || claims.hasgroups === 'true',
     trustName,
     // Only verified addresses may be stored and merged with email contacts (and their tickets)
     // – or the address equals the trusted login name

@@ -219,11 +219,26 @@ test('Review: without mail sending the profile request saves nothing at all', as
   assert.equal((await jar()('POST', '/api/auth/login', { username: 'xaver', password: 'Sehrgeheim123' })).status, 200, 'old password still works');
 });
 
-test('Review: SSO token without groups claim changes nothing (no flip of rights)', async () => {
+test('SSO via the AD identifier without service account: a token without groups claim is refused, rights untouched', async () => {
   const { accountForSso } = await import('../src/routes/oidc.js');
+  const { claimsToUser } = await import('../src/auth/oidc.js');
   const ad = S.ctx.users.upsertExternal({ source: 'ldap', username: 'g.gruppe', displayName: 'G', email: 'g.gruppe@firma.local', externalId: 'd0'.repeat(16), sid: 'S-1-5-21-1-2-3-3001', role: 'admin' });
   S.ctx.settings.set('ldap.enabled', false);
-  const info = { adId: { sid: 'S-1-5-21-1-2-3-3001' }, groups: { admin: false, projects: [] }, groupsPresent: false, username: 'g@firma.local', displayName: 'G', externalId: 'iss|g' };
-  await accountForSso(S.ctx, info, { adminGroup: 'Helfi-Admins', allowCreate: true });
-  assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(ad.id).role, 'admin');
+  const cfg = { adminGroup: 'Helfi-Admins', groupsClaim: 'groups', adIdClaim: 'onprem_sid', allowCreate: true };
+  const base = { iss: 'https://idp.firma.local', sub: 'g1', name: 'G', onprem_sid: 'S-1-5-21-1-2-3-3001' };
+  // no groups claim at all
+  let info = claimsToUser(base, cfg);
+  assert.equal(info.groupsPresent, false);
+  assert.deepEqual(await accountForSso(S.ctx, info, cfg), { error: 'ssoNoGroups' });
+  assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(ad.id).role, 'admin', 'nothing taken away silently');
+  // Entra ID group overage: told apart
+  info = claimsToUser({ ...base, _claim_names: { groups: 'src1' }, _claim_sources: { src1: { endpoint: 'https://graph.example/x' } } }, cfg);
+  assert.equal(info.groupsOverage, true);
+  assert.deepEqual(await accountForSso(S.ctx, info, cfg), { error: 'ssoGroupsOverage' });
+  // an empty groups claim is a statement ("in no group"): applied
+  info = claimsToUser({ ...base, groups: [] }, cfg);
+  assert.equal(info.groupsPresent, true);
+  const ok = await accountForSso(S.ctx, info, cfg);
+  assert.equal(ok.user.id, ad.id);
+  assert.equal(S.db.prepare('SELECT role FROM users WHERE id=?').get(ad.id).role, 'user');
 });

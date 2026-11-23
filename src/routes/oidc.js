@@ -78,10 +78,14 @@ export async function accountForSso(ctx, info, cfg) {
     if (ad.user) u = ad.user;
     // AD could not be asked (no service account): role and projects come from the groups in the token,
     // as for any SSO sign-in – a person removed from the admin group must not stay admin
-    // Without the groups claim in the token nothing is changed (it would take everyone's rights away) – logged
+    // Without the groups claim in the token there is no proof of any role: the sign-in is refused (never
+    // keep old rights, never silently take them away). The emergency admin still signs in locally.
     if (ad.user && ad.synced === false) {
-      if (info.groupsPresent === false) log.warn(`SSO: token without groups claim for AD account "${ad.user.username}" – role and projects unchanged (set up the groups claim at the provider or an AD service account)`);
-      else u = users.applyGroups(ad.user.id, { role: roleFromGroups(info.groups, cfg), access: projectAccessFromGroups(info.groups, cfg) });
+      if (info.groupsPresent === false) {
+        log.warn(`SSO sign-in refused: token without groups claim "${cfg.groupsClaim}" for AD account "${ad.user.username}"${info.groupsOverage ? ' (too many groups: the provider left them out)' : ''} – set up the groups claim at the provider or an AD service account`);
+        return { error: info.groupsOverage ? 'ssoGroupsOverage' : 'ssoNoGroups' };
+      }
+      u = users.applyGroups(ad.user.id, { role: roleFromGroups(info.groups, cfg), access: projectAccessFromGroups(info.groups, cfg) });
     }
   }
   if (!u) {
