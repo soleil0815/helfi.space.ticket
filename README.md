@@ -172,11 +172,33 @@ Angemeldet wird mit `m.muster`, `FIRMA\m.muster` oder `m.muster@firma.local`. Be
 
 **Gut zu wissen**
 
-- Ein Windows-DC bietet LDAPS nur an, wenn er ein Zertifikat hat (AD CS oder manuell installiert). Samba AD erzeugt beim Einrichten selbst eines.
+- Ein Windows-DC bietet LDAPS nur an, wenn er ein Zertifikat hat (AD CS oder manuell installiert, siehe [Domäne ohne LDAPS](#domäne-ohne-ldaps)). Samba AD erzeugt beim Einrichten selbst eines.
 - Täglich prüft Helfi.Space, ob das hinterlegte Zertifikat noch passt und ob es bald abläuft. Probleme erscheinen als Hinweis für Admins. Nach einer Erneuerung am DC genügt erneut **Zertifikat abrufen**.
 - **Teilnehmer aus dem AD vorschlagen** (Standard: an, braucht das Dienstkonto): siehe [Anfrage-Teilnehmer](#anfrage-teilnehmer).
 - Lokale Konten haben Vorrang: Gibt es ein lokales Konto mit demselben Namen wie ein AD-Konto, gilt das lokale.
 - Ist das AD nicht erreichbar, können sich lokale Konten (der Notfall-Admin) weiterhin anmelden.
+
+### Domäne ohne LDAPS
+
+Helfi.Space meldet per **LDAP-Bind** an (Benutzername und Kennwort gehen an den DC, der sie prüft) – kein NTLM, kein Kerberos, kein Computerkonto in der Domäne. Das geht mit jedem Active Directory (Windows Server 2003 bis 2025) und mit Samba AD. Unterschiedlich ist nur, ob der DC unverschlüsselte Anmeldungen zulässt:
+
+| | ältere Windows-DCs | Windows Server 2025, gehärtete Domänen | Samba AD |
+|---|---|---|---|
+| **LDAPS / StartTLS** | geht | geht | geht |
+| **Keine** (Port 389) | geht meist | oft abgelehnt („LDAP-Signatur erforderlich“) | abgelehnt (Standard) |
+
+„Kein LDAPS“ heißt fast immer: Der DC hat kein Zertifikat. Eine eigene Zertifizierungsstelle ist nicht nötig – ein selbst ausgestelltes Zertifikat reicht, Helfi.Space vertraut mit *Abgerufenes Zertifikat* genau diesem einen. Auf dem Windows-DC in einer PowerShell als Administrator:
+
+```powershell
+New-SelfSignedCertificate -DnsName "dc01.firma.local" `
+  -CertStoreLocation "Cert:\LocalMachine\My" `
+  -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1") `
+  -NotAfter (Get-Date).AddYears(5)
+```
+
+Danach in Helfi.Space **LDAPS** oder **StartTLS** wählen, *Zertifikat abrufen*, Fingerabdruck vergleichen, übernehmen und testen. Wird das Zertifikat erneuert, meldet das die tägliche Prüfung – dann einmal neu abrufen.
+
+**Ganz ohne Verschlüsselung** (Einstellung *Keine*) geht es auch, solange der DC es zulässt (Windows: Richtlinie *Domänencontroller: Signaturanforderungen für LDAP-Server* auf „Keine“; Samba: `ldap server require strong auth = no`). Dann gehen aber alle Kennwörter im Klartext durchs Netz – nur zum Testen oder in einem abgeschotteten Netz.
 
 ## Zwei-Faktor-Anmeldung (2FA)
 
