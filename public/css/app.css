@@ -368,6 +368,13 @@ table.issues, table.data { width: 100%; border-collapse: collapse; }
 .comment-main { flex: 1; min-width: 0; }
 .comment-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
 .comment.internal .rich { background: var(--note-bg); border-left: 3px solid var(--note-border); padding: 8px 12px; border-radius: 0 var(--radius) var(--radius) 0; }
+/* Delete own/agent comment: small, on the right, only visible on hover/focus with a mouse */
+.comment-head .comment-delete { order: 1; margin-left: auto; color: var(--text-subtlest); }
+.comment-head .comment-delete:hover, .comment-head .comment-delete:focus-visible { color: var(--danger-text, #AE2E24); }
+@media (hover: hover) { .comment:not(:hover):not(:focus-within) .comment-delete { opacity: 0; } }
+.comment-deleted { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 10px; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text-subtlest); font-style: italic; font-size: 13px; }
+.comment-deleted .icon { width: 14px; height: 14px; }
+.comment.deleted .avatar { opacity: .6; }
 .history { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; color: var(--text-subtle); }
 .history strong { color: var(--text); }
 .change { display: inline-flex; gap: 4px; margin-left: 6px; align-items: center; }

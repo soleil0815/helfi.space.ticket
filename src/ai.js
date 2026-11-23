@@ -53,7 +53,7 @@ export function ticketContext(tk, { includeInternal, maxChars }) {
     String(tk.description || '—').trim(),
   ].join('\n');
   const comments = (tk.comments || [])
-    .filter((c) => includeInternal || !c.internal)
+    .filter((c) => !c.deleted && (includeInternal || !c.internal))
     .map((c) => `--- ${c.createdAt.slice(0, 16).replace('T', ' ')} · ${c.author?.displayName || '—'}${c.internal ? ' (internal note)' : ''}${c.author?.id === tk.reporter?.id ? ' (reporter)' : ''}\n${mentionsAsText(c.body).trim()}`);
   const budget = Math.max(2000, maxChars);
   let headPart = head.length > budget * 0.5 ? `${head.slice(0, Math.floor(budget * 0.5))}\n[…]` : head;

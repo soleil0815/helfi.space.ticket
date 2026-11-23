@@ -931,6 +931,16 @@ export const MIGRATIONS = [
     ALTER TABLE users ADD COLUMN passkey_prompt_until INTEGER;
     `,
   },
+  {
+    id: 49,
+    name: 'Deleted comments',
+    skipIf: (db) => db.prepare("SELECT 1 FROM pragma_table_info('comments') WHERE name='deleted_at'").get(),
+    sql: `
+    -- A deleted comment stays as a placeholder ("deleted by X on Y"): its text, mail HTML and files are removed
+    ALTER TABLE comments ADD COLUMN deleted_at TEXT;
+    ALTER TABLE comments ADD COLUMN deleted_by INTEGER REFERENCES users(id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

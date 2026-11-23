@@ -359,6 +359,14 @@ Am Computer zeigt die Aktivität im Ticket (*Kommentare*, *Verlauf*, *Alle*) sta
 - Bei *Älteste oben* scrollt das Ticket nach dem Senden zur neuen Antwort.
 - In der Handy-App bleibt die Aktivität immer ein Chat (älteste oben, Antwortleiste unten); die Einstellung gilt dort nicht.
 
+## Kommentare löschen
+
+Ein Kommentar lässt sich löschen, z. B. wenn ein Kennwort versehentlich im Ticket gelandet ist. Am Computer erscheint der **Papierkorb** rechts am Kommentar, wenn die Maus darüber steht; auf dem Handy steht er immer in der Kopfzeile der Nachricht. Nach einer Rückfrage ist der Kommentar weg.
+
+- **Wer darf:** jeder seine **eigenen** Kommentare; **Bearbeiter des Projekts** und **Admins** auch die von anderen, interne Notizen eingeschlossen. Hinweise von Helfi.Space selbst (z. B. „Zustellung fehlgeschlagen“) bleiben.
+- **Was passiert:** Text, angehängte Dateien (auch eingefügte Bilder) und die gespeicherte Original-Mail werden **endgültig** gelöscht – auch aus der Suche und einer gespeicherten KI-Zusammenfassung. An der Stelle steht danach *Kommentar gelöscht von … am …*, der Verlauf vermerkt es.
+- **Was bleibt:** Schon verschickte Benachrichtigungen per Mail lassen sich nicht zurückholen. Das Ticket selbst wird nie gelöscht.
+
 ## Antworten formatieren
 
 Über dem Kommentarfeld liegt eine Werkzeugleiste – im Ticket, bei Kommentaren zu Wissensartikeln und auf dem Handy (dort erscheint sie beim Schreiben und lässt sich seitlich wischen):

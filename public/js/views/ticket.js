@@ -141,7 +141,7 @@ export async function renderTicket(content, key) {
           onclick: async () => { if (confirm(t('app.confirmDelete'))) { await api.deleteAttachment(a.id); refresh(); } },
         }, icon('trash')) : null);
     });
-    return h('section.ticket-section',
+    return h('section.ticket-section', { 'data-attachments-section': '' },
       h('div.section-head', h('h3', t('ticket.attachments'), tk.attachments.length ? h('span.count', tk.attachments.length) : null),
         h('button.btn.btn-subtle.small', { type: 'button', onclick: () => input.click() }, icon('paperclip'), t('ticket.addAttachment'))),
       input,
@@ -194,15 +194,50 @@ export async function renderTicket(content, key) {
   }
 
   function commentEl(c) {
-    return h('div.comment', { class: [c.internal ? 'internal' : '', c.mentionsMe ? 'mentions-me' : ''].filter(Boolean).join(' '), 'data-comment': String(c.id) },
+    const el = h('div.comment', { class: [c.internal ? 'internal' : '', c.mentionsMe ? 'mentions-me' : '', c.deleted ? 'deleted' : ''].filter(Boolean).join(' '), 'data-comment': String(c.id) },
       avatar(c.author, 'md'),
       h('div.comment-main',
         h('div.comment-head',
           h('strong', c.author.displayName),
           c.internal ? h('span.badge.badge-internal', icon('lock'), t('ticket.internal')) : null,
-          c.source === 'email' ? h('span.badge', icon('mail'), t('source.email')) : null,
-          h('span.muted', { title: fmtDate(c.createdAt) }, relTime(c.createdAt))),
-        c.hasHtml ? mailView(() => richText(c.body), `/api/tickets/${encodeURIComponent(tk.key)}/mail-html?comment=${c.id}`) : commentView(c)));
+          c.source === 'email' && !c.deleted ? h('span.badge', icon('mail'), t('source.email')) : null,
+          h('span.muted', { title: fmtDate(c.createdAt) }, relTime(c.createdAt)),
+          c.canDelete ? h('button.btn-icon.small.comment-delete', {
+            type: 'button', title: t('comment.delete'), 'aria-label': t('comment.delete'), onclick: () => deleteCommentDialog(c, el),
+          }, icon('trash')) : null),
+        c.deleted ? deletedNote(c)
+          : c.hasHtml ? mailView(() => richText(c.body), `/api/tickets/${encodeURIComponent(tk.key)}/mail-html?comment=${c.id}`) : commentView(c)));
+    return el;
+  }
+
+  /** Placeholder of a deleted comment: who deleted it and when */
+  function deletedNote(c) {
+    return h('p.comment-deleted', icon('trash'), t('comment.deletedBy', { who: c.deleted.by?.displayName || '—', when: fmtDate(c.deleted.at) }));
+  }
+
+  function deleteCommentDialog(c, el) {
+    const files = tk.attachments.filter((a) => a.commentId === c.id).length;
+    const btn = h('button.btn.btn-danger', {
+      type: 'button',
+      onclick: async () => {
+        btn.disabled = true;
+        try {
+          const { comment } = await api.deleteComment(tk.key, c.id);
+          dlg.close();
+          // Only this comment and the file list change – a reply being written stays as it is
+          tk.comments = tk.comments.map((x) => (x.id === c.id ? comment : x));
+          tk.attachments = tk.attachments.filter((a) => a.commentId !== c.id);
+          el.replaceWith(commentEl(comment));
+          if (files) document.querySelector('[data-attachments-section]')?.replaceWith(attachmentsEl());
+          toast(t('comment.deleted'));
+        } catch (e) { btn.disabled = false; toast(e.message, 'error'); }
+      },
+    }, icon('trash'), t('comment.delete'));
+    const dlg = modal(t(c.internal ? 'comment.deleteTitleInternal' : 'comment.deleteTitle'), h('div',
+      h('p', t('comment.deleteText')),
+      files ? h('p', t('comment.deleteFiles', { n: files })) : null,
+      !c.internal ? h('p.muted.small', t('comment.deleteMailHint')) : null),
+    { footer: [h('span.spacer'), h('button.btn.btn-subtle', { type: 'button', onclick: () => dlg.close() }, t('app.cancel')), btn] });
   }
 
   async function showDescriptionChange(a) {

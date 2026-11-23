@@ -743,19 +743,61 @@ export function createTickets(db, users, { settings = null } = {}) {
   // ---------- Comments ----------
   function comments(user, ticketId) {
     const agent = !!user && agentOn(user, projectOf(ticketId));
-    return db.prepare(`SELECT c.*, u.display_name u_name, u.username u_username FROM comments c LEFT JOIN users u ON u.id=c.author_id
+    return db.prepare(`SELECT c.*, u.display_name u_name, u.username u_username, d.display_name d_name FROM comments c LEFT JOIN users u ON u.id=c.author_id
+      LEFT JOIN users d ON d.id=c.deleted_by
       WHERE c.ticket_id=? ${agent ? '' : 'AND c.internal=0'} ORDER BY c.created_at, c.id`).all(ticketId).map((c) => ({
       id: c.id,
-      body: c.body,
+      body: c.deleted_at ? '' : c.body,
       format: c.format === 'md' ? 'md' : 'text',
       internal: !!c.internal,
       source: c.source,
       createdAt: c.created_at,
+      // Deleted: only a placeholder "deleted by X on Y" remains (text, mail HTML and files are gone)
+      deleted: c.deleted_at
+        ? { at: c.deleted_at, by: c.deleted_by ? { id: c.deleted_by, displayName: agent || c.deleted_by === user?.id ? c.d_name : publicName(c.d_name) } : null }
+        : undefined,
+      canDelete: !c.deleted_at && !!user?.id && canDeleteComment(user, c, agent) || undefined,
       // Login name/address only for agents and the author themselves (self-registered: login name = private address)
       author: c.author_id
         ? { id: c.author_id, displayName: agent || c.author_id === user?.id ? c.u_name : publicName(c.u_name), username: agent || c.author_id === user?.id ? c.u_username : undefined }
         : agent ? { id: null, displayName: c.author_name || c.author_email || '?', email: c.author_email } : { id: null, displayName: publicName(c.author_name) || '?' },
     }));
+  }
+
+  /**
+   * Who may delete a comment: its author (own comments) and the agents of the ticket's project (admins
+   * included). Notices of Helfi.Space itself (delivery failures) stay – they are a record of the system.
+   */
+  function canDeleteComment(user, c, agent) {
+    if (c.source === 'system') return false;
+    return agent || (!!c.author_id && c.author_id === user.id);
+  }
+
+  /**
+   * Delete a comment: its text, the stored mail HTML, its files (also pictures in the text) and its
+   * @-mentions are removed for good; the comment stays as a placeholder "deleted by X on Y", the history
+   * notes it. Mails already sent cannot be recalled. Tickets themselves are never deleted.
+   */
+  function deleteComment(user, idOrKey, commentId) {
+    const row = load(user, idOrKey);
+    const c = db.prepare('SELECT * FROM comments WHERE id=? AND ticket_id=?').get(Number(commentId) || 0, row.id);
+    const agent = agentFor(user, row);
+    // Internal notes do not exist for people who cannot see them
+    if (!c || (c.internal && !agent)) throw notFound();
+    if (c.deleted_at) return comments(user, row.id).find((x) => x.id === c.id); // already deleted (double click)
+    if (!canDeleteComment(user, c, agent)) throw forbidden();
+    const files = db.prepare('SELECT id, ticket_id, storage_name FROM attachments WHERE comment_id=?').all(c.id);
+    db.transaction(() => {
+      db.prepare('DELETE FROM attachments WHERE comment_id=?').run(c.id);
+      db.prepare('DELETE FROM mail_html WHERE comment_id=?').run(c.id);
+      db.prepare('DELETE FROM comment_mentions WHERE comment_id=?').run(c.id);
+      db.prepare("UPDATE comments SET body='', format='text', deleted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), deleted_by=? WHERE id=?").run(user.id, c.id);
+      // A stored AI summary may quote the deleted text
+      db.prepare('DELETE FROM ai_summaries WHERE ticket_id=?').run(row.id);
+      logActivity(row.id, user.id, 'commentDeleted');
+    })();
+    for (const a of files) removeFile(a);
+    return comments(user, row.id).find((x) => x.id === c.id);
   }
 
   /** system: notice from Helfi.Space itself (e.g. delivery failure) – always internal, reopens nothing. */
@@ -1180,7 +1222,7 @@ export function createTickets(db, users, { settings = null } = {}) {
 
   return {
     search,
-    events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, saveMailHtml, mailHtml, comments,
+    events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, deleteComment, saveMailHtml, mailHtml, comments,
     addAttachment, attachmentFile, mailImage, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
     applyComponent, resolveAs, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, openOfType, summary,
   };
