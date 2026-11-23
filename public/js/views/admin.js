@@ -844,6 +844,12 @@ function ldapPage(body, s) {
 // ---------- SSO ----------
 function ssoPage(body, s, { redirectUri }) {
   const res = result();
+  // AD identifier without AD service account: the token must carry the groups, else sign-in is refused
+  const adId = bindInput(s, 'oidc.adIdClaim', { placeholder: 'onprem_sid' });
+  const adIdNote = h('div.hint-box', { role: 'note', 'data-sso-groups-note': '' }, icon('info'), h('div', t('sso.adIdNeedsGroups')));
+  const syncNote = () => { adIdNote.hidden = !String(s['oidc.adIdClaim'] || '').trim() || !!(s['ldap.enabled'] && s['ldap.bindDn']); };
+  adId.addEventListener('input', syncNote);
+  syncNote();
   const copy = h('button.btn-icon', { type: 'button', title: t('ticket.copyLink'), onclick: () => navigator.clipboard?.writeText(redirectUri).then(() => toast(t('ticket.linkCopied'))) }, icon('copy'));
   mount(body,
     h('section.panel',
@@ -856,7 +862,8 @@ function ssoPage(body, s, { redirectUri }) {
       h('div.grid-2', field(t('sso.buttonLabel'), bindInput(s, 'oidc.buttonLabel')), field(t('sso.scopes'), bindInput(s, 'oidc.scopes'))),
       h('div.grid-2', field(t('sso.usernameClaim'), bindInput(s, 'oidc.usernameClaim')), field(t('sso.groupsClaim'), bindInput(s, 'oidc.groupsClaim'))),
       field(t('sso.mergeDomain'), bindInput(s, 'oidc.mergeDomain', { placeholder: 'firma.local' }), t('sso.mergeDomainHint')),
-      field(t('sso.adIdClaim'), bindInput(s, 'oidc.adIdClaim', { placeholder: 'onprem_sid' }), t('sso.adIdClaimHint')),
+      field(t('sso.adIdClaim'), adId, t('sso.adIdClaimHint')),
+      adIdNote,
       field(t('sso.mfaAcr'), bindInput(s, 'oidc.mfaAcr', { placeholder: 'mfa, 2' }), t('sso.mfaAcrHint')),
       field(t('sso.adminGroup'), bindInput(s, 'oidc.adminGroup'), t('sso.groupHint')),
       field(t('sso.allowCreate'), bindCheck(s, 'oidc.allowCreate')),

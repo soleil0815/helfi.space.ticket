@@ -94,3 +94,23 @@ test('Desktop: a new address waits for the link; the link page confirms it', { s
   assert.deepEqual(errors, []);
   await p.context().close();
 });
+
+test('Administration → SSO: note when the AD identifier is used without AD service account', { skip }, async () => {
+  S.ctx.settings.set('ldap.enabled', false);
+  S.ctx.settings.set('oidc.adIdClaim', '');
+  const c = await browser.newContext({ viewport: { width: 1360, height: 1000 }, extraHTTPHeaders: { 'X-Helfi-Request': '1' } });
+  const p = await c.newPage();
+  const errors = [];
+  p.on('pageerror', (e) => errors.push(e.message));
+  assert.equal((await p.request.post(`${base}/api/auth/login`, { data: { username: 'admin', password: 'Sehrgeheim123' } })).status(), 200);
+  await p.request.patch(`${base}/api/me`, { data: { language: 'de' } });
+  await p.goto(`${base}/admin/sso`);
+  const note = p.locator('[data-sso-groups-note]');
+  await note.waitFor({ state: 'attached' });
+  assert.equal(await note.isVisible(), false, 'no AD identifier: no note');
+  await p.fill('input[placeholder="onprem_sid"]', 'onprem_sid');
+  await note.waitFor({ state: 'visible' });
+  assert.match(await note.textContent(), /Gruppen-Claim/);
+  assert.deepEqual(errors, []);
+  await c.close();
+});
