@@ -114,6 +114,8 @@ export function createTickets(db, users, { settings = null } = {}) {
       if (!KEY_RE.test(key)) throw new HttpError(400, 'err.projectKey');
       if (db.prepare('SELECT 1 FROM projects WHERE key=?').get(key)) throw new HttpError(409, 'err.projectKeyTaken');
       const lead = validLead(leadId);
+      // A new project never inherits offerings that still carry the key of a deleted one
+      db.prepare("UPDATE catalog_items SET project_key='', active=0 WHERE project_key=?").run(key);
       const info = db.prepare('INSERT INTO projects(key,name,description,lead_id) VALUES(?,?,?,?)')
         .run(key, str(name, 120) || key, str(description, 2000), lead);
       syncLead(info.lastInsertRowid, lead);
@@ -527,6 +529,12 @@ export function createTickets(db, users, { settings = null } = {}) {
       set('title', 'title', tt);
     }
     if (data.description !== undefined) set('description', 'description', str(data.description, 100000));
+    // A request waiting for or holding an approval: the reporter cannot change what was (to be) approved –
+    // the approvers decide on this text. Questions go into a comment; agents may still correct it.
+    if (!agent && (changes.title || changes.description) && row.type !== 'change') {
+      const st = db.prepare("SELECT value FROM ticket_fields WHERE ticket_id=? AND name='approvalState'").get(row.id)?.value;
+      if (st === 'pending' || st === 'approved') throw new HttpError(409, 'err.approvalLocked');
+    }
     if (data.type !== undefined && TYPES.includes(data.type)) set('type', 'type', data.type);
     if (data.status !== undefined && STATUSES.includes(data.status)) set('status', 'status', data.status);
     if (data.priority !== undefined && PRIORITIES.includes(data.priority)) set('priority', 'priority', data.priority);

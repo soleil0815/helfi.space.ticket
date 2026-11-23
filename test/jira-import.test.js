@@ -259,3 +259,27 @@ test('Imported tickets cannot be deleted; import mapping stays', async () => {
   assert.ok(db.prepare("SELECT 1 FROM import_map WHERE kind='issue' AND local_id=?").get(t.id));
 });
 
+
+test('Jira files: visibility follows the texts that refer to them (internal comment → internal)', async () => {
+  const { referencedFiles, attachmentVisibility } = await import('../src/import/jira-import.js');
+  const adf = (name) => ({ type: 'doc', content: [{ type: 'mediaSingle', content: [{ type: 'media', attrs: { id: 'x', type: 'file', alt: name } }] }] });
+  assert.deepEqual([...referencedFiles(adf('log.txt'))], ['log.txt']);
+  assert.deepEqual([...referencedFiles('siehe !screen.png|thumbnail! und [^passwoerter.xlsx]')].sort(), ['passwoerter.xlsx', 'screen.png']);
+  const files = [
+    { filename: 'screen.png', authorRef: 'rep', created: '2026-01-01T10:00:00Z' }, // by the reporter
+    { filename: 'passwoerter.xlsx', authorRef: 'agent', created: '2026-01-01T11:00:00Z' }, // only in an internal comment
+    { filename: 'fix.txt', authorRef: 'agent', created: '2026-01-01T12:00:00Z' }, // in a public reply
+    { filename: 'unklar.zip', authorRef: 'agent2', created: '2026-01-01T13:00:00Z' }, // nobody refers to it
+  ];
+  const comments = [
+    { extId: '10', internal: true, raw: adf('passwoerter.xlsx'), created: '2026-01-01T11:00:00Z', authorRef: 'agent' },
+    { extId: '11', internal: false, raw: 'Anbei [^fix.txt]', created: '2026-01-01T12:00:00Z', authorRef: 'agent' },
+  ];
+  const v = attachmentVisibility(files, { description: 'Fehler, siehe Anhang', comments, reporterRef: 'rep' });
+  assert.deepEqual(v[0], { commentExtId: null, internal: false });
+  assert.deepEqual(v[1], { commentExtId: '10', internal: true });
+  assert.deepEqual(v[2], { commentExtId: null, internal: false });
+  assert.deepEqual(v[3], { commentExtId: '10', internal: true }, 'when in doubt: internal');
+  // no internal comments at all: nothing to hide
+  assert.deepEqual(attachmentVisibility([files[3]], { description: '', comments: [comments[1]], reporterRef: 'rep' })[0], { commentExtId: null, internal: false });
+});

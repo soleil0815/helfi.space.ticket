@@ -769,11 +769,14 @@ export function createApi(ctx) {
    * changes. Tickets are never deleted. Errors on single tickets do not abort the rest.
    */
   // Close as rejected (reason required) or as duplicate of another ticket
+  // Placeholders are filled from what the writer may see of this ticket ({melder} as a user: the
+  // shortened name, never the address) – the same view the ticket page gives them
+  const viewOf = (user, row) => tickets.ticketOut(row, agentOn(user, row.project_id), user.id);
   const resolveNote = (key, lang) => t(normalizeLang(lang || settings.get('general.defaultLanguage')), 'resolution.duplicateNote', { key });
   r.post('/tickets/:key/resolve', requireRole('agent'), (req, res) => {
     const b = req.body || {};
     // Placeholders ({melder}, {ticket} …) like in replies from templates
-    const tk = tickets.ticketOut(tickets.load(req.user, req.params.key));
+    const tk = viewOf(req.user, tickets.load(req.user, req.params.key));
     const reason = fillPlaceholders(str(b.reason, 100000), tk, { displayName: req.user.display_name });
     res.json({ ticket: tickets.resolveAs(req.user, req.params.key, {
       resolution: b.resolution, reason, duplicateOf: b.duplicateOf, addToOriginal: !!b.addToOriginal, note: resolveNote,
@@ -826,14 +829,14 @@ export function createApi(ctx) {
           }
         }
         if (resolve) {
-          const tk = tickets.ticketOut(tickets.load(req.user, key));
+          const tk = viewOf(req.user, tickets.load(req.user, key));
           current = tickets.resolveAs(req.user, key, { ...resolve, reason: comment ? fillPlaceholders(comment, tk, { displayName: req.user.display_name }) : '', note: resolveNote }).key;
           ok.push(current);
           continue;
         }
         if (comment) {
           const row = tickets.load(req.user, key);
-          const tk = tickets.ticketOut(row);
+          const tk = viewOf(req.user, row);
           tickets.addComment(req.user, row.id, { body: fillPlaceholders(comment, tk, { displayName: req.user.display_name }), internal });
         }
         // With a reply no second "Resolved" mail – the reply already informs (an internal note does not)

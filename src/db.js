@@ -941,6 +941,15 @@ export const MIGRATIONS = [
     ALTER TABLE comments ADD COLUMN deleted_by INTEGER REFERENCES users(id);
     `,
   },
+  {
+    id: 50,
+    name: 'Orphaned catalog offerings',
+    sql: `
+    -- Offerings of a project deleted before 1.48 still named its key: a new project with the same key
+    -- would take them over (lead could edit them, orders would go there). Switch them off, without project.
+    UPDATE catalog_items SET project_key='', active=0 WHERE project_key<>'' AND project_key NOT IN (SELECT key FROM projects);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

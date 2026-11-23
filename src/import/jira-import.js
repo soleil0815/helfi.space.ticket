@@ -12,6 +12,51 @@ export function isInternalComment(c) {
   return !!prop?.value?.internal;
 }
 
+/**
+ * File names a Jira text refers to: ADF (Cloud) media nodes (their alt is the file name), wiki markup
+ * (Server/Data Center) !name! / !name|…! for pictures and [^name] for files.
+ */
+export function referencedFiles(body) {
+  const names = new Set();
+  if (typeof body === 'string') {
+    for (const m of body.matchAll(/!([^!|\n]{1,255})(?:\|[^!\n]{0,200})?!/g)) names.add(m[1].trim());
+    for (const m of body.matchAll(/\[\^([^\]\n]{1,255})\]/g)) names.add(m[1].trim());
+    return names;
+  }
+  const stack = body && typeof body === 'object' ? [body] : [];
+  let seen = 0;
+  while (stack.length && seen++ < 100000) {
+    const n = stack.pop();
+    if (!n || typeof n !== 'object') continue;
+    if ((n.type === 'media' || n.type === 'mediaInline') && n.attrs?.alt) names.add(String(n.attrs.alt).trim());
+    if (Array.isArray(n.content)) stack.push(...n.content);
+  }
+  return names;
+}
+
+/**
+ * Visibility of the files of one issue. Jira files belong to the issue, not to a comment – a file
+ * shown only in an internal comment must stay internal. Public: referenced by the description or a
+ * public comment, or uploaded by the reporter. Referenced only by internal comments: belongs to the
+ * first of them. Otherwise (nobody refers to it): internal as soon as the issue has internal comments
+ * (with the uploader's internal comment, else the one closest in time) – when in doubt, internal.
+ */
+export function attachmentVisibility(files, { description, comments, reporterRef }) {
+  const pub = referencedFiles(description);
+  for (const c of comments) if (!c.internal) for (const n of referencedFiles(c.raw)) pub.add(n);
+  const internals = comments.filter((c) => c.internal);
+  const time = (x) => Date.parse(x) || 0;
+  return files.map((a) => {
+    if (pub.has(a.filename) || (reporterRef && a.authorRef === reporterRef)) return { commentExtId: null, internal: false };
+    const ref = internals.find((c) => referencedFiles(c.raw).has(a.filename));
+    if (ref) return { commentExtId: ref.extId, internal: true };
+    if (!internals.length) return { commentExtId: null, internal: false };
+    const own = internals.find((c) => a.authorRef && c.authorRef === a.authorRef);
+    const near = own || internals.reduce((best, c) => (Math.abs(time(c.created) - time(a.created)) < Math.abs(time(best.created) - time(a.created)) ? c : best));
+    return { commentExtId: near.extId, internal: true };
+  });
+}
+
 const jiraPerson = (p) => (p ? { email: p.emailAddress || '', name: p.displayName || p.name || p.emailAddress || '', username: p.name || '', ref: p.accountId || p.key || p.name || p.emailAddress } : null);
 
 /** Adapter: Jira client → tickets in the common shape */
@@ -45,6 +90,9 @@ export function jiraAdapter(conn) {
     async *tickets(projectKey) {
       for await (const issue of client.issues(projectKey)) {
         const f = issue.fields || {};
+        // Comments are needed twice (comments, visibility of the files): fetched once per issue
+        let commentsOnce = null;
+        const rawComments = () => (commentsOnce ||= client.comments(issue.id));
         yield {
           extId: String(issue.id),
           extKey: issue.key,
@@ -64,13 +112,20 @@ export function jiraAdapter(conn) {
           resolutionName: f.resolution?.name || '',
           reporter: jiraPerson(f.reporter || f.creator),
           assignee: jiraPerson(f.assignee),
-          comments: async () => (await client.comments(issue.id)).map((c) => ({
+          comments: async () => (await rawComments()).map((c) => ({
             extId: String(c.id), author: jiraPerson(c.author), body: jiraText(c.body), internal: isInternalComment(c), created: c.created,
           })),
-          attachments: async () => (f.attachment || []).map((a) => ({
-            extId: String(a.id), filename: a.filename, mime: a.mimeType, size: a.size, created: a.created, author: jiraPerson(a.author),
-            load: (maxBytes) => client.download(a.content, maxBytes),
-          })),
+          attachments: async () => {
+            const files = f.attachment || [];
+            const comments = (await rawComments()).map((c) => ({ extId: String(c.id), internal: isInternalComment(c), raw: c.body, created: c.created, authorRef: jiraPerson(c.author)?.ref }));
+            const vis = attachmentVisibility(files.map((a) => ({ filename: a.filename, created: a.created, authorRef: jiraPerson(a.author)?.ref })),
+              { description: f.description, comments, reporterRef: jiraPerson(f.reporter || f.creator)?.ref });
+            return files.map((a, i) => ({
+              extId: String(a.id), filename: a.filename, mime: a.mimeType, size: a.size, created: a.created, author: jiraPerson(a.author),
+              commentExtId: vis[i].commentExtId, internal: vis[i].internal,
+              load: (maxBytes) => client.download(a.content, maxBytes),
+            }));
+          },
         };
       }
     },
