@@ -376,7 +376,7 @@ Above the comment field there is a toolbar – in tickets, in comments on knowle
 - **Link** (Ctrl+K, also ticket numbers such as IT-42), **image** (or Ctrl+V), **emoji** (also “:)”) and **@** to mention someone.
 - **Canned responses** on the right of the bar, *Save as template* in the same menu. Ctrl+Enter saves.
 
-The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. **Pictures in the email:** pictures in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); anything beyond that appears as a note “[Image: name]” in the email and is visible in the ticket. Pictures from internal notes never go to reporters or participants. Older comments and mails are shown as before.
+The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. **Pictures in the email:** pictures in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); anything beyond that appears as a note “[Image: name]” in the email and is visible in the ticket. Pictures from internal notes never go to reporters or participants. Older comments and mails are shown as before. **Limits:** info boxes, quotes and lists are shown nested up to 8 levels deep, tables with at most 50 columns and 5000 cells; anything beyond that appears as plain text. That way no comment can bring down the browser or the server.
 
 ## @-mentions
 
@@ -593,7 +593,7 @@ For replies that are always the same (e.g. "Please restart your computer"):
 - **Charts:**
   - "Resolved per agent"
   - "Created and resolved" per day, per week from 93 days; hover to see the values
-- **Table per agent**, sortable by every column and downloadable as CSV:
+- **Table per agent**, sortable by every column and downloadable as CSV (text starting with `=`, `+`, `-` or `@` gets a leading `'` so Excel does not run it as a formula):
   - **Resolved:** set to "Resolved" by that person (according to history)
   - **Open assigned:** current state
   - **Worked on:** tickets with an own change or comment

@@ -22,7 +22,10 @@ export function createCommentField({ placeholder = '', label = '', value = '', o
 /** Show a comment: formatted ones in the article format, older/mail ones as plain text */
 export function commentView(c) {
   if (c.format !== 'md') return richText(c.body);
-  const doc = renderDoc(c.body);
-  doc.classList.add('rich', 'cm-doc');
-  return doc;
+  // Whatever someone wrote: if the formatted view fails, this comment is shown as text – the page stays usable
+  try {
+    const doc = renderDoc(c.body);
+    doc.classList.add('rich', 'cm-doc');
+    return doc;
+  } catch { return richText(c.body); }
 }

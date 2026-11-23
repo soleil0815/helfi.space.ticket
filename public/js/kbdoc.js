@@ -53,9 +53,14 @@ function trimHeading(s) {
 }
 
 const RE_LIST = /^(\s*)([-*+]|\d{1,9}[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/;
+// Limits for text written by others: deeper boxes/quotes/lists stay text, oversized tables stay text –
+// a stored comment must never freeze or crash someone else's browser
+export const MAX_DEPTH = 8;
+export const MAX_COLS = 50;
+export const MAX_CELLS = 5000;
 const RE_IMGLINE = /^!\[([^\]\n]*)\]\(([^)\s]+)\)\s*$/;
 
-function parseBlocks(lines) {
+function parseBlocks(lines, level = 0) {
   const out = [];
   let i = 0;
   const isTableSep = (l) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l || '');
@@ -86,7 +91,7 @@ function parseBlocks(lines) {
       continue;
     }
     // Info box
-    const panel = /^:::\s*(info|tip|warning)\s*$/.exec(line.trim());
+    const panel = level < MAX_DEPTH && /^:::\s*(info|tip|warning)\s*$/.exec(line.trim());
     if (panel) {
       const inner = []; i++; let depth = 0;
       while (i < lines.length) {
@@ -96,7 +101,7 @@ function parseBlocks(lines) {
         inner.push(lines[i++]);
       }
       i++;
-      out.push({ type: 'panel', kind: panel[1], children: parseBlocks(inner) });
+      out.push({ type: 'panel', kind: panel[1], children: parseBlocks(inner, level + 1) });
       continue;
     }
     // Heading: strip closing # and spaces without a regex (the old pattern took minutes on long lines)
@@ -105,19 +110,23 @@ function parseBlocks(lines) {
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push({ type: 'hr' }); i++; continue; }
     // Table
     if (line.trim().startsWith('|') && isTableSep(lines[i + 1])) {
+      const start = i;
       const head = splitRow(line); i += 2;
       const rows = [];
       while (i < lines.length && lines[i].trim().startsWith('|')) rows.push(splitRow(lines[i++]));
-      const n = Math.max(head.length, ...rows.map((r) => r.length));
+      let n = head.length;
+      for (const r of rows) n = Math.max(n, r.length);
+      // Too wide or too big: shown as text (nothing is lost when an editor saves it again)
+      if (n > MAX_COLS || n * (rows.length + 1) > MAX_CELLS) { out.push({ type: 'para', text: lines.slice(start, i).join('\n') }); continue; }
       const pad = (r) => [...r, ...Array(n - r.length).fill('')];
       out.push({ type: 'table', head: pad(head), rows: rows.map(pad) });
       continue;
     }
     // Quote
-    if (/^\s*>/.test(line)) {
+    if (level < MAX_DEPTH && /^\s*>/.test(line)) {
       const inner = [];
       while (i < lines.length && /^\s*>/.test(lines[i])) inner.push(lines[i++].replace(/^\s*>\s?/, ''));
-      out.push({ type: 'quote', children: parseBlocks(inner) });
+      out.push({ type: 'quote', children: parseBlocks(inner, level + 1) });
       continue;
     }
     // List (indentation → sublist)
@@ -156,7 +165,7 @@ function buildList(items) {
   for (const it of items) {
     while (stack.length > 1 && it.indent < stack[stack.length - 1].indent) stack.pop();
     let top = stack[stack.length - 1];
-    if (it.indent > top.indent && top.list.items.length) {
+    if (it.indent > top.indent && top.list.items.length && stack.length < MAX_DEPTH) {
       const parent = top.list.items[top.list.items.length - 1];
       const sub = { type: 'list', ordered: it.ordered, check: it.check !== null, items: [] };
       parent.children.push(sub);

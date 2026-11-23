@@ -337,6 +337,7 @@
 <figure class="medium"><img src="img/en/comment-toolbar.jpg" alt=""><figcaption>Comment field with toolbar: bold, mention and emoji</figcaption></figure>
 <p>Reporters and participants get the reply formatted by email (with a readable text part for programs without HTML). <strong>Pictures</strong> in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything in their mail program. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); further ones appear as “[Image: name]” in the email and are visible in the ticket. If the mail server refuses a mail with pictures, it is sent once more as plain text with “[Image: name]”; if sending to one recipient fails, the others still get theirs. Pictures from internal notes never go to reporters or participants.</p>
 <figure class="medium"><img src="img/en/mail-images.jpg" alt=""><figcaption>Reply email with the picture in place in the text</figcaption></figure>
+<p>Info boxes, quotes and lists are shown nested up to 8 levels deep, tables with at most 50 columns and 5000 cells – anything beyond that appears as plain text. That way no comment can bring down the browser or the server.</p>
 <p> On phones the bar appears above the field as soon as you write and can be swiped sideways.</p>
 <figure class="small"><img src="img/en/m-reply-format.jpg" alt=""><figcaption>On a phone: format bar while writing</figcaption></figure>
 
@@ -413,7 +414,7 @@
 <figure class="small"><img src="img/en/bulk-link.jpg" alt=""><figcaption>Link all selected incidents with the problem at once – with suggestions for the possible cause</figcaption></figure>
 
 <h2 id="reports">Reports</h2>
-<p><em>Reports</em> shows, for a period (7, 30, 90 days, this year or custom) and optionally one project: created, resolved and open tickets, “Resolved per agent”, the “Created and resolved” trend and a table per agent (resolved, open assigned, worked on, replies, internal notes, average resolution time). The table can be sorted and downloaded as CSV. Once components are used, <em>By component</em> shows the tickets of the period per component, how many are open, rejected or duplicates, and the average resolution time (without rejected ones and duplicates).</p>
+<p><em>Reports</em> shows, for a period (7, 30, 90 days, this year or custom) and optionally one project: created, resolved and open tickets, “Resolved per agent”, the “Created and resolved” trend and a table per agent (resolved, open assigned, worked on, replies, internal notes, average resolution time). The table can be sorted and downloaded as CSV; text starting with = + - or @ gets a leading ' there so Excel does not run it as a formula. Once components are used, <em>By component</em> shows the tickets of the period per component, how many are open, rejected or duplicates, and the average resolution time (without rejected ones and duplicates).</p>
 <figure><img src="img/en/reports.jpg" alt=""><figcaption>Reports</figcaption></figure>
 <figure class="medium"><img src="img/en/report-components.jpg" alt=""><figcaption>Reports → By component</figcaption></figure>
 

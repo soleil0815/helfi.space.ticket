@@ -50,10 +50,18 @@ function toFile(text) {
 /** Last lines of this run (oldest first) */
 export const recentLogLines = () => recent.slice();
 
+/**
+ * One log entry is one line: line breaks from the message (often text from outside – a user name, an
+ * error of a mail server or IdP) are written as a visible \\n, other control characters as a space, so
+ * nobody can append a made-up line to the log.
+ */
+// eslint-disable-next-line no-control-regex
+export const oneLine = (s) => String(s).replace(/\r\n|\r|\n/g, '\\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u2028\u2029]/g, ' ');
+
 function write(level, msg, extra) {
   // The diagnosis package keeps info and above even if HELFI_LOG_LEVEL hides them in the Docker log
   if (levels[level] < Math.min(current, levels.info)) return;
-  const line = `${new Date().toISOString()} ${level.toUpperCase().padEnd(5)} ${msg}`;
+  const line = `${new Date().toISOString()} ${level.toUpperCase().padEnd(5)} ${oneLine(msg)}`;
   const tail = extra === undefined ? '' : ' ' + JSON.stringify(redact(extra));
   recent.push(line + tail);
   if (recent.length > RECENT_MAX) recent.splice(0, recent.length - RECENT_MAX);

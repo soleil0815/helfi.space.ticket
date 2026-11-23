@@ -12,6 +12,9 @@ const unescape = (s) => String(s).replace(/\\([\\`*[\]~+|#>\-.:!_()])/g, '$1');
 
 function safeHref(url, baseUrl) {
   const u = String(url || '').trim();
+  // Control characters (also the placeholders of kept parts) never belong in a link target
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(u)) return null;
   if (/^https?:\/\/[^\s<>"]+$/i.test(u)) return u;
   if (/^mailto:[^\s<>"]+@[^\s<>"]+$/i.test(u)) return u;
   if (/^\/(?![/\\])[^\s<>"\\]*$/.test(u)) return baseUrl ? `${baseUrl}${u}` : null;
@@ -22,9 +25,13 @@ function safeHref(url, baseUrl) {
 const RE_LIST = /^(\s{0,12})([-*+]|\d{1,9}[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/;
 const RE_FENCE = /^\s{0,3}```/;
 const RE_TABLE_SEP = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+// Same limits as the browser (public/js/kbdoc.js): deeper boxes/quotes/lists stay text, tables at most
+// 50 columns – text from users must not tie up the server (recursion, memory)
+const MAX_DEPTH = 8;
+const MAX_COLS = 50;
 
-function parse(md) {
-  const lines = String(md || '').slice(0, MAX).replace(/\r\n?/g, '\n').split('\n');
+function parse(md, level = 0) {
+  const lines = (Array.isArray(md) ? md : String(md || '').slice(0, MAX).replace(/\r\n?/g, '\n').split('\n'));
   const blocks = [];
   let i = 0;
   while (i < lines.length) {
@@ -38,12 +45,12 @@ function parse(md) {
       blocks.push({ type: 'code', text: code.join('\n') });
       continue;
     }
-    if (/^\s*:::(info|tip|warning)\s*$/.test(l)) {
+    if (level < MAX_DEPTH && /^\s*:::(info|tip|warning)\s*$/.test(l)) {
       const inner = [];
       i++;
       while (i < lines.length && !/^\s*:::\s*$/.test(lines[i])) inner.push(lines[i++]);
       i++;
-      blocks.push({ type: 'quote', children: parse(inner.join('\n')) });
+      blocks.push({ type: 'quote', children: parse(inner, level + 1) });
       continue;
     }
     const hm = /^(#{1,3})\s+(.*)$/.exec(l);
@@ -52,15 +59,16 @@ function parse(md) {
     if (/^\s{0,3}>/.test(l)) {
       const inner = [];
       while (i < lines.length && /^\s{0,3}>/.test(lines[i])) inner.push(lines[i++].replace(/^\s{0,3}> ?/, ''));
-      blocks.push({ type: 'quote', children: parse(inner.join('\n')) });
+      // Too deep: the rest stays text
+      blocks.push(level < MAX_DEPTH ? { type: 'quote', children: parse(inner, level + 1) } : { type: 'para', text: inner.join('\n') });
       continue;
     }
     if (l.trim().startsWith('|') && RE_TABLE_SEP.test(lines[i + 1] || '')) {
       const cells = (row) => row.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((c) => c.trim());
-      const head = cells(l);
+      const head = cells(l).slice(0, MAX_COLS);
       const rows = [];
       i += 2;
-      while (i < lines.length && lines[i].trim().startsWith('|')) rows.push(cells(lines[i++]));
+      while (i < lines.length && lines[i].trim().startsWith('|')) rows.push(cells(lines[i++]).slice(0, MAX_COLS));
       blocks.push({ type: 'table', head, rows });
       continue;
     }
@@ -136,7 +144,7 @@ function inlineHtml(s, o) {
       const url = safeHref(href, o.baseUrl);
       return url ? keep(`<a href="${esc(url)}">${esc(unescape(text))}</a>`) : m;
     })
-    .replace(/(^|[\s(])(https?:\/\/[^\s<>"')\]]{1,2000}[^\s<>"')\].,;:!?])/g, (m, pre, url) => `${pre}${keep(`<a href="${esc(url)}">${esc(url)}</a>`)}`);
+    .replace(/(^|[\s(])(https?:\/\/[^\s<>"')\]\u0001\u0002]{1,2000}[^\s<>"')\].,;:!?\u0001\u0002])/g, (m, pre, url) => `${pre}${keep(`<a href="${esc(url)}">${esc(url)}</a>`)}`);
   x = esc(x)
     .replace(/\*\*([^*\n]{1,2000})\*\*/g, '<strong>$1</strong>')
     .replace(/\+\+([^+\n]{1,2000})\+\+/g, '<u>$1</u>')
@@ -153,7 +161,7 @@ function nest(items) {
   for (const it of items) {
     while (stack.length > 1 && it.indent < stack[stack.length - 1].indent) stack.pop();
     let top = stack[stack.length - 1];
-    if (it.indent > top.indent && top.list.items.length) {
+    if (it.indent > top.indent && top.list.items.length && stack.length < MAX_DEPTH) {
       const sub = { ordered: it.ordered, items: [] };
       top.list.items[top.list.items.length - 1].children.push(sub);
       stack.push({ indent: it.indent, list: sub });
