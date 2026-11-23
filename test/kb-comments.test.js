@@ -53,3 +53,24 @@ test('Comment, mail to author and last editor, resolve, delete', async () => {
   await anna('DELETE', `/api/kb/${pub.id}`);
   assert.equal(S.db.prepare('SELECT COUNT(*) n FROM kb_comments').get().n, 0);
 });
+
+test('Comment mails only go to people who may still read the article (moved to another project: no mail)', async () => {
+  const it = S.db.prepare("SELECT id FROM projects WHERE key='IT'").get().id;
+  const hr = (await S.admin('POST', '/api/projects', { key: 'HR', name: 'Personal' })).body.project;
+  await S.user('hra', 'user');
+  S.db.prepare("INSERT INTO project_agents(project_id,user_id,source) VALUES(?,?,'manual')").run(it, S.ids.hra);
+  const hra = await S.client().login('hra');
+  const art = (await hra('POST', '/api/kb', { title: 'Server-Kennwörter', body: 'intern', visibility: 'internal', projectId: it })).body.article;
+  assert.ok(art?.id, 'article created in IT');
+  sent.length = 0;
+  await anna('POST', `/api/kb/${art.id}/comments`, { body: 'Bitte aktualisieren' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual(sent.map((m) => m.to), ['hra@firma.local'], 'still in the project: mail');
+  // moved from IT to HR: still an agent (of HR), but no longer allowed to read the internal IT article
+  S.db.prepare('DELETE FROM project_agents WHERE user_id=?').run(S.ids.hra);
+  S.db.prepare("INSERT INTO project_agents(project_id,user_id,source) VALUES(?,?,'manual')").run(hr.id, S.ids.hra);
+  sent.length = 0;
+  await anna('POST', `/api/kb/${art.id}/comments`, { body: 'Neues Kennwort für srv01 ist …' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual(sent.map((m) => m.to), [], 'no mail to a former member');
+});

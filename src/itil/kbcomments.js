@@ -62,6 +62,8 @@ export function createKbComments(db, kb, { mailer = null, users = null, settings
     for (const uid of ids) {
       const to = users.byId(uid);
       if (!to?.active || !to.email || !['agent', 'admin'].includes(to.role)) continue;
+      // Only people who may read the article now (moved to another project: no more mails about it)
+      try { kb.get(to, article.id); } catch { continue; }
       const lang = to.language || settings?.get('general.defaultLanguage') || 'de';
       const vars = { title: article.title, author: user.display_name || user.username, body: (format === 'md' ? mdToText(text, lang, baseUrl) : text).slice(0, 2000), link: `${baseUrl}/kb/${article.id}#comments`, app: settings?.get('general.title') || 'Helfi.Space' };
       const html = format === 'md' ? mailHtml(t(lang, 'mail.kbComment.body', { ...vars, body: MAIL_BODY }), mdToHtml(text, { lang, baseUrl })) : undefined;

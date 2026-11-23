@@ -90,14 +90,19 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     return null;
   }
 
-  /** May this sender write to the ticket via the subject number? (reporter, assignee, previous participants) */
+  /**
+   * May this sender write to the ticket via the subject number? Only the current reporter and request
+   * participants. Having written here once (a comment, also an internal note from a mail) is no longer
+   * enough: anyone who once got a forwarded mail could otherwise keep posting public comments.
+   * Exception: an agent of the project who already wrote here – that mail only ever becomes an internal
+   * note (the sender address can be forged, see unverifiedAgent in process()).
+   */
   function isParticipant(ticketId, sender, fromAddr) {
-    // Deliberately NO special rights for agents: sender addresses can be forged
-    const t = db.prepare('SELECT reporter_id, reporter_email FROM tickets WHERE id=?').get(ticketId);
-    if (!t) return false;
-    if (t.reporter_id === sender.id || String(t.reporter_email || '').toLowerCase() === fromAddr) return true;
-    if (tickets.isParticipant(ticketId, sender.id)) return true;
-    return !!db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND deleted_at IS NULL AND (author_id=? OR lower(author_email)=?) LIMIT 1').get(ticketId, sender.id, fromAddr);
+    if (isCurrentParty(ticketId, sender?.id > 0 ? sender : null, fromAddr)) return true;
+    if (!sender?.id || !(sender.role === 'agent' || sender.role === 'admin')) return false;
+    const row = tickets.rawById(ticketId);
+    if (!row || !agentOn(sender, row.project_id)) return false;
+    return !!db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND deleted_at IS NULL AND author_id=? LIMIT 1').get(ticketId, sender.id);
   }
 
   /** Is the sender currently the reporter or a request participant? (former reporters/removed participants are not) */
