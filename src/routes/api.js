@@ -954,6 +954,11 @@ export function createApi(ctx) {
     res.status(201).json({ comment: c });
   }));
 
+  // Delete a comment (author, agents of the project, admins): it stays as a placeholder "deleted by X"
+  r.delete('/tickets/:key/comments/:id', (req, res) => {
+    res.json({ comment: tickets.deleteComment(req.user, req.params.key, int(req.params.id)) });
+  });
+
   r.post('/tickets/:key/attachments', (req, res, next) => {
     upload.array('files', 10)(req, res, (err) => {
       if (err) {

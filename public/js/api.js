@@ -165,6 +165,7 @@ export const api = {
   // attachmentIds: draft uploads (draft=file) that belong to this comment (mobile UI)
   // format 'md': written with the formatting toolbar
   comment: (key, body, internal, attachmentIds, format = 'text') => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal, format, ...(attachmentIds?.length ? { attachmentIds } : {}) }),
+  deleteComment: (key, id) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/comments/${id}`),
   upload: (key, files, { draft = false } = {}) => {
     const fd = new FormData();
     if (draft) fd.append('draft', '1');

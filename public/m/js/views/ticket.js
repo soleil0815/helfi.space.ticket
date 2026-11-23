@@ -330,17 +330,52 @@ export async function renderTicket(page, ctx) {
     // Pictures shown in the text are not repeated below it
     const inline = new Set([...String(c.body).matchAll(/\]\(\/api\/attachments\/(\d+)\)/g)].map((m) => Number(m[1])));
     const files = tk.attachments.filter((a) => a.commentId === c.id && !inline.has(a.id));
-    return h('article.m-msg', { class: [mine ? 'mine' : '', c.internal ? 'internal' : '', c.mentionsMe ? 'mentions-me' : ''].filter(Boolean).join(' '), 'data-id': String(c.id) },
+    const el = h('article.m-msg', { class: [mine ? 'mine' : '', c.internal ? 'internal' : '', c.mentionsMe ? 'mentions-me' : '', c.deleted ? 'deleted' : ''].filter(Boolean).join(' '), 'data-id': String(c.id) },
       mine ? null : avatar(c.author, 'sm'),
       h('div.m-msg-bubble',
         h('div.m-msg-head',
           h('strong', mine ? t('m.ticket.you') : c.author.displayName),
           c.internal ? h('span.m-msg-internal', icon('lock'), t('ticket.internal')) : null,
-          c.source === 'email' ? h('span.m-msg-src', { title: t('source.email') }, icon('mail')) : null),
-        commentView(c),
-        c.hasHtml ? mailNote(mailSrc(c.id), () => commentView(c)) : null,
-        files.length ? attachmentsEl(files) : null,
+          c.source === 'email' && !c.deleted ? h('span.m-msg-src', { title: t('source.email') }, icon('mail')) : null,
+          c.canDelete ? h('button.m-iconbtn.m-msg-del', { type: 'button', 'aria-label': t('comment.delete'), onclick: () => deleteSheet(c, el) }, icon('trash')) : null),
+        c.deleted
+          ? h('p.m-msg-deleted', { tabindex: '-1' }, icon('trash'), t('comment.deletedBy', { who: c.deleted.by?.displayName || '—', when: fmtDate(c.deleted.at) }))
+          : [commentView(c),
+            c.hasHtml ? mailNote(mailSrc(c.id), () => commentView(c)) : null,
+            files.length ? attachmentsEl(files) : null],
         h('time.m-msg-time', { datetime: c.createdAt, title: fmtDate(c.createdAt) }, relTime(c.createdAt))));
+    return el;
+  }
+
+  function deleteSheet(c, el) {
+    const files = tk.attachments.filter((a) => a.commentId === c.id).length;
+    const ok = h('button.m-btn.m-btn-danger', {
+      type: 'button',
+      onclick: async () => {
+        ok.disabled = true;
+        try {
+          const { comment } = await api.deleteComment(tk.key, c.id);
+          // Only this message changes – a reply being written stays as it is
+          tk.comments = tk.comments.map((x) => (x.id === c.id ? comment : x));
+          tk.attachments = tk.attachments.filter((a) => a.commentId !== c.id);
+          const fresh = bubble(comment);
+          el.replaceWith(fresh);
+          sheet.close();
+          // The button that opened the sheet is gone: keep the focus on the message
+          setTimeout(() => fresh.querySelector('.m-msg-deleted')?.focus({ preventScroll: true }), 300);
+          dataChanged();
+          toast(t('comment.deleted'));
+        } catch (e) { ok.disabled = false; toast(e.message, 'error'); }
+      },
+    }, icon('trash'), t('comment.delete'));
+    const sheet = openSheet({
+      title: t(c.internal ? 'comment.deleteTitleInternal' : 'comment.deleteTitle'),
+      content: h('div.m-delete-text',
+        h('p', t('comment.deleteText')),
+        files ? h('p', t('comment.deleteFiles', { n: files })) : null,
+        !c.internal ? h('p.m-muted', t('comment.deleteMailHint')) : null),
+      footer: [h('button.m-btn', { type: 'button', onclick: () => sheet.close() }, t('app.cancel')), ok],
+    });
   }
 
   function historyLine(a) {

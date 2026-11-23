@@ -53,7 +53,7 @@ export function ticketContext(tk, { includeInternal, maxChars }) {
     String(tk.description || '—').trim(),
   ].join('\n');
   const comments = (tk.comments || [])
-    .filter((c) => includeInternal || !c.internal)
+    .filter((c) => !c.deleted && (includeInternal || !c.internal))
     .map((c) => `--- ${c.createdAt.slice(0, 16).replace('T', ' ')} · ${c.author?.displayName || '—'}${c.internal ? ' (internal note)' : ''}${c.author?.id === tk.reporter?.id ? ' (reporter)' : ''}\n${mentionsAsText(c.body).trim()}`);
   const budget = Math.max(2000, maxChars);
   let headPart = head.length > budget * 0.5 ? `${head.slice(0, Math.floor(budget * 0.5))}\n[…]` : head;
@@ -333,11 +333,14 @@ export function createAi({ db, settings, tickets }) {
     const tk = agentDetail(user, key);
     const lang = langOf(user);
     const ctx = ticketContext(tk, cfg);
+    const started = new Date().toISOString();
     const text = await timed('summary', tk.key, cfg, () => chat([
       { role: 'system', content: PROMPTS.summary(lang) },
       { role: 'user', content: ctx },
     ], { maxTokens: 900, cfg }));
     const now = new Date().toISOString();
+    // A comment deleted while the AI was writing: do not keep a summary that may quote it
+    if (db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND deleted_at >= ?').get(tk.id, started)) return { text, model: cfg.model, createdAt: now, outdated: true };
     db.prepare(`INSERT INTO ai_summaries(ticket_id, text, model, lang, basis, created_at) VALUES (?,?,?,?,?,?)
       ON CONFLICT(ticket_id) DO UPDATE SET text=excluded.text, model=excluded.model, lang=excluded.lang, basis=excluded.basis, created_at=excluded.created_at`)
       .run(tk.id, text, cfg.model, lang, fingerprint(ctx + lang), now);

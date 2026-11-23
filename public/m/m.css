@@ -337,6 +337,11 @@ body.m a:hover { text-decoration: none; }
 .m-msg-head strong { color: var(--text); }
 .m-msg-internal { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 4px; background: var(--yellow-bold); color: var(--warn-text); font-size: 11px; font-weight: 700; line-height: 18px; text-transform: uppercase; letter-spacing: .3px; }
 .m-msg-internal .icon, .m-msg-src .icon { width: 13px; height: 13px; vertical-align: -2px; }
+.m-msg-head .m-msg-del { margin: -12px -12px -12px auto; color: var(--text-subtlest); }
+.m-msg-del .icon { width: 16px; height: 16px; }
+.m-msg-deleted { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-subtlest); font-style: italic; font-size: 14px; }
+.m-msg-deleted .icon { width: 14px; height: 14px; flex: none; }
+.m-msg.deleted .m-msg-bubble { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
 .m-msg .rich p { margin: 0 0 8px; }
 .m-msg .rich p:last-child { margin: 0; }
 .m-msg-time { display: block; margin-top: 4px; text-align: right; font-size: 11px; color: var(--text-subtlest); }

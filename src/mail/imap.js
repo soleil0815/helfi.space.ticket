@@ -97,7 +97,7 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
     if (!t) return false;
     if (t.reporter_id === sender.id || String(t.reporter_email || '').toLowerCase() === fromAddr) return true;
     if (tickets.isParticipant(ticketId, sender.id)) return true;
-    return !!db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND (author_id=? OR lower(author_email)=?) LIMIT 1').get(ticketId, sender.id, fromAddr);
+    return !!db.prepare('SELECT 1 FROM comments WHERE ticket_id=? AND deleted_at IS NULL AND (author_id=? OR lower(author_email)=?) LIMIT 1').get(ticketId, sender.id, fromAddr);
   }
 
   /** Is the sender currently the reporter or a request participant? (former reporters/removed participants are not) */

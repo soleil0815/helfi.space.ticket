@@ -688,3 +688,29 @@ scene('updates', ['update-notice'], async (S) => {
     await ctx.updates.check();
   }
 });
+
+// ---------- Deleting a comment (last: it adds a ticket of its own) ----------
+scene('comments', ['comment-delete', 'm-comment-delete'], async (S) => {
+  const { page, go, shot, step, d, T } = S;
+  const tk = await d.mk(d.erika, { title: T('Zugang zum Lohnordner', 'Access to the payroll folder'), description: T('Ich komme nicht mehr in den Ordner Lohn 2026.', 'I can no longer open the folder Payroll 2026.'), projectId: d.it.id });
+  await d.erika('POST', `/api/tickets/${tk.key}/comments`, { body: T('Hier meine Anmeldedaten, damit du es testen kannst: e.muster / ••••••••', 'Here are my sign-in details so you can test it: e.muster / ••••••••') });
+  await d.anna('POST', `/api/tickets/${tk.key}/comments`, { body: T('Bitte schreib nie Anmeldedaten ins Ticket – ich lösche den Kommentar. Den Ordner habe ich freigegeben.', 'Please never put sign-in details into a ticket – I am deleting the comment. The folder is shared with you again.') });
+  await step('comment-delete', async () => {
+    const p = await page('a.berger');
+    await go(p, `/browse/${tk.key}`);
+    const c = p.locator('.comment', { hasText: 'e.muster /' });
+    await c.hover(); await c.locator('.comment-delete').click(); await p.waitForSelector('.modal .btn-danger');
+    await shot.full(p, 'comment-delete');
+    await p.keyboard.press('Escape');
+  });
+  await step('m-comment-delete', async () => {
+    const a = await page('a.berger', { mobile: true }); await go(a, `/m/t/${tk.key}`);
+    const msg = a.locator('.m-msg', { hasText: 'e.muster /' });
+    await msg.locator('.m-msg-del').tap(); await a.waitForSelector('.m-sheet-foot .m-btn-danger'); await a.waitForTimeout(400);
+    const b = await page('a.berger', { mobile: true }); await go(b, `/m/t/${tk.key}`);
+    await b.locator('.m-msg', { hasText: 'e.muster /' }).locator('.m-msg-del').tap();
+    await b.locator('.m-sheet-foot .m-btn-danger').tap(); await b.waitForSelector('.m-msg-deleted');
+    await b.locator('.m-msg-deleted').evaluate((e) => e.scrollIntoView({ block: 'center' })); await b.waitForTimeout(4500); // the toast is gone again
+    await shot.phones('m-comment-delete', [a, b]);
+  });
+});

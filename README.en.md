@@ -359,6 +359,14 @@ On the computer the activity in a ticket (*Comments*, *History*, *All*) shows **
 - With *Oldest first* the ticket scrolls to the new reply after sending.
 - In the phone app the activity always stays a chat (oldest first, reply bar at the bottom); the setting does not apply there.
 
+## Deleting comments
+
+A comment can be deleted, e.g. when a password ended up in the ticket by mistake. On the computer the **bin icon** appears on the right of the comment when the mouse is over it; on the phone it is always in the header of the message. After a confirmation the comment is gone.
+
+- **Who may:** everyone their **own** comments; **agents of the project** and **admins** also those of others, internal notes included. Notices of Helfi.Space itself (e.g. “Delivery failed”) stay.
+- **What happens:** the text, attached files (also pasted pictures) and the stored original email are deleted **for good** – also from the search and from a stored AI summary. In their place it then says *Comment deleted by … on …*, the history notes it.
+- **What stays:** notification emails already sent cannot be recalled, older backups still contain the comment. The decision of an approval stays, only its comment goes. The ticket itself is never deleted.
+
 ## Formatting replies
 
 Above the comment field there is a toolbar – in tickets, in comments on knowledge articles and on phones (there it appears while writing and can be swiped sideways):
