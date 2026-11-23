@@ -86,7 +86,7 @@ export async function renderTicket(page, ctx) {
   const reloadAfterChange = async () => { dataChanged(); try { await load(); } catch (e) { toast(e.message, 'error'); } };
 
   // Title and description: agents and the reporter (as in the desktop UI; the API checks it)
-  const canEditText = () => agent || (tk.reporter?.id === state.user.id && !(tk.approval && ['pending', 'approved'].includes(tk.approval.state)));
+  const canEditText = () => (tk.reporter?.id === state.user.id ? !(tk.approval && ['pending', 'approved'].includes(tk.approval.state)) : agent);
   function openEdit() {
     const title = h('input', { id: 'm-edit-title', value: tk.title, maxLength: 255, required: true, autocomplete: 'off', enterkeyhint: 'next' });
     const desc = h('textarea.m-textarea.m-edit-desc', { id: 'm-edit-desc', rows: 8 });
@@ -211,7 +211,7 @@ export async function renderTicket(page, ctx) {
       return h('div.m-card.m-approval.m-approval-info', { class: `state-${catalog.state}` },
         h('div.m-approval-head', icon('shield'), h('strong', t('catalog.approval')), h(`span.m-approval-state.${catalog.state}`, t(`catalog.state.${catalog.state}`))),
         approverList(catalog.items),
-        !agent && tk.reporter?.id === state.user.id && ['pending', 'approved'].includes(catalog.state) ? h('p.m-muted', t('catalog.textLocked')) : null);
+        tk.reporter?.id === state.user.id && ['pending', 'approved'].includes(catalog.state) ? h('p.m-muted', t('catalog.textLocked')) : null);
     }
     const items = catalog?.canDecide ? catalog.items : change.approvals.items;
     const comment = h('textarea.m-textarea', { rows: 2, maxLength: 2000, placeholder: t('change.commentHint'), 'aria-label': t('change.commentHint') });

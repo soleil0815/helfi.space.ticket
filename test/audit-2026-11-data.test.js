@@ -76,9 +76,12 @@ test('Catalog request: reporter cannot change title or description while it wait
   // a comment still works, an agent may still correct the text
   assert.equal((await karl('POST', `/api/tickets/${tk.key}/comments`, { body: 'Gern in Silber' })).status, 201);
   assert.equal((await S.admin('PATCH', `/api/tickets/${tk.key}`, { title: 'Laptop (Silber)' })).status, 200);
+  // also when the requester is an agent of the project themselves
+  const own = (await S.admin('POST', `/api/catalog/${item.id}/order`, { answers: {} })).body.ticket;
+  assert.equal((await S.admin('PATCH', `/api/tickets/${own.key}`, { description: 'Lieber drei' })).status, 409);
   // an ordinary ticket of the reporter stays editable
-  const own = (await karl('POST', '/api/tickets', { title: 'Maus defekt', projectId: it })).body.ticket;
-  assert.equal((await karl('PATCH', `/api/tickets/${own.key}`, { description: 'Linke Taste' })).status, 200);
+  const plain = (await karl('POST', '/api/tickets', { title: 'Maus defekt', projectId: it })).body.ticket;
+  assert.equal((await karl('PATCH', `/api/tickets/${plain.key}`, { description: 'Linke Taste' })).status, 200);
 });
 
 test('Orphaned catalog offerings: a new project with the same key does not take them over', async () => {

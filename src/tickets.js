@@ -530,8 +530,9 @@ export function createTickets(db, users, { settings = null } = {}) {
     }
     if (data.description !== undefined) set('description', 'description', str(data.description, 100000));
     // A request waiting for or holding an approval: the reporter cannot change what was (to be) approved –
-    // the approvers decide on this text. Questions go into a comment; agents may still correct it.
-    if (!agent && (changes.title || changes.description) && row.type !== 'change') {
+    // the approvers decide on this text, also when the reporter is an agent of the project. Questions go
+    // into a comment; other agents may still correct it.
+    if (isReporter && (changes.title || changes.description) && row.type !== 'change') {
       const st = db.prepare("SELECT value FROM ticket_fields WHERE ticket_id=? AND name='approvalState'").get(row.id)?.value;
       if (st === 'pending' || st === 'approved') throw new HttpError(409, 'err.approvalLocked');
     }

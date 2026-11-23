@@ -95,7 +95,7 @@ export function catalogApprovalBox(tk, refresh) {
       h(`span.badge.decision-${x.decision || 'pending'}`, t(`change.decision.${x.decision || 'pending'}`)),
       x.comment ? h('span.muted.small', t('app.quoted', { text: x.comment })) : null)),
     // The reporter learns why title and description can no longer be edited
-    !tk.agentView && tk.reporter?.id === state.user.id && ['pending', 'approved'].includes(a.state) ? h('p.muted.small', t('catalog.textLocked')) : null,
+    tk.reporter?.id === state.user.id && ['pending', 'approved'].includes(a.state) ? h('p.muted.small', t('catalog.textLocked')) : null,
     a.canDecide ? h('div.approval-actions', comment,
       h('button.btn.btn-primary.small', { type: 'button', onclick: () => decide('approve') }, icon('check'), t('change.approve')),
       h('button.btn.btn-danger.small', { type: 'button', onclick: () => decide('reject') }, t('change.reject'))) : null);

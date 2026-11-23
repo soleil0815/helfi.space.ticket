@@ -49,7 +49,8 @@ export async function renderTicket(content, key) {
   const agent = !!tk.agentView;
   // While a request waits for or holds an approval its text is fixed for the reporter (the server refuses too)
   const approvalLocked = !!tk.approval && ['pending', 'approved'].includes(tk.approval.state);
-  const canEditText = agent || (tk.reporter?.id === state.user.id && !approvalLocked);
+  // (also when the reporter is an agent: someone else corrects an approved text)
+  const canEditText = tk.reporter?.id === state.user.id ? !approvalLocked : agent;
   let tab = 'comments';
   // Components of the ticket's project (agents; empty list = field hidden unless one is set)
   let comps = agent ? await projectComponents(tk.projectId) : [];
