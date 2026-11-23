@@ -530,6 +530,30 @@ EOF_BACKUPS
           "$DATA_DIR/helfi.sqlite is missing – nothing restored. Backup: $backup"
     else
       stamp="$(date +%Y%m%d-%H%M%S)"
+      # mv onto a name that is a link to a directory moves INTO that directory: every target name of
+      # this script must be free (no file, no link) – the data directory belongs to the container user
+      free_name() {
+        if [ -L "$1" ]; then rm -f "$1"; fi
+        if [ -e "$1" ]; then
+          restore_err=1
+          err "$1 ist belegt – Datenbank NICHT zurückgespielt." "$1 is in the way – database NOT restored."
+          return 1
+        fi
+      }
+      # Keep the failed state next to it (database, WAL, SHM). A link in place of one of them is removed,
+      # never followed. All names are checked first, so nothing is moved if one of them is in the way.
+      keep_failed_state() {
+        for ext in "" -wal -shm; do
+          src="$DATA_DIR/helfi.sqlite$ext"
+          if [ -L "$src" ]; then rm -f "$src"; continue; fi
+          [ -f "$src" ] || continue
+          free_name "$DATA_DIR/helfi.sqlite.fehlgeschlagen-$stamp$ext" || return 1
+        done
+        for ext in "" -wal -shm; do
+          [ -f "$DATA_DIR/helfi.sqlite$ext" ] || continue
+          mv "$DATA_DIR/helfi.sqlite$ext" "$DATA_DIR/helfi.sqlite.fehlgeschlagen-$stamp$ext" || return 1
+        done
+      }
       # Copy completely first, then swap – never be left without a database.
       # umask 077: the database holds password hashes – readable by the owner only, like the backup
       # (gzip -dc > file would otherwise create it with the shell's umask, e.g. 0644)
@@ -553,10 +577,7 @@ EOF_BACKUPS
       # The copy is always a new file of this script: remove whatever is there (also a symlink – rm
       # removes the link, not its target) and create it exclusively (set -C), never write through a link
       rm -f "$DATA_DIR/helfi.sqlite.zurueck"
-      if restore && sync; then
-        for ext in "" -wal -shm; do
-          [ -f "$DATA_DIR/helfi.sqlite$ext" ] && mv "$DATA_DIR/helfi.sqlite$ext" "$DATA_DIR/helfi.sqlite.fehlgeschlagen-$stamp$ext"
-        done
+      if restore && sync && keep_failed_state && free_name "$DATA_DIR/helfi.sqlite"; then
         mv "$DATA_DIR/helfi.sqlite.zurueck" "$DATA_DIR/helfi.sqlite"
         say "Datenbank aus $backup zurückgespielt (fehlgeschlagener Stand: helfi.sqlite.fehlgeschlagen-$stamp)." \
             "Database restored from $backup (failed state: helfi.sqlite.fehlgeschlagen-$stamp)."

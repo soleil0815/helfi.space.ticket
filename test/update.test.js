@@ -210,6 +210,44 @@ for (const gz of ['', '1']) {
   });
 }
 
+test('Rollback never moves the database through planted links (failed-state names, WAL)', () => {
+  const ctx = setup();
+  const victim = path.join(ctx.dir, 'host-ordner');
+  fs.mkdirSync(victim);
+  // links for every stamp of the next minute (the script names the failed state by date and time)
+  const pad = (n) => String(n).padStart(2, '0');
+  for (let i = 0; i < 60; i++) {
+    const d = new Date(Date.now() + i * 1000);
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    fs.symlinkSync(victim, path.join(ctx.dir, `data/helfi.sqlite.fehlgeschlagen-${stamp}`));
+  }
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0' });
+  assert.equal(r.status, 1);
+  assert.deepEqual(fs.readdirSync(victim), [], 'nothing moved into the linked directory');
+  // the link in the way is removed (never followed), the failed state lands under its own name
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'sicherung-neu');
+  const failed = fs.readdirSync(path.join(ctx.dir, 'data')).filter((f) => f.startsWith('helfi.sqlite.fehlgeschlagen-') && !f.endsWith('-wal'))
+    .filter((f) => !fs.lstatSync(path.join(ctx.dir, 'data', f)).isSymbolicLink());
+  assert.equal(failed.length, 1);
+  assert.equal(read(ctx, `data/${failed[0]}`), 'migriert');
+  assert.equal(fs.existsSync(path.join(ctx.dir, 'data/helfi.sqlite.zurueck')), false);
+});
+
+test('Rollback: a directory in the way of the failed state stops before anything is moved', () => {
+  const ctx = setup();
+  const pad = (n) => String(n).padStart(2, '0');
+  for (let i = 0; i < 60; i++) {
+    const d = new Date(Date.now() + i * 1000);
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    fs.mkdirSync(path.join(ctx.dir, `data/helfi.sqlite.fehlgeschlagen-${stamp}-wal`));
+  }
+  const r = run(ctx, ['-y'], { FAKE_HEALTH_NEW: 'unhealthy', FAKE_NEW_VERSION: '1.2.0', FAKE_PREV_VERSION: '1.1.0' });
+  assert.equal(r.status, 1);
+  assert.equal(read(ctx, 'data/helfi.sqlite'), 'migriert', 'database stays where it is (not half moved)');
+  assert.match(r.stderr, /belegt/);
+  assert.match(r.stderr, /Datenbank unverändert/);
+});
+
 test('Manual rollback hints also name the packed backup (.sqlite.gz)', () => {
   const ctx = setup();
   const r = run(ctx, [], { FAKE_HEALTH_NEW: 'exited', FAKE_NEW_VERSION: '1.2.0' });
