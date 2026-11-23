@@ -1,5 +1,6 @@
 // Reports: who worked on and resolved how many tickets (visible to all agents)
 import { api } from '../api.js';
+import { csvText } from '../csv.js';
 import { h, mount, icon, select, avatar, toast } from '../dom.js';
 import { t, getLang as lang } from '../i18n.js';
 import { state, navigate } from '../app.js';
@@ -263,9 +264,8 @@ function downloadCsv(data, cols) {
   const de = lang() === 'de';
   const sep = de ? ';' : ',';
   const num = (v) => (v === null || v === undefined ? '' : (de ? String(v).replace('.', ',') : String(v)));
-  const esc = (v) => (/[";,\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   const head = cols.map(([k, label]) => (k === 'avgResolutionHours' ? `${label} (h)` : label));
-  const lines = [head.map(esc).join(sep), ...data.agents.map((a) => cols.map(([k, , type]) => (type === 'text' ? esc(a[k]) : num(a[k]))).join(sep))];
+  const lines = [head.map(csvText).join(sep), ...data.agents.map((a) => cols.map(([k, , type]) => (type === 'text' ? csvText(a[k]) : num(a[k]))).join(sep))];
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = h('a', { href: URL.createObjectURL(blob), download: `helfi-bericht-${data.range.from}-${data.range.to}${data.project ? '-' + data.project : ''}.csv` });
   document.body.append(a);

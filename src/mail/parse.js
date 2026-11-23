@@ -84,7 +84,14 @@ export function isAutomated(headers, fromAddress) {
 
 /** Simple check of an email address. */
 export function isEmail(v) {
-  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(v || ''));
+  // Without a regex over the domain: "x@" + many dots/characters made the old pattern quadratic
+  const s = String(v || '');
+  if (s.length > 320 || /[\s<>]/.test(s)) return false;
+  const at = s.indexOf('@');
+  if (at < 1 || at !== s.lastIndexOf('@')) return false;
+  const domain = s.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
 }
 
 /**

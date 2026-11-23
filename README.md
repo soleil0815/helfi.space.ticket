@@ -376,7 +376,7 @@ Ein Kommentar lässt sich löschen, z. B. wenn ein Kennwort versehentlich im Tic
 - **Link** (Strg+K, auch Ticketnummern wie IT-42), **Bild** (oder Strg+V), **Emoji** (auch „:)“) und **@** zum Erwähnen.
 - **Vorformulierte Antworten** rechts in der Leiste, im selben Menü *Als Vorlage speichern*. Strg+Enter speichert.
 
-Gespeichert wird Text im Format der Wissensartikel. Melder und Teilnehmer bekommen die Antwort formatiert per Mail (HTML) mit einem lesbaren Textteil ohne Sternchen. **Bilder in der Mail:** Bilder aus der Antwort kommen direkt in der Mail mit und stehen an ihrer Stelle im Text – der Empfänger muss sich dafür nicht anmelden und nichts freischalten. Bis zu 5 Bilder je Mail (nur echte PNG-, JPEG-, GIF- und WebP-Dateien, je bis 2 MB, zusammen höchstens etwa 5 MB; ein mehrfach eingefügtes Bild kommt nur einmal mit); was darüber hinausgeht, steht als Hinweis „[Bild: Name]“ in der Mail und ist im Ticket zu sehen. Bilder aus internen Notizen gehen nie an Melder oder Teilnehmer. Ältere Kommentare und Mails werden unverändert angezeigt.
+Gespeichert wird Text im Format der Wissensartikel. Melder und Teilnehmer bekommen die Antwort formatiert per Mail (HTML) mit einem lesbaren Textteil ohne Sternchen. **Bilder in der Mail:** Bilder aus der Antwort kommen direkt in der Mail mit und stehen an ihrer Stelle im Text – der Empfänger muss sich dafür nicht anmelden und nichts freischalten. Bis zu 5 Bilder je Mail (nur echte PNG-, JPEG-, GIF- und WebP-Dateien, je bis 2 MB, zusammen höchstens etwa 5 MB; ein mehrfach eingefügtes Bild kommt nur einmal mit); was darüber hinausgeht, steht als Hinweis „[Bild: Name]“ in der Mail und ist im Ticket zu sehen. Bilder aus internen Notizen gehen nie an Melder oder Teilnehmer. Ältere Kommentare und Mails werden unverändert angezeigt. **Grenzen:** Infokästen, Zitate und Listen werden bis zu 8 Ebenen tief verschachtelt dargestellt, Tabellen mit höchstens 50 Spalten und 5000 Zellen; was darüber hinausgeht, erscheint als normaler Text. So kann kein Kommentar den Browser oder den Server lahmlegen.
 
 ## @-Erwähnungen
 
@@ -593,7 +593,7 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
 - **Diagramme:**
   - „Erledigt pro Bearbeiter“
   - „Erstellt und erledigt“ je Tag, ab 93 Tagen je Woche; beim Überfahren mit der Maus erscheinen die Werte
-- **Tabelle je Bearbeiter**, nach jeder Spalte sortierbar und als CSV herunterladbar:
+- **Tabelle je Bearbeiter**, nach jeder Spalte sortierbar und als CSV herunterladbar (Text, der mit `=`, `+`, `-` oder `@` beginnt, bekommt ein `'` davor, damit Excel ihn nicht als Formel ausführt):
   - **Erledigt:** von der Person auf „Erledigt“ gesetzt (laut Verlauf)
   - **Offen zugewiesen:** aktueller Stand
   - **Bearbeitet:** Tickets mit eigener Änderung oder eigenem Kommentar
