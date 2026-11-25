@@ -125,7 +125,8 @@ test('Users only see their own tickets and no internal notes', async () => {
 
 test('Users may not change status/assignment, agents may', async () => {
   let r = await user1('PATCH', '/api/tickets/IT-1', { status: 'done', priority: 'highest', title: 'Mein Drucker (2. OG)' });
-  assert.equal(r.body.ticket.status, 'open');
+  // unchanged: the agent's public reply above put it on "Waiting" – the user cannot resolve it
+  assert.equal(r.body.ticket.status, 'waiting');
   assert.equal(r.body.ticket.priority, 'medium');
   assert.equal(r.body.ticket.title, 'Mein Drucker (2. OG)');
   r = await agent('PATCH', '/api/tickets/IT-1', { status: 'waiting', assigneeId: 2 });

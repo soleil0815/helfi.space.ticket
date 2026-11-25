@@ -166,7 +166,8 @@ export const api = {
   resolveTicket: (key, d) => request('POST', `/api/tickets/${encodeURIComponent(key)}/resolve`, d),
   // attachmentIds: draft uploads (draft=file) that belong to this comment (mobile UI)
   // format 'md': written with the formatting toolbar
-  comment: (key, body, internal, attachmentIds, format = 'text') => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal, format, ...(attachmentIds?.length ? { attachmentIds } : {}) }),
+  // waitForCustomer false: the reply leaves the status as it is (default: open/in progress → "Waiting")
+  comment: (key, body, internal, attachmentIds, format = 'text', { waitForCustomer = true } = {}) => request('POST', `/api/tickets/${encodeURIComponent(key)}/comments`, { body, internal, format, ...(attachmentIds?.length ? { attachmentIds } : {}), ...(waitForCustomer ? {} : { waitForCustomer: false }) }),
   deleteComment: (key, id) => request('DELETE', `/api/tickets/${encodeURIComponent(key)}/comments/${id}`),
   upload: (key, files, { draft = false } = {}) => {
     const fd = new FormData();

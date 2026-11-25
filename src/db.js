@@ -975,6 +975,27 @@ export const MIGRATIONS = [
     CREATE INDEX idx_account_tokens_exp ON account_tokens(expires_at);
     `,
   },
+  {
+    id: 52,
+    name: 'Answered tickets wait for the customer',
+    sql: `
+    -- Since 1.55 a public reply of an agent puts the ticket on "Waiting". Tickets answered before:
+    -- open / in progress, the last public (not deleted) message is from an agent of the project who is
+    -- not the ticket's own customer → "Waiting" now, with a history entry (no mails, no user).
+    CREATE TEMP TABLE m52_waiting AS
+      SELECT t.id, t.status FROM tickets t
+      JOIN comments c ON c.id = (SELECT c2.id FROM comments c2 WHERE c2.ticket_id=t.id AND c2.internal=0 AND c2.deleted_at IS NULL
+                                 ORDER BY c2.created_at DESC, c2.id DESC LIMIT 1)
+      JOIN users u ON u.id=c.author_id
+      WHERE t.status IN ('open','in_progress')
+        AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=t.project_id))
+        AND (t.reporter_id IS NULL OR t.reporter_id<>u.id);
+    INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value)
+      SELECT id, NULL, 'changed', 'status', status, 'waiting' FROM m52_waiting;
+    UPDATE tickets SET status='waiting' WHERE id IN (SELECT id FROM m52_waiting);
+    DROP TABLE m52_waiting;
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

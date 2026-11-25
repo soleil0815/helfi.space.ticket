@@ -12,7 +12,7 @@ Ein schlankes Ticketsystem für IT-Abteilungen und Institute, auf Deutsch und En
 
 - **Active Directory** (Windows Server oder Samba AD): Anmeldung mit Windows-Konten, Rollen über AD-Gruppen (auch verschachtelt), **LDAPS-Zertifikat per Knopfdruck abrufen**
 - **Single Sign-on** über OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
-- **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Melder bekommen Antworten per E-Mail.
+- **E-Mail → Ticket:** Ein Postfach wird per IMAP abgerufen, neue Mails werden zu Tickets und Antworten landen im passenden Ticket. Kunden bekommen Antworten per E-Mail.
 - **Übersichtlich:** Seitenleiste mit Warteschlangen (offen, mir zugewiesen, nicht zugewiesen, wartet, kürzlich erledigt, alle) samt Live-Zahlen, Zusammenfassung je Projekt, Board mit Drag & Drop, Ticketliste mit Filtern und Seiten (50/100/250/500 pro Seite; bei einer Suche die besten 5000 Treffer), Ticketansicht mit Details, Kommentaren, internen Notizen, Anhängen und Verlauf
 - **Umzug leicht gemacht:** Import aus **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, **Jira** (Cloud, Server/Data Center) oder einer **CSV-Datei** – mit Kommentaren, internen Notizen und Anhängen; Ticketnummern bleiben erhalten, ein zweiter Lauf ergänzt nur Neues.
 - **Formatierte Antworten:** eine Werkzeugleiste über dem Kommentarfeld (Ticket, Wissensartikel, Handy) mit KI, fett/kursiv, Listen, Zitat, Code, Link, Bild, Emoji, @-Erwähnung und vorformulierten Antworten – formatiert beim Schreiben, formatiert in der Mail
@@ -139,7 +139,7 @@ Bearbeiter lassen sich Tickets zusammenfassen und Antworten vorschlagen, glätte
   - *Automatisch zuordnen*: Die Komponente wird direkt gesetzt; im Verlauf steht „von KI“ mit dem Modell.
   - Die **Trefferquote** steht auf der KI-Seite, z. B. „87 % (52 von 60 übernommen)“: übernommene und automatisch gesetzte, die niemand geändert hat, gegen korrigierte und verworfene.
   - Mit einem Cloud-Modell gehen dafür Titel und Beschreibung jedes neuen Tickets ohne Regel-Treffer an den Anbieter – die Seite weist darauf hin.
-- **Duplikate erkennen** (standardmäßig aus): Für ein neues Ticket sucht Helfi.Space zuerst ohne KI per Volltext ähnliche **offene** Tickets desselben Projekts aus den letzten 30 Tagen (höchstens 8). Nur wenn es welche gibt, prüft die KI, ob das neue Ticket dasselbe Problem meldet. Bearbeiter sehen dann im Ticket „Mögliches Duplikat von IT-12 – Begründung“ mit **Als Duplikat schließen** (öffnet den Dialog mit eingetragenem Original) und **Kein Duplikat** – auch auf dem Handy. Geschlossen wird nie automatisch; Melder sehen den Hinweis nicht, und er nennt nur Tickets, die der Betrachter selbst öffnen darf. Die Trefferquote steht auf der KI-Seite. Mit einem Cloud-Modell gehen dafür Titel und Beschreibung des neuen Tickets und der bis zu 8 möglichen Originale (je die ersten 1500 Zeichen) an den Anbieter.
+- **Duplikate erkennen** (standardmäßig aus): Für ein neues Ticket sucht Helfi.Space zuerst ohne KI per Volltext ähnliche **offene** Tickets desselben Projekts aus den letzten 30 Tagen (höchstens 8). Nur wenn es welche gibt, prüft die KI, ob das neue Ticket dasselbe Problem meldet. Bearbeiter sehen dann im Ticket „Mögliches Duplikat von IT-12 – Begründung“ mit **Als Duplikat schließen** (öffnet den Dialog mit eingetragenem Original) und **Kein Duplikat** – auch auf dem Handy. Geschlossen wird nie automatisch; Kunden sehen den Hinweis nicht, und er nennt nur Tickets, die der Betrachter selbst öffnen darf. Die Trefferquote steht auf der KI-Seite. Mit einem Cloud-Modell gehen dafür Titel und Beschreibung des neuen Tickets und der bis zu 8 möglichen Originale (je die ersten 1500 Zeichen) an den Anbieter.
 
 ## Selbstregistrierung und Kennwort vergessen
 
@@ -211,7 +211,7 @@ Standard: **Im internen Netz reicht das Kennwort, von außen ist ein zweiter Fak
 | Pflicht bei Anmeldung von außen | alle Benutzer (Standard) · Bearbeiter und Administratoren · nur Administratoren · niemand |
 | Im internen Netz | keine Zwei-Faktor-Abfrage (Standard) · nur Administratoren · Bearbeiter und Administratoren · alle Benutzer |
 
-Beispiel: Melder ohne Code, Bearbeiter von außen mit Code, Administratoren immer mit Code. Wer vorher „immer“ oder „nie“ eingestellt hatte, behält das Verhalten.
+Beispiel: Kunden ohne Code, Bearbeiter von außen mit Code, Administratoren immer mit Code. Wer vorher „immer“ oder „nie“ eingestellt hatte, behält das Verhalten.
 
 - **Zugriffe vom Server selbst** (127.0.0.1) gelten nicht automatisch als intern. Ein Reverse-Proxy auf demselben Rechner muss X-Forwarded-For setzen, sonst sähe jeder Zugriff wie vom Server selbst aus. Zum Testen lässt sich `127.0.0.1` in die Liste eintragen.
 - **Interne Netze** stehen in den Einstellungen, eine Angabe pro Zeile (Standard: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). Die Vorgabe deckt alle privaten Bereiche ab, auch Docker-Netze und ein Gäste-WLAN. Am besten auf die echten Firmennetze eingrenzen, z. B. `10.0.10.0/24`. Die Seite zeigt an, wie deine aktuelle Adresse erkannt wird.
@@ -265,19 +265,20 @@ Mit einem Passkey meldet man sich per Face ID, Touch ID, Windows Hello oder Ger�
 
 *Administration → E-Mail → Posteingang* (Abruf, Eingangsprojekt, Absender-Regeln, Schutz vor Mail-Schleifen) und *Postausgang* (Versand, Benachrichtigungen)
 
-- **Postfach abrufen (IMAP):** Server, Benutzer und Kennwort des Helpdesk-Postfachs eintragen. Neue Mails werden zu Tickets (inklusive Anhängen bis 20 MB je Anhang und bis zu 30 Anhängen; was nicht übernommen wird, steht als Hinweis im Ticket; Mails über 80 MB werden übersprungen und im Postfach markiert). Antworten auf Mails von Helfi.Space und Antworten des Melders oder eines Anfrage-Teilnehmers mit `[IT-123]` im Betreff werden zu Kommentaren, zitierter Verlauf wird abgeschnitten. Wer nur früher einmal im Ticket geschrieben hat, aber weder Melder noch Teilnehmer ist, bekommt mit `[IT-123]` im Betreff ein neues Ticket. Antwortet der Melder auf ein wartendes oder erledigtes Ticket, wird es wieder geöffnet – außer es wurde abgelehnt oder als Duplikat geschlossen: Dann wird die Antwort eine interne Notiz und das Ticket bleibt zu (bei Bedarf öffnet es ein Bearbeiter). Abwesenheitsnotizen und automatische Mails werden ignoriert. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben. Übersprungene Mails (automatisch erzeugt, Stundengrenze, Konto deaktiviert, ohne gültigen Absender, eigene Adresse, Regel „Ignorieren“) und Unzustellbarkeitsberichte bleiben gelesen im Posteingang; sie kommen nicht in den Ordner für verarbeitete Mails und werden deshalb auch nicht automatisch gelöscht.
+- **Postfach abrufen (IMAP):** Server, Benutzer und Kennwort des Helpdesk-Postfachs eintragen. Neue Mails werden zu Tickets (inklusive Anhängen bis 20 MB je Anhang und bis zu 30 Anhängen; was nicht übernommen wird, steht als Hinweis im Ticket; Mails über 80 MB werden übersprungen und im Postfach markiert). Antworten auf Mails von Helfi.Space und Antworten des Kunden oder eines Anfrage-Teilnehmers mit `[IT-123]` im Betreff werden zu Kommentaren, zitierter Verlauf wird abgeschnitten. Wer nur früher einmal im Ticket geschrieben hat, aber weder Kunde noch Teilnehmer ist, bekommt mit `[IT-123]` im Betreff ein neues Ticket. Antwortet der Kunde auf ein wartendes oder erledigtes Ticket, wird es wieder geöffnet – außer es wurde abgelehnt oder als Duplikat geschlossen: Dann wird die Antwort eine interne Notiz und das Ticket bleibt zu (bei Bedarf öffnet es ein Bearbeiter). Abwesenheitsnotizen und automatische Mails werden ignoriert. Verarbeitete Mails werden gelesen markiert oder in einen Ordner verschoben. Übersprungene Mails (automatisch erzeugt, Stundengrenze, Konto deaktiviert, ohne gültigen Absender, eigene Adresse, Regel „Ignorieren“) und Unzustellbarkeitsberichte bleiben gelesen im Posteingang; sie kommen nicht in den Ordner für verarbeitete Mails und werden deshalb auch nicht automatisch gelöscht.
 - **Welches Projekt? – über die Komponenten:** Eine neue Mail an das zentrale Postfach wird mit den Komponenten **aller Projekte** verglichen (Absender, Schlagwörter in Betreff und Text). Das Projekt der passenden Komponente bekommt das Ticket – mit dieser Komponente, ohne Zuweisung. „Heizung in Raum 12 kalt“ landet so in der Haustechnik mit der Komponente „Heizung & Klima“. Ein eigenes Postfach je Projekt braucht es nicht. Eine Absender-Regel mit Projekt hat Vorrang.
 - **Passt keine Komponente:** Das Ticket landet im **Eingangsprojekt** (*Administration → E-Mail → Posteingang → Eingangsprojekt*, sonst das Standardprojekt; in *Projekte* mit „Eingang“ markiert). Dessen Leitung und Vertretung verteilen es per *Verschieben* und bekommen die Erinnerungsmail, falls es liegen bleibt. Ist die KI-Funktion *Komponente erkennen* an, wählt die KI für solche Mails aus den Komponenten aller Projekte – als Vorschlag („Haustechnik / Heizung & Klima – übernehmen?“) oder direkt; übernommen wird das Ticket dabei verschoben. Eine Absender-Regel mit einem archivierten Projekt zählt wie eine ohne Projekt; ist das Eingangsprojekt archiviert, landet die Mail im Standardprojekt.
 - **Falsch gelandet?** Bearbeiter verschieben ein Ticket in **jedes** Projekt (Details → Projekt oder Mehrfachauswahl), auch in eines, das sie selbst nicht bearbeiten; danach sehen sie es dort nicht mehr. Die KI-Funktion *Komponente erkennen* schiebt ein von Hand verschobenes Ticket nicht zurück; offene KI-Vorschläge aus dem alten Projekt sind damit erledigt.
 - **Versand (SMTP):** Als Absender am besten dieselbe Adresse wie das Postfach verwenden, dann landen Antworten wieder im Ticket.
-- **Interne Notizen** gehen nie an Melder oder Teilnehmer, auch nicht ihre Bilder. Nur wer in einer internen Notiz mit **@** erwähnt wird – das können nur Bearbeiter des Projekts sein –, bekommt die Notiz samt Bildern per Mail.
+- **Interne Notizen** gehen nie an Kunden oder Teilnehmer, auch nicht ihre Bilder. Nur wer in einer internen Notiz mit **@** erwähnt wird – das können nur Bearbeiter des Projekts sein –, bekommt die Notiz samt Bildern per Mail.
+- **Antwort setzt auf „Wartet“:** Antwortet ein Bearbeiter dem Kunden auf ein offenes Ticket oder eines in Arbeit, steht es danach auf *Wartet* (Verlauf, SLA pausiert, zählt unter *Wartet auf Kunden*). Unter dem Antwortfeld lässt sich *Danach auf Kunden warten* abwählen, etwa für einen Zwischenstand. Interne Notizen, eigene Tickets, Großstörungs-Nachrichten und Genehmigungen ändern den Status nicht. Beim Update werden offene Tickets, deren letzte Antwort von einem Bearbeiter stammt, einmalig umgestellt (mit Verlaufseintrag, ohne Mails).
 - **Versandfehler:** Schlägt die Mail an einen Empfänger fehl, bekommen die übrigen ihre trotzdem. Lehnt der Mailserver eine Mail mit Bildern ab (z. B. weil sie zu groß ist), geht sie einmal als reiner Text mit „[Bild: Name]“ erneut raus.
-- Per Ticketnummer im Betreff dürfen nur Beteiligte antworten: der Melder, Anfrage-Teilnehmer und alle, die schon im Ticket geschrieben haben. Der zugewiesene Bearbeiter zählt nicht automatisch dazu. Wer die Nummer nur errät, bekommt ein eigenes neues Ticket. Antworten auf Mails von Helfi.Space werden über die Message-ID immer richtig zugeordnet.
+- Per Ticketnummer im Betreff dürfen nur Beteiligte antworten: der Kunde, Anfrage-Teilnehmer und alle, die schon im Ticket geschrieben haben. Der zugewiesene Bearbeiter zählt nicht automatisch dazu. Wer die Nummer nur errät, bekommt ein eigenes neues Ticket. Antworten auf Mails von Helfi.Space werden über die Message-ID immer richtig zugeordnet.
 - Wird eine Antwort nur über die Nummer im Betreff zugeordnet, werden ihre An/CC-Empfänger nicht Teilnehmer. Das geschieht nur bei neuen Tickets und bei Antworten auf Mails von Helfi.Space (Bezug über die Message-ID).
-- Absenderadressen lassen sich fälschen. Deshalb gilt eine Mail nie als Bearbeiter-Antwort, auch wenn sie von der Adresse eines Bearbeiters kommt: Sie erscheint mit der Absenderadresse, nicht unter dem Konto, und wird nicht an den Melder weitergeleitet. Bearbeiter antworten über die Weboberfläche.
+- Absenderadressen lassen sich fälschen. Deshalb gilt eine Mail nie als Bearbeiter-Antwort, auch wenn sie von der Adresse eines Bearbeiters kommt: Sie erscheint mit der Absenderadresse, nicht unter dem Konto, und wird nicht an den Kunden weitergeleitet. Bearbeiter antworten über die Weboberfläche.
 - Antworten per Mail auf Zuweisungs-, SLA- oder Genehmigungsmails an Bearbeiter werden interne Notizen und öffnen das Ticket nicht wieder.
-- Antworten auf eine Mail des Ticketsystems von jemandem, der nicht mehr Melder oder Teilnehmer ist (z. B. nach einem Melderwechsel oder als Genehmigender ohne Teilnahme), werden ebenfalls nur interne Notizen: keine neuen Teilnehmer aus CC, kein Wiedereröffnen.
-- Mails von der Adresse eines Bearbeiters, die nur über `[IT-123]` im Betreff zugeordnet werden, werden interne Notizen und öffnen nichts wieder; ebenso Mails von einer Bearbeiter-Adresse, die auf eine Mail an jemand anderen antworten (z. B. die Benachrichtigung des Melders) – der Absender einer Mail lässt sich fälschen, die Ticketnummer erraten. Antworten an den Melder deshalb im Ticket schreiben.
+- Antworten auf eine Mail des Ticketsystems von jemandem, der nicht mehr Kunde oder Teilnehmer ist (z. B. nach einem Kundenwechsel oder als Genehmigender ohne Teilnahme), werden ebenfalls nur interne Notizen: keine neuen Teilnehmer aus CC, kein Wiedereröffnen.
+- Mails von der Adresse eines Bearbeiters, die nur über `[IT-123]` im Betreff zugeordnet werden, werden interne Notizen und öffnen nichts wieder; ebenso Mails von einer Bearbeiter-Adresse, die auf eine Mail an jemand anderen antworten (z. B. die Benachrichtigung des Kunden) – der Absender einer Mail lässt sich fälschen, die Ticketnummer erraten. Antworten an den Kunden deshalb im Ticket schreiben.
 - Helfi.Space merkt sich verarbeitete Mails mit einem eigenen IMAP-Kennzeichen (`$HelfiDone`). Liest jemand das Postfach parallel in Outlook oder auf dem Handy, werden die Mails trotzdem verarbeitet. Kann der Mailserver keine eigenen Kennzeichen speichern, holt Helfi.Space wie früher nur ungelesene Mails – dann das Postfach nicht parallel lesen. Empfohlen ist ein Ordner für verarbeitete Mails.
 - Eingangsbestätigungen gehen höchstens 60-mal pro Stunde raus (Schutz vor Missbrauch mit gefälschten Absendern).
 - Schleifenschutz: Mehr als 20 neue Tickets pro Stunde vom selben Absender werden ignoriert.
@@ -301,7 +302,7 @@ Mails im HTML-Format zeigt Helfi.Space bei Beschreibung und Antworten **formatie
 
 ## Suche
 
-Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und die beteiligten Personen (Melder, Bearbeiter, Antwortende, auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge, Stichwörter und die Namen, die sie im Ticket auch sehen (Melder, Bearbeiter, Antwortende) – nie über interne Notizen, Mailadressen oder Anmeldenamen.
+Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antworten, Stichwörter und Namen der Anhänge. Bearbeiter finden zusätzlich interne Notizen und die beteiligten Personen (Kunde, Bearbeiter, Antwortende, auch über Mailadresse und Anmeldenamen). Benutzer ohne Bearbeiter-Rolle finden Tickets über Titel, Beschreibung, öffentliche Antworten, Namen der Anhänge, Stichwörter und die Namen, die sie im Ticket auch sehen (Kunde, Bearbeiter, Antwortende) – nie über interne Notizen, Mailadressen oder Anmeldenamen.
 
 - **Treffer schon beim Tippen:** Ab zwei Zeichen zeigt eine Liste unter dem Suchfeld bis zu acht Tickets mit Nummer, Titel, Status und Fundstelle (z. B. „Antwort von Eva Berger: …“). ↑/↓ wählt, Enter oder Klick öffnet das Ticket, Enter ohne Auswahl bzw. *Alle Treffer anzeigen* führt wie bisher zur Ticketliste mit allen Ergebnissen und Filtern; Esc schließt. Eine Ticketnummer steht als „IT-42 öffnen“ ganz oben. Im leeren Feld erscheinen die zuletzt geöffneten Tickets (nur im Browser gespeichert, beim Abmelden gelöscht). Auf dem Handy genauso im Tab *Tickets*.
 - **Wortteile** werden gefunden: `drucker` findet auch „Netzwerkdrucker“. Groß- und Kleinschreibung spielt keine Rolle.
@@ -312,26 +313,26 @@ Das Suchfeld oben durchsucht alle Tickets im Volltext: Titel, Beschreibung, Antw
 
 ## Anfrage-Teilnehmer
 
-Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem oder die Vorgesetzte.
+Neben dem Kunden können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem oder die Vorgesetzte.
 
 - **Hinzufügen:** in der Ticketansicht unter *Anfrage-Teilnehmer → Hinzufügen*.
   - Bearbeiter suchen nach Name oder tragen eine beliebige E-Mail-Adresse ein. Die Vorschläge erscheinen beim Tippen, der Cursor bleibt im Feld; auswählen mit Klick oder ↑/↓ und Enter, Esc bricht ab.
   - **Aus dem AD:** Bearbeiter sehen ab 3 Zeichen auch Personen aus dem AD (markiert mit „AD“), gesucht in Name, Anmeldename und Mailadressen samt Zweitadressen. Wer gewählt wird, wird als AD-Benutzer angelegt bzw. aktualisiert, mit Mailadresse und Rolle aus dem AD; ein vorhandener E-Mail-Kontakt wird übernommen. Auch eine eingetippte Mailadresse wird im AD nachgeschlagen. Personen, die laut Gruppen Helfi.Space nicht nutzen dürfen, kommen als E-Mail-Kontakt dazu. Ist das AD nicht erreichbar, erscheinen nur die vorhandenen Personen. Abschaltbar unter *Administration → Active Directory → Teilnehmer aus dem AD vorschlagen*, braucht das Dienstkonto.
-  - Melder und Teilnehmer können Kollegen mit eigenem Konto hinzufügen, aber keine freien Adressen.
+  - Kunden und Teilnehmer können Kollegen mit eigenem Konto hinzufügen, aber keine freien Adressen.
   - Höchstens 20 je Ticket.
 - **Per E-Mail:** Wer bei einer neuen Mail oder einer Antwort auf eine Mail von Helfi.Space in *An* oder *CC* steht, wird automatisch Teilnehmer (nicht, wenn eine Antwort nur über die Nummer im Betreff zugeordnet wird). Das gilt für höchstens 10 Adressen je Mail; die eigene Helpdesk-Adresse und Bearbeiter zählen nicht mit. Abschaltbar unter *Administration → E-Mail → Posteingang*.
 - **Was Teilnehmer dürfen:**
   - das Ticket sehen, auch unter *Meine Anfragen* mit dem Filter „Ich bin Teilnehmer“
   - im Web oder per Antwort-Mail kommentieren und Dateien anhängen
-- **Was Teilnehmer nicht dürfen:** interne Notizen sehen, Status, Zuweisung oder Titel ändern. Vom Melder und von anderen Antwortenden sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen (das gilt auch für Genehmigende ohne Bearbeiter-Rolle und in der Personensuche).
+- **Was Teilnehmer nicht dürfen:** interne Notizen sehen, Status, Zuweisung oder Titel ändern. Vom Kunden und von anderen Antwortenden sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen (das gilt auch für Genehmigende ohne Bearbeiter-Rolle und in der Personensuche).
 - **Absender ist immer das Ticketsystem** (keine Adressen oder Signaturen von Bearbeitern). Antwort- und Erledigt-Mails enden mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei.
 - **Erinnerung an Projektverantwortliche** (*Administration → Tickets → Allgemein*, Standard aus): Einmal am Tag zur eingestellten Uhrzeit bekommen Leitung und Vertretung jedes Projekts eine Sammelmail mit den offenen Tickets ohne Bearbeiter, die vor mindestens X Tagen angelegt wurden – mit Links zu den Tickets und zur gefilterten Liste. Gibt es weder Leitung noch Vertretung mit Mailadresse und aktivem Konto, geht sie an die Admins; ohne liegengebliebene Tickets kommt keine Mail. Standardmäßig nur Montag bis Freitag (abschaltbar); *Jetzt prüfen und senden* zum Ausprobieren.
-- **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Melder (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
-- **Entfernen:** Bearbeiter, der Melder oder die Person selbst.
+- **Benachrichtigungen:** Teilnehmer bekommen dieselben Mails wie der Kunde (Antworten, Erledigt), jeder einzeln in seiner Sprache, ohne die Adressen der anderen. Wer im Web hinzugefügt wird, bekommt eine kurze Mail.
+- **Entfernen:** Bearbeiter, der Kunde oder die Person selbst.
 
 ## Erledigen mit Abschlusskommentar
 
-*Erledigt* im Status-Menü öffnet ein Fenster für einen optionalen Abschlusskommentar: **Antwort an Melder** (voreingestellt, dann keine zusätzliche „Erledigt“-Mail) oder **interne Notiz**, mit Antwortvorlagen und Platzhaltern. Kommentieren und Schließen in einem Schritt; ohne Text wird einfach erledigt, <kbd>Strg</kbd>+<kbd>Enter</kbd> erledigt sofort. Genauso in der Mehrfachauswahl und auf dem Handy (*Status → Erledigt*).
+*Erledigt* im Status-Menü öffnet ein Fenster für einen optionalen Abschlusskommentar: **Antwort an Kunden** (voreingestellt, dann keine zusätzliche „Erledigt“-Mail) oder **interne Notiz**, mit Antwortvorlagen und Platzhaltern. Kommentieren und Schließen in einem Schritt; ohne Text wird einfach erledigt, <kbd>Strg</kbd>+<kbd>Enter</kbd> erledigt sofort. Genauso in der Mehrfachauswahl und auf dem Handy (*Status → Erledigt*).
 
 ## Projektrechte
 
@@ -351,11 +352,11 @@ Beispiel: Projekt IT anlegen, Bearbeiter-Gruppe `Helpdesk`, dich als Leitung und
 
 Ein erledigtes Ticket hat eine **Lösung**: *Erledigt*, *Abgelehnt* oder *Duplikat*. Intern bleibt der Status „Erledigt“ – Service Level, Board, Berichte, automatisches Schließen und Wiederöffnen funktionieren deshalb wie gewohnt.
 
-- **Ablehnen:** im Status-Menü des Tickets *Ablehnen …* (Handy: Status → *Ablehnen …*). Die **Begründung ist Pflicht** und geht als Antwort an Melder und Teilnehmer – statt der „Erledigt“-Mail. Antwortvorlagen und Platzhalter funktionieren; eine Zufriedenheitsumfrage gibt es nicht.
-- **Als Duplikat schließen:** Original-Ticket wählen (Nummer oder Suche). Das Ticket wird mit dem Original verknüpft; der Melder bekommt einen Standardhinweis mit der Nummer des Originals (oder deinen eigenen Text). Optional werden Melder und Teilnehmer **zum Original hinzugefügt** und dort auf dem Laufenden gehalten – nur anhaken, wenn das Original nichts Vertrauliches enthält. Als Original lassen sich nur Tickets wählen, die man selbst bearbeitet; ist das Original seinerseits ein Duplikat, gilt das auch für die Tickets, auf die es verweist.
+- **Ablehnen:** im Status-Menü des Tickets *Ablehnen …* (Handy: Status → *Ablehnen …*). Die **Begründung ist Pflicht** und geht als Antwort an Kunden und Teilnehmer – statt der „Erledigt“-Mail. Antwortvorlagen und Platzhalter funktionieren; eine Zufriedenheitsumfrage gibt es nicht.
+- **Als Duplikat schließen:** Original-Ticket wählen (Nummer oder Suche). Das Ticket wird mit dem Original verknüpft; der Kunde bekommt einen Standardhinweis mit der Nummer des Originals (oder deinen eigenen Text). Optional werden Kunden und Teilnehmer **zum Original hinzugefügt** und dort auf dem Laufenden gehalten – nur anhaken, wenn das Original nichts Vertrauliches enthält. Als Original lassen sich nur Tickets wählen, die man selbst bearbeitet; ist das Original seinerseits ein Duplikat, gilt das auch für die Tickets, auf die es verweist.
 - **Mehrere auf einmal:** in der Ticketliste über die Mehrfachauswahl → *Status* → *Ablehnen …* bzw. *Als Duplikat schließen …*; Platzhalter werden je Ticket ersetzt.
 - **Anzeige:** Lozenge *Abgelehnt* bzw. *Duplikat* statt *Erledigt* (Listen, Ticket, *Meine Anfragen*, Handy), „Duplikat von IT-12“ mit Link, Eintrag im Verlauf. Filter *Lösung* in der Ticketliste, sobald der Status *Erledigt* gewählt ist.
-- **Wiederöffnen:** Eine Antwort-Mail auf ein abgelehntes oder als Duplikat geschlossenes Ticket öffnet es nicht wieder, sondern wird eine interne Notiz (ein „Danke“ oder eine gefälschte Mail soll die Entscheidung nicht aufheben). Schreibt der Melder in der Weboberfläche, öffnet sich das Ticket wie gewohnt wieder; beim Wiederöffnen wird die Lösung zurückgesetzt. Ein schon erledigtes Ticket lässt sich nachträglich ablehnen oder als Duplikat markieren.
+- **Wiederöffnen:** Eine Antwort-Mail auf ein abgelehntes oder als Duplikat geschlossenes Ticket öffnet es nicht wieder, sondern wird eine interne Notiz (ein „Danke“ oder eine gefälschte Mail soll die Entscheidung nicht aufheben). Schreibt der Kunde in der Weboberfläche, öffnet sich das Ticket wie gewohnt wieder; beim Wiederöffnen wird die Lösung zurückgesetzt. Ein schon erledigtes Ticket lässt sich nachträglich ablehnen oder als Duplikat markieren.
 - **Berichte:** Abgelehnte und Duplikate stehen im Bericht je Komponente in einer eigenen Spalte und zählen nicht zur Ø Lösungszeit (auch nicht je Bearbeiter).
 - **Servicekatalog:** Eine abgelehnte Genehmigung schließt die Anfrage als *Abgelehnt*.
 - **Import:** Lösungen oder Statusnamen aus dem Quellsystem wie „Won't Do“, „Declined“, „Rejected/Abgelehnt“ oder „Cancelled/Storniert“ werden zu *Abgelehnt*, „Duplicate/doppelt“ zu *Duplikat*.
@@ -364,15 +365,15 @@ Ein erledigtes Ticket hat eine **Lösung**: *Erledigt*, *Abgelehnt* oder *Duplik
 
 Kommt ein Anliegen per Telefon, im Flur oder an ein anderes Postfach, erfassen Bearbeiter das Ticket gleich im Namen der Person. So landet es bei ihr unter *Meine Anfragen*, und sie gewöhnt sich ans Ticketsystem.
 
-- **Beim Erstellen:** Im Dialog *Ticket erstellen* steht oben der **Melder**, voreingestellt „Ich“. *Für jemand anderen erfassen* öffnet die Suche:
+- **Beim Erstellen:** Im Dialog *Ticket erstellen* steht oben der **Kunde**, voreingestellt „Ich“. *Für jemand anderen erfassen* öffnet die Suche:
   - vorhandene Konten nach Name, Anmeldename oder Mailadresse
   - ab 3 Zeichen auch Personen aus dem AD (wie bei den Teilnehmern; sie werden beim Speichern als AD-Benutzer angelegt)
   - oder eine beliebige Mailadresse; ohne Konto entsteht ein E-Mail-Kontakt wie bei Tickets per Mail
 - **Benachrichtigen** (standardmäßig an): Die Person bekommt eine Mail mit Ticketnummer und Link. Personen mit Konto erhalten dazu den Hinweis, dass sie neue Anliegen künftig selbst in Helfi.Space melden können. Ist der Mailabruf eingerichtet, können sie auf die Mail antworten.
 - **Nachvollziehbar:** Der Verlauf zeigt, welcher Bearbeiter das Ticket für wen angelegt hat.
-- **Nachträglich ändern:** in den Details *Melder → Melder ändern* (Handy: *Alle Details → Melder*). Der bisherige Melder behält als Anfrage-Teilnehmer Zugriff; Bearbeiter und reine E-Mail-Kontakte nicht. Die Änderung steht im Verlauf.
-- **Nur Bearbeiter:** Benutzer können keinen anderen Melder eintragen (der Server lehnt das ab). Deaktivierte Konten lassen sich nicht wählen.
-- **Auf dem Handy:** *+ → Problem melden* zeigt Bearbeitern oben das Feld *Melder*.
+- **Nachträglich ändern:** in den Details *Kunde → Kunden ändern* (Handy: *Alle Details → Kunde*). Der bisherige Kunde behält als Anfrage-Teilnehmer Zugriff; Bearbeiter und reine E-Mail-Kontakte nicht. Die Änderung steht im Verlauf.
+- **Nur Bearbeiter:** Benutzer können keinen anderen Kunden eintragen (der Server lehnt das ab). Deaktivierte Konten lassen sich nicht wählen.
+- **Auf dem Handy:** *+ → Problem melden* zeigt Bearbeitern oben das Feld *Kunde*.
 
 ## Reihenfolge der Aktivität
 
@@ -399,14 +400,14 @@ Ein Kommentar lässt sich löschen, z. B. wenn ein Kennwort versehentlich im Tic
 - **Link** (Strg+K, auch Ticketnummern wie IT-42), **Bild** (oder Strg+V), **Emoji** (auch „:)“) und **@** zum Erwähnen.
 - **Vorformulierte Antworten** rechts in der Leiste, im selben Menü *Als Vorlage speichern*. Strg+Enter speichert.
 
-Gespeichert wird Text im Format der Wissensartikel. Melder und Teilnehmer bekommen die Antwort formatiert per Mail (HTML) mit einem lesbaren Textteil ohne Sternchen. **Bilder in der Mail:** Bilder aus der Antwort kommen direkt in der Mail mit und stehen an ihrer Stelle im Text – der Empfänger muss sich dafür nicht anmelden und nichts freischalten. Bis zu 5 Bilder je Mail (nur echte PNG-, JPEG-, GIF- und WebP-Dateien, je bis 2 MB, zusammen höchstens etwa 5 MB; ein mehrfach eingefügtes Bild kommt nur einmal mit); was darüber hinausgeht, steht als Hinweis „[Bild: Name]“ in der Mail und ist im Ticket zu sehen. Bilder aus internen Notizen gehen nie an Melder oder Teilnehmer. Ältere Kommentare und Mails werden unverändert angezeigt. **Grenzen:** Infokästen, Zitate und Listen werden bis zu 8 Ebenen tief verschachtelt dargestellt, Tabellen mit höchstens 50 Spalten und 5000 Zellen; was darüber hinausgeht, erscheint als normaler Text. So kann kein Kommentar den Browser oder den Server lahmlegen.
+Gespeichert wird Text im Format der Wissensartikel. Kunden und Teilnehmer bekommen die Antwort formatiert per Mail (HTML) mit einem lesbaren Textteil ohne Sternchen. **Bilder in der Mail:** Bilder aus der Antwort kommen direkt in der Mail mit und stehen an ihrer Stelle im Text – der Empfänger muss sich dafür nicht anmelden und nichts freischalten. Bis zu 5 Bilder je Mail (nur echte PNG-, JPEG-, GIF- und WebP-Dateien, je bis 2 MB, zusammen höchstens etwa 5 MB; ein mehrfach eingefügtes Bild kommt nur einmal mit); was darüber hinausgeht, steht als Hinweis „[Bild: Name]“ in der Mail und ist im Ticket zu sehen. Bilder aus internen Notizen gehen nie an Kunden oder Teilnehmer. Ältere Kommentare und Mails werden unverändert angezeigt. **Grenzen:** Infokästen, Zitate und Listen werden bis zu 8 Ebenen tief verschachtelt dargestellt, Tabellen mit höchstens 50 Spalten und 5000 Zellen; was darüber hinausgeht, erscheint als normaler Text. So kann kein Kommentar den Browser oder den Server lahmlegen.
 
 ## @-Erwähnungen
 
 Bearbeiter holen Kollegen gezielt in ein Ticket: Im Antwortfeld (Desktop und Handy) **@** und ein paar Buchstaben tippen, Person auswählen (Klick/Tippen oder ↑/↓ und Enter bzw. Tab; Esc schließt die Liste). Im Kommentar erscheint der Name hervorgehoben, die eigene Erwähnung farbig.
 
-- **Wer erwähnt werden kann:** in einer **internen Notiz** nur Bearbeiter; in einer **Antwort** außerdem Melder, Teilnehmer und Genehmigende des Tickets. Wer das Ticket nicht sehen darf, wird nicht angeboten – und auch ein von Hand getippter Verweis wird beim Speichern zu reinem Text. Melder erwähnen niemanden; Kommentare aus E-Mails auch nicht (Absender lassen sich fälschen).
-- **Benachrichtigung:** Wer erwähnt wird, bekommt eine Mail vom Ticketsystem („[IT-12] Anna hat Sie erwähnt: …“) mit dem Kommentar und dem Link. Melder und Teilnehmer, die die Antwort ohnehin per Mail bekommen, erhalten keine zweite. Wer sich selbst erwähnt, bekommt nichts. Bilder aus dem Kommentar kommen wie bei Antworten direkt in der Mail mit; erwähnte Bearbeiter des Projekts bekommen so auch Text und Bilder einer internen Notiz. Antworten auf die Mail eines Bearbeiters werden wie gewohnt zu internen Notizen. Abschaltbar unter *Kanäle: E-Mail → Benachrichtigungen*.
+- **Wer erwähnt werden kann:** in einer **internen Notiz** nur Bearbeiter; in einer **Antwort** außerdem Kunden, Teilnehmer und Genehmigende des Tickets. Wer das Ticket nicht sehen darf, wird nicht angeboten – und auch ein von Hand getippter Verweis wird beim Speichern zu reinem Text. Kunden erwähnen niemanden; Kommentare aus E-Mails auch nicht (Absender lassen sich fälschen).
+- **Benachrichtigung:** Wer erwähnt wird, bekommt eine Mail vom Ticketsystem („[IT-12] Anna hat Sie erwähnt: …“) mit dem Kommentar und dem Link. Kunden und Teilnehmer, die die Antwort ohnehin per Mail bekommen, erhalten keine zweite. Wer sich selbst erwähnt, bekommt nichts. Bilder aus dem Kommentar kommen wie bei Antworten direkt in der Mail mit; erwähnte Bearbeiter des Projekts bekommen so auch Text und Bilder einer internen Notiz. Antworten auf die Mail eines Bearbeiters werden wie gewohnt zu internen Notizen. Abschaltbar unter *Kanäle: E-Mail → Benachrichtigungen*.
 - **Wiederfinden:** *Erwähnt mich* in der Seitenleiste (Handy: Chip *Erwähnt* unter *Tickets*) listet alle Tickets mit einer Erwähnung; die Zahl daneben zählt die noch nicht geöffneten. Neue Erwähnungen sind in den Listen mit **@** markiert, der betreffende Kommentar im Ticket ebenfalls. Mit dem Öffnen des Tickets gilt die Erwähnung als gesehen.
 - Erwähnungen werden nicht automatisch zu Teilnehmern oder Beobachtern – dafür gibt es *Anfrage-Teilnehmer*.
 
@@ -445,7 +446,7 @@ Komponenten teilen ein Projekt in Zuständigkeiten auf. Jede hat einen Namen, ei
 In *Alle Tickets* (Bearbeiter):
 - **Auswählen:** Kästchen vor jeder Zeile, „alle“ im Kopf, Umschalt+Klick für einen Bereich, `x` für das mit `j`/`k` markierte Ticket.
 - **Aktionsleiste:**
-  - **Erledigen** und **Status:** jeweils mit optionalem Kommentar – wahlweise als Antwort an Melder und Teilnehmer oder als interne Notiz, mit Vorlagen und Platzhaltern je Ticket. Mit Antwort gibt es keine zusätzliche „Erledigt“-Mail.
+  - **Erledigen** und **Status:** jeweils mit optionalem Kommentar – wahlweise als Antwort an Kunden und Teilnehmer oder als interne Notiz, mit Vorlagen und Platzhaltern je Ticket. Mit Antwort gibt es keine zusätzliche „Erledigt“-Mail.
   - **Kommentieren:** Antwort oder interne Notiz für alle ausgewählten Tickets, ohne den Status zu ändern. Eine interne Notiz wird nie zur öffentlichen Antwort: Tickets eines Projekts, das man nicht bearbeitet, werden mit Fehler übersprungen.
   - **Verknüpfen …:** alle ausgewählten Tickets mit einem Ticket verknüpfen, z. B. „wird verursacht durch IT-42“; optional gleich mit Status und Kommentar. Bestehende Verknüpfungen bleiben, wie sie sind.
   - **Zuweisen**, **Priorität**
@@ -466,7 +467,7 @@ In der Ticketansicht (Bearbeiter) unter *Verknüpfungen* – oder schneller übe
 ## Auswirkung, Dringlichkeit und Major Incident
 
 - **Priorität nach ITIL:** In den Details setzen Bearbeiter *Auswirkung* und *Dringlichkeit* (hoch/mittel/niedrig). Sind beide gesetzt, ergibt sich die Priorität aus der Matrix (z. B. hoch × hoch = Sehr hoch, mittel × mittel = Mittel). Von Hand lässt sie sich weiterhin ändern.
-- **Major Incident:** Eine Störung mit vielen Betroffenen über den Knopf *Major Incident* kennzeichnen. Alle Bearbeiter sehen sie oben als roten Hinweis. Betroffene Tickets hängst du über *Verknüpfen → verursacht* an. **Info an alle Betroffenen** schreibt dieselbe Antwort in den Major Incident und alle offenen betroffenen Tickets, sodass jeder Melder und Teilnehmer sie per Mail bekommt. Optional werden danach alle auf „Erledigt“ gesetzt.
+- **Major Incident:** Eine Störung mit vielen Betroffenen über den Knopf *Major Incident* kennzeichnen. Alle Bearbeiter sehen sie oben als roten Hinweis. Betroffene Tickets hängst du über *Verknüpfen → verursacht* an. **Info an alle Betroffenen** schreibt dieselbe Antwort in den Major Incident und alle offenen betroffenen Tickets, sodass jeder Kunde und Teilnehmer sie per Mail bekommt. Optional werden danach alle auf „Erledigt“ gesetzt.
 
 ## Service Level (SLA)
 
@@ -503,7 +504,7 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 
 ## Wissensdatenbank
 
-*Wissen* in der Seitenleiste; für Benutzer heißt sie *Hilfe & Wissen*.
+*Wissensdatenbank* in der Seitenleiste; für Benutzer heißt sie *Hilfe & Wissen*. Auf dem Handy steht in der Leiste unten kurz *Wissen*.
 
 - **Artikel** mit Titel, Kategorie und formatiertem Inhalt. Sichtbarkeit **intern** (nur die Personen des Projekts) oder **öffentlich** (alle Angemeldeten).
 - **Je Projekt:** Jeder Artikel gehört zu einem Projekt (z. B. IT oder Haustechnik).
@@ -531,7 +532,7 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 Benutzer landen beim Aufruf der Startseite im **Portal** (`/portal`) – nur mit Anmeldung.
 
 - **Oben:** Begrüßung und eine Suche über die Angebote des Servicekatalogs und die öffentlichen Anleitungen aller Abteilungen.
-- **Meine Anfragen:** drei Zähler – *Aktiv*, *Wartet auf dich* (Status „Wartet“, also eine offene Rückfrage) und *Erledigt* – und die letzten eigenen Anfragen. Ein Klick auf einen Zähler öffnet genau die gezählten eigenen Anfragen (am Computer und auf dem Handy); die Statusauswahl der Liste hat dafür die Option *Aktiv*.
+- **Meine Anfragen:** drei Zähler – *Aktiv*, *Wartet auf dich* (Status „Wartet“: die IT hat geantwortet oder nachgefragt) und *Erledigt* – und die letzten eigenen Anfragen. Ein Klick auf einen Zähler öffnet genau die gezählten eigenen Anfragen (am Computer und auf dem Handy); die Statusauswahl der Liste hat dafür die Option *Aktiv*.
 - **Abteilungen:** jedes Projekt mit „Im Portal zeigen“ als Kachel mit Symbol, Farbe, Kurzbeschreibung und der Zahl der Angebote und Anleitungen.
 - **Abteilungsseite** (`/portal/<projekt>`, z. B. `/portal/hm`): optionaler Hinweis oben (z. B. eine Notfallnummer), die Angebote der Abteilung, **Anderes Anliegen melden** (das Ticket landet fest in diesem Projekt) und rechts die zuletzt aktualisierten öffentlichen Artikel (häufige Fragen).
 - **Einrichten** <sup>Admin</sup>: im Projekt-Dialog unter *Im Portal* – anzeigen ja/nein, Kurzbeschreibung, Hinweis, Symbol, Farbe und Reihenfolge. Nach dem Update sind alle Projekte sichtbar; Symbol und Kurzbeschreibung lohnt es sich nachzutragen.
@@ -547,8 +548,8 @@ Standardanfragen mit eigenem Formular, z. B. „Neuer Mitarbeiter“, „Softwar
 - **Formular:** Felder vom Typ Text, mehrzeilig, Auswahl, Häkchen oder Datum, jeweils optional als Pflichtfeld. Die Antworten stehen übersichtlich in der Beschreibung des Tickets (Typ *Anfrage*).
 - **Service anfordern** in der Seitenleiste zeigt Benutzern und Bearbeitern alle Angebote als Kacheln.
 - **Genehmigung (optional):** Pro Angebot legst du fest, wer zustimmen muss und ob eine Zustimmung genügt oder alle zustimmen müssen. Genehmigende fügst du über die Personensuche hinzu; das dürfen auch Personen ohne Bearbeiter-Rolle sein, etwa Vorgesetzte; sie sehen dann nur die Anfragen, über die sie entscheiden. Sie bekommen eine Mail und finden offene Entscheidungen unter **Meine Genehmigungen**.
-- **Ergebnis:** Die Entscheidung kommt als Antwort ins Ticket, der Melder bekommt sie also auch per Mail. Eine Ablehnung schließt die Anfrage.
-- **Text bleibt, wie genehmigt:** Solange die Genehmigung läuft und nachdem sie erteilt ist, kann der Melder Titel und Beschreibung nicht mehr ändern – sonst wäre etwas anderes genehmigt, als umgesetzt wird. Ergänzungen schreibt er als Kommentar; Bearbeiter können den Text weiter korrigieren.
+- **Ergebnis:** Die Entscheidung kommt als Antwort ins Ticket, der Kunde bekommt sie also auch per Mail. Eine Ablehnung schließt die Anfrage.
+- **Text bleibt, wie genehmigt:** Solange die Genehmigung läuft und nachdem sie erteilt ist, kann der Kunde Titel und Beschreibung nicht mehr ändern – sonst wäre etwas anderes genehmigt, als umgesetzt wird. Ergänzungen schreibt er als Kommentar; Bearbeiter können den Text weiter korrigieren.
 - **Beispiele übernehmen (Admins):** *Beispiele* legt typische Angebote mit fertigem Formular an – neue Mitarbeiterin/neuer Mitarbeiter, Ausscheiden, Software installieren, Zugriff auf Laufwerk oder Ordner, Hardware bestellen, WLAN für Gäste, Verteiler oder Gruppenpostfach – auf Deutsch oder Englisch. Sie sind zunächst **ausgeschaltet** und noch keinem Projekt zugeordnet: Projekt wählen, Felder und Genehmigende prüfen, dann einschalten.
 
 ## Geräte & Dienste
@@ -565,8 +566,8 @@ Ein schlankes Verzeichnis der IT-Ausstattung und Dienste (CI-Verzeichnis), nur f
 
 Einschalten unter *Administration → Tickets → Allgemein → Zufriedenheitsumfrage* (Standard: aus).
 
-- **In der „Erledigt“-Mail** bekommt der Melder fünf Links von „sehr zufrieden“ bis „sehr unzufrieden“. Ein Klick genügt, eine Anmeldung ist nicht nötig. Auf der Seite kann er die Sterne noch ändern und freiwillig einen Kommentar schreiben. Anfrage-Teilnehmer bekommen keine Links.
-- **Im Ticket** können angemeldete Melder ebenfalls bewerten. Bearbeiter sehen die Bewertung samt Kommentar oben im Ticket; Änderungen der Sterne stehen im Verlauf.
+- **In der „Erledigt“-Mail** bekommt der Kunde fünf Links von „sehr zufrieden“ bis „sehr unzufrieden“. Ein Klick genügt, eine Anmeldung ist nicht nötig. Auf der Seite kann er die Sterne noch ändern und freiwillig einen Kommentar schreiben. Anfrage-Teilnehmer bekommen keine Links.
+- **Im Ticket** können angemeldete Kunden ebenfalls bewerten. Bearbeiter sehen die Bewertung samt Kommentar oben im Ticket; Änderungen der Sterne stehen im Verlauf.
 - **Sicherheit:** Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen (Standard 14) und zeigt nur Ticketnummer und Titel. Wird das Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage; der alte Link verfällt.
 - **Auswertung** unter *Berichte → Zufriedenheit*: Durchschnitt, Rücklaufquote, Verteilung der Sterne, Werte je Bearbeiter und die neuesten Kommentare. Probleme und Changes werden nicht abgefragt.
 
@@ -576,7 +577,7 @@ Auf dem Handy öffnet sich Helfi.Space automatisch in einer eigenen, app-artigen
 
 - **Unten eine Tab-Leiste:** *Meine Arbeit* (Bearbeiter) bzw. *Portal* und *Anfragen* (Benutzer, siehe [Portal](#portal-für-benutzer)), *Tickets* (Bearbeiter), der runde **＋**-Knopf, *Wissen* und *Ich*. Seiten schieben sich wie in einer App herein; Zurück per Knopf, Wisch vom linken Rand oder Zurück-Taste. Listen lassen sich nach unten ziehen zum Aktualisieren.
 - **Melden (＋):** Problem melden mit Titel, Beschreibung, **Foto aufnehmen** oder **Datei**; Bearbeiter wählen zusätzlich Projekt, Typ und Priorität (wie am PC). Schon beim Tippen des Titels schlägt Helfi.Space passende Wissensartikel vor. Gibt es einen Servicekatalog, stehen seine Angebote als große Kacheln daneben – mit allen Feldarten, Pflichtfeldern und Genehmigung. Ein nicht abgeschickter Entwurf bleibt erhalten, bis der Tab geschlossen wird.
-- **Ticket:** Kommentare wie ein Chat, Antwortleiste unten mit Fotos und Dateien; Bearbeiter blenden über *Alle* auch den Verlauf (Status, Zuweisungen …) ein – das Handy merkt sich die Wahl. Bearbeiter schreiben auch interne Notizen, nutzen Vorlagen, ändern Status, Bearbeiter, Priorität, Typ und Teilnehmer, verknüpfen Tickets und genehmigen Anfragen. Titel und Beschreibung ändern Bearbeiter und der Melder selbst.
+- **Ticket:** Kommentare wie ein Chat, Antwortleiste unten mit Fotos und Dateien; Bearbeiter blenden über *Alle* auch den Verlauf (Status, Zuweisungen …) ein – das Handy merkt sich die Wahl. Bearbeiter schreiben auch interne Notizen, nutzen Vorlagen, ändern Status, Bearbeiter, Priorität, Typ und Teilnehmer, verknüpfen Tickets und genehmigen Anfragen. Titel und Beschreibung ändern Bearbeiter und der Kunde selbst.
 - **Wissen:** Suche, Kategorien, *Zuletzt angesehen*, *Meistgelesen* und der Seitenbaum zum Durchklicken. Artikel mit Inhaltsverzeichnis, seitlich scrollenden Tabellen und Kommentaren. Bearbeitet werden Artikel am PC (*Im Desktop bearbeiten*). Benutzer sehen nur öffentliche Artikel.
 - **Ich:** Name, E-Mail und Kennwort (lokale Konten), Sprache, **Passkeys** (Face ID, Fingerabdruck), **Zwei-Faktor-Anmeldung** direkt auf dem Handy (geheimer Schlüssel zum Kopieren und Knopf *In Authenticator-App öffnen* statt QR-Code, der QR-Code bleibt für ein zweites Gerät; danach die Wiederherstellungscodes zum Kopieren oder Teilen), Neuigkeiten und *Desktop-Ansicht*.
 - **Als App installieren:** iPhone/iPad: in Safari *Teilen* → *Zum Home-Bildschirm*. Android: in Chrome ⋮ → *App installieren* (oder der Knopf unter *Ich → App installieren*). Helfi.Space startet dann im Vollbild mit eigenem Symbol; ein kleiner Service Worker hält nur die Programmdateien bereit und zeigt ohne Verbindung eine Hinweisseite. Neue Versionen kommen automatisch („Neue Version – Neu laden“).
@@ -600,7 +601,7 @@ In Kommentaren, Beschreibungen und Antwortvorlagen:
 Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rechner neu“):
 
 - **Einfügen:** im Kommentarfeld auf **Vorlage** klicken, tippen zum Suchen, mit Enter oder Klick einfügen. Der Text landet an der Cursorposition und lässt sich vor dem Speichern noch anpassen. Funktioniert für Antworten und interne Notizen. Nur Bearbeiter sehen die Vorlagen.
-- **Platzhalter:** `{melder}`, `{ticket}`, `{titel}`, `{bearbeiter}` (englisch `{reporter}`, `{title}`, `{agent}`) werden beim Einfügen ersetzt.
+- **Platzhalter:** `{kunde}`, `{ticket}`, `{titel}`, `{bearbeiter}` (englisch `{customer}`, `{title}`, `{agent}`) werden beim Einfügen ersetzt. Ältere Vorlagen mit `{melder}` bzw. `{reporter}` funktionieren weiter.
 - **Anlegen:**
   - Text im Kommentarfeld schreiben und **Als Vorlage speichern** wählen.
   - Vorlagen für alle pflegen Admins unter *Administration → Antwortvorlagen*. Optional gehört eine solche Vorlage zu einem **Projekt**: Dann sehen sie nur dessen Bearbeiter, und nur in dessen Tickets. Ohne Projekt gilt sie für alle.
@@ -625,7 +626,7 @@ Für Antworten, die immer wieder gleich sind (z. B. „Bitte starten Sie den Rec
   - **Ø Lösungsdauer:** von „erstellt“ bis „erledigt“
 - **Nach Komponente** (sobald Komponenten genutzt werden): im Zeitraum erstellte Tickets, davon offen, und Ø Lösungsdauer; ein Klick öffnet die gefilterte Liste
 - **ITIL-Kennzahlen** für denselben Zeitraum:
-  - **Servicequalität:** erledigte Anfragen und Störungen, beim ersten Kontakt gelöst (höchstens eine Antwort der IT, keine Rückfrage, nie wieder geöffnet), Quote der Wiedereröffnungen, Major Incidents. Eigene Tickets der IT zählen nicht.
+  - **Servicequalität:** erledigte Anfragen und Störungen, beim ersten Kontakt gelöst (höchstens eine Antwort der IT, der Kunde musste danach nicht noch einmal schreiben, nie wieder geöffnet), Quote der Wiedereröffnungen, Major Incidents. Eigene Tickets der IT zählen nicht.
   - **SLA-Einhaltung** für Reaktion und Lösung, gesamt und je Priorität (wenn SLAs eingeschaltet sind)
   - **Changes je Monat:** Arten, abgelehnte, Ergebnisse, Erfolgsquote und Anteil der Notfall-Changes
   - **Probleme:** neu, gelöst, offen, bekannte Fehler
@@ -686,19 +687,19 @@ Was übernommen wird:
 
 - Titel, Beschreibung (als Text, HTML-Mails werden umgewandelt), Typ, Status, Priorität, Stichwörter (Zammad-Tags), Fälligkeit, Erstell- und Erledigt-Datum
 - **Kommentare:** In Zammad, Znuny und Zendesk ist der erste für den Kunden sichtbare Artikel bzw. Kommentar die Beschreibung, alle weiteren werden Kommentare. Interne Notizen (Zammad „intern“, Znuny „nicht für den Kunden sichtbar“, interne Kommentare aus Service-Desk-Projekten und Kommentare mit eingeschränkter Sichtbarkeit) bleiben intern. Aus CSV: eine Spalte *Kommentare* wird eine interne Notiz.
-- **Anhänge** bis zur gewählten Größe. Dateien einer internen Notiz hängen an dieser Notiz und bleiben intern. Bei Jira gehören Dateien zum Vorgang, nicht zu einem Kommentar: Öffentlich wird eine Datei nur, wenn die Beschreibung oder ein öffentlicher Kommentar sie zeigt oder der Melder sie hochgeladen hat; zeigt sie nur ein interner Kommentar oder ist es unklar (und es gibt interne Kommentare), bleibt sie intern. Kleine eingebettete Bilder (Logos in Signaturen) und der HTML-Teil von Mails werden übersprungen.
+- **Anhänge** bis zur gewählten Größe. Dateien einer internen Notiz hängen an dieser Notiz und bleiben intern. Bei Jira gehören Dateien zum Vorgang, nicht zu einem Kommentar: Öffentlich wird eine Datei nur, wenn die Beschreibung oder ein öffentlicher Kommentar sie zeigt oder der Kunde sie hochgeladen hat; zeigt sie nur ein interner Kommentar oder ist es unklar (und es gibt interne Kommentare), bleibt sie intern. Kleine eingebettete Bilder (Logos in Signaturen) und der HTML-Teil von Mails werden übersprungen.
 
 So werden Nummern und Personen behandelt:
 
 - **Nummern:** `SUP-123` bleibt `SUP-123`, Zammad `#31011` wird z. B. `SD-31011`. Sehr lange Nummern (datumsbasiert, z. B. `2025030110000071` aus Znuny) und schon vergebene Nummern bekommen die nächste freie; ebenso Nummern, die einem inzwischen verschobenen Ticket gehörten. Die alte Nummer steht im Verlauf („importiert“). Neue Tickets schließen an die höchste Nummer an.
-- **Personen** werden über die E-Mail-Adresse zugeordnet. Melder ohne Konto werden zu E-Mail-Kontakten, und meldet sich die Person später per AD oder SSO an, gehören ihr die Tickets. Bearbeiter werden nur zugewiesen, wenn sie in Helfi.Space das Zielprojekt bearbeiten (Admins oder Personen des Projekts; über E-Mail, Anmeldename oder eindeutigen Namen), sonst steht ihr Name im Verlauf – Bearbeiter also vor dem Import im Projekt eintragen. Cloud-Systeme geben E-Mail-Adressen je nach Datenschutzeinstellung nicht heraus, dann wird nur der Name übernommen.
+- **Personen** werden über die E-Mail-Adresse zugeordnet. Kunden ohne Konto werden zu E-Mail-Kontakten, und meldet sich die Person später per AD oder SSO an, gehören ihr die Tickets. Bearbeiter werden nur zugewiesen, wenn sie in Helfi.Space das Zielprojekt bearbeiten (Admins oder Personen des Projekts; über E-Mail, Anmeldename oder eindeutigen Namen), sonst steht ihr Name im Verlauf – Bearbeiter also vor dem Import im Projekt eintragen. Cloud-Systeme geben E-Mail-Adressen je nach Datenschutzeinstellung nicht heraus, dann wird nur der Name übernommen.
 
 Außerdem gilt:
 
 - Es werden **keine E-Mails** verschickt.
 - **Schutz vor Missbrauch (SSRF):** Der Import verbindet sich nie mit lokalen Adressen (`127.x`, `::1`), Link-Local-Adressen (`169.254.x.x`, z. B. Metadaten-Dienste von Cloud-Servern) oder Multicast – auch nicht über einen Namen oder eine Weiterleitung, die dorthin zeigt. Systeme im eigenen Netz (`10.x`, `172.16–31.x`, `192.168.x`) sind erreichbar. Läuft das Quellsystem wirklich auf demselben Rechner und ist nur über `127.0.0.1` erreichbar, hebt `HELFI_IMPORT_ALLOW_LOCAL=1` in der `.env` die Sperre auf.
 - Vor jedem Start eines Imports legt Helfi.Space eine Sicherung an (`helfi-vor-import-….sqlite`).
-- **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich im Quellsystem seitdem geändert haben (dann gilt der Stand von dort; die geänderten Felder stehen im Verlauf). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren. Bei CSV-Dateien dafür denselben *Namen der Quelle* verwenden; ohne Nummern-Spalte wird eine Zeile an Titel, Erstelldatum und Melder wiedererkannt.
+- **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich im Quellsystem seitdem geändert haben (dann gilt der Stand von dort; die geänderten Felder stehen im Verlauf). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren. Bei CSV-Dateien dafür denselben *Namen der Quelle* verwenden; ohne Nummern-Spalte wird eine Zeile an Titel, Erstelldatum und Kunde wiedererkannt.
 
 ---
 

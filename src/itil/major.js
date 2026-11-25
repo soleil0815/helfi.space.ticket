@@ -23,7 +23,8 @@ export function createMajor(db, tickets) {
     const ids = [major.id, ...affected(major.id).filter((id) => agentOn(user, tickets.rawById(id)?.project_id))];
     let done = 0;
     for (const id of ids) {
-      tickets.addComment(user, id, { body: text });
+      // A status update of the outage: IT is still working on it, nobody waits for the customer
+      tickets.addComment(user, id, { body: text, waitForCustomer: false });
       if (resolve) { tickets.update(user, id, { status: 'done' }, { quietResolved: true }); done++; }
     }
     return { notified: ids.length, resolved: done };

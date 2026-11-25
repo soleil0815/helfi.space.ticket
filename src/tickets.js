@@ -833,7 +833,12 @@ export function createTickets(db, users, { settings = null } = {}) {
   }
 
   /** system: notice from Helfi.Space itself (e.g. delivery failure) – always internal, reopens nothing. */
-  function addComment(user, idOrKey, { body, internal = false, attachmentIds = [], format = 'text' }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false, resolutionReply = false } = {}) {
+  /**
+   * waitForCustomer: a public reply of an agent puts an open / in-progress ticket on "Waiting"
+   * (for the customer) – unless the agent unticks it ("I'll get back to you tomorrow").
+   * agentReply: public reply of a verified agent by email (no account → user is null).
+   */
+  function addComment(user, idOrKey, { body, internal = false, attachmentIds = [], format = 'text', waitForCustomer = true }, { source = 'web', authorEmail = null, authorName = null, skipPermission = false, system = false, resolutionReply = false, agentReply = false } = {}) {
     const row = skipPermission ? load(null, idOrKey) : load(user, idOrKey);
     const text = str(body, 100000).trim();
     if (!text) throw new HttpError(400, 'err.badRequest');
@@ -862,13 +867,21 @@ export function createTickets(db, users, { settings = null } = {}) {
         claimDrafts(row.id, attachmentIds, user.id, r.lastInsertRowid);
       }
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
-      // Reply from the reporter to a waiting/resolved ticket → reopen
-      const fromCustomer = !system && !agent && (user ? isCustomer(user, row) : true);
+      // Reply from the customer to a waiting/resolved ticket → reopen
+      const fromCustomer = !system && !agent && !agentReply && (user ? isCustomer(user, row) : true);
       if (fromCustomer && (row.status === 'waiting' || row.status === 'done')) {
         db.prepare("UPDATE tickets SET status='open', resolved_at=NULL, resolution=NULL, duplicate_of=NULL WHERE id=?").run(row.id);
         logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'open');
         // A closed ticket kept its assignee as a record – reopened, they must still work on the project
         releaseUnassignable(db, { ticketId: row.id, actorId: user ? user.id : null });
+      }
+      // Public reply of an agent to the customer → the ticket now waits for the customer.
+      // Not for the agent's own tickets (they are the customer) or the reason of a closing.
+      const toCustomer = !system && !isInternal && !resolutionReply && waitForCustomer !== false
+        && ((!!agent && !isCustomer(user, row)) || agentReply);
+      if (toCustomer && (row.status === 'open' || row.status === 'in_progress')) {
+        db.prepare("UPDATE tickets SET status='waiting' WHERE id=?").run(row.id);
+        logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'waiting');
       }
       return r;
     })();

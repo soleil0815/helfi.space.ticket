@@ -6,57 +6,57 @@ import { HttpError, forbidden, str } from './lib/http.js';
 import { isAgent } from './auth/session.js';
 
 // ---------- Canned responses (shared, for all agents) ----------
-// Placeholders: {melder}/{reporter}, {ticket}, {titel}/{title}, {bearbeiter}/{agent}
+// Placeholders: {kunde}/{customer} (older: {melder}/{reporter}), {ticket}, {titel}/{title}, {bearbeiter}/{agent}
 export const CANNED_EXAMPLES = [
   {
     key: 'received',
-    de: { title: 'Eingang bestätigen', body: 'Hallo {melder},\n\nvielen Dank für Ihre Meldung – wir haben sie als {ticket} aufgenommen und kümmern uns darum. Sie hören von uns, sobald es Neuigkeiten gibt.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Confirm receipt', body: 'Hello {reporter},\n\nthank you for your report – we have recorded it as {ticket} and are taking care of it. You will hear from us as soon as there is news.\n\nKind regards\n{agent}' },
+    de: { title: 'Eingang bestätigen', body: 'Hallo {kunde},\n\nvielen Dank für Ihre Meldung – wir haben sie als {ticket} aufgenommen und kümmern uns darum. Sie hören von uns, sobald es Neuigkeiten gibt.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Confirm receipt', body: 'Hello {customer},\n\nthank you for your report – we have recorded it as {ticket} and are taking care of it. You will hear from us as soon as there is news.\n\nKind regards\n{agent}' },
   },
   {
     key: 'moreInfo',
-    de: { title: 'Weitere Angaben nötig', body: 'Hallo {melder},\n\ndamit wir weiterhelfen können, brauchen wir noch ein paar Angaben:\n\n- Seit wann tritt das Problem auf?\n- Welche Fehlermeldung erscheint genau? (Ein Bildschirmfoto hilft sehr.)\n- An welchem Gerät bzw. in welchem Raum?\n\nAntworten Sie einfach auf diese Nachricht.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'More details needed', body: 'Hello {reporter},\n\nto help you further we need a few more details:\n\n- Since when does the problem occur?\n- What exactly does the error message say? (A screenshot helps a lot.)\n- On which device or in which room?\n\nJust reply to this message.\n\nKind regards\n{agent}' },
+    de: { title: 'Weitere Angaben nötig', body: 'Hallo {kunde},\n\ndamit wir weiterhelfen können, brauchen wir noch ein paar Angaben:\n\n- Seit wann tritt das Problem auf?\n- Welche Fehlermeldung erscheint genau? (Ein Bildschirmfoto hilft sehr.)\n- An welchem Gerät bzw. in welchem Raum?\n\nAntworten Sie einfach auf diese Nachricht.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'More details needed', body: 'Hello {customer},\n\nto help you further we need a few more details:\n\n- Since when does the problem occur?\n- What exactly does the error message say? (A screenshot helps a lot.)\n- On which device or in which room?\n\nJust reply to this message.\n\nKind regards\n{agent}' },
   },
   {
     key: 'restart',
-    de: { title: 'Bitte neu starten', body: 'Hallo {melder},\n\nbitte starten Sie den Rechner einmal komplett neu (**Start → Ein/Aus → Neu starten**, nicht nur abmelden) und probieren Sie es danach noch einmal. Klappt es dann immer noch nicht, geben Sie uns kurz Bescheid.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Please restart', body: 'Hello {reporter},\n\nplease restart the computer completely once (**Start → Power → Restart**, not just sign out) and try again afterwards. If it still does not work, just let us know.\n\nKind regards\n{agent}' },
+    de: { title: 'Bitte neu starten', body: 'Hallo {kunde},\n\nbitte starten Sie den Rechner einmal komplett neu (**Start → Ein/Aus → Neu starten**, nicht nur abmelden) und probieren Sie es danach noch einmal. Klappt es dann immer noch nicht, geben Sie uns kurz Bescheid.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Please restart', body: 'Hello {customer},\n\nplease restart the computer completely once (**Start → Power → Restart**, not just sign out) and try again afterwards. If it still does not work, just let us know.\n\nKind regards\n{agent}' },
   },
   {
     key: 'passwordReset',
-    de: { title: 'Kennwort zurückgesetzt', body: 'Hallo {melder},\n\nIhr Kennwort ist zurückgesetzt. Das vorläufige Kennwort bekommen Sie **auf einem anderen Weg** (persönlich oder telefonisch) – nie per Mail. Bei der nächsten Anmeldung werden Sie aufgefordert, ein eigenes zu vergeben.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Password reset', body: 'Hello {reporter},\n\nyour password has been reset. You will get the temporary password **through another channel** (in person or by phone) – never by email. At your next sign-in you will be asked to choose your own.\n\nKind regards\n{agent}' },
+    de: { title: 'Kennwort zurückgesetzt', body: 'Hallo {kunde},\n\nIhr Kennwort ist zurückgesetzt. Das vorläufige Kennwort bekommen Sie **auf einem anderen Weg** (persönlich oder telefonisch) – nie per Mail. Bei der nächsten Anmeldung werden Sie aufgefordert, ein eigenes zu vergeben.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Password reset', body: 'Hello {customer},\n\nyour password has been reset. You will get the temporary password **through another channel** (in person or by phone) – never by email. At your next sign-in you will be asked to choose your own.\n\nKind regards\n{agent}' },
   },
   {
     key: 'remote',
-    de: { title: 'Fernwartung vereinbaren', body: 'Hallo {melder},\n\nam schnellsten lässt sich das per Fernwartung lösen. Wann passt es Ihnen? Schlagen Sie einfach zwei, drei Zeiten vor – ich melde mich dann und schaue mir das gemeinsam mit Ihnen an.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Arrange remote session', body: 'Hello {reporter},\n\nthe quickest way to solve this is a remote session. When suits you? Just suggest two or three times – I will get in touch and look at it together with you.\n\nKind regards\n{agent}' },
+    de: { title: 'Fernwartung vereinbaren', body: 'Hallo {kunde},\n\nam schnellsten lässt sich das per Fernwartung lösen. Wann passt es Ihnen? Schlagen Sie einfach zwei, drei Zeiten vor – ich melde mich dann und schaue mir das gemeinsam mit Ihnen an.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Arrange remote session', body: 'Hello {customer},\n\nthe quickest way to solve this is a remote session. When suits you? Just suggest two or three times – I will get in touch and look at it together with you.\n\nKind regards\n{agent}' },
   },
   {
     key: 'external',
-    de: { title: 'Wartet auf Hersteller', body: 'Hallo {melder},\n\nwir haben den Fall an den Hersteller bzw. Dienstleister weitergegeben und warten auf dessen Rückmeldung. Sobald wir etwas hören, melden wir uns bei Ihnen.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Waiting for vendor', body: 'Hello {reporter},\n\nwe have passed the case on to the vendor or service provider and are waiting for their reply. As soon as we hear back, we will get in touch.\n\nKind regards\n{agent}' },
+    de: { title: 'Wartet auf Hersteller', body: 'Hallo {kunde},\n\nwir haben den Fall an den Hersteller bzw. Dienstleister weitergegeben und warten auf dessen Rückmeldung. Sobald wir etwas hören, melden wir uns bei Ihnen.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Waiting for vendor', body: 'Hello {customer},\n\nwe have passed the case on to the vendor or service provider and are waiting for their reply. As soon as we hear back, we will get in touch.\n\nKind regards\n{agent}' },
   },
   {
     key: 'ordered',
-    de: { title: 'Hardware bestellt', body: 'Hallo {melder},\n\ndas Gerät ist bestellt. Sobald es da und eingerichtet ist, melden wir uns, um die Übergabe abzustimmen.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Hardware ordered', body: 'Hello {reporter},\n\nthe device has been ordered. As soon as it has arrived and is set up, we will get in touch to arrange the handover.\n\nKind regards\n{agent}' },
+    de: { title: 'Hardware bestellt', body: 'Hallo {kunde},\n\ndas Gerät ist bestellt. Sobald es da und eingerichtet ist, melden wir uns, um die Übergabe abzustimmen.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Hardware ordered', body: 'Hello {customer},\n\nthe device has been ordered. As soon as it has arrived and is set up, we will get in touch to arrange the handover.\n\nKind regards\n{agent}' },
   },
   {
     key: 'known',
-    de: { title: 'Bekannte Störung', body: 'Hallo {melder},\n\nvielen Dank für den Hinweis – die Störung ist bekannt und wir arbeiten bereits daran. Sie müssen nichts weiter tun; wir melden uns, sobald alles wieder läuft.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Known outage', body: 'Hello {reporter},\n\nthanks for letting us know – the outage is known and we are already working on it. There is nothing else you need to do; we will get in touch as soon as everything works again.\n\nKind regards\n{agent}' },
+    de: { title: 'Bekannte Störung', body: 'Hallo {kunde},\n\nvielen Dank für den Hinweis – die Störung ist bekannt und wir arbeiten bereits daran. Sie müssen nichts weiter tun; wir melden uns, sobald alles wieder läuft.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Known outage', body: 'Hello {customer},\n\nthanks for letting us know – the outage is known and we are already working on it. There is nothing else you need to do; we will get in touch as soon as everything works again.\n\nKind regards\n{agent}' },
   },
   {
     key: 'solved',
-    de: { title: 'Gelöst – bitte bestätigen', body: 'Hallo {melder},\n\ndas Problem sollte jetzt behoben sein. Probieren Sie es bitte kurz aus. Falls doch noch etwas nicht stimmt, antworten Sie einfach auf diese Nachricht – dann öffnen wir das Ticket wieder.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Solved – please confirm', body: 'Hello {reporter},\n\nthe problem should be fixed now. Please give it a quick try. If something is still not right, just reply to this message – we will reopen the ticket.\n\nKind regards\n{agent}' },
+    de: { title: 'Gelöst – bitte bestätigen', body: 'Hallo {kunde},\n\ndas Problem sollte jetzt behoben sein. Probieren Sie es bitte kurz aus. Falls doch noch etwas nicht stimmt, antworten Sie einfach auf diese Nachricht – dann öffnen wir das Ticket wieder.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Solved – please confirm', body: 'Hello {customer},\n\nthe problem should be fixed now. Please give it a quick try. If something is still not right, just reply to this message – we will reopen the ticket.\n\nKind regards\n{agent}' },
   },
   {
     key: 'noReply',
-    de: { title: 'Schließen ohne Rückmeldung', body: 'Hallo {melder},\n\nwir haben länger nichts von Ihnen gehört und schließen das Ticket {ticket} deshalb. Ist das Thema noch offen, antworten Sie einfach auf diese Nachricht – dann geht es weiter.\n\nViele Grüße\n{bearbeiter}' },
-    en: { title: 'Closing without reply', body: 'Hello {reporter},\n\nwe have not heard from you for a while and are therefore closing ticket {ticket}. If the issue is still open, just reply to this message and we will continue.\n\nKind regards\n{agent}' },
+    de: { title: 'Schließen ohne Rückmeldung', body: 'Hallo {kunde},\n\nwir haben länger nichts von Ihnen gehört und schließen das Ticket {ticket} deshalb. Ist das Thema noch offen, antworten Sie einfach auf diese Nachricht – dann geht es weiter.\n\nViele Grüße\n{bearbeiter}' },
+    en: { title: 'Closing without reply', body: 'Hello {customer},\n\nwe have not heard from you for a while and are therefore closing ticket {ticket}. If the issue is still open, just reply to this message and we will continue.\n\nKind regards\n{agent}' },
   },
 ];
 

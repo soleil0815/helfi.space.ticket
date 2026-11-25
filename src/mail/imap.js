@@ -55,9 +55,9 @@ const NOT_INVOLVED_NOTE = 'Antwort von einer Adresse, die an diesem Ticket nicht
 // Shown to agents when a mail from an agent address cannot be attributed to that agent: matched only
 // via [KEY] in the subject, or a reply to one of our mails that went to someone else
 const UNVERIFIED_AGENT_NOTE = 'Mail von einer Bearbeiter-Adresse, nur über die Ticketnummer im Betreff oder über eine Mail an jemand anderen zugeordnet – '
-  + 'der Absender ist nicht überprüfbar, deshalb nur als interne Notiz. Antworten an den Melder bitte im Ticket schreiben. / '
+  + 'der Absender ist nicht überprüfbar, deshalb nur als interne Notiz. Antworten an den Kunden bitte im Ticket schreiben. / '
   + 'Mail from an agent address matched only via the ticket number in the subject or via a mail sent to someone else – '
-  + 'the sender cannot be verified, so it is an internal note only. Please reply to the reporter in the ticket.\n\n';
+  + 'the sender cannot be verified, so it is an internal note only. Please reply to the customer in the ticket.\n\n';
 
 // Reply mail to a ticket closed as rejected or as a duplicate: it stays closed (the decision stands;
 // a "thanks" or a forged mail must not reopen it and wipe the resolution) – agents reopen it if needed
@@ -366,6 +366,9 @@ export function createMailProcessor({ db, settings, tickets, users, adLookup = n
           source: 'email', authorEmail: fromAddr, authorName: from?.name || fromAddr, skipPermission: true,
           // system: always internal, does not reopen, no account rights
           ...(noteOnly ? { system: true } : {}),
+          // Verified agent answering the customer by mail: the ticket waits for the customer
+          // (not when the agent is the ticket's own customer, e.g. a reporter of their own ticket)
+          ...(privileged && !noteOnly && !isCurrentParty(existingId, sender, fromAddr) ? { agentReply: true } : {}),
         });
         storeFiles(existingId, asUser ? asUser.id : null, comment.id);
         // Add CC recipients only when matched via our (unguessable) Message-ID –

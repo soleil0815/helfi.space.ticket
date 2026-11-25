@@ -12,7 +12,7 @@ A lightweight ticket system for IT departments and institutes, in German and Eng
 
 - **Active Directory** (Windows Server or Samba AD): sign in with Windows accounts, roles from AD groups (nested groups too), **fetch the LDAPS certificate with one click**
 - **Single sign-on** via OpenID Connect: Microsoft Entra ID, ADFS, Keycloak, Authentik …
-- **Email → ticket:** a mailbox is polled via IMAP, new mails become tickets and replies land in the matching ticket. Reporters get answers by email.
+- **Email → ticket:** a mailbox is polled via IMAP, new mails become tickets and replies land in the matching ticket. Customers get answers by email.
 - **Clear and simple:** sidebar with queues (open, assigned to me, unassigned, waiting, recently resolved, all) with live counts, per-project summary, board with drag & drop, ticket list with filters and pages (50/100/250/500 per page; a search shows the best 5000 matches), ticket view with details, comments, internal notes, attachments and history
 - **Easy migration:** import from **Zammad**, **Znuny/OTRS**, **GLPI**, **Zendesk**, **Freshdesk**, **Jira** (cloud, Server/Data Center) or a **CSV file** – with comments, internal notes and attachments; ticket numbers are kept, a second run only adds what is new.
 - **Paste screenshots:** images from the clipboard with Ctrl+V right into a comment, the description or "Create ticket". In internal notes they stay internal.
@@ -139,7 +139,7 @@ Agents can have tickets summarized and replies suggested, polished, shortened or
   - *Assign automatically*: the component is set directly; the history says “by AI” with the model.
   - The **hit rate** is shown on the AI page, e.g. “87 % (52 of 60 accepted)”: accepted ones and automatic ones nobody changed, against corrected and dismissed ones.
   - With a cloud model, the title and description of every new ticket without a rule match go to the provider for this – the page points it out.
-- **Detect duplicates** (off by default): for a new ticket, Helfi.Space first searches similar **open** tickets of the same project from the last 30 days by full text, without AI (at most 8). Only if there are any does the AI check whether the new ticket reports the same problem. Agents then see “Possible duplicate of IT-12 – reason” in the ticket with **Close as duplicate** (opens the dialog with the original filled in) and **Not a duplicate** – also on phones. Nothing is ever closed automatically; reporters do not see the hint, and it only names tickets the viewer may open. The hit rate is shown on the AI page. With a cloud model, the title and description of the new ticket and of up to 8 possible originals (the first 1500 characters each) go to the provider for this.
+- **Detect duplicates** (off by default): for a new ticket, Helfi.Space first searches similar **open** tickets of the same project from the last 30 days by full text, without AI (at most 8). Only if there are any does the AI check whether the new ticket reports the same problem. Agents then see “Possible duplicate of IT-12 – reason” in the ticket with **Close as duplicate** (opens the dialog with the original filled in) and **Not a duplicate** – also on phones. Nothing is ever closed automatically; customers do not see the hint, and it only names tickets the viewer may open. The hit rate is shown on the AI page. With a cloud model, the title and description of the new ticket and of up to 8 possible originals (the first 1500 characters each) go to the provider for this.
 
 ## Self-registration and forgotten passwords
 
@@ -211,7 +211,7 @@ Default: **on the internal network a password is enough, from outside a second f
 | Required when signing in from outside | all users (default) · agents and administrators · administrators only · nobody |
 | Inside the internal network | no two-factor prompt (default) · administrators only · agents and administrators · all users |
 
-Example: reporters without a code, agents with a code from outside, administrators always with a code. Installations that had "always" or "never" set keep that behaviour.
+Example: customers without a code, agents with a code from outside, administrators always with a code. Installations that had "always" or "never" set keep that behaviour.
 
 - **Requests from the server itself** (127.0.0.1) do not count as internal automatically. A reverse proxy on the same host must set X-Forwarded-For, otherwise every request would look like it came from the server itself. For testing, `127.0.0.1` can be added to the list.
 - **Internal networks** are listed in the settings, one entry per line (default: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`). The default covers all private ranges, including Docker networks and a guest Wi-Fi. Best narrow it down to the real company networks, e.g. `10.0.10.0/24`. The page shows how your current address is classified.
@@ -265,19 +265,20 @@ With a passkey you sign in using Face ID, Touch ID, Windows Hello or the device 
 
 *Administration → Email → Incoming* (fetching, inbox project, sender rules, mail loop protection) and *Outgoing* (sending, notifications)
 
-- **Polling a mailbox (IMAP):** enter server, user and password of the help desk mailbox. New mails become tickets (including attachments up to 20 MB each and up to 30 attachments; anything not taken over is noted in the ticket; mails over 80 MB are skipped and flagged in the mailbox). Replies to mails from Helfi.Space and replies from the reporter or a request participant with `[IT-123]` in the subject become comments, quoted history is cut off. Someone who only wrote in the ticket once but is neither reporter nor participant gets a new ticket with `[IT-123]` in the subject. If the reporter replies to a waiting or resolved ticket, it is reopened – unless it was rejected or closed as a duplicate: then the reply becomes an internal note and the ticket stays closed (an agent reopens it if needed). Out-of-office notes and automatic mails are ignored. Processed mails are marked as read or moved to a folder. Skipped mails (automatically generated, hourly limit, account disabled, no valid sender, own address, rule "Ignore") and delivery failure reports stay in the inbox, marked as read; they are not moved to the processed-mail folder and therefore not deleted automatically either.
+- **Polling a mailbox (IMAP):** enter server, user and password of the help desk mailbox. New mails become tickets (including attachments up to 20 MB each and up to 30 attachments; anything not taken over is noted in the ticket; mails over 80 MB are skipped and flagged in the mailbox). Replies to mails from Helfi.Space and replies from the customer or a request participant with `[IT-123]` in the subject become comments, quoted history is cut off. Someone who only wrote in the ticket once but is neither customer nor participant gets a new ticket with `[IT-123]` in the subject. If the customer replies to a waiting or resolved ticket, it is reopened – unless it was rejected or closed as a duplicate: then the reply becomes an internal note and the ticket stays closed (an agent reopens it if needed). Out-of-office notes and automatic mails are ignored. Processed mails are marked as read or moved to a folder. Skipped mails (automatically generated, hourly limit, account disabled, no valid sender, own address, rule "Ignore") and delivery failure reports stay in the inbox, marked as read; they are not moved to the processed-mail folder and therefore not deleted automatically either.
 - **Which project? – via the components:** a new mail to the central mailbox is compared with the components of **all projects** (sender, keywords in subject and text). The project of the matching component gets the ticket – with this component, assigned to nobody. “Heating in room 12 cold” thus lands in facilities with the component “Heating & air conditioning”. No mailbox per project is needed. A sender rule with a project takes precedence.
 - **No component matches:** the ticket lands in the **inbox project** (*Administration → Email → Incoming → Inbox project*, otherwise the default project; marked “Inbox” in *Projects*). Its lead and deputy sort it with *Move* and get the reminder mail if it is left lying. With the AI function *Detect component* switched on, the AI chooses from the components of all projects for such mails – as a suggestion (“Facilities / Heating & air conditioning – accept?”) or directly; accepted, the ticket moves there. A sender rule with an archived project counts as one without a project; if the inbox project is archived, the mail lands in the default project.
 - **In the wrong place?** Agents move a ticket into **any** project (details → project or multiple selection), also into one they do not work on themselves; afterwards they no longer see it there. The AI function *Detect component* does not move a manually moved ticket back; open AI suggestions from the old project are settled.
 - **Sending (SMTP):** ideally use the same address as the mailbox as sender, so replies land back in the ticket.
-- **Internal notes** never go to reporters or participants, nor do their pictures. Only people @-mentioned in an internal note – who can only be agents of the project – get the note including its pictures by email.
+- **Internal notes** never go to customers or participants, nor do their pictures. Only people @-mentioned in an internal note – who can only be agents of the project – get the note including its pictures by email.
+- **A reply sets “Waiting”:** when an agent replies to the customer on an open or in-progress ticket, it is set to *Waiting* afterwards (history, SLA paused, counted under *Waiting for customer*). Below the reply field *Then wait for the customer* can be unticked, e.g. for an interim update. Internal notes, own tickets, major incident messages and approvals do not change the status. When updating, open tickets whose last reply came from an agent are switched once (with a history entry, without emails).
 - **Sending errors:** if the mail to one recipient fails, the others still get theirs. If the mail server refuses a mail with pictures (e.g. because it is too big), it is sent once more as plain text with "[Image: name]".
-- Only people involved may reply by ticket number in the subject: the reporter, request participants and everyone who has already written in the ticket. The assignee does not automatically count. Anyone who merely guesses the number gets a new ticket of their own. Replies to mails from Helfi.Space are always matched correctly via the Message-ID.
+- Only people involved may reply by ticket number in the subject: the customer, request participants and everyone who has already written in the ticket. The assignee does not automatically count. Anyone who merely guesses the number gets a new ticket of their own. Replies to mails from Helfi.Space are always matched correctly via the Message-ID.
 - If a reply is matched only by the number in the subject, its To/CC recipients do not become participants. That only happens for new tickets and for replies to mails from Helfi.Space (matched via the Message-ID).
-- Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the reporter. Agents reply through the web interface.
+- Sender addresses can be forged. That is why a mail never counts as an agent reply, even if it comes from an agent's address: it appears with the sender address, not under the account, and is not forwarded to the customer. Agents reply through the web interface.
 - Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.
-- Replies to a ticket-system email from someone who is no longer reporter or participant (e.g. after a reporter change, or an approver who is not a participant) also only become internal notes: no new participants from CC, no reopening.
-- Mails from an agent's address that are matched only via `[IT-123]` in the subject become internal notes and reopen nothing; so do mails from an agent's address that reply to a mail sent to someone else (e.g. the reporter's notification) – a mail's sender can be forged and the ticket number guessed. So write replies to the reporter in the ticket.
+- Replies to a ticket-system email from someone who is no longer customer or participant (e.g. after a customer change, or an approver who is not a participant) also only become internal notes: no new participants from CC, no reopening.
+- Mails from an agent's address that are matched only via `[IT-123]` in the subject become internal notes and reopen nothing; so do mails from an agent's address that reply to a mail sent to someone else (e.g. the customer's notification) – a mail's sender can be forged and the ticket number guessed. So write replies to the customer in the ticket.
 - Helfi.Space marks processed mails with its own IMAP flag (`$HelfiDone`). If someone reads the mailbox in parallel in Outlook or on a phone, the mails are still processed. If the mail server cannot store custom flags, Helfi.Space fetches only unread mails as before – then do not read the mailbox in parallel. A folder for processed mails is recommended.
 - Confirmations of receipt go out at most 60 times per hour (protection against abuse with forged senders).
 - Loop protection: more than 20 new tickets per hour from the same sender are ignored.
@@ -301,7 +302,7 @@ Helfi.Space shows HTML emails **formatted** in descriptions and replies, with ta
 
 ## Search
 
-The search box at the top searches all tickets in full text: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (reporter, assignee, people who replied, also by email address and logon name). Users without the agent role find tickets by title, description, public replies, attachment names, labels and the names they also see in the ticket (reporter, assignee, people who replied) – never by internal notes, email addresses or logon names.
+The search box at the top searches all tickets in full text: title, description, replies, labels and attachment names. Agents also find internal notes and the people involved (customer, assignee, people who replied, also by email address and logon name). Users without the agent role find tickets by title, description, public replies, attachment names, labels and the names they also see in the ticket (customer, assignee, people who replied) – never by internal notes, email addresses or logon names.
 
 - **Results while typing:** from two characters a list below the search box shows up to eight tickets with key, title, status and where they matched (e.g. "Reply from Eva Berger: …"). ↑/↓ choose, Enter or click opens the ticket, Enter without a choice or *Show all results* leads to the ticket list with all results and filters as before; Esc closes. A ticket key appears as "Open IT-42" at the top. In the empty field the recently opened tickets appear (stored in the browser only, removed at sign-out). The same on phones in the *Tickets* tab.
 - **Parts of words** are found: `printer` also finds "networkprinter". Upper and lower case do not matter.
@@ -312,26 +313,26 @@ The search box at the top searches all tickets in full text: title, description,
 
 ## Request participants
 
-Besides the reporter, other people can be involved in a ticket, e.g. colleagues with the same problem or a manager.
+Besides the customer, other people can be involved in a ticket, e.g. colleagues with the same problem or a manager.
 
 - **Add:** in the ticket view under *Request participants → Add*.
   - Agents search by name or enter any email address. Suggestions appear while typing and the cursor stays in the field; pick with a click or ↑/↓ and Enter, Esc cancels.
   - **From AD:** from 3 characters on, agents also see people from AD (marked “AD”), searched by name, logon name and email addresses including aliases. The chosen person is created or updated as an AD user, with email address and role from AD; an existing email contact is taken over. A typed email address is looked up in AD as well. People whose groups do not allow them to use Helfi.Space are added as an email contact. If AD is unreachable, only existing people are shown. Can be turned off under *Administration → Active Directory → Suggest participants from AD*; requires the service account.
-  - Reporters and participants can add colleagues who have an account, but no arbitrary addresses.
+  - Customers and participants can add colleagues who have an account, but no arbitrary addresses.
   - At most 20 per ticket.
 - **By email:** anyone in *To* or *CC* of a new mail or of a reply to a mail from Helfi.Space automatically becomes a participant (not when a reply is matched only by the number in the subject). This applies to at most 10 addresses per mail; the helpdesk address and agents are not counted. Can be turned off under *Administration → Email → Incoming*.
 - **What participants can do:**
   - see the ticket, also under *My requests* with the filter "I am a participant"
   - comment and attach files on the web or by replying to a mail
-- **What participants cannot do:** see internal notes, change status, assignee or title. Of the reporter and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
+- **What participants cannot do:** see internal notes, change status, assignee or title. Of the customer and other people who replied they only see the name, not the email address and logon name (the same applies to approvers without the agent role and in the people search).
 - **The sender is always the ticket system** (no agent addresses or signatures). Reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added.
 - **Reminder to project leads** (*Administration → Tickets → General*, off by default): once a day at the set time, the lead and deputy of each project get one mail with the open tickets without assignee that were created at least X days ago – with links to the tickets and the filtered list. If there is neither a lead nor a deputy with an email address and an active account, it goes to the admins; without forgotten tickets no mail is sent. Monday to Friday only by default (can be switched off); *Check and send now* for trying it out.
-- **Notifications:** participants get the same mails as the reporter (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
-- **Remove:** agents, the reporter or the person themselves.
+- **Notifications:** participants get the same mails as the customer (replies, resolved), each one separately in their language, without the other addresses. People added on the web get a short mail.
+- **Remove:** agents, the customer or the person themselves.
 
 ## Resolving with a closing comment
 
-*Done* in the status menu opens a window for an optional closing comment: **reply to reporter** (default, then no extra “Resolved” mail) or **internal note**, with reply templates and placeholders. Comment and close in one step; without text the ticket is simply resolved, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> resolves right away. The same in the multiple selection and on phones (*Status → Done*).
+*Done* in the status menu opens a window for an optional closing comment: **reply to customer** (default, then no extra “Resolved” mail) or **internal note**, with reply templates and placeholders. Comment and close in one step; without text the ticket is simply resolved, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> resolves right away. The same in the multiple selection and on phones (*Status → Done*).
 
 ## Project rights
 
@@ -351,11 +352,11 @@ Example: create the project IT, agent group `Helpdesk`, yourself as lead and a c
 
 A done ticket has a **resolution**: *Done*, *Rejected* or *Duplicate*. Internally the status stays “Done” – service levels, board, reports, automatic closing and reopening therefore work as usual.
 
-- **Reject:** *Reject …* in the ticket's status menu (phone: status → *Reject …*). The **reason is required** and goes to the reporter and participants as a reply – instead of the “Resolved” mail. Reply templates and placeholders work; there is no satisfaction survey.
-- **Close as duplicate:** choose the original ticket (number or search). The ticket is linked with the original; the reporter gets a standard note with the original's number (or your own text). Optionally reporter and participants are **added to the original** and kept up to date there – only tick this if the original contains nothing confidential. Only tickets one works on can be chosen as the original; if the original is itself a duplicate, the same applies to the tickets it points to.
+- **Reject:** *Reject …* in the ticket's status menu (phone: status → *Reject …*). The **reason is required** and goes to the customer and participants as a reply – instead of the “Resolved” mail. Reply templates and placeholders work; there is no satisfaction survey.
+- **Close as duplicate:** choose the original ticket (number or search). The ticket is linked with the original; the customer gets a standard note with the original's number (or your own text). Optionally customer and participants are **added to the original** and kept up to date there – only tick this if the original contains nothing confidential. Only tickets one works on can be chosen as the original; if the original is itself a duplicate, the same applies to the tickets it points to.
 - **Several at once:** in the ticket list via the multiple selection → *Status* → *Reject …* or *Close as duplicate …*; placeholders are filled per ticket.
 - **Display:** lozenge *Rejected* or *Duplicate* instead of *Done* (lists, ticket, *My requests*, phone), “Duplicate of IT-12” with a link, entry in the history. Filter *Resolution* in the ticket list once the status *Done* is chosen.
-- **Reopening:** a reply mail to a ticket closed as rejected or as a duplicate does not reopen it but becomes an internal note (a “thanks” or a forged mail should not undo the decision). If the reporter writes in the web interface, the ticket reopens as usual; reopening resets the resolution. A ticket that is already done can be rejected or marked as a duplicate afterwards.
+- **Reopening:** a reply mail to a ticket closed as rejected or as a duplicate does not reopen it but becomes an internal note (a “thanks” or a forged mail should not undo the decision). If the customer writes in the web interface, the ticket reopens as usual; reopening resets the resolution. A ticket that is already done can be rejected or marked as a duplicate afterwards.
 - **Reports:** rejected tickets and duplicates have their own column in the per-component report and do not count towards the avg. resolution time (also per agent).
 - **Service catalog:** a rejected approval closes the request as *Rejected*.
 - **Import:** resolutions or status names from the source system like “Won't Do”, “Declined”, “Rejected/Abgelehnt” or “Cancelled” become *Rejected*, “Duplicate/doppelt” becomes *Duplicate*.
@@ -364,15 +365,15 @@ A done ticket has a **resolution**: *Done*, *Rejected* or *Duplicate*. Internall
 
 When a request comes in by phone, in passing or to another mailbox, agents enter the ticket right away on behalf of that person. It then shows up under their *My requests*, and they get used to the ticket system.
 
-- **When creating:** the *Create ticket* dialog shows the **reporter** at the top, “Me” by default. *Enter for someone else* opens the search:
+- **When creating:** the *Create ticket* dialog shows the **customer** at the top, “Me” by default. *Enter for someone else* opens the search:
   - existing accounts by name, user name or email address
   - from 3 characters also people from AD (as for participants; they are created as AD users when saving)
   - or any email address; without an account, an email contact is created as for tickets by email
 - **Notify** (on by default): the person gets an email with the ticket key and link. People with an account also get a hint that they can report new requests in Helfi.Space themselves. If mail fetching is set up, they can reply to the email.
 - **Traceable:** the history shows which agent created the ticket for whom.
-- **Change later:** in the details *Reporter → Change reporter* (phone: *All details → Reporter*). The previous reporter keeps access as a request participant; agents and pure email contacts do not. The change is recorded in the history.
-- **Agents only:** users cannot enter another reporter (the server refuses). Disabled accounts cannot be chosen.
-- **On phones:** *+ → Report a problem* shows agents the *Reporter* field at the top.
+- **Change later:** in the details *Customer → Change customer* (phone: *All details → Customer*). The previous customer keeps access as a request participant; agents and pure email contacts do not. The change is recorded in the history.
+- **Agents only:** users cannot enter another customer (the server refuses). Disabled accounts cannot be chosen.
+- **On phones:** *+ → Report a problem* shows agents the *Customer* field at the top.
 
 ## Order of the activity
 
@@ -399,14 +400,14 @@ Above the comment field there is a toolbar – in tickets, in comments on knowle
 - **Link** (Ctrl+K, also ticket numbers such as IT-42), **image** (or Ctrl+V), **emoji** (also “:)”) and **@** to mention someone.
 - **Canned responses** on the right of the bar, *Save as template* in the same menu. Ctrl+Enter saves.
 
-The text is stored in the format of knowledge articles. Reporters and participants get the reply formatted by email (HTML) with a readable text part without asterisks. **Pictures in the email:** pictures in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); anything beyond that appears as a note “[Image: name]” in the email and is visible in the ticket. Pictures from internal notes never go to reporters or participants. Older comments and mails are shown as before. **Limits:** info boxes, quotes and lists are shown nested up to 8 levels deep, tables with at most 50 columns and 5000 cells; anything beyond that appears as plain text. That way no comment can bring down the browser or the server.
+The text is stored in the format of knowledge articles. Customers and participants get the reply formatted by email (HTML) with a readable text part without asterisks. **Pictures in the email:** pictures in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); anything beyond that appears as a note “[Image: name]” in the email and is visible in the ticket. Pictures from internal notes never go to customers or participants. Older comments and mails are shown as before. **Limits:** info boxes, quotes and lists are shown nested up to 8 levels deep, tables with at most 50 columns and 5000 cells; anything beyond that appears as plain text. That way no comment can bring down the browser or the server.
 
 ## @-mentions
 
 Agents bring colleagues into a ticket directly: in the reply field (desktop and phone) type **@** and a few letters, then pick a person (click/tap or ↑/↓ and Enter or Tab; Esc closes the list). The name is highlighted in the comment, your own mentions in colour.
 
-- **Who can be mentioned:** in an **internal note** only agents; in a **reply** also the ticket's reporter, participants and approvers. People who cannot see the ticket are not offered – and a reference typed by hand becomes plain text when saving. Reporters do not mention anyone; neither do comments from emails (senders can be forged).
-- **Notification:** people mentioned get an email from the ticket system ("[IT-12] Anna mentioned you: …") with the comment and the link. Reporters and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Pictures in the comment travel with the email as for replies; mentioned agents of the project thus also get the text and pictures of an internal note. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
+- **Who can be mentioned:** in an **internal note** only agents; in a **reply** also the ticket's customer, participants and approvers. People who cannot see the ticket are not offered – and a reference typed by hand becomes plain text when saving. Customers do not mention anyone; neither do comments from emails (senders can be forged).
+- **Notification:** people mentioned get an email from the ticket system ("[IT-12] Anna mentioned you: …") with the comment and the link. Customers and participants who get the reply by email anyway do not get a second one. Mentioning yourself sends nothing. Pictures in the comment travel with the email as for replies; mentioned agents of the project thus also get the text and pictures of an internal note. Replies to an agent's email become internal notes as usual. Can be switched off under *Channels: email → Notifications*.
 - **Finding them again:** *Mentions me* in the sidebar (phone: *Mentions* chip under *Tickets*) lists all tickets with a mention; the number next to it counts those not opened yet. New mentions are marked with **@** in lists, and so is the comment in the ticket. Opening the ticket marks the mention as seen.
 - Mentions do not add people as participants or watchers – that is what *Request participants* is for.
 
@@ -445,7 +446,7 @@ Components split a project into areas of responsibility. Each has a name, a shor
 In *All tickets* (agents):
 - **Select:** checkbox in front of each row, "all" in the header, Shift+click for a range, `x` for the ticket highlighted with `j`/`k`.
 - **Action bar:**
-  - **Resolve** and **Status:** each with an optional comment – either a reply to reporters and participants or an internal note, with templates and per-ticket placeholders. With a reply there is no extra "resolved" mail.
+  - **Resolve** and **Status:** each with an optional comment – either a reply to customers and participants or an internal note, with templates and per-ticket placeholders. With a reply there is no extra "resolved" mail.
   - **Comment:** reply or internal note for all selected tickets without changing the status. An internal note never becomes a public reply: tickets of a project one does not work on are skipped with an error.
   - **Link …:** link all selected tickets with one ticket, e.g. "is caused by IT-42"; optionally with status and comment right away. Existing links stay as they are.
   - **Assign**, **Priority**
@@ -466,7 +467,7 @@ In the ticket view (agents) under *Links* – or faster via **Link** at the top 
 ## Impact, urgency and major incidents
 
 - **ITIL priority:** in the details, agents set *impact* and *urgency* (high/medium/low). Once both are set, the priority follows the matrix (e.g. high × high = Highest, medium × medium = Medium). It can still be changed manually.
-- **Major incident:** mark an incident with many affected people using the *Major incident* button. All agents see it as a red notice at the top. Attach affected tickets via *Link → causes*. **Inform everyone affected** posts the same reply in the major incident and all open affected tickets, so every reporter and participant receives it by email. Optionally all of them are set to “Done” afterwards.
+- **Major incident:** mark an incident with many affected people using the *Major incident* button. All agents see it as a red notice at the top. Attach affected tickets via *Link → causes*. **Inform everyone affected** posts the same reply in the major incident and all open affected tickets, so every customer and participant receives it by email. Optionally all of them are set to “Done” afterwards.
 
 ## Service level (SLA)
 
@@ -503,7 +504,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 
 ## Knowledge base
 
-*Knowledge* in the sidebar; for users it is called *Help & knowledge*.
+*Knowledge base* in the sidebar; for users it is called *Help & knowledge*. In the tab bar on phones it is just *Knowledge*.
 
 - **Articles** with title, category and formatted content. Visibility **internal** (only the project's people) or **public** (everyone signed in).
 - **Per project:** every article belongs to a project (e.g. IT or Facilities).
@@ -531,7 +532,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 Users opening the start page land in the **portal** (`/portal`) – sign-in required.
 
 - **Top:** greeting and a search across the service catalog's offerings and the public guides of all departments.
-- **My requests:** three counters – *Active*, *Waiting for you* (status “Waiting”, i.e. an open question) and *Done* – and the latest own requests. A click on a counter opens exactly the counted own requests (on the computer and on the phone); the list's status filter has the option *Active* for this.
+- **My requests:** three counters – *Active*, *Waiting for you* (status “Waiting”: IT replied or asked a question) and *Done* – and the latest own requests. A click on a counter opens exactly the counted own requests (on the computer and on the phone); the list's status filter has the option *Active* for this.
 - **Departments:** every project with “Show in the portal” as a tile with symbol, colour, short description and the number of offerings and guides.
 - **Department page** (`/portal/<project>`, e.g. `/portal/hm`): optional notice at the top (e.g. an emergency number), the department's offerings, **Report something else** (the ticket lands in this project) and the most recently updated public articles (frequent questions) on the right.
 - **Setup** <sup>admin</sup>: in the project dialog under *In the portal* – show yes/no, short description, notice, symbol, colour and order. After the update all projects are shown; adding a symbol and short description is worth it.
@@ -547,8 +548,8 @@ Standard requests with their own form, e.g. “New employee”, “Software requ
 - **Form:** fields of type text, multi-line, choice, check box or date, each optionally required. The answers appear neatly in the ticket description (type *Request*).
 - **Request a service** in the sidebar shows all offers as tiles to users and agents.
 - **Approval (optional):** per offer you decide who has to agree and whether one approval is enough or everybody has to agree. You add approvers via the people search; they can be people without the agent role, such as managers; they then only see the requests they decide on. They get an email and find open decisions under **My approvals**.
-- **Result:** the decision is added to the ticket as a reply, so the reporter also gets it by email. A rejection closes the request.
-- **Text stays as approved:** while the approval runs and after it is granted, the reporter can no longer change title and description – otherwise something else would be approved than carried out. Additions go into a comment; agents can still correct the text.
+- **Result:** the decision is added to the ticket as a reply, so the customer also gets it by email. A rejection closes the request.
+- **Text stays as approved:** while the approval runs and after it is granted, the customer can no longer change title and description – otherwise something else would be approved than carried out. Additions go into a comment; agents can still correct the text.
 - **Take over examples (admins):** *Examples* creates typical offers with a ready form – new employee, employee leaving, install software, access to a drive or folder, order hardware, Wi-Fi for guests, distribution list or shared mailbox – in German or English. They start **switched off** and without a project: choose the project, check fields and approvers, then switch them on.
 
 ## Devices & services
@@ -565,8 +566,8 @@ A lean register of IT equipment and services (CI register), for agents only: *De
 
 Switch it on under *Administration → Tickets → General → Satisfaction survey* (default: off).
 
-- **In the “Resolved” email** the reporter gets five links from “very satisfied” to “very dissatisfied”. One click is enough, no sign-in needed. On the page they can still change the stars and optionally write a comment. Request participants get no links.
-- **In the ticket** signed-in reporters can rate as well. Agents see the rating and comment at the top of the ticket; changes of the stars appear in the history.
+- **In the “Resolved” email** the customer gets five links from “very satisfied” to “very dissatisfied”. One click is enough, no sign-in needed. On the page they can still change the stars and optionally write a comment. Request participants get no links.
+- **In the ticket** signed-in customers can rate as well. Agents see the rating and comment at the top of the ticket; changes of the stars appear in the history.
 - **Security:** each link contains a random token; only its hash is stored. The link is valid for a configurable number of days (default 14) and only shows the ticket key and title. If the ticket is reopened and resolved again, there is a new survey and the old link expires.
 - **Results** under *Reports → Satisfaction*: average, response rate, distribution of stars, values per agent and the latest comments. Problems and changes are not surveyed.
 
@@ -576,7 +577,7 @@ On phones Helfi.Space opens automatically in its own app-like interface (under `
 
 - **Tab bar at the bottom:** *My work* (agents) or *Portal* and *Requests* (users, see [Portal](#portal-for-users)), *Tickets* (agents), the round **＋** button, *Knowledge* and *Me*. Pages slide in like in an app; go back with the button, a swipe from the left edge or the back key. Pull lists down to refresh.
 - **Report (＋):** report a problem with title, description, **Take photo** or **File**; agents also choose project, type and priority (as on the PC). While you type the title, Helfi.Space suggests matching knowledge articles. If there is a service catalog, its offerings appear as large tiles next to it – with all field types, required fields and approval. An unsent draft is kept until the tab is closed.
-- **Ticket:** comments like a chat, reply bar at the bottom with photos and files; agents add the history (status, assignments …) via *All* – the phone remembers the choice. Agents also write internal notes, use templates, change status, assignee, priority, type and participants, link tickets and approve requests. Title and description can be changed by agents and by the reporter.
+- **Ticket:** comments like a chat, reply bar at the bottom with photos and files; agents add the history (status, assignments …) via *All* – the phone remembers the choice. Agents also write internal notes, use templates, change status, assignee, priority, type and participants, link tickets and approve requests. Title and description can be changed by agents and by the customer.
 - **Knowledge:** search, categories, *Recently viewed*, *Most read* and the page tree to browse. Articles with a table of contents, sideways-scrolling tables and comments. Articles are edited on the PC (*Edit on desktop*). Users only see public articles.
 - **Me:** name, email and password (local accounts), language, **passkeys** (Face ID, fingerprint), **two-factor authentication** right on the phone (secret key to copy and an *Open in authenticator app* button instead of a QR code, the QR code stays available for a second device; then the recovery codes to copy or share), what's new and *Desktop view*.
 - **Install as an app:** iPhone/iPad: in Safari *Share* → *Add to Home Screen*. Android: in Chrome ⋮ → *Install app* (or the button under *Me → Install app*). Helfi.Space then starts full screen with its own icon; a small service worker keeps only the program files ready and shows a notice page without a connection. New versions arrive automatically ("New version – Reload").
@@ -600,7 +601,7 @@ In comments, descriptions and reply templates:
 For replies that are always the same (e.g. "Please restart your computer"):
 
 - **Insert:** click **Template** in the comment box, type to search, press Enter or click to insert. The text goes to the cursor position and can still be edited before saving. Works for replies and internal notes. Only agents see templates.
-- **Placeholders:** `{reporter}`, `{ticket}`, `{title}`, `{agent}` (German `{melder}`, `{titel}`, `{bearbeiter}`) are replaced when inserting.
+- **Placeholders:** `{customer}`, `{ticket}`, `{title}`, `{agent}` (German `{kunde}`, `{titel}`, `{bearbeiter}`) are replaced when inserting. Older templates with `{reporter}` or `{melder}` keep working.
 - **Create:**
   - Write a text in the comment box and choose **Save as template**.
   - Admins manage templates for everyone under *Administration → Reply templates*. Optionally such a template belongs to a **project**: then only its agents see it, and only in its tickets. Without a project it is for everyone.
@@ -625,7 +626,7 @@ For replies that are always the same (e.g. "Please restart your computer"):
   - **Avg. resolution time:** from "created" to "resolved"
 - **By component** (once components are used): tickets created in the period, how many are open, and average resolution time; a click opens the filtered list
 - **ITIL key figures** for the same period:
-  - **Service quality:** resolved requests and incidents, resolved at first contact (at most one reply from IT, no follow-up question, never reopened), reopen rate, major incidents. IT's own tickets are not counted.
+  - **Service quality:** resolved requests and incidents, resolved at first contact (at most one reply from IT, the customer did not have to write again afterwards, never reopened), reopen rate, major incidents. IT's own tickets are not counted.
   - **SLA compliance** for response and resolution, overall and per priority (when SLAs are switched on)
   - **Changes per month:** kinds, rejected, outcomes, success rate and share of emergency changes
   - **Problems:** new, resolved, open, known errors
@@ -686,19 +687,19 @@ What is taken over:
 
 - Title, description (as text, HTML mails are converted), type, status, priority, labels (Zammad tags), due date, created and resolved date
 - **Comments:** in Zammad, Znuny and Zendesk the first article or comment visible to the customer is the description, all further ones become comments. Internal notes (Zammad "internal", Znuny "not visible for customer", internal comments from service desk projects and comments with restricted visibility) stay internal. From CSV: a *comments* column becomes one internal note.
-- **Attachments** up to the chosen size. Files of an internal note are attached to that note and stay internal. In Jira, files belong to the issue, not to a comment: a file only becomes public when the description or a public comment shows it or the reporter uploaded it; if only an internal comment shows it, or it is unclear (and there are internal comments), it stays internal. Small embedded images (logos in signatures) and the HTML part of mails are skipped.
+- **Attachments** up to the chosen size. Files of an internal note are attached to that note and stay internal. In Jira, files belong to the issue, not to a comment: a file only becomes public when the description or a public comment shows it or the customer uploaded it; if only an internal comment shows it, or it is unclear (and there are internal comments), it stays internal. Small embedded images (logos in signatures) and the HTML part of mails are skipped.
 
 How numbers and people are handled:
 
 - **Numbers:** `SUP-123` stays `SUP-123`, Zammad `#31011` becomes e.g. `SD-31011`. Very long numbers (date based, e.g. `2025030110000071` from Znuny) and numbers already taken get the next free one; so do numbers that belonged to a ticket moved elsewhere since. The old number appears in the history ("imported"). New tickets continue after the highest number.
-- **People** are matched by email address. Reporters without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they work on the target project in Helfi.Space (admins or the project's people; by email, login or a unique name), otherwise their name appears in the history – so add agents to the project before importing. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
+- **People** are matched by email address. Customers without an account become email contacts, and if the person later signs in via AD or SSO, the tickets belong to them. Assignees are only assigned if they work on the target project in Helfi.Space (admins or the project's people; by email, login or a unique name), otherwise their name appears in the history – so add agents to the project before importing. Cloud systems may withhold email addresses depending on privacy settings; then only the name is taken over.
 
 Also:
 
 - **No emails** are sent.
 - **Protection against misuse (SSRF):** the import never connects to local addresses (`127.x`, `::1`), link-local addresses (`169.254.x.x`, e.g. metadata services of cloud servers) or multicast – not even via a name or a redirect pointing there. Systems in your own network (`10.x`, `172.16–31.x`, `192.168.x`) are reachable. If the source system really runs on the same machine and is only reachable via `127.0.0.1`, `HELFI_IMPORT_ALLOW_LOCAL=1` in the `.env` lifts the block.
 - Before every import starts, Helfi.Space creates a backup (`helfi-vor-import-….sqlite`).
-- **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins; the changed fields appear in the history). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day. For CSV files use the same *name of the source*; without a number column a row is recognised by title, creation date and reporter.
+- **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins; the changed fields appear in the history). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day. For CSV files use the same *name of the source*; without a number column a row is recognised by title, creation date and customer.
 
 ---
 

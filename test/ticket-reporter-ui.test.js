@@ -59,13 +59,13 @@ test('Desktop: create a ticket for someone else, then change the reporter', { sk
   await p.locator('.history, .activity').first().waitFor().catch(() => {});
 
   // change later
-  await p.getByRole('button', { name: 'Melder ändern' }).click();
+  await p.getByRole('button', { name: 'Kunden ändern' }).click();
   await p.keyboard.type('lisa');
   await p.locator('.picker-menu .menu-item', { hasText: 'Lisa Lager' }).click();
-  const confirm = p.locator('.modal', { hasText: 'wird Melder von' });
+  const confirm = p.locator('.modal', { hasText: 'wird Kunde von' });
   await confirm.waitFor();
   await confirm.locator('input[type=checkbox]').uncheck();
-  await confirm.getByRole('button', { name: 'Melder ändern' }).click();
+  await confirm.getByRole('button', { name: 'Kunden ändern' }).click();
   await p.waitForFunction(() => document.querySelector('.reporter-row')?.textContent.includes('Lisa Lager'));
   const tk = await ticket(key);
   assert.equal(tk.reporter.displayName, 'Lisa Lager');

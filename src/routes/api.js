@@ -970,7 +970,7 @@ export function createApi(ctx) {
   r.post('/tickets/:key/comments', wrap(async (req, res) => {
     // attachmentIds: own drafts of this ticket (uploaded with draft=file/1) that belong to this comment
     const ids = Array.isArray(req.body.attachmentIds) ? req.body.attachmentIds.slice(0, 20).map((x) => int(x)).filter(Boolean) : [];
-    const c = tickets.addComment(req.user, req.params.key, { body: req.body.body, internal: !!req.body.internal, attachmentIds: ids, format: req.body.format === 'md' ? 'md' : 'text' });
+    const c = tickets.addComment(req.user, req.params.key, { body: req.body.body, internal: !!req.body.internal, attachmentIds: ids, format: req.body.format === 'md' ? 'md' : 'text', waitForCustomer: req.body.waitForCustomer !== false });
     res.status(201).json({ comment: c });
   }));
 

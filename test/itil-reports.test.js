@@ -19,9 +19,11 @@ test('Reopening and first-contact resolution', async () => {
   const a = await mk('A');
   await anna('POST', `/api/tickets/${a}/comments`, { body: 'Neu gestartet, geht wieder.' });
   await done(a);
-  // 2) follow-up question (waiting) → no first contact
+  // 2) follow-up question the customer has to answer → no first contact
+  //    (the reply alone sets "Waiting" – that is no longer the signal, see case 1)
   const b = await mk('B');
-  await anna('PATCH', `/api/tickets/${b}`, { status: 'waiting' });
+  await anna('POST', `/api/tickets/${b}/comments`, { body: 'Welcher Drucker?' });
+  await karl('POST', `/api/tickets/${b}/comments`, { body: 'Der im 2. Stock.' });
   await done(b);
   // 3) resolved, reopened, resolved again → reopening
   const c = await mk('C');
