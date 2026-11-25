@@ -15,7 +15,7 @@
   <div class="audience">
     <div><strong>Benutzer</strong>Probleme melden, Anfragen verfolgen, antworten – Kapitel 2</div>
     <div><strong>Bearbeiter</strong>Tickets bearbeiten, Vorlagen, Berichte, Tastenkürzel – Kapitel 3</div>
-    <div><strong>IT-Service-Management</strong>Störungen, SLA, Probleme, Changes, Wissen, Servicekatalog, Geräte, Zufriedenheit – Kapitel 4</div>
+    <div><strong>IT-Service-Management</strong>Störungen, SLA, Probleme, Changes, Wissensdatenbank, Servicekatalog, Geräte, Zufriedenheit – Kapitel 4</div>
     <div><strong>Administratoren</strong>Installation, AD, SSO, 2FA, E-Mail, Updates, Sicherung – Kapitel 5 und 6</div>
   </div>
   <div class="meta">Version {{VERSION}} · Stand {{DATE}}<br>Alle Namen, Adressen und Rechner in diesem Handbuch sind Beispiele.</div>
@@ -42,7 +42,7 @@
 <!-- ============================================================ -->
 <h1 class="chapter" id="ueberblick">Überblick</h1>
 
-<p>In Helfi.Space wird jedes Anliegen ein <strong>Ticket</strong> – egal ob jemand es im Browser meldet oder eine E-Mail an das Helpdesk-Postfach schickt. Bearbeiter sehen alle Tickets ihrer Projekte, ordnen sie zu, antworten und setzen sie am Ende auf „Erledigt“. Melder bekommen jede Antwort per E-Mail und können direkt darauf antworten.</p>
+<p>In Helfi.Space wird jedes Anliegen ein <strong>Ticket</strong> – egal ob jemand es im Browser meldet oder eine E-Mail an das Helpdesk-Postfach schickt. Bearbeiter sehen alle Tickets ihrer Projekte, ordnen sie zu, antworten und setzen sie am Ende auf „Erledigt“. Kunden bekommen jede Antwort per E-Mail und können direkt darauf antworten.</p>
 
 <figure><img src="img/de/board.jpg" alt=""><figcaption>Board eines Projekts mit den vier Status-Spalten</figcaption></figure>
 
@@ -60,8 +60,8 @@
   <tr><th style="width:24%">Status</th><th>Bedeutung</th></tr>
   <tr><td>Offen</td><td>Neu oder noch nicht begonnen.</td></tr>
   <tr><td>In Arbeit</td><td>Jemand kümmert sich darum.</td></tr>
-  <tr><td>Wartet</td><td>Es wird auf eine Antwort des Melders gewartet. Antwortet er, öffnet sich das Ticket wieder.</td></tr>
-  <tr><td>Erledigt</td><td>Abgeschlossen. Der Melder bekommt eine Mail. Antwortet er darauf, öffnet sich das Ticket wieder (außer es wurde abgelehnt oder als Duplikat geschlossen).</td></tr>
+  <tr><td>Wartet</td><td>Es wird auf eine Antwort des Kunden gewartet. Das stellt sich von selbst ein, sobald ein Bearbeiter dem Kunden antwortet. Antwortet der Kunde, öffnet sich das Ticket wieder.</td></tr>
+  <tr><td>Erledigt</td><td>Abgeschlossen. Der Kunde bekommt eine Mail. Antwortet er darauf, öffnet sich das Ticket wieder (außer es wurde abgelehnt oder als Duplikat geschlossen).</td></tr>
 </table>
 <p><strong>Typen:</strong> Störung (etwas funktioniert nicht), Anfrage (etwas wird gebraucht), Aufgabe (interne Arbeit), Frage; für Bearbeiter zusätzlich Problem (gemeinsame Ursache mehrerer Störungen) und Change (geplante Änderung), siehe Kapitel <a href="#itil">4</a>. <strong>Prioritäten:</strong> Sehr hoch, Hoch, Mittel, Niedrig.</p>
 <p>Jedes Ticket hat eine <strong>Nummer</strong> aus Projektschlüssel und laufender Zahl, z. B. <code>IT-42</code>. Sie steht auch im Betreff aller Mails, z. B. <code>[IT-42]</code>.</p>
@@ -69,7 +69,7 @@
 <h2 id="oberflaeche">Aufbau der Oberfläche</h2>
 <ul>
   <li><strong>Kopfzeile:</strong> Logo, <em>Meine Arbeit</em>, <em>Alle Tickets</em>, der Knopf <strong>Erstellen</strong>, die Suche (Ticketnummer oder Stichwort) und rechts das Benutzermenü mit Profil, Sprache (Deutsch/English) und Abmelden. Das Design (System/Hell/Dunkel) stellst du unten in der Seitenleiste um.</li>
-  <li><strong>Seitenleiste (Bearbeiter):</strong> das aktuelle Projekt, Zusammenfassung, Warteschlangen mit Live-Zahlen, Board, Serviceanfragen, Vorfälle, Probleme, Changes, Meine Genehmigungen, Change-Kalender, Servicekatalog, Geräte &amp; Dienste, Wissen, Berichte, Antwortvorlagen und für Admins die Einstellungen.</li>
+  <li><strong>Seitenleiste (Bearbeiter):</strong> das aktuelle Projekt, Zusammenfassung, Warteschlangen mit Live-Zahlen, Board, Serviceanfragen, Vorfälle, Probleme, Changes, Meine Genehmigungen, Change-Kalender, Servicekatalog, Geräte &amp; Dienste, Wissensdatenbank, Berichte, Antwortvorlagen und für Admins die Einstellungen.</li>
   <li><strong>Seitenleiste (Benutzer):</strong> <em>Meine Anfragen</em>, je nach Einrichtung <em>Service anfordern</em> und <em>Meine Genehmigungen</em>, sowie <em>Hilfe &amp; Wissen</em>.</li>
 </ul>
 <div class="tip"><p>Die Oberfläche gibt es auf Deutsch und Englisch. Ohne eigene Wahl richtet sie sich nach der Sprache des Browsers.</p></div>
@@ -105,7 +105,7 @@
 <p>Nach der Anmeldung landest du im <strong>Portal</strong>. Dort findest du alles auf einer Seite:</p>
 <ul>
   <li><strong>Suche:</strong> Tippe ein, wobei du Hilfe brauchst, z. B. „Heizung“. Darunter erscheinen passende Angebote aus dem Servicekatalog und Anleitungen aller Abteilungen.</li>
-  <li><strong>Meine Anfragen:</strong> drei Zähler – <em>Aktiv</em>, <em>Wartet auf dich</em> (jemand hat dir eine Frage gestellt) und <em>Erledigt</em> – und deine letzten Anfragen. Ein Klick auf einen Zähler zeigt genau die gezählten Anfragen; in der Liste findest du sie über die Statusauswahl <em>Aktiv</em> wieder.</li>
+  <li><strong>Meine Anfragen:</strong> drei Zähler – <em>Aktiv</em>, <em>Wartet auf dich</em> (die IT hat dir geantwortet oder eine Frage gestellt) und <em>Erledigt</em> – und deine letzten Anfragen. Ein Klick auf einen Zähler zeigt genau die gezählten Anfragen; in der Liste findest du sie über die Statusauswahl <em>Aktiv</em> wieder.</li>
   <li><strong>Abteilungen:</strong> z. B. IT, Haustechnik oder Verwaltung als Kacheln. Auf der Seite einer Abteilung stehen ihre Angebote, ihre häufigen Fragen (die zuletzt aktualisierten öffentlichen Artikel) und <strong>Anderes Anliegen melden</strong> – die Anfrage geht dann direkt an diese Abteilung.</li>
 </ul>
 <figure><img src="img/de/portal-start.jpg" alt=""><figcaption>Das Portal: Suche, Meine Anfragen und die Abteilungen</figcaption></figure>
@@ -127,7 +127,7 @@
 
 <h2 id="antworten">Antworten und Dateien</h2>
 <p>Öffne ein Ticket und schreibe unten in das Kommentarfeld; mit <strong>Speichern</strong> oder <kbd>Strg</kbd>+<kbd>Enter</kbd> geht die Antwort an die IT. Alternativ antwortest du einfach auf eine Mail von Helfi.Space – die Antwort landet automatisch im richtigen Ticket, zitierter Verlauf wird abgeschnitten.</p>
-<figure><img src="img/de/ticket-user.jpg" alt=""><figcaption>Ein Ticket aus Sicht des Melders</figcaption></figure>
+<figure><img src="img/de/ticket-user.jpg" alt=""><figcaption>Ein Ticket aus Sicht des Kunden</figcaption></figure>
 <p>Dateien hängst du unter <em>Anhänge → Datei anhängen</em> an. Bilder werden direkt angezeigt, alle anderen Dateien werden heruntergeladen.</p>
 
 <h3 id="kommentar-loeschen">Kommentar löschen</h3>
@@ -141,11 +141,11 @@
 </ul>
 
 <h2 id="teilnehmer">Anfrage-Teilnehmer</h2>
-<p>Neben dem Melder können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem. Unter <em>Anfrage-Teilnehmer → Hinzufügen</em> fügst du Kollegen mit eigenem Konto hinzu (höchstens 20 je Ticket): Namen eintippen, die Vorschläge erscheinen darunter; mit Klick oder <kbd>↑</kbd>/<kbd>↓</kbd> und <kbd>Enter</kbd> auswählen, <kbd>Esc</kbd> bricht ab.</p>
+<p>Neben dem Kunden können weitere Personen an einem Ticket beteiligt sein, z. B. Kollegen mit demselben Problem. Unter <em>Anfrage-Teilnehmer → Hinzufügen</em> fügst du Kollegen mit eigenem Konto hinzu (höchstens 20 je Ticket): Namen eintippen, die Vorschläge erscheinen darunter; mit Klick oder <kbd>↑</kbd>/<kbd>↓</kbd> und <kbd>Enter</kbd> auswählen, <kbd>Esc</kbd> bricht ab.</p>
 <ul>
-  <li>Teilnehmer sehen das Ticket, können kommentieren und Dateien anhängen und bekommen dieselben Mails wie der Melder.</li>
-  <li>Sie sehen keine internen Notizen und können Status, Zuweisung oder Titel nicht ändern. Vom Melder sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen.</li>
-  <li>Entfernen können sich Teilnehmer selbst; außerdem der Melder und die Bearbeiter.</li>
+  <li>Teilnehmer sehen das Ticket, können kommentieren und Dateien anhängen und bekommen dieselben Mails wie der Kunde.</li>
+  <li>Sie sehen keine internen Notizen und können Status, Zuweisung oder Titel nicht ändern. Vom Kunden sehen sie nur den Namen, nicht Mailadresse und Anmeldenamen.</li>
+  <li>Entfernen können sich Teilnehmer selbst; außerdem der Kunde und die Bearbeiter.</li>
   <li><strong>Bearbeiter</strong> können auch eine beliebige Mailadresse eintragen und finden Personen direkt aus dem <strong>Active Directory</strong> (markiert mit „AD“), auch über die Mailadresse. Die Person wird dabei mit Name und Mailadresse aus dem AD übernommen – sie muss sich vorher nicht angemeldet haben.</li>
 </ul>
 
@@ -198,7 +198,7 @@
 <p>Steht bei einem Angebot „mit Genehmigung“, muss erst jemand zustimmen, z. B. deine Vorgesetzte. Den Stand siehst du oben im Ticket. Solange die Genehmigung läuft und danach bleiben Titel und Beschreibung so, wie sie genehmigt werden – Ergänzungen schreibst du als Kommentar.</p>
 
 <h2 id="genehmigen">Genehmigen</h2>
-<p>Wer als Genehmiger eingetragen ist, bekommt eine Mail und sieht in der Seitenleiste <em>Meine Genehmigungen</em>. Im Ticket genügt ein Klick auf <strong>Genehmigen</strong> oder <strong>Ablehnen</strong>, auf Wunsch mit Kommentar. Die Entscheidung geht als Antwort an den Melder; eine Ablehnung schließt die Anfrage. Genehmiger ohne Bearbeiter-Rolle sehen nur die Anfragen, über die sie entscheiden, und vom Melder nur den Namen. Das gilt auch für Changes: Genehmiger müssen weder Admin noch Bearbeiter des Projekts sein, sie sehen im Ticket den Genehmigungsbereich und entscheiden dort. Darunter steht der Plan des Changes zum Lesen – Art, Risiko, Zeitfenster, betroffene Dienste und Geräte, Grund, Umsetzungs-, Rückfall- und Testplan –, am Computer wie auf dem Handy und auch nach der Entscheidung. Ändern können sie ihn nicht, interne Notizen sehen sie nicht.</p>
+<p>Wer als Genehmiger eingetragen ist, bekommt eine Mail und sieht in der Seitenleiste <em>Meine Genehmigungen</em>. Im Ticket genügt ein Klick auf <strong>Genehmigen</strong> oder <strong>Ablehnen</strong>, auf Wunsch mit Kommentar. Die Entscheidung geht als Antwort an den Kunden; eine Ablehnung schließt die Anfrage. Genehmiger ohne Bearbeiter-Rolle sehen nur die Anfragen, über die sie entscheiden, und vom Kunden nur den Namen. Das gilt auch für Changes: Genehmiger müssen weder Admin noch Bearbeiter des Projekts sein, sie sehen im Ticket den Genehmigungsbereich und entscheiden dort. Darunter steht der Plan des Changes zum Lesen – Art, Risiko, Zeitfenster, betroffene Dienste und Geräte, Grund, Umsetzungs-, Rückfall- und Testplan –, am Computer wie auf dem Handy und auch nach der Entscheidung. Ändern können sie ihn nicht, interne Notizen sehen sie nicht.</p>
 <figure><img src="img/de/itil-catalog-approval.jpg" alt=""><figcaption>Genehmigung im Ticket aus Sicht der Vorgesetzten</figcaption></figure>
 
 <h2 id="hilfe-wissen">Hilfe &amp; Wissen</h2>
@@ -242,7 +242,7 @@
 <h1 class="chapter" id="bearbeiter">Für Bearbeiter <span class="role role-agent">Bearbeiter</span></h1>
 
 <h2 id="warteschlangen">Warteschlangen und Zusammenfassung</h2>
-<p>Die Seitenleiste zeigt für das gewählte Projekt feste <strong>Warteschlangen</strong> mit Live-Zahlen: <em>Alle offenen Tickets</em>, <em>Mir zugewiesen</em>, <em>Nicht zugewiesen</em>, <em>Wartet auf Melder</em>, <em>Kürzlich erledigt</em> (7 Tage) und <em>Alle Tickets</em>. Darunter <em>Serviceanfragen</em> und <em>Vorfälle</em> (offene Anfragen bzw. Störungen) sowie <em>Erwähnt mich</em> (siehe <a href="#erwaehnen">Kollegen erwähnen</a>). Das Projekt wechselst du oben in der Seitenleiste.</p>
+<p>Die Seitenleiste zeigt für das gewählte Projekt feste <strong>Warteschlangen</strong> mit Live-Zahlen: <em>Alle offenen Tickets</em>, <em>Mir zugewiesen</em>, <em>Nicht zugewiesen</em>, <em>Wartet auf Kunden</em>, <em>Kürzlich erledigt</em> (7 Tage) und <em>Alle Tickets</em>. Darunter <em>Serviceanfragen</em> und <em>Vorfälle</em> (offene Anfragen bzw. Störungen) sowie <em>Erwähnt mich</em> (siehe <a href="#erwaehnen">Kollegen erwähnen</a>). Das Projekt wechselst du oben in der Seitenleiste.</p>
 <p>Die <strong>Zusammenfassung</strong> zeigt Kennzahlen, Verteilungen nach Status, Typ und Priorität und die dringendsten offenen Tickets.</p>
 <figure><img src="img/de/summary.jpg" alt=""><figcaption>Zusammenfassung eines Projekts</figcaption></figure>
 <p><em>Meine Arbeit</em> in der Kopfzeile sammelt alles, was dir zugewiesen ist, was niemandem zugewiesen ist und was du selbst gemeldet hast.</p>
@@ -294,36 +294,36 @@
 <h2 id="erledigen">Erledigen mit Abschlusskommentar</h2>
 <p>Wählst du im <strong>Status-Menü</strong> des Tickets <em>Erledigt</em>, öffnet sich ein Fenster für einen <strong>Abschlusskommentar</strong> – Kommentar schreiben und Ticket schließen in einem Schritt:</p>
 <ul>
-  <li><strong>Antwort an Melder</strong> (voreingestellt): geht an Melder und Teilnehmer. Dann kommt keine zusätzliche „Erledigt“-Mail – deine Antwort informiert schon. Antwortvorlagen und Platzhalter wie <code>{melder}</code> funktionieren.</li>
-  <li><strong>Interne Notiz</strong>: nur für Bearbeiter sichtbar; der Melder bekommt die normale „Erledigt“-Mail.</li>
+  <li><strong>Antwort an Kunden</strong> (voreingestellt): geht an Kunden und Teilnehmer. Dann kommt keine zusätzliche „Erledigt“-Mail – deine Antwort informiert schon. Antwortvorlagen und Platzhalter wie <code>{kunde}</code> funktionieren.</li>
+  <li><strong>Interne Notiz</strong>: nur für Bearbeiter sichtbar; der Kunde bekommt die normale „Erledigt“-Mail.</li>
   <li>Ohne Text auf <em>Erledigen</em> klicken schließt das Ticket einfach. <kbd>Strg</kbd>+<kbd>Enter</kbd> im Textfeld erledigt sofort, <em>Abbrechen</em> lässt alles, wie es war.</li>
 </ul>
 <p>Mehrere Tickets erledigst du über die Mehrfachauswahl in der Ticketliste (<em>Erledigen</em>), auf dem Handy über <em>Status → Erledigt</em> – beides ebenfalls mit Antwort oder interner Notiz.</p>
-<figure class="medium"><img src="img/de/done-comment.jpg" alt=""><figcaption>Erledigen mit Antwort an den Melder</figcaption></figure>
+<figure class="medium"><img src="img/de/done-comment.jpg" alt=""><figcaption>Erledigen mit Antwort an den Kunden</figcaption></figure>
 <figure class="phone"><img src="img/de/m-done-comment.jpg" alt=""><figcaption>Auf dem Handy: Erledigen mit interner Notiz</figcaption></figure>
 
 <h2 id="ablehnen">Ablehnen und Duplikate</h2>
 <p>Nicht jedes Ticket endet mit einer Lösung. Neben <em>Erledigt</em> gibt es deshalb zwei weitere Abschlüsse – beide im <strong>Status-Menü</strong> des Tickets (auf dem Handy unter <em>Status</em>):</p>
 <ul>
-  <li><strong>Ablehnen …</strong> – die Anfrage wird bewusst nicht umgesetzt. Die <strong>Begründung</strong> ist Pflicht und geht als Antwort an Melder und Teilnehmer; Antwortvorlagen und Platzhalter wie <code>{melder}</code> funktionieren. Es kommt keine zusätzliche „Erledigt“-Mail und keine Zufriedenheitsumfrage.</li>
-  <li><strong>Als Duplikat schließen …</strong> – das Anliegen wird schon in einem anderen Ticket bearbeitet. Wähle das <em>Original-Ticket</em>; beide werden verknüpft, der Melder bekommt einen kurzen Hinweis mit der Nummer des Originals (oder deinen eigenen Text). Mit <em>Melder und Teilnehmer zum Original hinzufügen</em> verfolgen sie das Original weiter – nur, wenn es nichts Vertrauliches enthält. Als Original kannst du nur Tickets wählen, die du bearbeitest; ist das Original selbst ein Duplikat, gilt das auch für die Tickets, auf die es verweist.</li>
+  <li><strong>Ablehnen …</strong> – die Anfrage wird bewusst nicht umgesetzt. Die <strong>Begründung</strong> ist Pflicht und geht als Antwort an Kunden und Teilnehmer; Antwortvorlagen und Platzhalter wie <code>{kunde}</code> funktionieren. Es kommt keine zusätzliche „Erledigt“-Mail und keine Zufriedenheitsumfrage.</li>
+  <li><strong>Als Duplikat schließen …</strong> – das Anliegen wird schon in einem anderen Ticket bearbeitet. Wähle das <em>Original-Ticket</em>; beide werden verknüpft, der Kunde bekommt einen kurzen Hinweis mit der Nummer des Originals (oder deinen eigenen Text). Mit <em>Kunden und Teilnehmer zum Original hinzufügen</em> verfolgen sie das Original weiter – nur, wenn es nichts Vertrauliches enthält. Als Original kannst du nur Tickets wählen, die du bearbeitest; ist das Original selbst ein Duplikat, gilt das auch für die Tickets, auf die es verweist.</li>
 </ul>
 <figure class="medium"><img src="img/de/reject.jpg" alt=""><figcaption>Ticket ablehnen mit Begründung</figcaption></figure>
-<p>Das Ticket zeigt dann <em>Abgelehnt</em> bzw. <em>Duplikat</em> statt <em>Erledigt</em> – in Listen, unter <em>Meine Anfragen</em> und auf dem Handy –, bei Duplikaten mit Link zum Original. In der Ticketliste filterst du nach <em>Lösung</em>, sobald der Status <em>Erledigt</em> gewählt ist; über die Mehrfachauswahl lehnst du mehrere Tickets auf einmal ab. Eine Antwort-Mail darauf öffnet das Ticket nicht wieder, sondern wird eine interne Notiz – bei Bedarf öffnest du es selbst. Schreibt der Melder in der Weboberfläche, öffnet es sich wie gewohnt wieder. In den Berichten zählen Abgelehnte und Duplikate getrennt und nicht zur Ø Lösungszeit.</p>
+<p>Das Ticket zeigt dann <em>Abgelehnt</em> bzw. <em>Duplikat</em> statt <em>Erledigt</em> – in Listen, unter <em>Meine Anfragen</em> und auf dem Handy –, bei Duplikaten mit Link zum Original. In der Ticketliste filterst du nach <em>Lösung</em>, sobald der Status <em>Erledigt</em> gewählt ist; über die Mehrfachauswahl lehnst du mehrere Tickets auf einmal ab. Eine Antwort-Mail darauf öffnet das Ticket nicht wieder, sondern wird eine interne Notiz – bei Bedarf öffnest du es selbst. Schreibt der Kunde in der Weboberfläche, öffnet es sich wie gewohnt wieder. In den Berichten zählen Abgelehnte und Duplikate getrennt und nicht zur Ø Lösungszeit.</p>
 <figure class="medium"><img src="img/de/resolutions-list.jpg" alt=""><figcaption>Erledigte Tickets mit Lösung</figcaption></figure>
 
 <h2 id="fuer-andere">Tickets für andere erfassen</h2>
 <p>Kommt ein Anliegen per Telefon, im Flur oder an ein anderes Postfach, erfasst du das Ticket gleich im Namen der Person. Es erscheint dann bei ihr unter <em>Meine Anfragen</em> – so gewöhnt sie sich ans Ticketsystem.</p>
 <ol>
-  <li><strong>Erstellen</strong> öffnen. Oben steht der <strong>Melder</strong>, voreingestellt „Ich“.</li>
+  <li><strong>Erstellen</strong> öffnen. Oben steht der <strong>Kunde</strong>, voreingestellt „Ich“.</li>
   <li><em>Für jemand anderen erfassen</em> klicken und Name, Anmeldename oder Mailadresse tippen. Ab 3 Zeichen erscheinen auch Personen aus dem AD (markiert mit „AD“). Eine Mailadresse ohne Konto wird als E-Mail-Kontakt angelegt.</li>
-  <li><strong>Melder per E-Mail benachrichtigen</strong> ist angehakt: Die Person bekommt eine Mail mit Ticketnummer und Link – mit Konto auch den Hinweis, dass sie neue Anliegen künftig selbst melden kann.</li>
+  <li><strong>Kunden per E-Mail benachrichtigen</strong> ist angehakt: Die Person bekommt eine Mail mit Ticketnummer und Link – mit Konto auch den Hinweis, dass sie neue Anliegen künftig selbst melden kann.</li>
   <li>Text aus der Mail oder Notiz einfügen und <strong>Erstellen</strong>.</li>
 </ol>
 <figure class="medium"><img src="img/de/reporter-create.jpg" alt=""><figcaption>Ticket für eine Kollegin erfassen</figcaption></figure>
 <p>Im Verlauf steht, wer das Ticket für wen angelegt hat. <em>Zurück zu mir</em> macht die Wahl rückgängig.</p>
-<p><strong>Nachträglich ändern:</strong> In den Details unter <em>Melder</em> auf <em>Melder ändern</em> klicken, Person wählen und bestätigen. Der bisherige Melder behält als Anfrage-Teilnehmer Zugriff (außer Bearbeiter und reine E-Mail-Kontakte). Antwortet ein früherer Melder später noch auf eine alte Mail, wird daraus nur eine interne Notiz. Dasselbe gilt für Mails von Bearbeiter-Adressen, die nur über die Ticketnummer im Betreff zugeordnet werden – antworte dem Melder im Ticket. Auf dem Handy: <em>Alle Details → Melder</em>.</p>
-<figure class="small"><img src="img/de/m-reporter.jpg" alt=""><figcaption>Auf dem Handy: Melder beim Erstellen wählen</figcaption></figure>
+<p><strong>Nachträglich ändern:</strong> In den Details unter <em>Kunde</em> auf <em>Kunden ändern</em> klicken, Person wählen und bestätigen. Der bisherige Kunde behält als Anfrage-Teilnehmer Zugriff (außer Bearbeiter und reine E-Mail-Kontakte). Antwortet ein früherer Kunde später noch auf eine alte Mail, wird daraus nur eine interne Notiz. Dasselbe gilt für Mails von Bearbeiter-Adressen, die nur über die Ticketnummer im Betreff zugeordnet werden – antworte dem Kunden im Ticket. Auf dem Handy: <em>Alle Details → Kunde</em>.</p>
+<figure class="small"><img src="img/de/m-reporter.jpg" alt=""><figcaption>Auf dem Handy: Kunden beim Erstellen wählen</figcaption></figure>
 
 <h2 id="formatieren">Antworten formatieren</h2>
 <p>Über dem Kommentarfeld liegt eine Werkzeugleiste – im Ticket, bei Kommentaren zu Wissensartikeln und auf dem Handy:</p>
@@ -335,7 +335,7 @@
   <li><kbd>Strg</kbd>+<kbd>Enter</kbd> speichert.</li>
 </ul>
 <figure class="medium"><img src="img/de/comment-toolbar.jpg" alt=""><figcaption>Kommentarfeld mit Werkzeugleiste: fett, Erwähnung und Emoji</figcaption></figure>
-<p>Melder und Teilnehmer bekommen die Antwort formatiert per Mail (mit einem lesbaren Textteil für Programme ohne HTML). <strong>Bilder</strong> aus der Antwort kommen direkt in der Mail mit und stehen an ihrer Stelle im Text – der Empfänger muss sich dafür nicht anmelden und im Mail-Programm nichts freischalten. Bis zu 5 Bilder je Mail (nur echte PNG-, JPEG-, GIF- und WebP-Dateien, je bis 2 MB, zusammen höchstens etwa 5 MB; ein mehrfach eingefügtes Bild kommt nur einmal mit); weitere stehen als „[Bild: Name]“ in der Mail und sind im Ticket zu sehen. Lehnt der Mailserver eine Mail mit Bildern ab, geht sie einmal als reiner Text mit „[Bild: Name]“ erneut raus; schlägt der Versand an einen Empfänger fehl, bekommen die übrigen ihre Mail trotzdem. Bilder aus internen Notizen gehen nie an Melder oder Teilnehmer.</p>
+<p>Kunden und Teilnehmer bekommen die Antwort formatiert per Mail (mit einem lesbaren Textteil für Programme ohne HTML). <strong>Bilder</strong> aus der Antwort kommen direkt in der Mail mit und stehen an ihrer Stelle im Text – der Empfänger muss sich dafür nicht anmelden und im Mail-Programm nichts freischalten. Bis zu 5 Bilder je Mail (nur echte PNG-, JPEG-, GIF- und WebP-Dateien, je bis 2 MB, zusammen höchstens etwa 5 MB; ein mehrfach eingefügtes Bild kommt nur einmal mit); weitere stehen als „[Bild: Name]“ in der Mail und sind im Ticket zu sehen. Lehnt der Mailserver eine Mail mit Bildern ab, geht sie einmal als reiner Text mit „[Bild: Name]“ erneut raus; schlägt der Versand an einen Empfänger fehl, bekommen die übrigen ihre Mail trotzdem. Bilder aus internen Notizen gehen nie an Kunden oder Teilnehmer.</p>
 <figure class="medium"><img src="img/de/mail-images.jpg" alt=""><figcaption>Antwort-Mail mit Bild an seiner Stelle im Text</figcaption></figure>
 <p>Infokästen, Zitate und Listen werden bis zu 8 Ebenen tief verschachtelt dargestellt, Tabellen mit höchstens 50 Spalten und 5000 Zellen – was darüber hinausgeht, erscheint als normaler Text. So kann kein Kommentar den Browser oder den Server lahmlegen.</p>
 <p> Auf dem Handy erscheint die Leiste über dem Feld, sobald du schreibst, und lässt sich seitlich wischen.</p>
@@ -344,17 +344,22 @@
 <h2 id="notizen">Antworten und interne Notizen</h2>
 <p>Über dem Kommentarfeld wählst du zwischen <strong>Antworten</strong> und <strong>Interne Notiz</strong>:</p>
 <ul>
-  <li><strong>Antworten</strong> gehen per E-Mail an den Melder und alle Teilnehmer, jeweils in deren Sprache.</li>
-  <li><strong>Interne Notizen</strong> (gelb hinterlegt) sehen nur Bearbeiter. Sie gehen nie an Melder oder Teilnehmer, auch eingefügte Bilder nicht. Nur wer darin mit <strong>@</strong> erwähnt wird – immer ein Bearbeiter des Projekts –, bekommt die Notiz samt Bildern per Mail. Ohne Bearbeiterrecht im Projekt wird eine interne Notiz abgelehnt, nie als Antwort gespeichert.</li>
+  <li><strong>Antworten</strong> gehen per E-Mail an den Kunden und alle Teilnehmer, jeweils in deren Sprache.</li>
+  <li><strong>Interne Notizen</strong> (gelb hinterlegt) sehen nur Bearbeiter. Sie gehen nie an Kunden oder Teilnehmer, auch eingefügte Bilder nicht. Nur wer darin mit <strong>@</strong> erwähnt wird – immer ein Bearbeiter des Projekts –, bekommt die Notiz samt Bildern per Mail. Ohne Bearbeiterrecht im Projekt wird eine interne Notiz abgelehnt, nie als Antwort gespeichert.</li>
 </ul>
+<h3 id="auf-kunden-warten">Danach auf Kunden warten</h3>
+<p>Antwortest du einem Kunden auf ein Ticket, das <em>Offen</em> oder <em>In Arbeit</em> ist, stellt Helfi.Space es auf <strong>Wartet</strong>: Jetzt ist der Kunde dran. Das steht im Verlauf, die Lösungszeit (SLA) hält an, und das Ticket zählt unter <em>Wartet auf Kunden</em>. Schreibt der Kunde zurück, steht es wieder auf <em>Offen</em>.</p>
+<p>Unter dem Antwortfeld ist dafür <strong>Danach auf Kunden warten</strong> angehakt (auch in der Handy-Ansicht). Nimm den Haken heraus, wenn du nur einen Zwischenstand gibst, etwa „Ich kümmere mich darum und melde mich morgen“ – dann bleibt der Status, wie er ist. Interne Notizen, Antworten auf eigene Tickets, die Nachricht einer Großstörung und die Mitteilung einer Genehmigung ändern den Status nie.</p>
+<figure><img src="img/de/reply-wait.jpg" alt=""><figcaption>Antwort an den Kunden: danach wartet das Ticket auf ihn</figcaption></figure>
+<p>Beim Update auf diese Version werden offene Tickets, deren letzte Antwort schon von einem Bearbeiter stammt, einmalig auf <em>Wartet</em> gestellt – mit Eintrag im Verlauf, ohne Mails.</p>
 <div class="warn"><p>Mails, die von der Adresse eines Bearbeiters kommen, gelten nie als Bearbeiter-Antwort (Absender lassen sich fälschen). Bearbeiter antworten deshalb immer über die Weboberfläche. Antworten per Mail auf Zuweisungs-, SLA- oder Genehmigungsmails an Bearbeiter werden interne Notizen und öffnen das Ticket nicht wieder.</p></div>
 
 <h2 id="erwaehnen">Kollegen erwähnen (@)</h2>
 <p>Brauchst du jemanden im Ticket, erwähnst du ihn: Im Antwortfeld <strong>@</strong> und ein paar Buchstaben tippen, dann die Person mit Klick, ↑/↓ und Enter oder Tab auswählen; Esc schließt die Liste. Im Kommentar steht der Name hervorgehoben, deine eigene Erwähnung farbig.</p>
 <figure class="medium"><img src="img/de/mention-compose.jpg" alt=""><figcaption>„@be“ in einer internen Notiz – die Liste zeigt passende Bearbeiter</figcaption></figure>
 <ul>
-  <li><strong>Wen du erwähnen kannst:</strong> In einer <em>internen Notiz</em> nur Bearbeiter. In einer <em>Antwort</em> außerdem Melder, Teilnehmer und Genehmigende des Tickets. Wer das Ticket nicht sehen darf, steht nicht in der Liste.</li>
-  <li><strong>Was passiert:</strong> Die erwähnte Person bekommt eine Mail vom Ticketsystem mit deinem Namen, dem Kommentar (Bilder darin kommen direkt mit) und dem Link. Melder und Teilnehmer, die die Antwort sowieso per Mail bekommen, erhalten keine zweite.</li>
+  <li><strong>Wen du erwähnen kannst:</strong> In einer <em>internen Notiz</em> nur Bearbeiter. In einer <em>Antwort</em> außerdem Kunden, Teilnehmer und Genehmigende des Tickets. Wer das Ticket nicht sehen darf, steht nicht in der Liste.</li>
+  <li><strong>Was passiert:</strong> Die erwähnte Person bekommt eine Mail vom Ticketsystem mit deinem Namen, dem Kommentar (Bilder darin kommen direkt mit) und dem Link. Kunden und Teilnehmer, die die Antwort sowieso per Mail bekommen, erhalten keine zweite.</li>
   <li><strong>Erwähnt mich:</strong> In der Seitenleiste unter den Ansichten stehen alle Tickets, in denen du erwähnt wurdest; die Zahl zählt die, die du noch nicht geöffnet hast. In den Listen markiert ein <strong>@</strong> neue Erwähnungen, im Ticket der betreffende Kommentar. Öffnest du das Ticket, gilt die Erwähnung als gesehen.</li>
   <li>Eine Erwähnung macht niemanden zum Teilnehmer. Soll jemand dauerhaft informiert werden, füge ihn unter <em>Anfrage-Teilnehmer</em> hinzu.</li>
 </ul>
@@ -374,7 +379,7 @@
 <p>Für Antworten, die immer wieder gleich sind: im Kommentarfeld auf <strong>Vorlage</strong> klicken, tippen zum Suchen, mit Enter oder Klick einfügen. Der Text landet an der Cursorposition und lässt sich vor dem Speichern anpassen.</p>
 <figure><img src="img/de/templates.jpg" alt=""><figcaption>Vorlage auswählen: oben „Für alle“, darunter die eigenen</figcaption></figure>
 <ul>
-  <li><strong>Platzhalter</strong> werden beim Einfügen ersetzt: <code>{melder}</code>, <code>{ticket}</code>, <code>{titel}</code>, <code>{bearbeiter}</code>.</li>
+  <li><strong>Platzhalter</strong> werden beim Einfügen ersetzt: <code>{kunde}</code>, <code>{ticket}</code>, <code>{titel}</code>, <code>{bearbeiter}</code> (ältere Vorlagen mit <code>{melder}</code> gehen weiter).</li>
   <li><strong>Neue Vorlage:</strong> Text im Kommentarfeld schreiben und <em>Als Vorlage speichern</em> wählen. Persönliche Vorlagen verwaltest du im <em>Profil</em>, Vorlagen für alle pflegen Admins unter <em>Administration → Antwortvorlagen</em>.</li>
   <li><strong>Vorlage für ein Projekt</strong> <span class="role role-admin">Admin</span>: Eine Vorlage für alle kann zu einem Projekt gehören. Dann sehen sie nur dessen Bearbeiter, und nur in dessen Tickets – die Haustechnik bekommt beim IT-Ticket keine Heizungs-Vorlagen angeboten. Ohne Projekt gilt sie für alle.</li>
   <li><strong>Vorlagen deines Projekts</strong> (Projektleitung und Vertretung): Die gemeinsamen Vorlagen deines Projekts pflegst du selbst – im <em>Profil</em> unter <em>Antwortvorlagen meiner Projekte</em> (anlegen, ändern, löschen) oder im Ticket mit <em>Als Vorlage speichern</em> und dem Haken <em>Gemeinsam für das Projekt</em>; das Projekt des Tickets ist vorausgewählt. Zur Auswahl stehen nur Projekte, die du leitest oder vertrittst. Vorlagen für alle Projekte legt die Administration an; Komponenten-Verantwortliche und die übrigen Bearbeiter nutzen die Vorlagen nur.</li>
@@ -395,7 +400,7 @@
 <p>Ist <em>Komponente erkennen</em> eingeschaltet, schaut die KI bei neuen Tickets, für die keine <a href="#komponenten">Komponenten</a>-Regel passt, welche Komponente passt. Im Modus <em>Vorschlagen</em> steht in den Details „KI schlägt vor: …“ mit kurzer Begründung: <strong>Übernehmen</strong> setzt die Komponente (zugewiesen wird dabei niemand), <strong>Verwerfen</strong> blendet den Vorschlag aus. Auf dem Handy steht der Vorschlag unter <em>Alle Details</em>. Wählst du stattdessen selbst eine andere Komponente, zählt das als Korrektur. Im Modus <em>Automatisch zuordnen</em> setzt die KI die Komponente direkt; im Verlauf steht „von KI“.</p>
 <figure class="small"><img src="img/de/ai-suggestion.jpg" alt=""><figcaption>KI-Vorschlag für die Komponente</figcaption></figure>
 <h3>Duplikate erkennen</h3>
-<p>Ist <em>Duplikate erkennen</em> eingeschaltet, prüft Helfi.Space jedes neue Ticket: Zuerst sucht es ohne KI ähnliche <strong>offene</strong> Tickets desselben Projekts aus den letzten 30 Tagen; nur wenn es welche gibt, fragt es die KI, ob das neue Ticket dasselbe meldet. Dann steht im Ticket „Mögliches Duplikat von IT-12“ mit Begründung. <strong>Als Duplikat schließen</strong> öffnet den Dialog mit eingetragenem Original (siehe <a href="#ablehnen">Ablehnen und Duplikate</a>), <strong>Kein Duplikat</strong> blendet den Hinweis aus. Die KI schließt nie selbst; Melder sehen den Hinweis nicht, und er nennt nur Tickets, die du selbst öffnen darfst.</p>
+<p>Ist <em>Duplikate erkennen</em> eingeschaltet, prüft Helfi.Space jedes neue Ticket: Zuerst sucht es ohne KI ähnliche <strong>offene</strong> Tickets desselben Projekts aus den letzten 30 Tagen; nur wenn es welche gibt, fragt es die KI, ob das neue Ticket dasselbe meldet. Dann steht im Ticket „Mögliches Duplikat von IT-12“ mit Begründung. <strong>Als Duplikat schließen</strong> öffnet den Dialog mit eingetragenem Original (siehe <a href="#ablehnen">Ablehnen und Duplikate</a>), <strong>Kein Duplikat</strong> blendet den Hinweis aus. Die KI schließt nie selbst; Kunden sehen den Hinweis nicht, und er nennt nur Tickets, die du selbst öffnen darfst.</p>
 <figure class="medium"><img src="img/de/ai-duplicate.jpg" alt=""><figcaption>Hinweis auf ein mögliches Duplikat</figcaption></figure>
 <h3>Wissensartikel schreiben</h3>
 <p>Im Artikel-Editor ist <strong>KI</strong> der erste Knopf der Leiste. Er wirkt auf die Markierung – ohne Markierung auf den ganzen Artikel – und lässt die Formatierung stehen: <em>Text glätten</em>, <em>Kürzen</em>, <em>Als Schritt-für-Schritt-Anleitung</em> (aus Stichpunkten werden nummerierte Schritte), <em>Auf Deutsch/Englisch übersetzen</em> und <em>Titel und Kategorie vorschlagen</em> (zum Übernehmen oder Anpassen). Bei einem neuen Artikel aus einem Ticket gibt es zusätzlich <em>Entwurf aus IT-42 schreiben</em>: Problem – Ursache – Lösung aus dem Ticketverlauf, ohne Namen, Adressen, Rechnernamen und Ticketnummern. <em>Rückgängig</em> holt den vorherigen Text zurück; bitte den Entwurf vor dem Veröffentlichen prüfen.</p>
@@ -404,7 +409,7 @@
 <h2 id="mehrfach">Mehrere Tickets auf einmal</h2>
 <p>In <em>Alle Tickets</em> wählst du Tickets über die Kästchen aus (Umschalt+Klick für einen Bereich, <kbd>x</kbd> für das markierte Ticket). Die Aktionsleiste bietet:</p>
 <ul>
-  <li><strong>Erledigen</strong> und <strong>Status</strong> – jeweils mit optionalem Kommentar: als <em>Antwort an Melder</em> (Mail an Melder und Teilnehmer) oder als <em>Interne Notiz</em>, auch mit Vorlage und Platzhaltern je Ticket.</li>
+  <li><strong>Erledigen</strong> und <strong>Status</strong> – jeweils mit optionalem Kommentar: als <em>Antwort an Kunden</em> (Mail an Kunden und Teilnehmer) oder als <em>Interne Notiz</em>, auch mit Vorlage und Platzhaltern je Ticket.</li>
   <li><strong>Kommentieren</strong> – Antwort oder interne Notiz für alle ausgewählten Tickets, ohne den Status zu ändern. Eine interne Notiz wird nie zur Antwort: Tickets eines Projekts, das du nicht bearbeitest, werden mit Fehler übersprungen.</li>
   <li><strong>Verknüpfen …</strong> – alle ausgewählten Tickets mit einem Ticket verbinden, z. B. „wird verursacht durch IT-42“; auf Wunsch gleich mit Status und Kommentar („Ursache wird in IT-42 behoben“).</li>
   <li><strong>Zuweisen</strong>, <strong>Priorität</strong> und <strong>Verschieben</strong> in ein anderes Projekt.</li>
@@ -442,7 +447,7 @@
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="itil">IT-Service-Management (ITIL) <span class="role role-agent">Bearbeiter</span></h1>
-<p>Helfi.Space bildet die wichtigsten ITIL-Prozesse ab, ohne dass man sie alle nutzen muss: Störungen und Major Incidents, Service Level, Probleme, Changes, Wissen, Servicekatalog, Geräte und Dienste sowie Zufriedenheit. Was nicht eingeschaltet oder eingerichtet ist, bleibt unsichtbar.</p>
+<p>Helfi.Space bildet die wichtigsten ITIL-Prozesse ab, ohne dass man sie alle nutzen muss: Störungen und Major Incidents, Service Level, Probleme, Changes, Wissensdatenbank, Servicekatalog, Geräte und Dienste sowie Zufriedenheit. Was nicht eingeschaltet oder eingerichtet ist, bleibt unsichtbar.</p>
 
 <h2 id="verknuepfungen">Verknüpfungen und Unteraufgaben</h2>
 <p>Im Abschnitt <em>Verknüpfungen</em> eines Tickets – schneller über den Knopf <strong>Verknüpfen</strong> oben neben dem Status, auf dem Handy unter <em>Details</em> – verbindest du Tickets miteinander. Das Zielticket suchst du nach Nummer oder Stichwort; solange das Feld leer ist, schlägt Helfi <em>mögliche Ursachen</em> (offene Probleme, Major Incidents) und <em>ähnliche Tickets</em> vor. Arten: „bezieht sich auf“, „ist Duplikat von“ (auf Wunsch wird das Duplikat gleich erledigt), „blockiert“, „verursacht“ und „ist Unteraufgabe von“. <strong>Unteraufgabe</strong> legt direkt eine Aufgabe mit Bearbeiter an; ein Balken zeigt, wie viele schon erledigt sind.</p>
@@ -451,7 +456,7 @@
 
 <h2 id="major">Auswirkung, Dringlichkeit und Major Incident</h2>
 <p>In den Details setzt du <strong>Auswirkung</strong> (wie viele sind betroffen?) und <strong>Dringlichkeit</strong> (wie schnell muss es gehen?). Sind beide gesetzt, ergibt sich die Priorität aus der ITIL-Matrix, z. B. hoch/hoch = Sehr hoch.</p>
-<p>Eine schwere Störung mit vielen Betroffenen markierst du als <strong>Major Incident</strong>. Dann erscheint für alle Bearbeiter oben ein roter Balken. Einzelne Meldungen verknüpfst du mit „verursacht“. <strong>Info an alle Betroffenen</strong> schickt eine Nachricht an die Melder und Teilnehmer aller offenen verknüpften Tickets; mit „lösen“ werden sie zusammen erledigt.</p>
+<p>Eine schwere Störung mit vielen Betroffenen markierst du als <strong>Major Incident</strong>. Dann erscheint für alle Bearbeiter oben ein roter Balken. Einzelne Meldungen verknüpfst du mit „verursacht“. <strong>Info an alle Betroffenen</strong> schickt eine Nachricht an die Kunden und Teilnehmer aller offenen verknüpften Tickets; mit „lösen“ werden sie zusammen erledigt.</p>
 <figure><img src="img/de/itil-major.jpg" alt=""><figcaption>Major Incident mit Unteraufgaben, betroffenen Tickets und Gerät</figcaption></figure>
 
 <h2 id="sla">Service Level (SLA)</h2>
@@ -479,7 +484,7 @@
 <figure><img src="img/de/admin-change.jpg" alt=""><figcaption>Administration → Change</figcaption></figure>
 
 <h2 id="wissen">Wissensdatenbank</h2>
-<p><em>Wissen</em> sammelt Anleitungen und Lösungen. Artikel sind <strong>intern</strong> (nur die Personen des Projekts) oder <strong>öffentlich</strong> (alle Angemeldeten, auch als Vorschlag beim Melden). Die Suche gewichtet Treffer im Titel höher. Aus einem gelösten Ticket legt <strong>Wissensartikel</strong> oben im Ticket einen Entwurf an; vor dem Veröffentlichen persönliche Angaben entfernen. Ab drei Überschriften zeigt die Artikelansicht rechts ein Inhaltsverzeichnis.</p>
+<p>Die <em>Wissensdatenbank</em> sammelt Anleitungen und Lösungen. Artikel sind <strong>intern</strong> (nur die Personen des Projekts) oder <strong>öffentlich</strong> (alle Angemeldeten, auch als Vorschlag beim Melden). Die Suche gewichtet Treffer im Titel höher. Aus einem gelösten Ticket legt <strong>Wissensartikel</strong> oben im Ticket einen Entwurf an; vor dem Veröffentlichen persönliche Angaben entfernen. Ab drei Überschriften zeigt die Artikelansicht rechts ein Inhaltsverzeichnis.</p>
 <figure><img src="img/de/itil-kb.jpg" alt=""><figcaption>Wissensdatenbank mit Projekten und Kategorien</figcaption></figure>
 <h3>Artikel je Projekt</h3>
 <p>Jeder Artikel gehört zu einem Projekt, z. B. IT oder Haustechnik:</p>
@@ -567,13 +572,13 @@
 <p><span class="role role-admin">Admin</span> <strong>CSV-Import</strong> aus der Inventarisierung: Die erste Zeile enthält die Spaltennamen (Name/Hostname, Typ, Standort, IP-Adresse, Seriennummer, Hersteller, Modell, Benutzer, Status – deutsch oder englisch). Werte wie „Notebook“ oder „Switch“ werden der passenden Art zugeordnet. Vorhandene Namen werden aktualisiert. Löschen können nur Administratoren, und nur, solange keine Tickets verknüpft sind; sonst „ausgemustert“ setzen.</p>
 
 <h2 id="zufriedenheit">Zufriedenheitsumfrage <span class="role role-admin">Admin</span></h2>
-<p>Einschalten unter <em>Administration → Tickets → Allgemein → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Melder die Bewertungslinks (<a href="#bewerten">2.13</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
+<p>Einschalten unter <em>Administration → Tickets → Allgemein → Zufriedenheitsumfrage</em>. Dann enthält die „Erledigt“-Mail an den Kunden die Bewertungslinks (<a href="#bewerten">2.13</a>). Jeder Link enthält ein zufälliges Token, gespeichert wird nur dessen Hash. Der Link gilt eine einstellbare Zahl von Tagen und zeigt nur Ticketnummer und Titel. Wird ein Ticket wieder geöffnet und erneut erledigt, gibt es eine neue Umfrage. Bearbeiter sehen die Bewertung oben im Ticket.</p>
 <figure class="medium"><img src="img/de/admin-survey.jpg" alt=""><figcaption>Administration → Tickets → Allgemein: Zufriedenheitsumfrage</figcaption></figure>
 
 <h2 id="kennzahlen">ITIL-Kennzahlen</h2>
 <p>Unter <em>Berichte</em> folgen auf die Bearbeiter-Statistik (<a href="#berichte">3.9</a>) weitere Kennzahlen für denselben Zeitraum:</p>
 <ul>
-  <li><strong>Servicequalität:</strong> erledigte Anfragen und Störungen, beim ersten Kontakt gelöst (höchstens eine Antwort, keine Rückfrage, nie wieder geöffnet), Quote der Wiedereröffnungen, Major Incidents.</li>
+  <li><strong>Servicequalität:</strong> erledigte Anfragen und Störungen, beim ersten Kontakt gelöst (höchstens eine Antwort der IT, der Kunde musste danach nicht noch einmal schreiben, nie wieder geöffnet), Quote der Wiedereröffnungen, Major Incidents.</li>
   <li><strong>SLA-Einhaltung</strong> für Reaktion und Lösung, gesamt und je Priorität.</li>
   <li><strong>Changes</strong> je Monat: Arten, abgelehnte, Ergebnisse, Erfolgsquote und Anteil der Notfall-Changes.</li>
   <li><strong>Probleme:</strong> neu, gelöst, offen, bekannte Fehler.</li>
@@ -728,11 +733,11 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Welches Projekt? – über die Komponenten:</strong> Eine neue Mail an das zentrale Postfach wird mit den Komponenten <strong>aller Projekte</strong> verglichen (Absender, Schlagwörter in Betreff und Text). Das Projekt der passenden Komponente bekommt das Ticket – mit dieser Komponente, ohne Zuweisung; „Heizung in Raum 12 kalt“ landet so in der Haustechnik. Ein Postfach je Projekt braucht es nicht; eine Absender-Regel mit Projekt hat Vorrang.</li>
   <li><strong>Passt keine Komponente,</strong> landet das Ticket im <strong>Eingangsprojekt</strong> (<em>Eingangsprojekt</em> auf dieser Seite, sonst das Standardprojekt; in <em>Projekte</em> mit „Eingang“ markiert). Trag dort eine Leitung und Vertretung ein: Sie verteilen solche Tickets per <em>Verschieben</em> und bekommen die Erinnerungsmail, falls eins liegen bleibt. Mit der KI-Funktion <em>Komponente erkennen</em> wählt die KI für diese Mails aus den Komponenten aller Projekte – als Vorschlag („Haustechnik / Heizung &amp; Klima – übernehmen?“) oder direkt; übernommen wird das Ticket dorthin verschoben. Eine Absender-Regel mit einem archivierten Projekt zählt wie eine ohne Projekt; ist das Eingangsprojekt archiviert, landet die Mail im Standardprojekt.</li>
   <li><strong>Falsch gelandet?</strong> Bearbeiter verschieben ein Ticket in <strong>jedes</strong> Projekt (Details → Projekt oder Mehrfachauswahl), auch in eines, das sie selbst nicht bearbeiten – danach sehen sie es dort nicht mehr. <em>Komponente erkennen</em> schiebt ein von Hand verschobenes Ticket nicht zurück.</li>
-  <li><strong>Antworten per Ticketnummer</strong> im Betreff dürfen nur der Melder und Anfrage-Teilnehmer; wer die Nummer nur errät oder früher einmal im Ticket geschrieben hat, aber nicht mehr beteiligt ist, bekommt ein neues Ticket. Antworten auf Mails von Helfi.Space werden über die Message-ID zugeordnet.</li>
+  <li><strong>Antworten per Ticketnummer</strong> im Betreff dürfen nur der Kunde und Anfrage-Teilnehmer; wer die Nummer nur errät oder früher einmal im Ticket geschrieben hat, aber nicht mehr beteiligt ist, bekommt ein neues Ticket. Antworten auf Mails von Helfi.Space werden über die Message-ID zugeordnet.</li>
   <li><strong>Versand (SMTP):</strong> als Absender am besten dieselbe Adresse wie das Postfach, dann landen Antworten wieder im Ticket.</li>
-  <li><strong>Absender ist immer das Ticketsystem</strong> – nie die Adresse eines Bearbeiters, keine persönlichen Signaturen. Damit der Melder weiß, wer ihn betreut, enden Antwort- und Erledigt-Mails mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei. Im Browser heißt das Feld für Benutzer ebenfalls „Ihr Ansprechpartner“.</li>
+  <li><strong>Absender ist immer das Ticketsystem</strong> – nie die Adresse eines Bearbeiters, keine persönlichen Signaturen. Damit der Kunde weiß, wer ihn betreut, enden Antwort- und Erledigt-Mails mit „Viele Grüße“, dem Namen des Bearbeiters und dem Namen des Systems; ist das Ticket jemand anderem zugewiesen, steht „Ihr Ansprechpartner: …“ dabei. Im Browser heißt das Feld für Benutzer ebenfalls „Ihr Ansprechpartner“.</li>
   <li><strong>Absender im Active Directory nachschlagen:</strong> Unbekannte Absender werden im AD gesucht und gleich als AD-Benutzer angelegt. Sonst werden sie <em>E-Mail-Kontakte</em>; melden sie sich später an, gehören ihnen ihre Tickets.</li>
-  <li><strong>Benachrichtigungen:</strong> einzeln abschaltbar – Eingangsbestätigung, Antworten und Erledigt an Melder und Teilnehmer, Zuweisung an Bearbeiter, Mail an neu hinzugefügte Teilnehmer und an Personen, die mit <strong>@</strong> erwähnt werden.</li>
+  <li><strong>Benachrichtigungen:</strong> einzeln abschaltbar – Eingangsbestätigung, Antworten und Erledigt an Kunden und Teilnehmer, Zuweisung an Bearbeiter, Mail an neu hinzugefügte Teilnehmer und an Personen, die mit <strong>@</strong> erwähnt werden.</li>
   <li><strong>Erinnerung an Projektverantwortliche</strong> (<em>Administration → Tickets → Allgemein</em>): Wer nicht jeden Tag ins Ticketsystem schaut, verpasst sonst neue Tickets. Unter <em>Nach Tagen ohne Bearbeiter</em> eine Zahl eintragen (0 = aus), dann bekommen Leitung und Vertretung jedes Projekts einmal am Tag zur eingestellten Uhrzeit (standardmäßig nur Montag bis Freitag, abschaltbar) eine Sammelmail: alle offenen Tickets ohne Bearbeiter, die vor mindestens so vielen Tagen angelegt wurden, mit Link zu jedem Ticket und zur fertig gefilterten Liste. Hat ein Projekt weder Leitung noch Vertretung mit Mailadresse und aktivem Konto, geht die Mail an alle Admins. Ist nichts liegen geblieben, kommt keine Mail. <em>Jetzt prüfen und senden</em> verschickt sofort – gut zum Ausprobieren.
     <figure class="medium"><img src="img/de/mail-reminder.jpg" alt=""><figcaption>Erinnerung an Projektverantwortliche</figcaption></figure></li>
   <li><strong>Empfänger in An/CC werden Teilnehmer</strong> (abschaltbar) – bei neuen Tickets und bei Antworten auf Mails von Helfi.Space, nicht bei Zuordnung nur über die Nummer im Betreff.</li>
@@ -796,7 +801,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Nach Zuständigkeit, nicht nach Technik:</strong> Eine Komponente ist das, wofür eine Person (oder ein kleines Team) den Hut aufhat. Wer „Drucker“ und „Scanner“ betreut, braucht keine zwei Komponenten.</li>
   <li><strong>Lieber 6–12 als 40:</strong> Zu feine Komponenten werden falsch gewählt und machen Berichte unübersichtlich. Feinere Unterscheidung leisten Stichwörter.</li>
   <li><strong>Jede Komponente braucht eine verantwortliche Person,</strong> am besten mit Vertretung – sonst landen die Tickets wieder bei „Nicht zugewiesen“.</li>
-  <li><strong>Schlagwörter aus echten Tickets:</strong> Nimm die Wörter, die eure Melder tatsächlich schreiben („Outlook“, „FortiClient“, „Kennwort abgelaufen“), nicht die Fachbegriffe der IT. Vermeide Wörter, die in fast jeder Mail stehen (z. B. „E-Mail“ oder „Telefon“ aus Signaturen).</li>
+  <li><strong>Schlagwörter aus echten Tickets:</strong> Nimm die Wörter, die eure Kunden tatsächlich schreiben („Outlook“, „FortiClient“, „Kennwort abgelaufen“), nicht die Fachbegriffe der IT. Vermeide Wörter, die in fast jeder Mail stehen (z. B. „E-Mail“ oder „Telefon“ aus Signaturen).</li>
   <li><strong>Mit dem Testfeld prüfen</strong> und nach ein paar Wochen in <em>Berichte → Nach Komponente</em> schauen: Viele Tickets „Ohne Komponente“ heißen, dass Schlagwörter fehlen.</li>
   <li><strong>Absender für Systeme:</strong> Monitoring, Backup oder Drucker, die selbst Mails schicken, ordnest du mit einem Absender-Muster zuverlässig zu.</li>
 </ul>
@@ -845,7 +850,7 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Importieren</strong> – mit Fortschritt, abbrechbar.</li>
 </ol>
 <figure class="medium"><img src="img/de/import-csv.jpg" alt=""><figcaption>CSV-Datei: Spalten zuordnen mit Beispielwerten</figcaption></figure>
-<p>Ticketnummern bleiben möglichst erhalten (<code>SUP-123</code> bleibt <code>SUP-123</code>, Zammad <code>#31011</code> wird <code>SD-31011</code>; sehr lange, datumsbasierte Nummern bekommen eine neue, die alte steht im Verlauf). Interne Notizen und ihre Dateien bleiben intern; bei Jira, wo Dateien zum Vorgang gehören, wird eine Datei nur öffentlich, wenn die Beschreibung oder ein öffentlicher Kommentar sie zeigt oder der Melder sie hochgeladen hat – im Zweifel bleibt sie intern. Personen werden über die E-Mail-Adresse zugeordnet, es werden keine Mails verschickt. Zugewiesen wird nur, wer das Zielprojekt bearbeitet – Bearbeiter also vorher im Projekt eintragen. Vor jedem Import-Start legt Helfi.Space eine Sicherung an. Ein zweiter Lauf aktualisiert nur Geändertes und legt nichts doppelt an – so lässt sich vorab probehalber und am Stichtag noch einmal importieren (bei CSV mit demselben <em>Namen der Quelle</em>).</p>
+<p>Ticketnummern bleiben möglichst erhalten (<code>SUP-123</code> bleibt <code>SUP-123</code>, Zammad <code>#31011</code> wird <code>SD-31011</code>; sehr lange, datumsbasierte Nummern bekommen eine neue, die alte steht im Verlauf). Interne Notizen und ihre Dateien bleiben intern; bei Jira, wo Dateien zum Vorgang gehören, wird eine Datei nur öffentlich, wenn die Beschreibung oder ein öffentlicher Kommentar sie zeigt oder der Kunde sie hochgeladen hat – im Zweifel bleibt sie intern. Personen werden über die E-Mail-Adresse zugeordnet, es werden keine Mails verschickt. Zugewiesen wird nur, wer das Zielprojekt bearbeitet – Bearbeiter also vorher im Projekt eintragen. Vor jedem Import-Start legt Helfi.Space eine Sicherung an. Ein zweiter Lauf aktualisiert nur Geändertes und legt nichts doppelt an – so lässt sich vorab probehalber und am Stichtag noch einmal importieren (bei CSV mit demselben <em>Namen der Quelle</em>).</p>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="betrieb">Für Administratoren: Betrieb <span class="role role-admin">Admin</span></h1>

@@ -15,7 +15,7 @@
   <div class="audience">
     <div><strong>Users</strong>Report problems, follow requests, reply – chapter 2</div>
     <div><strong>Agents</strong>Work on tickets, templates, reports, keyboard shortcuts – chapter 3</div>
-    <div><strong>IT service management</strong>Incidents, SLA, problems, changes, knowledge, service catalog, devices, satisfaction – chapter 4</div>
+    <div><strong>IT service management</strong>Incidents, SLA, problems, changes, knowledge base, service catalog, devices, satisfaction – chapter 4</div>
     <div><strong>Administrators</strong>Installation, AD, SSO, 2FA, email, updates, backup – chapters 5 and 6</div>
   </div>
   <div class="meta">Version {{VERSION}} · {{DATE}}<br>All names, addresses and computers in this manual are examples.</div>
@@ -42,7 +42,7 @@
 <!-- ============================================================ -->
 <h1 class="chapter" id="overview">Overview</h1>
 
-<p>In Helfi.Space every concern becomes a <strong>ticket</strong> – whether someone reports it in the browser or sends an email to the help desk mailbox. Agents see all tickets of their projects, assign them, reply and finally set them to “Done”. Reporters receive every reply by email and can answer it directly.</p>
+<p>In Helfi.Space every concern becomes a <strong>ticket</strong> – whether someone reports it in the browser or sends an email to the help desk mailbox. Agents see all tickets of their projects, assign them, reply and finally set them to “Done”. Customers receive every reply by email and can answer it directly.</p>
 
 <figure><img src="img/en/board.jpg" alt=""><figcaption>Board of a project with the four status columns</figcaption></figure>
 
@@ -60,8 +60,8 @@
   <tr><th style="width:24%">Status</th><th>Meaning</th></tr>
   <tr><td>Open</td><td>New or not started yet.</td></tr>
   <tr><td>In progress</td><td>Someone is working on it.</td></tr>
-  <tr><td>Waiting</td><td>Waiting for the reporter. If they reply, the ticket reopens.</td></tr>
-  <tr><td>Done</td><td>Finished. The reporter gets an email. If they reply to it, the ticket reopens (unless it was rejected or closed as a duplicate).</td></tr>
+  <tr><td>Waiting</td><td>Waiting for the customer. This is set automatically as soon as an agent replies to the customer. If the customer replies, the ticket reopens.</td></tr>
+  <tr><td>Done</td><td>Finished. The customer gets an email. If they reply to it, the ticket reopens (unless it was rejected or closed as a duplicate).</td></tr>
 </table>
 <p><strong>Types:</strong> Incident (something is broken), Request (something is needed), Task (internal work), Question; for agents also Problem (common cause of several incidents) and Change (planned change), see chapter <a href="#itil">4</a>. <strong>Priorities:</strong> Highest, High, Medium, Low.</p>
 <p>Every ticket has a <strong>key</strong> made of the project key and a running number, e.g. <code>IT-42</code>. It also appears in the subject of all emails, e.g. <code>[IT-42]</code>.</p>
@@ -69,7 +69,7 @@
 <h2 id="layout">The interface</h2>
 <ul>
   <li><strong>Header:</strong> logo, <em>My work</em>, <em>All tickets</em>, the <strong>Create</strong> button, search (ticket key or keyword) and, on the right, the user menu with profile, language (Deutsch/English) and sign-out. The theme (System/Light/Dark) is switched at the bottom of the sidebar.</li>
-  <li><strong>Sidebar (agents):</strong> current project, summary, queues with live counts, board, service requests, incidents, problems, changes, my approvals, change calendar, service catalog, devices &amp; services, knowledge, reports, reply templates and, for admins, settings.</li>
+  <li><strong>Sidebar (agents):</strong> current project, summary, queues with live counts, board, service requests, incidents, problems, changes, my approvals, change calendar, service catalog, devices &amp; services, knowledge base, reports, reply templates and, for admins, settings.</li>
   <li><strong>Sidebar (users):</strong> <em>My requests</em>, depending on the setup <em>Request a service</em> and <em>My approvals</em>, and <em>Help &amp; knowledge</em>.</li>
 </ul>
 <div class="tip"><p>The interface is available in German and English. Without a choice of your own it follows the browser language.</p></div>
@@ -105,7 +105,7 @@
 <p>After signing in you land in the <strong>portal</strong>. It has everything on one page:</p>
 <ul>
   <li><strong>Search:</strong> type what you need help with, e.g. “heating”. Matching offerings from the service catalog and guides of all departments appear below.</li>
-  <li><strong>My requests:</strong> three counters – <em>Active</em>, <em>Waiting for you</em> (someone asked you a question) and <em>Done</em> – and your latest requests. A click on a counter shows exactly the counted requests; in the list you find them again with the status filter <em>Active</em>.</li>
+  <li><strong>My requests:</strong> three counters – <em>Active</em>, <em>Waiting for you</em> (IT replied to you or asked you a question) and <em>Done</em> – and your latest requests. A click on a counter shows exactly the counted requests; in the list you find them again with the status filter <em>Active</em>.</li>
   <li><strong>Departments:</strong> e.g. IT, Facilities or Administration as tiles. A department's page lists its offerings, its frequent questions (the most recently updated public articles) and <strong>Report something else</strong> – the request then goes straight to that department.</li>
 </ul>
 <figure><img src="img/en/portal-start.jpg" alt=""><figcaption>The portal: search, my requests and the departments</figcaption></figure>
@@ -127,7 +127,7 @@
 
 <h2 id="reply">Replies and files</h2>
 <p>Open a ticket and type into the comment field at the bottom; <strong>Save</strong> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> sends your reply to IT. Alternatively, simply reply to an email from Helfi.Space – the reply lands in the right ticket automatically and quoted history is cut off.</p>
-<figure><img src="img/en/ticket-user.jpg" alt=""><figcaption>A ticket as seen by the reporter</figcaption></figure>
+<figure><img src="img/en/ticket-user.jpg" alt=""><figcaption>A ticket as seen by the customer</figcaption></figure>
 <p>Attach files under <em>Attachments → Attach file</em>. Images are shown directly, all other files are downloaded.</p>
 
 <h3 id="delete-comment">Deleting a comment</h3>
@@ -141,11 +141,11 @@
 </ul>
 
 <h2 id="participants">Request participants</h2>
-<p>Besides the reporter, further people can take part in a ticket, e.g. colleagues with the same problem. Under <em>Request participants → Add</em> you add colleagues who have an account (up to 20 per ticket): type a name and the suggestions appear below; pick with a click or <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>, <kbd>Esc</kbd> cancels.</p>
+<p>Besides the customer, further people can take part in a ticket, e.g. colleagues with the same problem. Under <em>Request participants → Add</em> you add colleagues who have an account (up to 20 per ticket): type a name and the suggestions appear below; pick with a click or <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>, <kbd>Esc</kbd> cancels.</p>
 <ul>
-  <li>Participants see the ticket, can comment and attach files and receive the same emails as the reporter.</li>
-  <li>They do not see internal notes and cannot change status, assignee or title. Of the reporter they only see the name, not the email address and logon name.</li>
-  <li>Participants can remove themselves; the reporter and agents can remove them too.</li>
+  <li>Participants see the ticket, can comment and attach files and receive the same emails as the customer.</li>
+  <li>They do not see internal notes and cannot change status, assignee or title. Of the customer they only see the name, not the email address and logon name.</li>
+  <li>Participants can remove themselves; the customer and agents can remove them too.</li>
   <li><strong>Agents</strong> can also enter any email address and find people directly in <strong>Active Directory</strong> (marked “AD”), by email address too. The person is taken over with name and email address from AD – they do not need to have signed in before.</li>
 </ul>
 
@@ -198,7 +198,7 @@
 <p>If an offer says “requires approval”, someone has to agree first, e.g. your manager. You can see the status at the top of the ticket. While the approval runs and afterwards, title and description stay as they are approved – add anything else as a comment.</p>
 
 <h2 id="approving">Approving</h2>
-<p>Approvers get an email and see <em>My approvals</em> in the sidebar. In the ticket one click on <strong>Approve</strong> or <strong>Reject</strong> is enough, optionally with a comment. The decision is sent to the reporter as a reply; a rejection closes the request. Approvers without the agent role only see the requests they decide on, and only the reporter’s name. This also applies to changes: approvers need not be admins or agents of the project, they see the approval box in the ticket and decide there. Below it they find the change plan to read – kind, risk, time window, affected services and devices, reason, implementation, backout and test plan –, on the computer and on the phone, also after their decision. They cannot change it and do not see internal notes.</p>
+<p>Approvers get an email and see <em>My approvals</em> in the sidebar. In the ticket one click on <strong>Approve</strong> or <strong>Reject</strong> is enough, optionally with a comment. The decision is sent to the customer as a reply; a rejection closes the request. Approvers without the agent role only see the requests they decide on, and only the customer’s name. This also applies to changes: approvers need not be admins or agents of the project, they see the approval box in the ticket and decide there. Below it they find the change plan to read – kind, risk, time window, affected services and devices, reason, implementation, backout and test plan –, on the computer and on the phone, also after their decision. They cannot change it and do not see internal notes.</p>
 <figure><img src="img/en/itil-catalog-approval.jpg" alt=""><figcaption>Approval in the ticket as the manager sees it</figcaption></figure>
 
 <h2 id="help-knowledge">Help &amp; knowledge</h2>
@@ -242,7 +242,7 @@
 <h1 class="chapter" id="agents">For agents <span class="role role-agent">agents</span></h1>
 
 <h2 id="queues">Queues and summary</h2>
-<p>For the selected project, the sidebar shows fixed <strong>queues</strong> with live counts: <em>All open tickets</em>, <em>Assigned to me</em>, <em>Unassigned</em>, <em>Waiting for reporter</em>, <em>Recently resolved</em> (7 days) and <em>All tickets</em>. Below them <em>Service requests</em> and <em>Incidents</em> (open requests and incidents) and <em>Mentions me</em> (see <a href="#mentions">Mentioning colleagues</a>). Switch the project at the top of the sidebar.</p>
+<p>For the selected project, the sidebar shows fixed <strong>queues</strong> with live counts: <em>All open tickets</em>, <em>Assigned to me</em>, <em>Unassigned</em>, <em>Waiting for customer</em>, <em>Recently resolved</em> (7 days) and <em>All tickets</em>. Below them <em>Service requests</em> and <em>Incidents</em> (open requests and incidents) and <em>Mentions me</em> (see <a href="#mentions">Mentioning colleagues</a>). Switch the project at the top of the sidebar.</p>
 <p>The <strong>summary</strong> shows key figures, distributions by status, type and priority and the most urgent open tickets.</p>
 <figure><img src="img/en/summary.jpg" alt=""><figcaption>Project summary</figcaption></figure>
 <p><em>My work</em> in the header collects everything assigned to you, everything unassigned and everything you reported yourself.</p>
@@ -294,36 +294,36 @@
 <h2 id="resolve">Resolving with a closing comment</h2>
 <p>When you choose <em>Done</em> in the ticket's <strong>status menu</strong>, a window opens for a <strong>closing comment</strong> – write the comment and close the ticket in one step:</p>
 <ul>
-  <li><strong>Reply to reporter</strong> (default): goes to the reporter and participants. There is then no extra “Resolved” mail – your reply already informs. Reply templates and placeholders like <code>{reporter}</code> work.</li>
-  <li><strong>Internal note</strong>: only visible to agents; the reporter gets the normal “Resolved” mail.</li>
+  <li><strong>Reply to customer</strong> (default): goes to the customer and participants. There is then no extra “Resolved” mail – your reply already informs. Reply templates and placeholders like <code>{customer}</code> work.</li>
+  <li><strong>Internal note</strong>: only visible to agents; the customer gets the normal “Resolved” mail.</li>
   <li>Clicking <em>Resolve</em> without text simply closes the ticket. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in the text field resolves right away, <em>Cancel</em> leaves everything as it was.</li>
 </ul>
 <p>Several tickets are resolved via the multiple selection in the ticket list (<em>Resolve</em>), on phones via <em>Status → Done</em> – both also with a reply or an internal note.</p>
-<figure class="medium"><img src="img/en/done-comment.jpg" alt=""><figcaption>Resolving with a reply to the reporter</figcaption></figure>
+<figure class="medium"><img src="img/en/done-comment.jpg" alt=""><figcaption>Resolving with a reply to the customer</figcaption></figure>
 <figure class="phone"><img src="img/en/m-done-comment.jpg" alt=""><figcaption>On the phone: resolving with an internal note</figcaption></figure>
 
 <h2 id="reject">Rejecting and duplicates</h2>
 <p>Not every ticket ends with a solution. Besides <em>Done</em> there are therefore two more ways to close – both in the ticket's <strong>status menu</strong> (on phones under <em>Status</em>):</p>
 <ul>
-  <li><strong>Reject …</strong> – the request is deliberately not carried out. The <strong>reason</strong> is required and goes to the reporter and participants as a reply; reply templates and placeholders like <code>{reporter}</code> work. No extra “Resolved” mail and no satisfaction survey is sent.</li>
-  <li><strong>Close as duplicate …</strong> – the request is already handled in another ticket. Choose the <em>original ticket</em>; both are linked, and the reporter gets a short note with the original's number (or your own text). With <em>Add reporter and participants to the original</em> they keep following the original – only if it contains nothing confidential. You can only choose tickets you work on as the original; if the original is itself a duplicate, the same applies to the tickets it points to.</li>
+  <li><strong>Reject …</strong> – the request is deliberately not carried out. The <strong>reason</strong> is required and goes to the customer and participants as a reply; reply templates and placeholders like <code>{customer}</code> work. No extra “Resolved” mail and no satisfaction survey is sent.</li>
+  <li><strong>Close as duplicate …</strong> – the request is already handled in another ticket. Choose the <em>original ticket</em>; both are linked, and the customer gets a short note with the original's number (or your own text). With <em>Add customer and participants to the original</em> they keep following the original – only if it contains nothing confidential. You can only choose tickets you work on as the original; if the original is itself a duplicate, the same applies to the tickets it points to.</li>
 </ul>
 <figure class="medium"><img src="img/en/reject.jpg" alt=""><figcaption>Rejecting a ticket with a reason</figcaption></figure>
-<p>The ticket then shows <em>Rejected</em> or <em>Duplicate</em> instead of <em>Done</em> – in lists, under <em>My requests</em> and on phones –, duplicates with a link to the original. In the ticket list you filter by <em>Resolution</em> once the status <em>Done</em> is chosen; with the multiple selection you reject several tickets at once. A reply mail to it does not reopen the ticket but becomes an internal note – reopen it yourself if needed. If the reporter writes in the web interface, it reopens as usual. In the reports, rejected tickets and duplicates are counted separately and not towards the avg. resolution time.</p>
+<p>The ticket then shows <em>Rejected</em> or <em>Duplicate</em> instead of <em>Done</em> – in lists, under <em>My requests</em> and on phones –, duplicates with a link to the original. In the ticket list you filter by <em>Resolution</em> once the status <em>Done</em> is chosen; with the multiple selection you reject several tickets at once. A reply mail to it does not reopen the ticket but becomes an internal note – reopen it yourself if needed. If the customer writes in the web interface, it reopens as usual. In the reports, rejected tickets and duplicates are counted separately and not towards the avg. resolution time.</p>
 <figure class="medium"><img src="img/en/resolutions-list.jpg" alt=""><figcaption>Done tickets with their resolution</figcaption></figure>
 
 <h2 id="for-others">Entering tickets for others</h2>
 <p>When a request comes in by phone, in passing or to another mailbox, enter the ticket right away on behalf of that person. It then appears under their <em>My requests</em> – so they get used to the ticket system.</p>
 <ol>
-  <li>Open <strong>Create</strong>. The <strong>reporter</strong> is shown at the top, “Me” by default.</li>
+  <li>Open <strong>Create</strong>. The <strong>customer</strong> is shown at the top, “Me” by default.</li>
   <li>Click <em>Enter for someone else</em> and type a name, user name or email address. From 3 characters, people from AD appear as well (marked “AD”). An email address without an account is created as an email contact.</li>
-  <li><strong>Notify the reporter by email</strong> is ticked: the person gets an email with the ticket key and link – with an account also a hint that they can report new requests themselves next time.</li>
+  <li><strong>Notify the customer by email</strong> is ticked: the person gets an email with the ticket key and link – with an account also a hint that they can report new requests themselves next time.</li>
   <li>Paste the text from the email or note and click <strong>Create</strong>.</li>
 </ol>
 <figure class="medium"><img src="img/en/reporter-create.jpg" alt=""><figcaption>Entering a ticket for a colleague</figcaption></figure>
 <p>The history shows who created the ticket for whom. <em>Back to me</em> undoes the choice.</p>
-<p><strong>Change later:</strong> in the details under <em>Reporter</em> click <em>Change reporter</em>, pick the person and confirm. The previous reporter keeps access as a request participant (except agents and pure email contacts). If a former reporter later replies to an old email, it only becomes an internal note. The same applies to mails from agent addresses matched only via the ticket number in the subject – reply to the reporter in the ticket. On phones: <em>All details → Reporter</em>.</p>
-<figure class="small"><img src="img/en/m-reporter.jpg" alt=""><figcaption>On phones: choosing the reporter when creating</figcaption></figure>
+<p><strong>Change later:</strong> in the details under <em>Customer</em> click <em>Change customer</em>, pick the person and confirm. The previous customer keeps access as a request participant (except agents and pure email contacts). If a former customer later replies to an old email, it only becomes an internal note. The same applies to mails from agent addresses matched only via the ticket number in the subject – reply to the customer in the ticket. On phones: <em>All details → Customer</em>.</p>
+<figure class="small"><img src="img/en/m-reporter.jpg" alt=""><figcaption>On phones: choosing the customer when creating</figcaption></figure>
 
 <h2 id="formatting">Formatting replies</h2>
 <p>Above the comment field there is a toolbar – in tickets, in comments on knowledge articles and on phones:</p>
@@ -335,7 +335,7 @@
   <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> saves.</li>
 </ul>
 <figure class="medium"><img src="img/en/comment-toolbar.jpg" alt=""><figcaption>Comment field with toolbar: bold, mention and emoji</figcaption></figure>
-<p>Reporters and participants get the reply formatted by email (with a readable text part for programs without HTML). <strong>Pictures</strong> in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything in their mail program. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); further ones appear as “[Image: name]” in the email and are visible in the ticket. If the mail server refuses a mail with pictures, it is sent once more as plain text with “[Image: name]”; if sending to one recipient fails, the others still get theirs. Pictures from internal notes never go to reporters or participants.</p>
+<p>Customers and participants get the reply formatted by email (with a readable text part for programs without HTML). <strong>Pictures</strong> in the reply travel with the email and appear in place in the text – the recipient does not need to sign in or allow anything in their mail program. Up to 5 pictures per email (only real PNG, JPEG, GIF and WebP files, each up to 2 MB, about 5 MB in total; a picture inserted several times travels once); further ones appear as “[Image: name]” in the email and are visible in the ticket. If the mail server refuses a mail with pictures, it is sent once more as plain text with “[Image: name]”; if sending to one recipient fails, the others still get theirs. Pictures from internal notes never go to customers or participants.</p>
 <figure class="medium"><img src="img/en/mail-images.jpg" alt=""><figcaption>Reply email with the picture in place in the text</figcaption></figure>
 <p>Info boxes, quotes and lists are shown nested up to 8 levels deep, tables with at most 50 columns and 5000 cells – anything beyond that appears as plain text. That way no comment can bring down the browser or the server.</p>
 <p> On phones the bar appears above the field as soon as you write and can be swiped sideways.</p>
@@ -344,17 +344,22 @@
 <h2 id="notes">Replies and internal notes</h2>
 <p>Above the comment field choose between <strong>Reply</strong> and <strong>Internal note</strong>:</p>
 <ul>
-  <li><strong>Replies</strong> are emailed to the reporter and all participants, each in their own language.</li>
-  <li><strong>Internal notes</strong> (yellow background) are only visible to agents. They never go to reporters or participants, nor do pasted images. Only people @-mentioned in them – always agents of the project – get the note including its pictures by email. Without agent rights on the project an internal note is refused, never saved as a reply.</li>
+  <li><strong>Replies</strong> are emailed to the customer and all participants, each in their own language.</li>
+  <li><strong>Internal notes</strong> (yellow background) are only visible to agents. They never go to customers or participants, nor do pasted images. Only people @-mentioned in them – always agents of the project – get the note including its pictures by email. Without agent rights on the project an internal note is refused, never saved as a reply.</li>
 </ul>
+<h3 id="wait-for-customer">Then wait for the customer</h3>
+<p>When you reply to a customer on a ticket that is <em>Open</em> or <em>In progress</em>, Helfi.Space sets it to <strong>Waiting</strong>: now it is the customer’s turn. This is shown in the history, the resolution time (SLA) pauses and the ticket counts under <em>Waiting for customer</em>. When the customer writes back, it is <em>Open</em> again.</p>
+<p>Below the reply field, <strong>Then wait for the customer</strong> is ticked for this (also in the phone view). Untick it when you only give an update such as “I’m on it and will get back to you tomorrow” – the status then stays as it is. Internal notes, replies on your own tickets, major incident messages and approval decisions never change the status.</p>
+<figure><img src="img/en/reply-wait.jpg" alt=""><figcaption>Replying to the customer: afterwards the ticket waits for them</figcaption></figure>
+<p>When updating to this version, open tickets whose last reply already came from an agent are set to <em>Waiting</em> once – with a history entry, without emails.</p>
 <div class="warn"><p>Emails coming from an agent’s address never count as agent replies (sender addresses can be forged). Agents therefore always reply via the web interface. Email replies to assignment, SLA or approval mails sent to agents become internal notes and do not reopen the ticket.</p></div>
 
 <h2 id="mentions">Mentioning colleagues (@)</h2>
 <p>When you need someone in a ticket, mention them: type <strong>@</strong> and a few letters in the reply field, then pick the person with a click, ↑/↓ and Enter or Tab; Esc closes the list. The name is highlighted in the comment, your own mentions in colour.</p>
 <figure class="medium"><img src="img/en/mention-compose.jpg" alt=""><figcaption>“@be” in an internal note – the list shows matching agents</figcaption></figure>
 <ul>
-  <li><strong>Who you can mention:</strong> in an <em>internal note</em> only agents. In a <em>reply</em> also the ticket's reporter, participants and approvers. People who cannot see the ticket are not in the list.</li>
-  <li><strong>What happens:</strong> the person mentioned gets an email from the ticket system with your name, the comment (pictures in it travel with the email) and the link. Reporters and participants who get the reply by email anyway do not get a second one.</li>
+  <li><strong>Who you can mention:</strong> in an <em>internal note</em> only agents. In a <em>reply</em> also the ticket's customer, participants and approvers. People who cannot see the ticket are not in the list.</li>
+  <li><strong>What happens:</strong> the person mentioned gets an email from the ticket system with your name, the comment (pictures in it travel with the email) and the link. Customers and participants who get the reply by email anyway do not get a second one.</li>
   <li><strong>Mentions me:</strong> the sidebar lists all tickets in which you were mentioned; the number counts those you have not opened yet. In lists an <strong>@</strong> marks new mentions, in the ticket the comment in question. Opening the ticket marks the mention as seen.</li>
   <li>A mention does not make anyone a participant. To keep someone informed, add them under <em>Request participants</em>.</li>
 </ul>
@@ -374,7 +379,7 @@
 <p>For replies that are always the same: click <strong>Template</strong> in the comment field, type to search, insert with Enter or a click. The text lands at the cursor position and can still be adjusted before saving.</p>
 <figure><img src="img/en/templates.jpg" alt=""><figcaption>Choosing a template: “For everyone” at the top, your own below</figcaption></figure>
 <ul>
-  <li><strong>Placeholders</strong> are replaced on insertion: <code>{reporter}</code>, <code>{ticket}</code>, <code>{title}</code>, <code>{agent}</code>.</li>
+  <li><strong>Placeholders</strong> are replaced on insertion: <code>{customer}</code>, <code>{ticket}</code>, <code>{title}</code>, <code>{agent}</code> (older templates with <code>{reporter}</code> keep working).</li>
   <li><strong>New template:</strong> write the text in the comment field and choose <em>Save as template</em>. Personal templates are managed in your <em>Profile</em>; templates for everyone are maintained by admins under <em>Administration → Reply templates</em>.</li>
   <li><strong>Template for one project</strong> <span class="role role-admin">admin</span>: a template for everyone can belong to a project. Then only its agents see it, and only in its tickets – facilities are not offered heating templates in an IT ticket. Without a project it is for everyone.</li>
   <li><strong>Templates of your project</strong> (project lead and deputy): you maintain the shared templates of your project yourself – in the <em>Profile</em> under <em>Reply templates of my projects</em> (create, change, delete) or in a ticket with <em>Save as template</em> and the tick <em>Shared for the project</em>; the ticket's project is preselected. Only projects you lead or deputise for can be chosen. Templates for all projects are set up by the administrators; component leads and the other agents only use the templates.</li>
@@ -395,7 +400,7 @@
 <p>If <em>Detect component</em> is on, the AI looks at new tickets that no <a href="#components">component</a> rule matches and works out which component fits. In <em>Suggest</em> mode the details show “AI suggests: …” with a short reason: <strong>Accept</strong> sets the component (nobody is assigned by this), <strong>Dismiss</strong> hides the suggestion. On phones the suggestion is under <em>All details</em>. If you pick a different component yourself instead, that counts as a correction. In <em>Assign automatically</em> mode the AI sets the component directly; the history says “by AI”.</p>
 <figure class="small"><img src="img/en/ai-suggestion.jpg" alt=""><figcaption>AI suggestion for the component</figcaption></figure>
 <h3>Detecting duplicates</h3>
-<p>If <em>Detect duplicates</em> is on, Helfi.Space checks every new ticket: first it searches similar <strong>open</strong> tickets of the same project from the last 30 days without AI; only if there are any does it ask the AI whether the new ticket reports the same. The ticket then shows “Possible duplicate of IT-12” with a reason. <strong>Close as duplicate</strong> opens the dialog with the original filled in (see <a href="#reject">Rejecting and duplicates</a>), <strong>Not a duplicate</strong> hides the hint. The AI never closes anything itself; reporters do not see the hint, and it only names tickets you may open yourself.</p>
+<p>If <em>Detect duplicates</em> is on, Helfi.Space checks every new ticket: first it searches similar <strong>open</strong> tickets of the same project from the last 30 days without AI; only if there are any does it ask the AI whether the new ticket reports the same. The ticket then shows “Possible duplicate of IT-12” with a reason. <strong>Close as duplicate</strong> opens the dialog with the original filled in (see <a href="#reject">Rejecting and duplicates</a>), <strong>Not a duplicate</strong> hides the hint. The AI never closes anything itself; customers do not see the hint, and it only names tickets you may open yourself.</p>
 <figure class="medium"><img src="img/en/ai-duplicate.jpg" alt=""><figcaption>Hint about a possible duplicate</figcaption></figure>
 <h3>Writing knowledge articles</h3>
 <p>In the article editor <strong>AI</strong> is the first button of the toolbar. It works on the selection – without one on the whole article – and keeps the formatting: <em>Polish text</em>, <em>Shorten</em>, <em>As a step-by-step guide</em> (notes become numbered steps), <em>Translate into German/English</em> and <em>Suggest title and category</em> (to accept or adjust). For a new article from a ticket there is also <em>Write a draft from IT-42</em>: problem – cause – solution from the ticket history, without names, addresses, computer names and ticket numbers. <em>Undo</em> brings back the previous text; please check the draft before publishing.</p>
@@ -404,7 +409,7 @@
 <h2 id="bulk">Several tickets at once</h2>
 <p>In <em>All tickets</em> select tickets with the check boxes (Shift+click for a range, <kbd>x</kbd> for the highlighted ticket). The action bar offers:</p>
 <ul>
-  <li><strong>Resolve</strong> and <strong>Status</strong> – each with an optional comment: as <em>Reply to reporters</em> (mail to reporter and participants) or as <em>Internal note</em>, also with a template and placeholders per ticket.</li>
+  <li><strong>Resolve</strong> and <strong>Status</strong> – each with an optional comment: as <em>Reply to customers</em> (mail to customer and participants) or as <em>Internal note</em>, also with a template and placeholders per ticket.</li>
   <li><strong>Comment</strong> – reply or internal note for all selected tickets without changing the status. An internal note never becomes a reply: tickets of a project you do not work on are skipped with an error.</li>
   <li><strong>Link …</strong> – connect all selected tickets with one ticket, e.g. “is caused by IT-42”; optionally with status and comment right away (“the cause is being fixed in IT-42”).</li>
   <li><strong>Assign</strong>, <strong>Priority</strong> and <strong>Move</strong> to another project.</li>
@@ -442,7 +447,7 @@
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="itil">IT service management (ITIL) <span class="role role-agent">agents</span></h1>
-<p>Helfi.Space covers the most important ITIL processes without forcing you to use all of them: incidents and major incidents, service levels, problems, changes, knowledge, service catalog, devices and services, and satisfaction. Whatever is not switched on or set up stays invisible.</p>
+<p>Helfi.Space covers the most important ITIL processes without forcing you to use all of them: incidents and major incidents, service levels, problems, changes, knowledge base, service catalog, devices and services, and satisfaction. Whatever is not switched on or set up stays invisible.</p>
 
 <h2 id="links">Links and subtasks</h2>
 <p>In the <em>Links</em> section of a ticket – faster via the <strong>Link</strong> button at the top next to the status, on phones under <em>Details</em> – you connect tickets. Search the target ticket by number or keyword; while the field is empty, Helfi suggests <em>possible causes</em> (open problems, major incidents) and <em>similar tickets</em>. Kinds: “relates to”, “duplicates” (optionally resolving the duplicate right away), “blocks”, “causes” and “is subtask of”. <strong>Subtask</strong> directly creates a task with an assignee; a bar shows how many are done.</p>
@@ -451,7 +456,7 @@
 
 <h2 id="major">Impact, urgency and major incident</h2>
 <p>In the details you set <strong>impact</strong> (how many are affected?) and <strong>urgency</strong> (how fast must it be fixed?). When both are set, the priority follows the ITIL matrix, e.g. high/high = Highest.</p>
-<p>Mark a severe incident affecting many people as a <strong>major incident</strong>. All agents then see a red bar at the top. Link individual reports with “causes”. <strong>Inform everyone affected</strong> sends a message to the reporters and participants of all open linked tickets; with “resolve” they are resolved together.</p>
+<p>Mark a severe incident affecting many people as a <strong>major incident</strong>. All agents then see a red bar at the top. Link individual reports with “causes”. <strong>Inform everyone affected</strong> sends a message to the customers and participants of all open linked tickets; with “resolve” they are resolved together.</p>
 <figure><img src="img/en/itil-major.jpg" alt=""><figcaption>Major incident with subtasks, affected tickets and device</figcaption></figure>
 
 <h2 id="sla">Service levels (SLA)</h2>
@@ -479,7 +484,7 @@
 <figure><img src="img/en/admin-change.jpg" alt=""><figcaption>Administration → Change</figcaption></figure>
 
 <h2 id="knowledge">Knowledge base</h2>
-<p><em>Knowledge</em> collects guides and solutions. Articles are <strong>internal</strong> (only the project's people) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing. From three headings on, the article view shows a table of contents on the right.</p>
+<p>The <em>knowledge base</em> collects guides and solutions. Articles are <strong>internal</strong> (only the project's people) or <strong>public</strong> (everyone signed in, also suggested while reporting). Search ranks title matches higher. From a solved ticket, <strong>Knowledge article</strong> at the top of the ticket creates a draft; remove personal details before publishing. From three headings on, the article view shows a table of contents on the right.</p>
 <figure><img src="img/en/itil-kb.jpg" alt=""><figcaption>Knowledge base with projects and categories</figcaption></figure>
 <h3>Articles per project</h3>
 <p>Every article belongs to a project, e.g. IT or Facilities:</p>
@@ -567,13 +572,13 @@
 <p><span class="role role-admin">admin</span> <strong>CSV import</strong> from your inventory tool: the first line contains the column names (name/hostname, type, location, IP address, serial number, vendor, model, user, status – German or English). Values like “Notebook” or “Switch” are mapped to the matching kind. Existing names are updated. Only administrators can delete an entry, and only while no tickets are linked; otherwise set it to “retired”.</p>
 
 <h2 id="satisfaction">Satisfaction survey <span class="role role-admin">admin</span></h2>
-<p>Switch it on under <em>Administration → Tickets → General → Satisfaction survey</em>. The “Resolved” email to the reporter then contains the rating links (<a href="#rating">2.13</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
+<p>Switch it on under <em>Administration → Tickets → General → Satisfaction survey</em>. The “Resolved” email to the customer then contains the rating links (<a href="#rating">2.13</a>). Each link contains a random token; only its hash is stored. The link is valid for a configurable number of days and only shows the ticket key and title. If a ticket is reopened and resolved again, there is a new survey. Agents see the rating at the top of the ticket.</p>
 <figure class="medium"><img src="img/en/admin-survey.jpg" alt=""><figcaption>Administration → Tickets → General: satisfaction survey</figcaption></figure>
 
 <h2 id="kpis">ITIL key figures</h2>
 <p>Under <em>Reports</em>, the agent statistics (<a href="#reports">3.9</a>) are followed by further figures for the same period:</p>
 <ul>
-  <li><strong>Service quality:</strong> resolved requests and incidents, resolved at first contact (at most one reply, no follow-up question, never reopened), reopen rate, major incidents.</li>
+  <li><strong>Service quality:</strong> resolved requests and incidents, resolved at first contact (at most one reply from IT, the customer did not have to write again afterwards, never reopened), reopen rate, major incidents.</li>
   <li><strong>SLA compliance</strong> for response and resolution, overall and per priority.</li>
   <li><strong>Changes</strong> per month: kinds, rejected, outcomes, success rate and share of emergency changes.</li>
   <li><strong>Problems:</strong> new, resolved, open, known errors.</li>
@@ -728,11 +733,11 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Which project? – via the components:</strong> a new mail to the central mailbox is compared with the components of <strong>all projects</strong> (sender, keywords in subject and text). The project of the matching component gets the ticket – with this component, assigned to nobody; “Heating in room 12 cold” thus lands in facilities. No mailbox per project is needed; a sender rule with a project takes precedence.</li>
   <li><strong>If no component matches,</strong> the ticket lands in the <strong>inbox project</strong> (<em>Inbox project</em> on this page, otherwise the default project; marked “Inbox” in <em>Projects</em>). Give it a lead and deputy: they sort such tickets with <em>Move</em> and get the reminder mail if one is left lying. With the AI function <em>Detect component</em>, the AI chooses from the components of all projects for these mails – as a suggestion (“Facilities / Heating &amp; air conditioning – accept?”) or directly; accepted, the ticket moves there. A sender rule with an archived project counts as one without a project; if the inbox project is archived, the mail lands in the default project.</li>
   <li><strong>In the wrong place?</strong> Agents move a ticket into <strong>any</strong> project (details → project or multiple selection), also into one they do not work on themselves – afterwards they no longer see it there. <em>Detect component</em> does not move a manually moved ticket back.</li>
-  <li><strong>Replies by ticket key</strong> in the subject are only accepted from the reporter and request participants; anyone who merely guesses the key, or wrote in the ticket once but is no longer involved, gets a new ticket. Replies to mails from Helfi.Space are matched via the Message-ID.</li>
+  <li><strong>Replies by ticket key</strong> in the subject are only accepted from the customer and request participants; anyone who merely guesses the key, or wrote in the ticket once but is no longer involved, gets a new ticket. Replies to mails from Helfi.Space are matched via the Message-ID.</li>
   <li><strong>Sending (SMTP):</strong> ideally use the mailbox address as sender, so replies come back into the ticket.</li>
-  <li><strong>The sender is always the ticket system</strong> – never an agent’s address, no personal signatures. So the reporter knows who looks after them, reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added. In the browser, users see the field as “Your contact”.</li>
+  <li><strong>The sender is always the ticket system</strong> – never an agent’s address, no personal signatures. So the customer knows who looks after them, reply and resolved mails end with “Kind regards”, the agent’s name and the system name; if the ticket is assigned to someone else, “Your contact person: …” is added. In the browser, users see the field as “Your contact”.</li>
   <li><strong>Look up senders in Active Directory:</strong> unknown senders are searched in AD and created as AD users right away. Otherwise they become <em>email contacts</em>; when they sign in later, their tickets are theirs.</li>
-  <li><strong>Notifications:</strong> each can be switched off – receipt confirmation, replies and resolved to reporters and participants, assignment to agents, mail to newly added participants and to people <strong>@</strong>-mentioned.</li>
+  <li><strong>Notifications:</strong> each can be switched off – receipt confirmation, replies and resolved to customers and participants, assignment to agents, mail to newly added participants and to people <strong>@</strong>-mentioned.</li>
   <li><strong>Reminder to project leads</strong> (<em>Administration → Tickets → General</em>): whoever does not look into the ticket system every day would otherwise miss new tickets. Enter a number under <em>After days without assignee</em> (0 = off); then the lead and deputy of each project get one mail a day at the set time (Monday to Friday only by default, can be switched off): all open tickets without assignee that were created at least that many days ago, with a link to each ticket and to the filtered list. If a project has neither a lead nor a deputy with an email address and an active account, the mail goes to all admins. If nothing is left lying, no mail is sent. <em>Check and send now</em> sends right away – handy for trying it out.
     <figure class="medium"><img src="img/en/mail-reminder.jpg" alt=""><figcaption>Reminder to project leads</figcaption></figure></li>
   <li><strong>Recipients in To/CC become participants</strong> (can be turned off) – for new tickets and replies to mails from Helfi.Space, not when a reply is matched only by the key in the subject.</li>
@@ -796,7 +801,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>By responsibility, not by technology:</strong> a component is what one person (or a small team) is in charge of. Whoever looks after printers and scanners does not need two components.</li>
   <li><strong>6–12 rather than 40:</strong> components that are too fine get picked wrongly and clutter the reports. Labels handle finer distinctions.</li>
   <li><strong>Every component needs a responsible person,</strong> ideally with a deputy – otherwise tickets end up “Unassigned” again.</li>
-  <li><strong>Keywords from real tickets:</strong> use the words your reporters actually write (“Outlook”, “FortiClient”, “password expired”), not IT jargon. Avoid words found in almost every mail (e.g. “email” or “phone” from signatures).</li>
+  <li><strong>Keywords from real tickets:</strong> use the words your customers actually write (“Outlook”, “FortiClient”, “password expired”), not IT jargon. Avoid words found in almost every mail (e.g. “email” or “phone” from signatures).</li>
   <li><strong>Check with the test field</strong> and after a few weeks look at <em>Reports → By component</em>: many tickets “Without component” mean keywords are missing.</li>
   <li><strong>Senders for systems:</strong> monitoring, backup or printers that send mails themselves are matched reliably with a sender pattern.</li>
 </ul>
@@ -845,7 +850,7 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Import</strong> – with progress, can be cancelled.</li>
 </ol>
 <figure class="medium"><img src="img/en/import-csv.jpg" alt=""><figcaption>CSV file: mapping columns with example values</figcaption></figure>
-<p>Ticket numbers are kept where possible (<code>SUP-123</code> stays <code>SUP-123</code>, Zammad <code>#31011</code> becomes <code>SD-31011</code>; very long, date-based numbers get a new one, the old one is kept in the history). Internal notes and their files stay internal; with Jira, where files belong to the issue, a file only becomes public when the description or a public comment shows it or the reporter uploaded it – when in doubt it stays internal. People are matched by email address, and no emails are sent. Only people who work on the target project are assigned – so add agents to the project beforehand. Before every import starts, Helfi.Space creates a backup. A second run only updates what changed and never creates duplicates – so you can import once as a trial and again on the cut-over day (for CSV with the same <em>name of the source</em>).</p>
+<p>Ticket numbers are kept where possible (<code>SUP-123</code> stays <code>SUP-123</code>, Zammad <code>#31011</code> becomes <code>SD-31011</code>; very long, date-based numbers get a new one, the old one is kept in the history). Internal notes and their files stay internal; with Jira, where files belong to the issue, a file only becomes public when the description or a public comment shows it or the customer uploaded it – when in doubt it stays internal. People are matched by email address, and no emails are sent. Only people who work on the target project are assigned – so add agents to the project beforehand. Before every import starts, Helfi.Space creates a backup. A second run only updates what changed and never creates duplicates – so you can import once as a trial and again on the cut-over day (for CSV with the same <em>name of the source</em>).</p>
 
 <!-- ============================================================ -->
 <h1 class="chapter" id="operation">For administrators: operation <span class="role role-admin">admin</span></h1>

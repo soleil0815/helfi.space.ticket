@@ -18,6 +18,13 @@ export function createItilReports(db, sla) {
   const statusChanges = db.prepare("SELECT old_value, new_value, created_at FROM activity WHERE ticket_id=? AND action='changed' AND field='status' ORDER BY created_at, id");
   const agentReplies = db.prepare(`SELECT COUNT(*) n FROM comments c JOIN users u ON u.id=c.author_id
     WHERE c.ticket_id=? AND c.internal=0 AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents pa WHERE pa.project_id=(SELECT project_id FROM tickets WHERE id=c.ticket_id)))`);
+  // Message of the customer side (not an agent of the project; mail without account counts) after a time
+  const customerWroteAfter = db.prepare(`SELECT 1 FROM comments c LEFT JOIN users u ON u.id=c.author_id
+    WHERE c.ticket_id=? AND c.internal=0 AND c.created_at>?
+      AND NOT COALESCE(u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents pa WHERE pa.project_id=(SELECT project_id FROM tickets WHERE id=c.ticket_id)), 0)
+    LIMIT 1`);
+  const firstAgentReply = db.prepare(`SELECT MIN(c.created_at) at FROM comments c JOIN users u ON u.id=c.author_id
+    WHERE c.ticket_id=? AND c.internal=0 AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents pa WHERE pa.project_id=(SELECT project_id FROM tickets WHERE id=c.ticket_id)))`);
   const reporterIsAgent = db.prepare("SELECT 1 FROM users u WHERE u.id=? AND (u.role IN ('agent','admin') OR u.id IN (SELECT user_id FROM project_agents WHERE project_id=?))");
 
   /**
@@ -39,10 +46,12 @@ export function createItilReports(db, sla) {
       const i = ch.findIndex((c) => c.new_value === 'done' && c.created_at >= range.fromIso && c.created_at < range.toIso);
       const wasReopened = ch.slice(i + 1).some((c) => c.old_value === 'done');
       if (wasReopened) reopened++;
-      // Resolved at first contact: never reopened, never waited for a reply, at most one reply from IT
+      // Resolved at first contact: never reopened, at most one reply from IT and the customer did not
+      // have to write again after it. ("Waiting" is no signal: every reply to the customer sets it.)
       const everReopened = ch.some((c) => c.old_value === 'done');
-      const waited = ch.some((c) => c.new_value === 'waiting');
-      if (!everReopened && !waited && agentReplies.get(t.id).n <= 1) firstContact++;
+      const first = firstAgentReply.get(t.id).at;
+      const answeredBack = !!first && !!customerWroteAfter.get(t.id, first);
+      if (!everReopened && !answeredBack && agentReplies.get(t.id).n <= 1) firstContact++;
     }
     return {
       resolved: rows.length,

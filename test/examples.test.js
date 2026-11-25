@@ -47,7 +47,7 @@ test('canned responses: shared, chosen language, existing ones skipped', async (
   const mine = (await anna('GET', '/api/canned')).body.responses;
   const t = mine.find((x) => x.title === 'Eingang bestätigen');
   assert.equal(t.shared, true);
-  assert.match(t.body, /\{melder\}/);
+  assert.match(t.body, /\{kunde\}/);
   const again = await S.admin('POST', '/api/examples/canned', { keys: ['received', 'restart'], lang: 'en' });
   assert.deepEqual(again.body.added, ['Please restart']);
   assert.deepEqual(again.body.skipped, ['Confirm receipt'], 'German one already there');

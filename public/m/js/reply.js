@@ -65,6 +65,21 @@ export function replyBar({ getTicket, onSent }) {
   const attachBtn = h('button.m-reply-attach', { type: 'button', 'aria-label': t('m.reply.attach'), title: t('m.reply.attach'), onmousedown: keep, onclick: () => openAttachSheet() }, icon('plus'));
   const filesEl = h('div.m-reply-files', { role: 'list', 'aria-label': t('m.reply.attachments'), hidden: true });
   const hint = h('div.m-reply-hint', { hidden: true }, icon('lock'), h('span', t('m.reply.internalHint')));
+  // A reply to the customer puts an open ticket on "Waiting" – untick for "I'll get back to you".
+  // Only where it changes something (agent, reply mode, open/in progress, not the own ticket).
+  const waitBox = agent ? h('input', { type: 'checkbox', checked: true, 'data-wait-for-customer': '' }) : null;
+  const waitToggle = agent ? h('label.m-reply-wait', { hidden: true }, waitBox, h('span', t('ticket.waitForCustomer'))) : null;
+  const canWait = () => {
+    const tk = getTicket();
+    return !!tk && (tk.status === 'open' || tk.status === 'in_progress') && tk.reporter?.id !== state.user?.id;
+  };
+  function syncWait() {
+    if (!waitToggle) return;
+    const show = !internal && canWait();
+    // Shown again (e.g. reopened by the customer): ticked as by default
+    if (show && waitToggle.hidden) waitBox.checked = true;
+    waitToggle.hidden = !show;
+  }
 
   const modeReply = agent ? h('button.m-reply-mode', { type: 'button', 'aria-pressed': 'true', onclick: () => setMode(false) }, t('m.reply.reply')) : null;
   const modeNote = agent ? h('button.m-reply-mode.m-reply-mode-note', { type: 'button', 'aria-pressed': 'false', onclick: () => setMode(true) }, icon('lock'), t('m.reply.internal')) : null;
@@ -129,7 +144,7 @@ export function replyBar({ getTicket, onSent }) {
   const el = h('div.m-reply', { role: 'region', 'aria-label': t('m.reply.placeholder') },
     tools, aiNote, filesEl,
     h('div.m-reply-row', attachBtn, h('div.m-reply-field', field.el), sendBtn),
-    hint);
+    hint, waitToggle);
 
   // ---------- Text: draft (the field grows by itself up to 40 % of the screen) ----------
   let saveTimer = null;
@@ -149,6 +164,7 @@ export function replyBar({ getTicket, onSent }) {
     modeReply.setAttribute('aria-pressed', String(!internal));
     modeNote.setAttribute('aria-pressed', String(internal));
     hint.hidden = !internal;
+    syncWait();
     const ph = internal ? t('m.reply.placeholderInternal') : t('m.reply.placeholder');
     field.area.dataset.placeholder = ph;
     field.area.setAttribute('aria-label', ph);
@@ -261,7 +277,7 @@ export function replyBar({ getTicket, onSent }) {
       if (!txt && !pics.length) txt = others.map((f) => `📎 ${f.file.name}`).join('\n\n');
       // each picture as its own block (shown below the text)
       const body = [txt, ...pics.map((f) => `![${altText(f.file.name)}](/api/attachments/${f.attId})`)].filter(Boolean).join('\n\n');
-      const r = await api.comment(k, body, agent && internal, others.map((f) => f.attId), 'md');
+      const r = await api.comment(k, body, agent && internal, others.map((f) => f.attId), 'md', { waitForCustomer: !waitBox || waitToggle.hidden || waitBox.checked });
       // Sent: empty the bar
       for (const f of files) if (f.url) URL.revokeObjectURL(f.url);
       files = [];
@@ -291,12 +307,15 @@ export function replyBar({ getTicket, onSent }) {
   if (d?.text) field.setValue(d.text);
   if (agent && d?.internal) setMode(true);
   else if (agent) setMode(false);
+  syncWait();
   update();
 
   return {
     el,
     focus: () => field.area.focus(),
     setMode,
+    /** After the ticket was reloaded (status may have changed) */
+    sync: syncWait,
     /** After a project move the key changes: keep the draft under the new key */
     rekey(oldKey, newKey) { if (oldKey !== newKey && !field.isEmpty()) { writeDraft(oldKey, null, owner); writeDraft(newKey, { text: text(), internal, format: 'md' }, owner); } },
   };

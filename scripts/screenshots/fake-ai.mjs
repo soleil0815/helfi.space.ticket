@@ -15,7 +15,7 @@ export async function startFakeAi(lang) {
   const answer = (system, user) => {
     if (system.startsWith('Reply with the single word OK')) return 'OK';
     if (system.startsWith('You help IT support agents. Summarize')) {
-      return T(`**Worum es geht**\n- Drucker PR-0001 im 2. OG meldet „Papierstau Fach 2“, obwohl kein Papier klemmt.\n\n**Bisher passiert**\n- Tritt auch beim Drucken vom Handy auf.\n- Ursache: verschmutzter Sensor in Fach 2, Ersatzteil bestellt.\n\n**Offen / nächster Schritt**\n- Ersatzteil am Donnerstag einbauen und die Melderin informieren.`,
+      return T(`**Worum es geht**\n- Drucker PR-0001 im 2. OG meldet „Papierstau Fach 2“, obwohl kein Papier klemmt.\n\n**Bisher passiert**\n- Tritt auch beim Drucken vom Handy auf.\n- Ursache: verschmutzter Sensor in Fach 2, Ersatzteil bestellt.\n\n**Offen / nächster Schritt**\n- Ersatzteil am Donnerstag einbauen und die Kundin informieren.`,
         `**What it is about**\n- Printer PR-0001 on the 2nd floor reports "Paper jam tray 2" although nothing is stuck.\n\n**What happened so far**\n- Also happens when printing from the phone.\n- Cause: dirty sensor in tray 2, spare part ordered.\n\n**Open / next step**\n- Fit the spare part on Thursday and inform the requester.`);
     }
     if (system.startsWith('You help IT support agent')) {

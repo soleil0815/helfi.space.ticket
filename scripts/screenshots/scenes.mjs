@@ -717,3 +717,19 @@ scene('comments', ['comment-delete', 'm-comment-delete'], async (S) => {
     await shot.phones('m-comment-delete', [a, b]);
   });
 });
+
+// ---------- A reply to the customer sets "Waiting" (adds a ticket of its own) ----------
+scene('reply-wait', ['reply-wait'], async (S) => {
+  const { page, go, shot, step, d, T } = S;
+  const tk = await d.mk(d.erika, { title: T('Monitor flackert', 'Monitor flickers'), description: T('Der zweite Monitor flackert seit heute früh.', 'The second monitor has been flickering since this morning.'), projectId: d.it.id });
+  await step('reply-wait', async () => {
+    const p = await page('a.berger');
+    await go(p, `/browse/${tk.key}`);
+    const box = p.locator('.composer');
+    await box.locator('.cm-editor, textarea').first().click();
+    await p.keyboard.type(T('Ist das Kabel fest eingesteckt? Probier bitte auch den anderen Anschluss.', 'Is the cable plugged in firmly? Please also try the other port.'));
+    await p.locator('.composer-wait').hover();
+    const b = await box.boundingBox();
+    await shot.clip(p, 'reply-wait', { x: Math.max(0, b.x - 16), y: Math.max(0, b.y - 16), width: Math.min(1280, b.width + 32), height: b.height + 32 });
+  });
+});

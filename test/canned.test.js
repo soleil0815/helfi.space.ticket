@@ -121,5 +121,7 @@ test('Placeholders (German and English), unknown ones stay as they are', () => {
   assert.equal(fillPlaceholders('Hallo {melder}, zu {ticket} „{titel}“ – {bearbeiter}', tk, me), 'Hallo Max Muster, zu IT-7 „Drucker“ – Anna Admin');
   assert.equal(fillPlaceholders('Hi {Reporter}, {TICKET} {title} – {agent}', tk, me), 'Hi Max Muster, IT-7 Drucker – Anna Admin');
   assert.equal(fillPlaceholders('{unbekannt} {melder}', { key: 'IT-1' }, me), '{unbekannt} ');
+  // {kunde}/{customer} (new name) and {melder}/{reporter} (older templates) mean the same
+  assert.equal(fillPlaceholders('Hallo {kunde} / Hi {Customer} / {melder}', tk, me), 'Hallo Max Muster / Hi Max Muster / Max Muster');
   assert.equal(fillPlaceholders('$& {melder}', { reporter: { displayName: '$1 $&' } }, me), '$& $1 $&', 'replacement without pattern evaluation');
 });

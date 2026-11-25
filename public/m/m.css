@@ -564,6 +564,10 @@ body.m a:hover { text-decoration: none; }
 .m-reply-input::placeholder { color: var(--text-subtlest); }
 .m-reply-hint { display: flex; align-items: center; gap: 6px; padding: 0 4px; font-size: 12px; line-height: 16px; color: var(--warn-text); }
 .m-reply-hint .icon { width: 13px; height: 13px; vertical-align: 0; flex: none; }
+/* "Then wait for the customer": whole line is the touch target */
+.m-reply-wait { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; font-size: 14px; color: var(--text-subtle); cursor: pointer; }
+.m-reply-wait input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--blue); }
+.m-reply-wait[hidden] { display: none; }
 .m-reply-files { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * max(10px, var(--safe-r))) 0 calc(-1 * max(10px, var(--safe-l))); padding: 2px max(10px, var(--safe-r)) 2px max(10px, var(--safe-l)); }
 .m-reply-files::-webkit-scrollbar { display: none; }
 .m-reply-files[hidden] { display: none; }

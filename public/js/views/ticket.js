@@ -321,14 +321,20 @@ export async function renderTicket(content, key) {
       ? aiComposerTools(editorField(field), tk, { isInternal: () => internal, className: 'kb-tb-btn.cm-tb-text' }) : null;
     if (ai) field.slots.left.append(ai.button, h('span.kb-tb-sep'));
     if (templateBtn) field.slots.right.append(templateBtn);
+    // A reply to the customer puts an open ticket on "Waiting" – untick for "I'll get back to you"
+    const canWait = agent && (tk.status === 'open' || tk.status === 'in_progress') && tk.reporter?.id !== state.user.id;
+    const waitBox = canWait ? h('input', { type: 'checkbox', checked: true, 'data-wait-for-customer': '' }) : null;
+    const waitToggle = canWait ? h('label.check-inline.composer-wait', { title: t('ticket.waitForCustomerHint') }, waitBox, t('ticket.waitForCustomer')) : null;
     const box = h('div.composer', avatar(state.user, 'md'), h('div.composer-main', modeBtns, field.el, hint, ai?.note,
       h('div.actions',
         h('button.btn.btn-primary', { type: 'button', onclick: submit }, t('app.save')),
+        waitToggle,
         h('span.muted.small', `${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'}+Enter · ${t('paste.hint')}${agent ? ` · ${t('mention.hint')}` : ''}`))));
     function setMode(isInternal, btn) {
       internal = isInternal;
       modeBtns.querySelectorAll('.mode').forEach((b) => b.classList.toggle('active', b === btn));
       box.classList.toggle('internal', internal);
+      if (waitToggle) waitToggle.hidden = internal;
       hint.textContent = internal ? t('ticket.internalHint') : (tk.reporter?.email && tk.reporter.id !== state.user.id ? t('ticket.replyHint') : '');
     }
     let sending = false;
@@ -336,7 +342,7 @@ export async function renderTicket(content, key) {
       if (field.isEmpty() || sending) return;
       sending = true;
       try {
-        const { comment } = await api.comment(tk.key, field.getValue(), internal, [], 'md');
+        const { comment } = await api.comment(tk.key, field.getValue(), internal, [], 'md', { waitForCustomer: !waitBox || waitBox.checked });
         field.mentions?.close(); field.destroy(); await refresh();
         // Oldest first: the new entry lands at the end, far below the reply box – bring it into view
         if (state.user.activityOrder === 'oldest') document.querySelector(`[data-comment="${comment?.id}"]`)?.scrollIntoView({ block: 'center' });

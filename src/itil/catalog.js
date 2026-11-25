@@ -138,7 +138,8 @@ export function createCatalog(db, tickets, approvals, fieldsStore, settings, { m
       const lang = settings.get('general.defaultLanguage');
       const text = `${t ? t(lang, msgKey) : result}${comment ? `\n\n„${str(comment, 2000)}“` : ''}`;
       // Reply to the reporter (mail like any reply); resolved if rejected
-      tickets.addComment(user, row.id, { body: text }, { skipPermission: true });
+      // The decision informs – the request goes on with IT, not waiting for the customer
+      tickets.addComment(user, row.id, { body: text, waitForCustomer: false }, { skipPermission: true });
       if (result === 'rejected') tickets.update({ ...user, role: 'agent' }, row.id, { status: 'done' }, { quietResolved: true, resolution: 'rejected' });
     }
     return tickets.detail(user, row.id);

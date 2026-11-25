@@ -184,7 +184,7 @@ test('Mobile: changing the reporter – pick, confirm, saved (the confirmation m
   await p.waitForSelector('.m-details-btn');
   await p.tap('.m-details-btn');
   await p.waitForSelector('.m-sheet-details');
-  await p.tap('.m-drow-edit[aria-label^="Melder"]');
+  await p.tap('.m-drow-edit[aria-label^="Kunde"]');
   await p.waitForSelector('.m-sheet-people .m-sheet-search-input');
   await p.locator('.m-sheet-people .m-sheet-search-input').fill('ebert');
   await p.waitForSelector('.m-person-hit');

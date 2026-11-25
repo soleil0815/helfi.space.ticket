@@ -47,6 +47,7 @@ export async function renderTicket(page, ctx) {
     if (page.isActive() && location.pathname !== `/m/t/${encodeURIComponent(tk.key)}`) replaceUrl(`/m/t/${encodeURIComponent(tk.key)}`);
     page.title(tk.key);
     draw();
+    bar?.sync();
   };
 
   /** Keep the scroll position when the content is rebuilt */
