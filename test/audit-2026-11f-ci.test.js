@@ -163,8 +163,9 @@ test('security update: latest is moved only if the version is still the highest 
 
   const yml = wf('security-update.yml');
   const rel = yml.slice(yml.indexOf('- name: GitHub release'));
-  assert.match(rel, /make_latest: \$\{\{ steps\.pub\.outputs\.latest \}\}/, 'GitHub "latest release" follows the same check');
-  assert.doesNotMatch(rel, /make_latest: 'true'/);
+  assert.match(rel, /LATEST: \$\{\{ steps\.pub\.outputs\.latest \}\}/, 'GitHub "latest release" follows the same check');
+  assert.match(rel, /gh-release\.sh "v\$TAG" "v\$TAG \(security update\)" "\$SHA" "\$LATEST" release-notes\.md release\/\*/);
+  assert.doesNotMatch(rel, /LATEST: 'true'|"true" release/);
   assert.match(yml, /- name: Publish the checked image \(same digest\)\n {8}id: pub\n/);
 });
 

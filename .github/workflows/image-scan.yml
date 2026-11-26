@@ -48,3 +48,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: sh .github/scripts/scan-issue.sh trivy-amd64.json trivy-arm64.json
+      # First-seen dates for the time-limited exceptions (CRITICAL 7 / HIGH 14 days) start counting as soon as
+      # the published image shows a finding – not only when the next release is built
+      - name: Time-limited exceptions (update)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sh .github/scripts/vuln-grace.sh update vuln-state.tsv trivy-amd64.json trivy-arm64.json

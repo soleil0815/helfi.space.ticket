@@ -1,0 +1,8 @@
+# Time-limited exceptions for fixable HIGH/CRITICAL vulnerabilities (read by trivy-check.sh and vuln-grace.sh).
+# Normally not needed: every finding is allowed automatically for a grace period from the day it was first seen
+# (CRITICAL 7 days, HIGH 14 days – see the issue labelled "vuln-grace"). Only if a fix takes longer, add a line
+# here by pull request. Columns separated by ONE TAB:
+#   ID   package (* = any)   until (YYYY-MM-DD, at most 30 days ahead – later dates are not accepted)   reason
+# Remove the line once the fix is out. Secrets in the image are never excepted.
+# Example (commented out):
+# CVE-2026-12345	node	2026-12-20	Node 24.x with the fix has no Alpine image yet
