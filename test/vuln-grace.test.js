@@ -33,7 +33,7 @@ function report(dir, name, vulns, secrets = []) {
 function sh(dir, script, argv, env = {}) {
   return spawnSync(SHELL, [path.join(scripts, script), ...argv], {
     cwd: dir, encoding: 'utf8',
-    env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}`, FAKE_GH_DIR: dir, GH_TOKEN: 'x', GITHUB_REPOSITORY: 'firma/helfi', VULN_TODAY: TODAY, VULN_EXCEPTIONS: path.join(dir, 'exc.tsv'), VULN_RETRY_DELAY: '0', GH_RELEASE_DELAY: '0', ...env },
+    env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}`, FAKE_GH_DIR: dir, GH_TOKEN: 'x', GITHUB_REPOSITORY: 'firma/helfi', VULN_TODAY: TODAY, VULN_EXCEPTIONS: path.join(dir, 'exc.tsv'), VULN_RETRY_DELAY: '0', GH_RELEASE_DELAY: '0', GH_RELEASE_LIST_PAUSE: '0', ...env },
   });
 }
 const state = (dir, lines) => { const f = path.join(dir, 'state.tsv'); fs.writeFileSync(f, lines.map((l) => l.join('\t')).join('\n') + '\n'); return f; };
@@ -210,6 +210,14 @@ test('gh-release.sh: draft → files → check → publish, retries GitHub failu
   assert.equal(s1.draft, false);
   assert.equal(s1.latest, false);
   assert.equal(s1.assets.length, 3);
+
+  // Like 2026-11-26: the new draft is listed only a while after the create → wait, never a second draft
+  const d3 = tmp(); fs.cpSync(rel, path.join(d3, 'release'), { recursive: true });
+  r = sh(d3, 'gh-release.sh', ['v3.0.0', 'v3.0.0', 'abc', 'true', '-', ...files], { FAKE_GH_LAG: '4', GH_RELEASE_LIST_PAUSE: '0' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(ghState(d3).releases.length, 1, 'exactly one release');
+  assert.equal(ghState(d3).releases[0].draft, false);
+  assert.equal((fs.readFileSync(path.join(d3, 'calls.log'), 'utf8').match(/release create/g) || []).length, 1, 'created once');
 
   // GitHub down for good: fails (after all retries), never leaves a published half release
   const d2 = tmp(); fs.cpSync(rel, path.join(d2, 'release'), { recursive: true });

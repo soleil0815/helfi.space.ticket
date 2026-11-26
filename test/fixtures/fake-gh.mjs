@@ -76,7 +76,10 @@ if (args[0] === 'api') {
     if (f.state) n.state = f.state;
     out(n);
   } else if (p.startsWith('releases?') && method === 'GET') {
-    out(st.releases.map((r) => ({ id: r.id, tag_name: r.tag_name, draft: r.draft })));
+    // FAKE_GH_LAG=n: a new release shows up in the list only from the (n+1)th list call after its creation
+    const lag = Number(process.env.FAKE_GH_LAG || 0);
+    for (const r of st.releases) r.listCalls = (r.listCalls || 0) + 1;
+    out(st.releases.filter((r) => !lag || r.listCalls > lag).map((r) => ({ id: r.id, tag_name: r.tag_name, draft: r.draft })));
   } else if (/^releases\/\d+\/assets/.test(p)) {
     const r = st.releases.find((x) => x.id === Number(p.split('/')[1]));
     out(r.assets.map((a) => ({ ...a, state: 'uploaded' })));
