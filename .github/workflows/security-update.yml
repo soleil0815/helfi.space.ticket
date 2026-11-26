@@ -213,6 +213,7 @@ jobs:
       packages: write
       id-token: write      # sign the build provenance (public repository)
       attestations: write
+      issues: write        # first-seen dates of the time-limited exceptions (issue "vuln-grace")
     env:
       V: ${{ needs.prepare.outputs.version }}
       TAG: ${{ needs.prepare.outputs.tag }}
@@ -285,15 +286,22 @@ jobs:
         env:
           DIGEST: ${{ steps.cand.outputs.digest }}
         run: sh .github/scripts/trivy-scan.sh "$IMAGE@$DIGEST" trivy-amd64.json
-      - if: steps.diff.outputs.changed == 'true'
-        run: sh .github/scripts/trivy-check.sh trivy-amd64.json
       - name: Scan candidate for vulnerabilities (arm64)
         if: steps.diff.outputs.changed == 'true'
         env:
           DIGEST: ${{ steps.cand.outputs.digest }}
         run: sh .github/scripts/trivy-scan.sh "$IMAGE@$DIGEST" trivy-arm64.json linux/arm64
+      # Same rule as the CI release: within the time limit a fixable finding is a warning (it may be the very
+      # finding this update cannot fix yet), afterwards it stops the update. Secrets always stop it.
+      - name: Time-limited exceptions (update)
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sh .github/scripts/vuln-grace.sh update vuln-state.tsv trivy-amd64.json trivy-arm64.json
       - if: steps.diff.outputs.changed == 'true'
-        run: sh .github/scripts/trivy-check.sh trivy-arm64.json
+        run: sh .github/scripts/trivy-check.sh trivy-amd64.json vuln-state.tsv
+      - if: steps.diff.outputs.changed == 'true'
+        run: sh .github/scripts/trivy-check.sh trivy-arm64.json vuln-state.tsv
       - name: Release files (offline images + checksums)
         if: steps.diff.outputs.changed == 'true'
         env:
@@ -370,13 +378,10 @@ jobs:
           now="$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           [ "$now" = "$DIGEST" ] || { echo "::error::Published image ($now) is not the checked candidate ($DIGEST)"; exit 1; }
           echo "### Published $IMAGE:$TAG (latest: $highest)" >> "$GITHUB_STEP_SUMMARY"
+      # Draft → files → check → publish, every step retried for about 15 minutes (GitHub disturbances)
       - name: GitHub release
         if: steps.diff.outputs.changed == 'true'
-        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
-        with:
-          tag_name: v${{ env.TAG }}
-          name: v${{ env.TAG }} (security update)
-          target_commitish: ${{ env.SHA }}
-          make_latest: ${{ steps.pub.outputs.latest }}
-          body_path: release-notes.md
-          files: release/*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST: ${{ steps.pub.outputs.latest }}
+        run: sh .github/scripts/gh-release.sh "v$TAG" "v$TAG (security update)" "$SHA" "$LATEST" release-notes.md release/*

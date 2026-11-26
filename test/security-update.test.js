@@ -88,7 +88,7 @@ test('security-update.yml: patch day only, from main, release state, checks befo
   const pub = job('publish');
   assert.match(pub, /environment: release/);
   const order = ['package-diff.sh', 'security-tag.sh', 'trivy-check.sh trivy-amd64.json', 'trivy-check.sh trivy-arm64.json',
-    'attest-build-provenance', 'Reserve the number', 'imagetools create -t "$IMAGE:$TAG" -t "$IMAGE:latest"', 'action-gh-release'];
+    'attest-build-provenance', 'Reserve the number', 'imagetools create -t "$IMAGE:$TAG" -t "$IMAGE:latest"', 'gh-release.sh'];
   const pos = order.map((s) => pub.indexOf(s));
   assert.ok(pos.every((p) => p > 0), JSON.stringify(pos));
   assert.deepEqual(pos, [...pos].sort((x, y) => x - y), 'compare → still highest → scan → sign → tag → publish → release');
