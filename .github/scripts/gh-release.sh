@@ -52,14 +52,28 @@ check_assets() {
   cmp -s assets.have assets.want
 }
 
+# GitHub lists a new draft only after a moment (2026-11-26: not yet listed right after the create).
+# So wait for it after every create – and before trying again, so a second draft is never created.
+wait_listed() {
+  w=0
+  while [ "$w" -lt "${GH_RELEASE_LIST_WAIT:-12}" ]; do
+    info="$(release_info)"
+    [ -z "$info" ] || return 0
+    w=$((w + 1)); sleep "${GH_RELEASE_LIST_PAUSE:-5}"
+  done
+  return 1
+}
+
 files="$*"
 info="$(release_info)"
 if [ -z "$info" ]; then
-  # A failed create may still have created the draft – look again before every new try
-  make() { info="$(release_info)"; [ -n "$info" ] || create_draft; }
-  retry make
-  info="$(release_info)"
-  [ -n "$info" ] || { echo "::error::The draft of $tag was not created"; exit 1; }
+  # A failed create may still have created the draft – look (and wait) before every new try
+  make() {
+    info="$(release_info)"; [ -z "$info" ] || return 0
+    create_draft || echo "::warning title=GitHub release::create answered with an error – checking whether the draft exists"
+    wait_listed
+  }
+  retry make || { echo "::error::The draft of $tag was not created"; exit 1; }
 fi
 id="${info%% *}"; draft="${info#* }"
 
