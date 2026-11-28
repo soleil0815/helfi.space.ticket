@@ -156,7 +156,8 @@ export function confluenceAdapter(c) {
     ? { Authorization: `Basic ${Buffer.from(`${cloud ? c.email || '' : c.username || ''}:${cloud ? c.token || '' : c.password || ''}`).toString('base64')}` }
     : { Authorization: `Bearer ${c.token}` });
   // Cloud: the API lives below /wiki – also accept the address without it
-  let baseUrl = String(c.baseUrl || '').replace(/\/+$/, '');
+  let baseUrl = String(c.baseUrl || '').slice(0, 500);
+  while (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1); // no regular expression on the typed address
   if (cloud && /\.atlassian\.net$/i.test(new URL(baseUrl).host) && !/\/wiki$/i.test(baseUrl)) baseUrl += '/wiki';
   const { base, basePath, json, download, sameOrigin } = createSourceHttp({ baseUrl, headers: auth, verifyTls: c.verifyTls, caPem: c.caPem });
   const host = base.host;
