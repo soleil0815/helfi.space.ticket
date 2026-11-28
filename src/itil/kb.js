@@ -333,6 +333,17 @@ export function createKb(db, tickets) {
     for (const old of db.prepare("SELECT token FROM kb_images WHERE article_id IS NULL AND created_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 days')").all()) dropImage(old.token);
     return { url: `/api/kb/images/${token}`, token };
   }
+  /** Store a picture from memory (import): type from the bytes, null if it is no PNG/JPEG/GIF/WebP */
+  function storeImage({ buffer, filename }, { articleId = null, userId = null } = {}) {
+    const type = imageType(buffer.subarray(0, 16));
+    if (!type) return null;
+    fs.mkdirSync(imgDir, { recursive: true });
+    const token = crypto.randomBytes(18).toString('base64url');
+    fs.writeFileSync(imgPath(token), buffer);
+    db.prepare('INSERT INTO kb_images(token, article_id, filename, mime, size, created_by) VALUES(?,?,?,?,?,?)')
+      .run(token, articleId, str(filename, 200).replace(/[\\/\0\r\n]/g, '_') || `bild.${type.ext}`, type.mime, buffer.length, userId);
+    return { url: `/api/kb/images/${token}`, token };
+  }
   /** Serve an image: internal articles and drafts for agents only */
   function imageFile(user, token) {
     const i = db.prepare('SELECT i.*, a.visibility, a.project_id FROM kb_images i LEFT JOIN kb_articles a ON a.id=i.article_id WHERE i.token=?').get(str(token, 80));
@@ -446,5 +457,5 @@ export function createKb(db, tickets) {
     return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}`, projectId: row.project_id };
   }
 
-  return { search, get, tree, bundle, move, create, update, remove, categories, projects, canEdit, draftFromTicket, addImage, imageFile, addFile, fileFile, discardFile, storeFile, setFiles, filesOf, versions, version, restore, templates, template, saveTemplate, removeTemplate };
+  return { search, get, tree, bundle, move, create, update, remove, categories, projects, canEdit, draftFromTicket, addImage, storeImage, imageFile, addFile, fileFile, discardFile, storeFile, setFiles, filesOf, versions, version, restore, templates, template, saveTemplate, removeTemplate };
 }

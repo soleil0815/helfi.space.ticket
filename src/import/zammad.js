@@ -37,7 +37,7 @@ export function zammadAdapter(c) {
   const auth = c.token
     ? `Token token=${c.token}`
     : `Basic ${Buffer.from(`${c.username || ''}:${c.password || ''}`).toString('base64')}`;
-  const { base, basePath, json, download } = createSourceHttp({ baseUrl: c.baseUrl, headers: () => ({ Authorization: auth }), verifyTls: c.verifyTls, caPem: c.caPem });
+  const { base, basePath, json, download, sameOrigin } = createSourceHttp({ baseUrl: c.baseUrl, headers: () => ({ Authorization: auth }), verifyTls: c.verifyTls, caPem: c.caPem });
   const api = '/api/v1';
 
   const userCache = new Map();
@@ -85,7 +85,111 @@ export function zammadAdapter(c) {
     return stateTypes;
   }
 
+  // ---------- Knowledge base: categories and answers (POST /knowledge_bases/init, then one answer with its text) ----------
+  let kbInit = null;
+  async function kbAssets() {
+    if (!kbInit) kbInit = json(`${api}/knowledge_bases/init`, { method: 'POST', body: {} }).then((r) => r || {});
+    return kbInit;
+  }
+  let localeCodes = null;
+  async function locales() {
+    if (!localeCodes) {
+      localeCodes = new Map();
+      try { for (const l of (await json(`${api}/locales`)) || []) localeCodes.set(l.id, { code: l.locale, name: l.name || l.locale }); } catch (e) { if (e.status === 401) throw e; }
+    }
+    return localeCodes;
+  }
+  const values = (o) => Object.values(o || {});
+
+  // Root categories are the choice (each can go into its own project); subcategories become the category of the article
+  function kbTree(a) {
+    const cats = values(a.KnowledgeBaseCategory);
+    const catById = new Map(cats.map((x) => [x.id, x]));
+    const rootOf = (id) => { let x = catById.get(id); const seen = new Set(); while (x && x.parent_id && catById.has(x.parent_id) && !seen.has(x.id)) { seen.add(x.id); x = catById.get(x.parent_id); } return x || null; };
+    const localesOf = (kbId) => values(a.KnowledgeBaseLocale).filter((l) => l.knowledge_base_id === kbId).sort((x, y) => Number(!!y.primary) - Number(!!x.primary));
+    return { cats, catById, rootOf, localesOf };
+  }
+  const pickFor = (want) => (list) => list.find((t) => t.kb_locale_id === want) || list[0] || null;
+
+  const kb = {
+    async spaces() {
+      const a = await kbAssets();
+      const loc = await locales();
+      const { cats, rootOf, localesOf } = kbTree(a);
+      const answers = values(a.KnowledgeBaseAnswer);
+      return cats.filter((x) => !x.parent_id).map((root) => {
+        const mine = localesOf(root.knowledge_base_id);
+        const title = pickFor(mine[0]?.id)(values(a.KnowledgeBaseCategoryTranslation).filter((t) => t.category_id === root.id))?.title;
+        return {
+          key: `cat:${root.id}`, name: title || `#${root.id}`, count: answers.filter((x) => rootOf(x.category_id)?.id === root.id).length,
+          languages: mine.map((l) => ({ code: String(l.id), name: loc.get(l.system_locale_id)?.name || loc.get(l.system_locale_id)?.code || String(l.id) })),
+        };
+      });
+    },
+    async *articles(key, { language = null } = {}) {
+      const a = await kbAssets();
+      const rootId = Number(String(key).replace(/^cat:/, ''));
+      const { catById, rootOf, localesOf } = kbTree(a);
+      const root = catById.get(rootId);
+      if (!root) return;
+      const kbId = root.knowledge_base_id;
+      const kbLocales = localesOf(kbId);
+      const want = language && kbLocales.some((l) => String(l.id) === String(language)) ? Number(language) : kbLocales[0]?.id;
+      const pick = pickFor(want);
+      const catTitle = (id) => pick(values(a.KnowledgeBaseCategoryTranslation).filter((t) => t.category_id === id))?.title || '';
+      // Category path below the chosen root "Child / Grandchild" as the category of the article
+      const catPath = (id) => {
+        const parts = []; const seen = new Set();
+        for (let x = catById.get(id); x && x.id !== rootId && !seen.has(x.id); x = catById.get(x.parent_id)) { seen.add(x.id); parts.unshift(catTitle(x.id)); }
+        return parts.filter(Boolean).join(' / ').slice(0, 60);
+      };
+      const answers = values(a.KnowledgeBaseAnswer).filter((x) => rootOf(x.category_id)?.id === rootId).sort((x, y) => x.id - y.id);
+      for (const ans of answers) {
+        const tr = pick(values(a.KnowledgeBaseAnswerTranslation).filter((t) => t.answer_id === ans.id));
+        if (!tr) continue;
+        let detail;
+        try { detail = await json(`${api}/knowledge_bases/${kbId}/answers/${ans.id}?include_contents=${tr.id}`); } catch (e) {
+          if (e.status === 401 || e.status === 403) throw e;
+          yield { extId: String(ans.id), title: tr.title, fetchError: e };
+          continue;
+        }
+        const content = values(detail?.assets?.KnowledgeBaseAnswerTranslationContent).find((x) => x.id === tr.content_id) || {};
+        const full = detail?.assets?.KnowledgeBaseAnswer?.[String(ans.id)] || ans;
+        const files = [...(full.attachments || []), ...(content.attachments || [])].filter((f, i, arr) => arr.findIndex((g) => g.id === f.id) === i);
+        yield {
+          extId: `answer:${ans.id}`,
+          title: tr.title,
+          html: content.body || '',
+          parentExtId: null,
+          category: catPath(ans.category_id),
+          visibility: full.published_at ? 'public' : 'internal',
+          draft: !full.published_at && !full.internal_at,
+          archived: !!full.archived_at,
+          created: full.created_at || tr.created_at,
+          updated: [full.updated_at, tr.updated_at].filter(Boolean).sort().pop() || null,
+          author: await user(tr.created_by_id),
+          linkKeys: [`zammad-answer:${ans.id}`],
+          image: (src) => {
+            const so = sameOrigin(src);
+            const m = /\/attachments\/(\d+)/.exec(src);
+            const f = m ? files.find((x) => String(x.id) === m[1]) : null;
+            return so && f ? { ...so, filename: f.filename } : so;
+          },
+          link: (href) => {
+            const m = /knowledge_base\/\d+\/[a-z-]+\/answer\/(\d+)|\/answers?\/(\d+)(?:[/?#]|$)/i.exec(href);
+            return m ? { key: `zammad-answer:${m[1] || m[2]}`, url: /^https?:/i.test(href) ? href : null } : null;
+          },
+          attachments: async () => files.map((f) => {
+            const so = sameOrigin(f.url || `${api}/attachments/${f.id}`);
+            return { extId: String(f.id), ref: so?.ref || `id:${f.id}`, filename: f.filename, mime: f.preferences?.['Content-Type'] || f.preferences?.['Mime-Type'] || '', size: Number(f.size) || 0, load: (max) => so ? so.load(max) : download(`${api}/attachments/${f.id}`, max) };
+          }),
+        };
+      }
+    },
+  };
+
   return {
+    kb,
     kind: 'zammad',
     sourceId: `zammad:${base.host}${basePath}`,
     host: base.host,

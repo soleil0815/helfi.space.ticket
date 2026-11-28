@@ -10,6 +10,7 @@ import { MAX_COMPONENTS } from '../components.js';
 import { log } from '../lib/log.js';
 import { HttpError } from '../lib/http.js';
 import { SourceError } from './http.js';
+import { createKbWriter } from './kb-import.js';
 
 export const STATUS_TARGETS = ['open', 'in_progress', 'waiting', 'done'];
 export const TYPE_TARGETS = ['incident', 'request', 'task', 'question'];
@@ -89,7 +90,7 @@ export function wantedNumber(key) {
  *   info() → { title, version, user }, projects() → [{ key, name }], inspect(keys) → { statuses: [{name, category}], types: [name], counts },
  *   count(key) → n | null, tickets(key) → async iterator }
  */
-export function createImportCore({ db, tickets, users }) {
+export function createImportCore({ db, tickets, users, kb = null }) {
   let job = null;
 
   const mapGet = db.prepare('SELECT local_id, imported_at FROM import_map WHERE source=? AND kind=? AND external_id=?');
@@ -347,6 +348,55 @@ export function createImportCore({ db, tickets, users }) {
     }
   }
 
+  /** Knowledge import: the chosen spaces/categories of the source, each into a project of the knowledge base */
+  async function runKb(cfg) {
+    const { adapter, spaces, options, userId } = cfg;
+    const user = users.byId(userId);
+    const writer = createKbWriter({ db, kb, user, adapter, options, counts: job.counts, error: addError });
+    try {
+      for (const sp of spaces) {
+        if (job.cancelRequested) break;
+        const entry = job.projects.find((x) => x.key === sp.key);
+        entry.state = 'running';
+        entry.total = sp.count ?? null;
+        try {
+          for await (const it of adapter.kb.articles(sp.key, { ...options, language: sp.language || options.language })) {
+            if (job.cancelRequested) break;
+            job.current = String(it.title || it.extId).slice(0, 120);
+            if (it.fetchError) { job.counts.failed++; addError(`${job.current}: ${it.fetchError.message}`); entry.done++; continue; }
+            try {
+              await writer.article(it, { projectId: sp.projectId });
+            } catch (e) {
+              job.counts.failed++;
+              addError(`${job.current}: ${e.message}`);
+              if (e instanceof SourceError && (e.status === 401 || e.status === 403)) throw e;
+            }
+            entry.done++;
+          }
+          entry.state = job.cancelRequested ? 'cancelled' : 'done';
+        } catch (e) {
+          entry.state = 'failed';
+          if (e instanceof SourceError && (e.status === 401 || e.status === 403)) throw e;
+          job.counts.failed++;
+          addError(`${sp.name || sp.key}: ${e.message}`);
+        }
+      }
+      // links and the page tree also for what was imported before a cancel
+      writer.finish();
+      job.state = job.cancelRequested ? 'cancelled' : 'done';
+    } catch (e) {
+      try { writer.finish(); } catch { /* keep the first error */ }
+      job.state = 'failed';
+      for (const x of job.projects) if (x.state === 'running') x.state = 'failed';
+      addError(e.message);
+    } finally {
+      job.current = null;
+      job.adapter = null;
+      job.finishedAt = new Date().toISOString();
+      log.info(`Knowledge import finished (${job.state})`, job.counts);
+    }
+  }
+
   return {
     status: publicStatus,
     running: () => job?.state === 'running',
@@ -402,6 +452,60 @@ export function createImportCore({ db, tickets, users }) {
       const opts = { comments: options.comments !== false, attachments: options.attachments !== false, maxAttachmentMb: Math.min(1024, Math.max(1, Number(options.maxAttachmentMb) || 50)) };
       const done = run({ adapter, projects: clean, statusMap: sMap, typeMap: tMap, options: opts, userId });
       job.promise = done;
+      return publicStatus();
+    },
+
+    /** Knowledge import: spaces/categories of the source with the languages it offers */
+    async kbConnect(adapter, extra = {}) {
+      if (!adapter.kb) throw new HttpError(400, 'err.badRequest', 'kb');
+      const [info, spaces] = await Promise.all([adapter.kb.info ? adapter.kb.info() : adapter.info(), adapter.kb.spaces()]);
+      const projects = db.prepare('SELECT id, key, name FROM projects WHERE archived=0 ORDER BY name').all();
+      let defKey = '';
+      try { defKey = JSON.parse(db.prepare("SELECT value FROM settings WHERE key='general.defaultProject'").get()?.value || '""'); } catch { /* not set */ }
+      const defaultProjectId = projects.find((p) => p.key === defKey)?.id ?? db.prepare('SELECT MIN(id) id FROM projects WHERE archived=0').get()?.id ?? null;
+      return {
+        ...extra,
+        server: { title: info?.title || '', version: info?.version || '' },
+        user: info?.user || '',
+        spaces: spaces.map((s) => ({ key: String(s.key), name: String(s.name || s.key), count: s.count ?? null, languages: s.languages || [], note: s.note || undefined })),
+        projects,
+        defaultProjectId,
+      };
+    },
+
+    startKb(adapter, { spaces, options = {} }, userId) {
+      if (job && job.state === 'running') throw new HttpError(409, 'err.importRunning');
+      if (!adapter.kb || !kb) throw new HttpError(400, 'err.badRequest', 'kb');
+      if (!Array.isArray(spaces) || !spaces.length) throw new HttpError(400, 'err.badRequest', 'spaces');
+      const projectById = (id) => db.prepare('SELECT id, key FROM projects WHERE id=? AND archived=0').get(Number(id) || 0);
+      const clean = spaces.slice(0, 500).map((s) => {
+        const p = projectById(s.projectId);
+        if (!p) throw new HttpError(400, 'err.kbProject');
+        return { key: String(s.key).slice(0, 200), name: String(s.name || s.key).slice(0, 120), projectId: p.id, targetKey: p.key, count: Number.isFinite(s.count) ? s.count : null, language: s.language ? String(s.language).slice(0, 20) : null };
+      });
+      job = {
+        id: Date.now().toString(36),
+        state: 'running',
+        what: 'kb',
+        source: adapter.sourceId,
+        kind: adapter.kind,
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        current: null,
+        cancelRequested: false,
+        projects: clean.map((s) => ({ key: s.key, name: s.name, targetKey: s.targetKey, total: s.count, done: 0, state: 'waiting' })),
+        counts: { created: 0, updated: 0, unchanged: 0, skipped: 0, images: 0, skippedImages: 0, files: 0, skippedFiles: 0, failed: 0 },
+        errors: [],
+        adapter,
+      };
+      const opts = {
+        drafts: options.drafts === true,
+        attachments: options.attachments !== false,
+        maxAttachmentMb: Math.min(1024, Math.max(1, Number(options.maxAttachmentMb) || 50)),
+        lang: options.lang === 'en' ? 'en' : 'de',
+        language: options.language ? String(options.language).slice(0, 20) : null,
+      };
+      job.promise = runKb({ adapter, spaces: clean, options: opts, userId });
       return publicStatus();
     },
 

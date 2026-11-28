@@ -540,6 +540,7 @@ Tickettyp **Change** (nur Bearbeiter), mit eigenem Abschnitt im Ticket:
 - **Vorschläge beim Melden:** Tippt ein Benutzer im Dialog „Ticket erstellen“ die Zusammenfassung, erscheinen passende öffentliche Artikel („Vielleicht hilft das schon“). Sie öffnen sich, ohne dass die Meldung verloren geht.
 - **Aus einem Ticket:** *Wissensartikel* im Ticket legt einen Entwurf an, mit Beschreibung, letzter Antwort und bei Problemen mit Ursache und Workaround. Vor dem Veröffentlichen persönliche Angaben entfernen. Der Verlauf des Tickets verweist auf den Artikel.
 - **Bekannte Fehler:** Reiter mit allen Problemen, die als bekannter Fehler markiert sind, samt Workaround.
+- **Import** <sup>Admin</sup> aus Confluence oder der Wissensdatenbank von Zammad, Zendesk, Freshdesk, GLPI und Znuny/OTRS: siehe [Wissensartikel importieren](#wissensartikel-importieren).
 - **Beispiel-Artikel:** *Beispiele* (Bearbeiter) übernimmt fertige Musterartikel – „So meldest du ein Problem richtig“, „VPN einrichten“, „Drucker hinzufügen“, „Kennwort ändern oder vergessen“, „Abwesenheitsnotiz einrichten“ – auf Deutsch oder Englisch. Sie werden **intern** angelegt: Angaben in eckigen Klammern anpassen, dann öffentlich machen.
 
 ## Portal für Benutzer
@@ -715,6 +716,35 @@ Außerdem gilt:
 - **Schutz vor Missbrauch (SSRF):** Der Import verbindet sich nie mit lokalen Adressen (`127.x`, `::1`), Link-Local-Adressen (`169.254.x.x`, z. B. Metadaten-Dienste von Cloud-Servern) oder Multicast – auch nicht über einen Namen oder eine Weiterleitung, die dorthin zeigt. Systeme im eigenen Netz (`10.x`, `172.16–31.x`, `192.168.x`) sind erreichbar. Läuft das Quellsystem wirklich auf demselben Rechner und ist nur über `127.0.0.1` erreichbar, hebt `HELFI_IMPORT_ALLOW_LOCAL=1` in der `.env` die Sperre auf.
 - Vor jedem Start eines Imports legt Helfi.Space eine Sicherung an (`helfi-vor-import-….sqlite`).
 - **Wiederholbar:** Ein zweiter Lauf aktualisiert Tickets, die sich im Quellsystem seitdem geändert haben (dann gilt der Stand von dort; die geänderten Felder stehen im Verlauf). Unveränderte bleiben, wie sie in Helfi.Space bearbeitet wurden. Neue Kommentare und Anhänge werden ergänzt, doppelt wird nichts angelegt. So lässt sich vor der Umstellung einmal probehalber und am Stichtag noch einmal importieren. Bei CSV-Dateien dafür denselben *Namen der Quelle* verwenden; ohne Nummern-Spalte wird eine Zeile an Titel, Erstelldatum und Kunde wiedererkannt.
+
+### Wissensartikel importieren
+
+Oben auf der Import-Seite *Was importieren?* auf **Wissensartikel** stellen. Dann gibt es als Quellen:
+
+- **Confluence** – Cloud (Adresse wie `https://example.atlassian.net/wiki`, E-Mail und API-Token) oder Data Center/Server (Personal Access Token, alternativ Benutzer und Kennwort). Ein Bereich (Space) ist eine Auswahl; der **Seitenbaum** bleibt erhalten. Alle Seiten kommen **intern**, weil sich Confluence-Rechte nicht auf „alle Angemeldeten“ übertragen lassen.
+- **Zammad** – Wissensdatenbank mit denselben Zugangsdaten wie beim Ticket-Import. Veröffentlichte Antworten werden öffentlich, interne bleiben intern; bei mehreren Sprachen wählst du eine.
+- **Zendesk** – Help Center. Artikel für alle oder angemeldete Benutzer werden öffentlich, solche nur für Agents intern; bei mehreren Sprachen wählst du eine.
+- **Freshdesk** – Lösungen. Ordner für alle oder angemeldete Benutzer werden öffentlich, alle anderen intern.
+- **GLPI** – Wissensdatenbank; FAQ-Einträge werden öffentlich, alle anderen intern.
+- **Znuny / OTRS** – FAQ-Modul über den eigenen Webservice `GenericFAQConnectorREST` (einmalig in Znuny unter *Admin → Webservices* das mitgelieferte Beispiel importieren). Über diese Schnittstelle gibt Znuny nur **öffentliche** FAQ-Einträge heraus.
+
+So läuft es ab:
+
+1. **Verbinden** – die Zugangsdaten werden nicht gespeichert.
+2. **Bereiche wählen:** Bereiche (Confluence) bzw. Hauptkategorien (alle anderen) mit Zahl der Artikel; für jeden das **Ziel-Projekt** der Wissensdatenbank. Unterkategorien werden zur *Kategorie* des Artikels (z. B. „Hardware / Monitore“).
+3. **Optionen:** Entwürfe übernehmen (als interne Artikel; archivierte bleiben immer draußen), Anhänge übernehmen, höchste Dateigröße.
+4. **Importieren** – mit Fortschritt, abbrechbar; danach führt *Zur Wissensdatenbank* zum Projekt.
+
+Was übernommen wird:
+
+- **Text** mit Überschriften, Listen, Checklisten, Tabellen, Code, Links und Infoboxen – umgewandelt wie beim Einfügen in den Editor, gespeichert als schlichter Text (kein HTML). Skripte und fremde Formatierungen fallen weg.
+- **Bilder im Text** werden heruntergeladen und gespeichert, aber nur vom Quellsystem selbst (bei Freshdesk auch von dessen Dateiservern), nie von anderen Adressen.
+- **Anhänge** (PDFs, Dokumente …) werden Anhänge des Artikels, bis zu 20 je Artikel; was nicht übernommen werden konnte, steht als Hinweis unter dem Artikel.
+- **Links** zwischen importierten Artikeln zeigen danach auf die neuen Artikel; Links zu nicht importierten Seiten zeigen auf die alte Adresse oder werden zu Text.
+- **Confluence-Makros:** Info-, Hinweis-, Tipp- und Warnkästen werden Infoboxen, Code-Makros Codeblöcke, Aufklappbereiche ausgeklappt, Aufgabenlisten Checklisten. Inhaltsverzeichnis, Seitenbaum- und Anhang-Makros fallen weg (das gibt es hier schon); alle anderen stehen als sichtbarer Hinweis „Confluence-Makro … nicht übernommen“ im Text.
+- **Herkunft:** Erstell- und Änderungsdatum aus der Quelle; die erste Version trägt die Notiz „Importiert aus … (Autor)“.
+- Kommentare und Bewertungen aus dem Quellsystem kommen nicht mit. Es werden keine Mails verschickt, vor dem Start wird eine Sicherung angelegt.
+- **Wiederholbar:** Ein zweiter Lauf legt nichts doppelt an. Artikel, die sich im Quellsystem geändert haben, bekommen eine neue Version (der Verlauf bleibt); unveränderte bleiben, wie sie hier bearbeitet wurden. Gelöscht wird nichts.
 
 ---
 

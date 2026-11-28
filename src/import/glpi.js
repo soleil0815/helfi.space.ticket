@@ -19,6 +19,12 @@ export function glpiText(v) {
   return htmlToText(s, { wordwrap: false, selectors: [{ selector: 'img', format: 'skip' }, { selector: 'a', options: { hideLinkHrefIfSameAsText: true } }] }).trim();
 }
 
+/** GLPI stores HTML with entities ("&lt;p&gt;…"): decode once (HTML stays HTML) */
+export function decodeEntities(v) {
+  const s = String(v ?? '');
+  return /&lt;\/?[a-z]/i.test(s) ? s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&amp;/g, '&') : s;
+}
+
 /** "2025-03-01 08:00:00" (server time) → ISO */
 const glpiDate = (v) => {
   const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)$/.exec(String(v || '').trim());
@@ -104,7 +110,88 @@ export function glpiAdapter(c) {
     return out;
   };
 
+  // ---------- Knowledge base: categories (top level = the choice) and articles; FAQ entries are public ----------
+  let kbCats = null;
+  async function kbCategories() {
+    if (!kbCats) kbCats = new Map((await all('/KnowbaseItemCategory?expand_dropdowns=false')).map((x) => [Number(x.id), x]));
+    return kbCats;
+  }
+  let kbItems = null;
+  async function kbItemList() {
+    if (!kbItems) {
+      kbItems = await all('/KnowbaseItem?sort=1&order=ASC&expand_dropdowns=false');
+      // GLPI 10+: categories as a list of links (several per article) – the first one counts
+      for (const it of kbItems) {
+        if (it.knowbaseitemcategories_id !== undefined && it.knowbaseitemcategories_id !== null) continue;
+        const links = await sub(`/KnowbaseItem/${encodeURIComponent(it.id)}/KnowbaseItem_KnowbaseItemCategory`);
+        it.knowbaseitemcategories_id = links[0]?.knowbaseitemcategories_id ?? 0;
+      }
+    }
+    return kbItems;
+  }
+  const rootOf = (cats, id) => { let x = cats.get(Number(id)); const seen = new Set(); while (x && Number(x.knowbaseitemcategories_id) && cats.has(Number(x.knowbaseitemcategories_id)) && !seen.has(x.id)) { seen.add(x.id); x = cats.get(Number(x.knowbaseitemcategories_id)); } return x || null; };
+  const spaceOf = (cats, it) => { const r = rootOf(cats, it.knowbaseitemcategories_id); return r ? String(r.id) : 'none'; };
+  const docRef = (id) => `glpi-doc:${id}`;
+  const docLoad = (id) => (max) => download(`${base.origin}${basePath}/Document/${encodeURIComponent(id)}?alt=media`, max);
+
+  const kb = {
+    async spaces() {
+      const [cats, items] = await Promise.all([kbCategories(), kbItemList()]);
+      const count = new Map();
+      for (const it of items) count.set(spaceOf(cats, it), (count.get(spaceOf(cats, it)) || 0) + 1);
+      const out = [...cats.values()].filter((x) => !Number(x.knowbaseitemcategories_id) || !cats.has(Number(x.knowbaseitemcategories_id)))
+        .map((x) => ({ key: String(x.id), name: x.name || x.completename || `#${x.id}`, count: count.get(String(x.id)) || 0 }));
+      if (count.get('none')) out.push({ key: 'none', name: '—', count: count.get('none'), note: 'withoutCategory' });
+      return out;
+    },
+    async *articles(key) {
+      const [cats, items] = await Promise.all([kbCategories(), kbItemList()]);
+      for (const it of items) {
+        if (spaceOf(cats, it) !== String(key)) continue;
+        const cat = cats.get(Number(it.knowbaseitemcategories_id));
+        // category path below the chosen top-level category ("Drucker > Netzwerk" → "Netzwerk")
+        const path = cat && String(cat.id) !== String(key) ? String(cat.completename || cat.name || '').split(/\s*>\s*/).slice(1).join(' / ') : '';
+        let docs = null;
+        const files = async () => (docs ||= await (async () => {
+          const out = [];
+          for (const di of await sub(`/KnowbaseItem/${encodeURIComponent(it.id)}/Document_Item`)) {
+            let d = null;
+            try { d = await get(`/Document/${encodeURIComponent(di.documents_id)}`); } catch (e) { if (e.status === 401) throw e; }
+            if (d && !Number(d.is_deleted)) out.push(d);
+          }
+          return out;
+        })());
+        yield {
+          extId: `kb:${it.id}`,
+          title: glpiText(it.name) || `#${it.id}`,
+          html: decodeEntities(it.answer),
+          parentExtId: null,
+          category: path.slice(0, 60),
+          visibility: Number(it.is_faq) === 1 ? 'public' : 'internal',
+          draft: false,
+          created: glpiDate(it.date_creation || it.date),
+          updated: glpiDate(it.date_mod || it.date_creation || it.date),
+          author: await user(it.users_id),
+          linkKeys: [`glpi-kb:${it.id}`],
+          async image(src) {
+            const m = /document\.send\.php\?(?:[^"'#]*&)?docid=(\d+)/.exec(src);
+            if (m) { const d = (await files()).find((x) => String(x.id) === m[1]); return { ref: docRef(m[1]), filename: d?.filename || `bild-${m[1]}`, load: docLoad(m[1]) }; }
+            return null; // other addresses: not loaded
+          },
+          link(href) {
+            const m = /knowbaseitem\.form\.php\?(?:[^"'#]*&)?id=(\d+)/i.exec(href);
+            return m ? { key: `glpi-kb:${m[1]}` } : null;
+          },
+          attachments: async () => (await files()).map((d) => ({
+            extId: String(d.id), ref: docRef(d.id), filename: d.filename || d.name || `dokument-${d.id}`, mime: d.mime || '', size: Number(d.filesize) || 0, created: glpiDate(d.date_creation || d.date_mod), load: docLoad(d.id),
+          })),
+        };
+      }
+    },
+  };
+
   return {
+    kb,
     kind: 'glpi',
     sourceId: `glpi:${base.host}${basePath}`,
     host: base.host,

@@ -7,6 +7,7 @@ import { isHexColor, saveLogo, removeLogo } from '../brand.js';
 import { viewerDocument } from '../mail/html.js';
 import { createItilRoutes } from './itil.js';
 import { zammadAdapter } from '../import/zammad.js';
+import { confluenceAdapter } from '../import/confluence.js';
 import { znunyAdapter } from '../import/znuny.js';
 import { glpiAdapter } from '../import/glpi.js';
 import { zendeskAdapter } from '../import/zendesk.js';
@@ -1380,10 +1381,17 @@ export function createApi(ctx) {
   function adapterFor(source, body) {
     const c = body?.connection || {};
     if (source === 'zammad') return zammadAdapter({ baseUrl: baseUrlOf(c), token: str(c.token, 2000).trim(), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
-    if (source === 'znuny') return znunyAdapter({ baseUrl: baseUrlOf(c), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
+    if (source === 'znuny') {
+      // FAQ: own web service (public entries); the ticket web service address is not needed for it
+      const faqUrl = c.faqUrl ? baseUrlOf({ baseUrl: c.faqUrl }) : '';
+      return znunyAdapter({ baseUrl: c.baseUrl || !faqUrl ? baseUrlOf(c) : faqUrl, faqUrl, username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
+    }
     if (source === 'glpi') return glpiAdapter({ baseUrl: baseUrlOf(c), token: str(c.token, 2000).trim(), appToken: str(c.appToken, 2000).trim(), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
     if (source === 'zendesk') return zendeskAdapter({ baseUrl: baseUrlOf(c), email: str(c.email, 254).trim(), token: str(c.token, 2000).trim(), ...tlsConn(c) });
     if (source === 'freshdesk') return freshdeskAdapter({ baseUrl: baseUrlOf(c), token: str(c.token, 2000).trim(), ...tlsConn(c) });
+    if (source === 'confluence') {
+      return confluenceAdapter({ type: c.type === 'server' ? 'server' : 'cloud', baseUrl: baseUrlOf(c), email: str(c.email, 254).trim(), token: str(c.token, 2000).trim(), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
+    }
     if (source === 'csv') {
       if (!csvFile || csvFile.id !== str(c.uploadId, 64) || Date.now() - csvFile.at > 2 * 3600_000) throw new HttpError(400, 'err.importFileGone');
       const columns = Object.fromEntries(Object.entries(c.columns && typeof c.columns === 'object' ? c.columns : {}).map(([k, v]) => [str(k, 40), str(v, 200)]).filter(([, v]) => v));
@@ -1393,6 +1401,9 @@ export function createApi(ctx) {
   }
   const SOURCES = ['zammad', 'znuny', 'glpi', 'zendesk', 'freshdesk', 'csv'];
   const sourceParam = (req) => { if (!SOURCES.includes(req.params.source)) throw notFound(); return req.params.source; };
+  // Knowledge articles: the ticket sources that have a knowledge base, and Confluence (knowledge only)
+  const KB_SOURCES = ['confluence', 'zammad', 'znuny', 'glpi', 'zendesk', 'freshdesk'];
+  const kbSourceParam = (req) => { if (!KB_SOURCES.includes(req.params.source)) throw notFound(); return req.params.source; };
   const importFail = (res, e) => {
     if (e instanceof HttpError) throw e;
     log.warn('Import', { error: e.message });
@@ -1432,6 +1443,22 @@ export function createApi(ctx) {
       projects: req.body.projects, statusMap: req.body.statusMap || {}, typeMap: req.body.typeMap || {}, options: req.body.options || {},
     }, req.user.id);
     log.info(`Import (${source}) started by ${req.user.username}`, { projects: job.projects.map((p) => p.key) });
+    res.status(202).json({ job });
+  }));
+
+  admin.post('/import/:source/kb/connect', wrap(async (req, res) => {
+    const source = kbSourceParam(req);
+    try { res.json({ ok: true, ...(await ctx.importer.kbConnect(adapterFor(source, req.body), { type: source })) }); } catch (e) { importFail(res, e); }
+  }));
+  admin.post('/import/:source/kb/start', wrap(async (req, res) => {
+    const source = kbSourceParam(req);
+    const adapter = adapterFor(source, req.body);
+    if (ctx.importer.running()) throw new HttpError(409, 'err.importRunning');
+    if (!Array.isArray(req.body.spaces) || !req.body.spaces.length) throw new HttpError(400, 'err.badRequest', 'spaces');
+    await backupDatabase(db, 'vor-import');
+    pruneBackups(settings.get('backup.keep'));
+    const job = ctx.importer.startKb(adapter, { spaces: req.body.spaces, options: { ...(req.body.options || {}), lang: req.user.language } }, req.user.id);
+    log.info(`Knowledge import (${source}) started by ${req.user.username}`, { spaces: job.projects.map((p) => p.key) });
     res.status(202).json({ job });
   }));
 

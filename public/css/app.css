@@ -1494,6 +1494,9 @@ a.coffee-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px
 .mention-dot { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 8px; background: var(--blue, #0C66E4); color: var(--on-blue); font-size: 11px; font-weight: 700; line-height: 16px; vertical-align: middle; }
 
 /* Import: choice of the source system */
+.import-what { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.import-what-label { font-weight: 600; }
+.import-what .seg .icon { width: 15px; height: 15px; margin-right: 4px; vertical-align: -2px; }
 .import-sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 4px 0 16px; }
 .import-source { display: grid; grid-template-columns: 24px 1fr; gap: 2px 10px; align-items: center; text-align: left; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); cursor: pointer; font: inherit; color: inherit; }
 .import-source .icon { grid-row: span 2; width: 20px; height: 20px; color: var(--text-subtle); }

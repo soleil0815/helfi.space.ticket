@@ -182,5 +182,19 @@ export function createSourceHttp({ baseUrl, headers: authHeaders = () => ({}), v
     return r.body;
   }
 
-  return { base, basePath, raw, json, download };
+  /**
+   * Picture or file address inside an article: only from the source system itself (with credentials),
+   * never from other hosts. { ref, filename, load } or null. ref: the path, the same for an article's
+   * files, so that a picture shown in the text is not attached a second time.
+   */
+  function sameOrigin(src) {
+    let u;
+    try { u = new URL(String(src || ''), `${base.origin}${basePath}/`); } catch { return null; }
+    if (u.origin !== base.origin || !/^https?:$/.test(u.protocol)) return null;
+    let name = 'datei';
+    try { name = decodeURIComponent(u.pathname.split('/').pop() || '') || name; } catch { /* keep */ }
+    return { ref: `url:${u.pathname}`, filename: name, load: (maxBytes) => download(u.href, maxBytes) };
+  }
+
+  return { base, basePath, raw, json, download, sameOrigin };
 }
