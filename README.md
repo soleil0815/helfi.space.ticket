@@ -722,6 +722,7 @@ Außerdem gilt:
 Oben auf der Import-Seite *Was importieren?* auf **Wissensartikel** stellen. Dann gibt es als Quellen:
 
 - **Confluence** – Cloud (Adresse wie `https://example.atlassian.net/wiki`, E-Mail und API-Token) oder Data Center/Server (Personal Access Token, alternativ Benutzer und Kennwort). Ein Bereich (Space) ist eine Auswahl; der **Seitenbaum** bleibt erhalten. Alle Seiten kommen **intern**, weil sich Confluence-Rechte nicht auf „alle Angemeldeten“ übertragen lassen.
+- **Confluence-Exportdatei** – für Installationen, die schon abgeschaltet oder von hier nicht erreichbar sind: in Confluence *Bereichswerkzeuge → Inhaltswerkzeuge → Exportieren → HTML* und die ZIP-Datei hochladen (Variante *Exportdatei (ZIP)*, bis 2 GB, änderbar mit `HELFI_IMPORT_MAX_ZIP_MB` in der `.env`). Mehrere Bereiche in einer Datei gehen auch. Seitenbaum, Bilder, Anhänge, Links und gerenderte Makros (Infokästen, Code, Aufklappbereiche, Aufgaben) werden übernommen. Die Datei wird nach dem Import gelöscht, spätestens nach zwei Stunden. Ein neuerer Export desselben Bereichs aktualisiert geänderte Seiten.
 - **Zammad** – Wissensdatenbank mit denselben Zugangsdaten wie beim Ticket-Import. Veröffentlichte Antworten werden öffentlich, interne bleiben intern; bei mehreren Sprachen wählst du eine.
 - **Zendesk** – Help Center. Artikel für alle oder angemeldete Benutzer werden öffentlich, solche nur für Agents intern; bei mehreren Sprachen wählst du eine.
 - **Freshdesk** – Lösungen. Ordner für alle oder angemeldete Benutzer werden öffentlich, alle anderen intern.

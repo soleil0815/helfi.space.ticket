@@ -77,7 +77,7 @@ export function createKbWriter({ db, kb, user, adapter, options, counts, error }
         return img?.url || null;
       },
       link: (href) => {
-        const t = it.link?.(href);
+        const t = it.link?.(String(href).slice(0, 2000)); // adapters match addresses with patterns: short text only
         if (t?.key) {
           const ph = linkPlaceholder(t.key);
           if (!fallbacks.has(t.key)) fallbacks.set(t.key, t.url || null);
@@ -151,8 +151,10 @@ export function createKbWriter({ db, kb, user, adapter, options, counts, error }
       const mapped = mapGet.get(source, extId);
       let id = mapped && db.prepare('SELECT 1 FROM kb_articles WHERE id=?').get(mapped.article_id) ? mapped.article_id : null;
       const srcUpdated = iso(it.updated);
-      // Unchanged in the source since the last import (same change date, or none given) → leave it alone, local edits stay
-      if (id && (!srcUpdated || srcUpdated === mapped.source_updated)) { counts.unchanged++; remember(id); return; }
+      // Revision: the change date, or what the adapter gives instead (e.g. a checksum of the content of an export)
+      const revision = it.revision ? String(it.revision) : srcUpdated;
+      // Unchanged in the source since the last import (same revision, or none given) → leave it alone, local edits stay
+      if (id && (!revision || revision === mapped.source_updated)) { counts.unchanged++; remember(id); return; }
 
       const title = String(it.title || extId).replace(/\s+/g, ' ').trim().slice(0, 200) || extId;
       const visibility = it.draft ? 'internal' : (it.visibility === 'public' ? 'public' : 'internal');
@@ -181,7 +183,7 @@ export function createKbWriter({ db, kb, user, adapter, options, counts, error }
       // pictures belong to the article (stored with article_id already); placeholders are resolved in finish()
       if (PLACEHOLDER_RE.test(body)) touched.add(id);
       PLACEHOLDER_RE.lastIndex = 0;
-      mapSet.run(source, extId, id, srcUpdated);
+      mapSet.run(source, extId, id, revision);
       remember(id);
     },
 

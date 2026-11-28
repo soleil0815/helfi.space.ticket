@@ -1,7 +1,7 @@
 // Administration → import from another system: tickets (REST API Cloud/Server, Zammad, Znuny/OTRS, GLPI, Zendesk,
 // Freshdesk or a CSV file) or knowledge articles (Confluence and the knowledge bases of those ticket systems)
 import { api } from '../api.js';
-import { h, mount, icon, field, select, toast } from '../dom.js';
+import { h, mount, icon, field, select, toast, fmtSize } from '../dom.js';
 import { t } from '../i18n.js';
 import { reloadBase } from '../app.js';
 
@@ -11,6 +11,9 @@ let source = 'zammad';
 let what = 'tickets'; // 'tickets' | 'kb' (knowledge articles)
 let conn = emptyConn();
 let csvInfo = null; // { headers, rows, preview, suggested, fields }
+let zipInfo = null; // uploaded Confluence export { uploadId, name, size }
+// Confluence as an export file has its own address on the server
+const apiSource = () => (source === 'confluence' && conn.type === 'export' ? 'confluence-zip' : source);
 let projects = [];
 let connInfo = { user: '', server: {} };
 let pollTimer = null;
@@ -22,6 +25,7 @@ export function resetImportState() {
   what = 'tickets';
   conn = emptyConn();
   csvInfo = null;
+  zipInfo = null;
   projects = [];
   connInfo = { user: '', server: {} };
 }
@@ -60,7 +64,8 @@ function header(step, kind = what) {
 
 const connection = () => (source === 'csv' ? { uploadId: conn.uploadId, name: conn.name, columns: conn.columns }
   // knowledge from Znuny/OTRS: only the FAQ web service (public, no sign-in)
-  : what === 'kb' && source === 'znuny' ? { faqUrl: conn.faqUrl, verifyTls: conn.verifyTls, caPem: conn.caPem } : conn);
+  : what === 'kb' && source === 'znuny' ? { faqUrl: conn.faqUrl, verifyTls: conn.verifyTls, caPem: conn.caPem }
+  : apiSource() === 'confluence-zip' ? { uploadId: zipInfo?.uploadId || '' } : conn);
 
 // ---------- 1. Source and connection ----------
 function connectStep(body, lastJob) {
@@ -86,10 +91,10 @@ function connectStep(body, lastJob) {
       connectBtn.disabled = true;
       try {
         if (what === 'kb') {
-          const r = await api.admin.importKbConnect(source, connection());
+          const r = await api.admin.importKbConnect(apiSource(), connection());
           if (!r.ok) return showErr(r.error);
           connInfo = r;
-          toast(t('imp.connected', { user: r.user || '—', server: r.server.title || conn.baseUrl || conn.faqUrl }), 'success');
+          if (apiSource() !== 'confluence-zip') toast(t('imp.connected', { user: r.user || '—', server: r.server.title || conn.baseUrl || conn.faqUrl }), 'success');
           return kbSpacesStep(body, r);
         }
         const r = await api.admin.importConnect(source, connection());
@@ -104,7 +109,8 @@ function connectStep(body, lastJob) {
   }, icon(source === 'csv' ? 'chevron-right' : 'link'), t(source === 'csv' ? 'imp.next' : 'imp.connect'));
 
   function drawForm() {
-    connectBtn.replaceChildren(icon(source === 'csv' ? 'chevron-right' : 'link'), t(source === 'csv' ? 'imp.next' : 'imp.connect'));
+    const fileSource = source === 'csv' || apiSource() === 'confluence-zip';
+    connectBtn.replaceChildren(icon(fileSource ? 'chevron-right' : 'link'), t(fileSource ? 'imp.next' : 'imp.connect'));
     if (source === 'confluence') {
       const auth = h('div');
       const drawAuth = () => mount(auth, conn.type === 'cloud'
@@ -117,8 +123,31 @@ function connectStep(body, lastJob) {
             h('div.grid-2', field(t('login.username'), bind('username', { autocomplete: 'off' })), field(t('login.password'), bind('password', { type: 'password', autocomplete: 'new-password' })))),
           tls()));
       drawAuth();
-      const typeSel = select([['cloud', t('imp.confluence.cloud')], ['server', t('imp.confluence.server')]], conn.type, { onchange: (e) => { conn.type = e.target.value; drawAuth(); } });
-      mount(form, h('div.grid-2', field(t('imp.type'), typeSel), field(t('imp.url'), bind('baseUrl', { placeholder: 'https://wiki.firma.local' }), t('imp.confluence.urlHint'))), auth);
+      if (!['cloud', 'server', 'export'].includes(conn.type)) conn.type = 'cloud';
+      const typeSel = select([['cloud', t('imp.confluence.cloud')], ['server', t('imp.confluence.server')], ['export', t('imp.confluence.export')]], conn.type, { 'data-imp-confluence-type': '', onchange: (e) => { conn.type = e.target.value; drawForm(); } });
+      if (conn.type === 'export') {
+        // export file instead of a connection: for installations that are switched off or not reachable
+        const file = h('input', { type: 'file', accept: '.zip,application/zip', 'data-imp-zip': '' });
+        const state = h('p.muted.small');
+        file.addEventListener('change', async () => {
+          const f = file.files?.[0];
+          if (!f) return;
+          err.hidden = true; zipInfo = null; actions.hidden = true;
+          state.textContent = t('imp.zip.uploading', { name: f.name });
+          try {
+            const r = await api.admin.importKbZipUpload(f);
+            if (!r.ok) { state.textContent = ''; return showErr(r.error); }
+            zipInfo = r;
+            drawForm();
+          } catch (e) { state.textContent = ''; showErr(e.message); }
+        });
+        mount(form, field(t('imp.type'), typeSel),
+          zipInfo ? h('p', h('strong', t('imp.zip.loaded', { name: zipInfo.name, size: fmtSize(zipInfo.size) })), ' ', h('button.link', { type: 'button', onclick: () => { zipInfo = null; drawForm(); } }, t('imp.csv.other')))
+            : field(t('imp.zip.file'), file, t('imp.zip.fileHint')),
+          state);
+      } else {
+        mount(form, h('div.grid-2', field(t('imp.type'), typeSel), field(t('imp.url'), bind('baseUrl', { placeholder: 'https://wiki.firma.local' }), t('imp.confluence.urlHint'))), auth);
+      }
     } else if (source === 'znuny' && what === 'kb') {
       mount(form,
         field(t('imp.znuny.faqUrl'), bind('faqUrl', { placeholder: 'https://tickets.firma.local/otrs/nph-genericinterface.pl/Webservice/GenericFAQConnectorREST' }), t('imp.znuny.faqUrlHint')),
@@ -174,7 +203,7 @@ function connectStep(body, lastJob) {
       mount(form, csvForm());
     }
     actions.replaceChildren(connectBtn);
-    actions.hidden = source === 'csv' && !csvInfo;
+    actions.hidden = (source === 'csv' && !csvInfo) || (apiSource() === 'confluence-zip' && !zipInfo);
   }
 
   function csvForm() {
@@ -228,7 +257,7 @@ function connectStep(body, lastJob) {
       sourceBtns,
       err,
       form,
-      source === 'csv' ? null : h('p.muted.small', icon('lock'), ' ', t('imp.notStored')),
+      source === 'csv' || apiSource() === 'confluence-zip' ? (apiSource() === 'confluence-zip' ? h('p.muted.small', icon('lock'), ' ', t('imp.zip.notKept')) : null) : h('p.muted.small', icon('lock'), ' ', t('imp.notStored')),
       actions));
 }
 
@@ -266,8 +295,8 @@ function kbSpacesStep(body, info) {
       if (!chosen.length) { err.textContent = t('imp.kb.chooseSpace'); err.hidden = false; return; }
       start.disabled = true;
       try {
-        await api.admin.importKbStart(source, connection(), chosen.map((s) => ({ key: s.key, name: s.name, projectId: s.projectId, count: s.count, language: s.language })), opts);
-        conn = emptyConn(); csvInfo = null; connInfo = { user: '', server: {} };
+        await api.admin.importKbStart(apiSource(), connection(), chosen.map((s) => ({ key: s.key, name: s.name, projectId: s.projectId, count: s.count, language: s.language })), opts);
+        conn = emptyConn(); csvInfo = null; zipInfo = null; connInfo = { user: '', server: {} };
         progressStep(body);
       } catch (e) { toast(e.message, 'error'); start.disabled = false; }
     },
@@ -276,7 +305,7 @@ function kbSpacesStep(body, info) {
   mount(body,
     header(1, 'kb'),
     h('section.panel',
-      h('p', t('imp.kb.connectedAs', { user: info.user || '—', server: `${info.server.title || ''} ${info.server.version || ''}`.trim() || conn.baseUrl })),
+      h('p', info.type === 'confluence-zip' ? t('imp.zip.spaces', { name: zipInfo?.name || '' }) : t('imp.kb.connectedAs', { user: info.user || '—', server: `${info.server.title || ''} ${info.server.version || ''}`.trim() || conn.baseUrl })),
       err,
       spaces.length ? h('table.data',
         h('thead', h('tr', h('th', h('input', { type: 'checkbox', 'aria-label': t('imp.kb.all'), onchange: (e) => { spaces.forEach((s) => { s.selected = e.target.checked; }); rows.forEach((r) => { r.querySelector('input').checked = e.target.checked; }); } })),
