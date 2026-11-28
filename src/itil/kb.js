@@ -32,6 +32,9 @@ export function imageType(buf) {
   if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return { mime: 'image/webp', ext: 'webp' };
   return null;
 }
+// Attached files: per article, and unsaved uploads per person
+export const MAX_FILES = 20;
+const MAX_FILE_DRAFTS = 30;
 const IMG_TOKEN = /\/api\/kb\/images\/([A-Za-z0-9_-]{16,64})/g;
 
 const STOP = new Set(['der', 'die', 'das', 'und', 'oder', 'ein', 'eine', 'nicht', 'mit', 'im', 'in', 'am', 'an', 'auf', 'ist', 'the', 'and', 'or', 'a', 'an', 'not', 'is', 'to', 'of', 'mein', 'meine', 'my', 'geht', 'kein', 'keine']);
@@ -59,9 +62,12 @@ export function createKb(db, tickets) {
     visibility: a.visibility, category: a.category, views: a.views, updatedAt: a.updated_at, createdAt: a.created_at,
     author: a.u_name || null, sourceTicket: a.t_key || null, version: a.version ?? undefined, parentId: a.parent_id ?? null,
     project: a.project_id ? { id: a.project_id, key: a.pj_key, name: a.pj_name } : null,
+    ...(withBody ? {} : { fileCount: a.n_files || 0 }),
   });
   const SELECT = `SELECT a.*, u.display_name u_name, (p.key || '-' || t.number) t_key, pj.key pj_key, pj.name pj_name,
-    (SELECT MAX(version) FROM kb_versions v WHERE v.article_id=a.id) version FROM kb_articles a
+    (SELECT MAX(version) FROM kb_versions v WHERE v.article_id=a.id) version,
+    (SELECT COUNT(*) FROM kb_files f WHERE f.article_id=a.id) n_files,
+    (SELECT group_concat(filename, ' ') FROM kb_files f WHERE f.article_id=a.id) f_names FROM kb_articles a
     LEFT JOIN projects pj ON pj.id=a.project_id
     LEFT JOIN users u ON u.id=COALESCE(a.updated_by, a.created_by)
     LEFT JOIN tickets t ON t.id=a.source_ticket_id LEFT JOIN projects p ON p.id=t.project_id`;
@@ -75,8 +81,9 @@ export function createKb(db, tickets) {
     const w = words(q);
     if (!w.length) return rows.slice(0, limit).map((a) => out(a, false));
     return rows.map((a) => {
-      const ti = a.title.toLowerCase(); const bo = a.body.toLowerCase();
-      const score = w.reduce((s, x) => s + (ti.includes(x) ? 3 : 0) + (bo.includes(x) ? 1 : 0), 0);
+      const ti = a.title.toLowerCase(); const bo = a.body.toLowerCase(); const fn = String(a.f_names || '').toLowerCase();
+      // names of attached files count like the text ("VPN-Anleitung.pdf")
+      const score = w.reduce((s, x) => s + (ti.includes(x) ? 3 : 0) + (bo.includes(x) || fn.includes(x) ? 1 : 0), 0);
       return [score, a];
     }).filter(([s]) => s > 0).sort((x, y) => y[0] - x[0]).slice(0, limit).map(([, a]) => out(a, false));
   }
@@ -89,7 +96,7 @@ export function createKb(db, tickets) {
     // Path only via visible ancestors; only visible subpages
     const path = []; for (let p = t.parentOf(a.id); p; p = t.parentOf(p)) path.unshift({ id: p, title: t.byId.get(p).title });
     const children = t.childrenOf(a.id).map((c) => ({ id: c.id, title: c.title, visibility: c.visibility }));
-    return { ...out(a), parentId: t.parentOf(a.id), path, children, canEdit: member(user, a.project_id) };
+    return { ...out(a), parentId: t.parentOf(a.id), path, children, files: filesOf(a.id), canEdit: member(user, a.project_id) };
   }
 
   // ---------- Page tree ----------
@@ -193,6 +200,7 @@ export function createKb(db, tickets) {
     if (source) tickets.logActivity(source, user.id, 'kbCreated', null, null, `KB-${id}`);
     addVersion(id, d, user, str(data.note, 200).trim());
     claimImages(id, d.body);
+    if (Array.isArray(data.files)) setFiles(user, id, data.files);
     return get(user, id);
   }
 
@@ -203,8 +211,13 @@ export function createKb(db, tickets) {
     const d = clean(data);
     // Moving within the tree or to another project is not a content change → no version
     if ('parentId' in data || 'projectId' in data) relocate(user, a, 'parentId' in data ? data.parentId : a.parent_id, data.projectId);
+    // Attached files belong to the article, not to a version: changing them makes no new version
+    const filesChanged = Array.isArray(data.files) && setFiles(user, int(id), data.files);
     // saved unchanged → no new version, no new date
-    if (d.title === cur.title && d.body === cur.body && d.category === cur.category && d.visibility === cur.visibility) return get(user, id);
+    if (d.title === cur.title && d.body === cur.body && d.category === cur.category && d.visibility === cur.visibility) {
+      if (filesChanged) db.prepare("UPDATE kb_articles SET updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(user.id, int(id));
+      return get(user, id);
+    }
     db.transaction(() => {
       db.prepare("UPDATE kb_articles SET title=?, body=?, visibility=?, category=?, updated_by=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?")
         .run(d.title, d.body, d.visibility, d.category, user.id, int(id));
@@ -276,6 +289,7 @@ export function createKb(db, tickets) {
   function remove(user, id) {
     editable(user, id);
     const imgs = db.prepare('SELECT token FROM kb_images WHERE article_id=?').all(int(id));
+    const files = db.prepare('SELECT token FROM kb_files WHERE article_id=?').all(int(id));
     db.transaction(() => {
       // Subpages move up one level
       const parent = db.prepare('SELECT parent_id FROM kb_articles WHERE id=?').get(int(id)).parent_id;
@@ -283,6 +297,7 @@ export function createKb(db, tickets) {
       db.prepare('DELETE FROM kb_articles WHERE id=?').run(int(id));
     })();
     for (const i of imgs) dropImage(i.token);
+    for (const f of files) dropFile(f.token);
   }
 
   // ---------- Images ----------
@@ -327,6 +342,76 @@ export function createKb(db, tickets) {
     return { path: imgPath(i.token), mime: i.mime, filename: i.filename };
   }
 
+  // ---------- Attached files (PDF, documents …) ----------
+  // Uploaded in the editor first (article_id NULL, only the uploader may use or see it), the article
+  // takes them over when saved with files: [token …] – the complete list in its order.
+  const fileDir = path.join(paths.attachments, 'kb-files');
+  const filePath = (token) => path.join(fileDir, token);
+  const fileOut = (f) => ({ token: f.token, name: f.filename, size: f.size, mime: f.mime, url: `/api/kb/files/${f.token}` });
+  function filesOf(articleId) {
+    return db.prepare('SELECT * FROM kb_files WHERE article_id=? ORDER BY position, id').all(articleId).map(fileOut);
+  }
+  function dropFile(token) {
+    db.prepare('DELETE FROM kb_files WHERE token=?').run(token);
+    fs.rmSync(filePath(token), { force: true });
+  }
+  function moveIn(tmpPath, target) {
+    try { fs.renameSync(tmpPath, target); } catch (e) {
+      if (e.code !== 'EXDEV') throw e;
+      fs.copyFileSync(tmpPath, target); fs.rmSync(tmpPath, { force: true });
+    }
+  }
+  const cleanName = (name, fallback) => str(name, 200).replace(/[\\/\0\r\n]/g, '_').trim() || fallback;
+  /** Store a file: from a temporary upload (tmpPath) or from memory (buffer, e.g. the import) */
+  function storeFile({ tmpPath = null, buffer = null, filename, mime }, { articleId = null, userId = null, position = 0, createdAt = null } = {}) {
+    fs.mkdirSync(fileDir, { recursive: true });
+    const token = crypto.randomBytes(18).toString('base64url');
+    if (buffer) fs.writeFileSync(filePath(token), buffer); else moveIn(tmpPath, filePath(token));
+    const size = fs.statSync(filePath(token)).size;
+    db.prepare("INSERT INTO kb_files(token, article_id, filename, mime, size, position, created_by, created_at) VALUES(?,?,?,?,?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%fZ','now')))")
+      .run(token, articleId, cleanName(filename, 'datei'), str(mime, 100) || 'application/octet-stream', size, position, userId, createdAt);
+    return token;
+  }
+  /** Upload in the editor (agents): a draft until the article is saved */
+  function addFile(user, { tmpPath, filename, mime }) {
+    if (!isAgent(user)) throw forbidden();
+    for (const old of db.prepare("SELECT token FROM kb_files WHERE article_id IS NULL AND created_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 days')").all()) dropFile(old.token);
+    if (db.prepare('SELECT COUNT(*) n FROM kb_files WHERE article_id IS NULL AND created_by=?').get(user.id).n >= MAX_FILE_DRAFTS) {
+      fs.rmSync(tmpPath, { force: true });
+      throw new HttpError(400, 'err.kbTooManyDrafts', String(MAX_FILE_DRAFTS));
+    }
+    const token = storeFile({ tmpPath, filename, mime }, { userId: user.id });
+    return fileOut(db.prepare('SELECT * FROM kb_files WHERE token=?').get(token));
+  }
+  /** The article's files become exactly this list: own drafts are taken over, files left out are removed. true if anything changed */
+  function setFiles(user, articleId, tokens) {
+    const want = [...new Set(tokens.map((x) => str(x, 80)).filter(Boolean))];
+    if (want.length > MAX_FILES) throw new HttpError(400, 'err.kbTooManyFiles', String(MAX_FILES));
+    const rows = want.map((tk) => db.prepare('SELECT * FROM kb_files WHERE token=?').get(tk));
+    // a draft of someone else or a file of another article is not taken (and not revealed)
+    if (rows.some((f) => !f || (f.article_id !== articleId && (f.article_id !== null || f.created_by !== user.id)))) throw new HttpError(400, 'err.kbFileGone');
+    const before = filesOf(articleId).map((f) => f.token);
+    const gone = before.filter((tk) => !want.includes(tk));
+    db.transaction(() => {
+      rows.forEach((f, i) => db.prepare('UPDATE kb_files SET article_id=?, position=? WHERE id=?').run(articleId, i, f.id));
+      for (const tk of gone) db.prepare('DELETE FROM kb_files WHERE token=?').run(tk);
+    })();
+    for (const tk of gone) fs.rmSync(filePath(tk), { force: true });
+    return gone.length > 0 || want.join() !== before.join();
+  }
+  /** Download: whoever may read the article; a draft only its uploader */
+  function fileFile(user, token) {
+    const f = db.prepare('SELECT f.*, a.visibility, a.project_id FROM kb_files f LEFT JOIN kb_articles a ON a.id=f.article_id WHERE f.token=?').get(str(token, 80));
+    if (!f) throw notFound();
+    if (f.article_id ? !canRead(user, f) : !(isAgent(user) && f.created_by === user.id)) throw notFound();
+    return { path: filePath(f.token), mime: f.mime, filename: f.filename };
+  }
+  /** Own unsaved upload removed again in the editor */
+  function discardFile(user, token) {
+    const f = db.prepare('SELECT * FROM kb_files WHERE token=? AND article_id IS NULL AND created_by=?').get(str(token, 80), user.id);
+    if (f) dropFile(f.token);
+  }
+
   function categories(user, { project = '' } = {}) {
     const n = new Map();
     const rows = db.prepare(`SELECT a.category, a.visibility, a.project_id FROM kb_articles a LEFT JOIN projects p ON p.id=a.project_id WHERE a.category<>'' ${project ? 'AND p.key=?' : ''}`).all(...(project ? [project] : []));
@@ -361,5 +446,5 @@ export function createKb(db, tickets) {
     return { title: row.title, body: parts.join('\n\n'), sourceTicket: `${row.project_key}-${row.number}`, projectId: row.project_id };
   }
 
-  return { search, get, tree, bundle, move, create, update, remove, categories, projects, canEdit, draftFromTicket, addImage, imageFile, versions, version, restore, templates, template, saveTemplate, removeTemplate };
+  return { search, get, tree, bundle, move, create, update, remove, categories, projects, canEdit, draftFromTicket, addImage, imageFile, addFile, fileFile, discardFile, storeFile, setFiles, filesOf, versions, version, restore, templates, template, saveTemplate, removeTemplate };
 }

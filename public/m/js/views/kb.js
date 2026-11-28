@@ -8,6 +8,7 @@ import { createCommentField, commentView } from '/js/commentfield.js';
 import { t } from '/js/i18n.js';
 import { state } from '/js/state.js';
 import { renderDoc, headings } from '/js/kbdoc.js';
+import { filesSection } from '/js/kbfiles.js';
 import { mobileUrlFor } from '/js/uimode.js';
 import { go, replaceUrl } from '../router.js';
 import { openSheet } from '../sheet.js';
@@ -154,6 +155,7 @@ export async function renderKbArticle(page, ctx) {
       h('span', t('kb.updated', { when: fmtDate(a.updatedAt, false), who: a.author || '—' }))),
     tocBtn ? h('button.m-btn.m-btn-block.m-toc-inline', { type: 'button', onclick: () => openToc(page, doc) }, icon('ed-toc'), t('kb.toc'), h('span.m-muted', String(hs.length)), icon('chevron-right', 'm-push-right')) : null,
     a.body.trim() ? h('div.m-card.m-kb-doc', doc) : null,
+    a.files?.length ? h('div.m-card.m-kb-files', filesSection(a.files, { compact: true })) : null,
     children,
     agent && a.canEdit ? h('p.m-kb-edit-hint', icon('monitor'), t('m.kb.editOnComputer')) : null,
     a.body.trim() ? ratingBox(a, { compact: true }) : null,

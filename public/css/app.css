@@ -1031,6 +1031,28 @@ a.stat-link:hover { border-color: var(--blue); }
 .kb-cm-input textarea { width: 100%; }
 .kb-cm-input .form-actions { margin-top: 6px; align-items: center; gap: 10px; }
 .kb-cm-count { font-size: 12px; font-weight: 500; color: var(--text-subtle); margin-left: auto; }
+.kb-file-count { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 500; color: var(--text-subtle); }
+.kb-file-count .icon { width: 13px; height: 13px; }
+/* Files attached to an article */
+.kb-files { margin-top: 24px; max-width: 860px; }
+.kb-files h3 { display: flex; align-items: center; gap: 6px; font-size: 14px; margin: 0 0 8px; }
+.kb-files h3 .icon { width: 16px; height: 16px; color: var(--text-subtle); }
+.kb-files ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.kb-file { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); min-width: 0; }
+.kb-file-icon { position: relative; flex: none; display: flex; color: var(--text-subtlest); }
+.kb-file-icon .icon { width: 28px; height: 28px; }
+.kb-file-kind { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); font-size: 8px; font-weight: 700; letter-spacing: .02em; color: var(--text-subtle); background: var(--surface); padding: 0 2px; border-radius: 2px; }
+.kb-file-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.kb-file-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+a.kb-file-name:hover { text-decoration: underline; }
+.kb-files-edit { padding: 12px; border: 1px dashed var(--border-strong, var(--border)); border-radius: 8px; }
+.kb-files-edit.drop { border-color: var(--accent); background: var(--bg-selected, var(--bg-sunken)); }
+.kb-files-head { display: flex; align-items: center; gap: 8px; }
+.kb-files-head h3 { margin: 0; }
+.kb-files-hint { margin: 4px 0 8px; }
+.kb-files-edit:not(.empty) .kb-files-hint { display: none; }
+.kb-files.compact ul { grid-template-columns: 1fr; }
+@media print { .kb-file { break-inside: avoid; } }
 
 /* Page tree: dragging, folders, editor fields */
 .kb-tree-title .spacer { flex: 1; }
