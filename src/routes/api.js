@@ -1416,15 +1416,17 @@ export function createApi(ctx) {
   const maxZipMb = () => { const n = Number(process.env.HELFI_IMPORT_MAX_ZIP_MB); return Number.isFinite(n) && n > 0 ? Math.min(n, 65536) : 2048; };
   admin.post('/import/confluence-zip/upload', (req, res, next) => {
     if (ctx.importer.running()) return next(new HttpError(409, 'err.importRunning'));
-    multer({ dest: uploadTmp, limits: { fileSize: maxZipMb() * 1024 * 1024, files: 1 } }).single('file')(req, res, (err) => {
+    // The name on disk is ours (random), never taken from the request
+    const file = path.join(uploadTmp, `kbzip-${crypto.randomBytes(12).toString('hex')}.zip`);
+    const storage = multer.diskStorage({ destination: (r, f, cb) => cb(null, uploadTmp), filename: (r, f, cb) => cb(null, path.basename(file)) });
+    fs.mkdirSync(uploadTmp, { recursive: true });
+    multer({ storage, limits: { fileSize: maxZipMb() * 1024 * 1024, files: 1 } }).single('file')(req, res, (err) => {
       if (err) {
-        if (req.file) fs.rmSync(req.file.path, { force: true });
+        fs.rmSync(file, { force: true });
         return next(err.code === 'LIMIT_FILE_SIZE' ? new HttpError(413, 'err.fileTooLarge') : new HttpError(400, 'err.badRequest', err.code));
       }
       if (!req.file) return next(new HttpError(400, 'err.badRequest', 'file'));
       dropKbZip();
-      const file = path.join(uploadTmp, `kbzip-${crypto.randomBytes(12).toString('hex')}.zip`);
-      fs.renameSync(req.file.path, file);
       const name = Buffer.from(req.file.originalname || 'export.zip', 'latin1').toString('utf8').slice(0, 200);
       kbZip = { id: crypto.randomBytes(12).toString('hex'), file, name, at: Date.now() };
       // check right away that it is a readable ZIP with a space in it
