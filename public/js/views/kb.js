@@ -11,6 +11,7 @@ import { builtinTemplates } from '../kbtemplates.js';
 import { diffView, diffLegend } from '../diffview.js';
 import { ratingBox } from '../kbrating.js';
 import { examplesButton } from './examples.js';
+import { filesSection, filesEditor } from '../kbfiles.js';
 
 const visBadge = (v) => h(`span.badge.kb-${v}`, t(`kb.vis.${v}`));
 
@@ -122,11 +123,11 @@ async function list(content, params) {
     overview ? h('div.kb-overview',
       h('section.kb-overview-tree', treeHead(tree, null), treeNav(tree)),
       h('section.kb-overview-recent', h('h3', t('kb.recent')), articles.slice(0, 8).map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
-        h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
+        h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null, a.fileCount ? h('span.kb-file-count', { title: t('kb.files.count', { n: a.fileCount }) }, icon('paperclip'), String(a.fileCount)) : null),
         a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
         h('div.kb-card-meta', [projects.length > 1 ? a.project?.name : '', a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))))) : null,
     overview ? null : articles.length ? articles.map((a) => h('a.kb-card', { href: `/kb/${a.id}`, 'data-link': '' },
-      h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null),
+      h('div.kb-card-title', a.title, agent ? visBadge(a.visibility) : null, a.openComments ? h('span.kb-cm-count', { title: t('kb.cm.open', { n: a.openComments }) }, '💬 ', String(a.openComments)) : null, a.fileCount ? h('span.kb-file-count', { title: t('kb.files.count', { n: a.fileCount }) }, icon('paperclip'), String(a.fileCount)) : null),
       a.excerpt ? h('div.kb-card-text', a.excerpt) : null,
       h('div.kb-card-meta', [projects.length > 1 ? a.project?.name : '', a.category, fmtDate(a.updatedAt, false)].filter(Boolean).join(' · '), rated(a)))) : h('p.muted', sort ? t('kb.rate.noneNeedsWork') : q ? t('kb.noResults') : t('kb.empty')));
 }
@@ -263,6 +264,7 @@ async function article(content, id) {
           agent ? h('span.muted.no-print', ` · ${t('kb.views', { n: a.views })}`) : null,
           mine && a.version ? h('span.muted.no-print', ' · ', h('a', { href: `/kb/${a.id}/history`, 'data-link': '' }, t('kb.ver.link', { v: a.version }))) : null),
         articleBody(a.body),
+        filesSection(a.files),
         a.children.length ? h('section.kb-children', h('h3', t('kb.tree.children')),
           h('ul', a.children.map((c) => h('li', h('a', { href: `/kb/${c.id}`, 'data-link': '' }, c.title), agent && c.visibility === 'internal' ? h('span.badge.kb-internal', t('kb.vis.internal')) : null)))) : null,
         a.body.trim() ? ratingBox(a) : null,
@@ -334,7 +336,8 @@ async function printBundle(content, id) {
       articles.map((x, i) => h(`section.kb-print-article${i ? '.page' : ''}`,
         i ? h(`h1.kb-print-h.d${Math.min(x.depth, 3)}`, x.title) : null,
         h('div.kb-print-meta', t('kb.updated', { when: fmtDate(x.updatedAt), who: x.author || '—' })),
-        (() => { const d = renderDoc(x.body); d.classList.add('kb-body'); return d; })()))));
+        (() => { const d = renderDoc(x.body); d.classList.add('kb-body'); return d; })(),
+        filesSection(x.files)))));
   // open the print dialog right after the images have loaded
   const imgs = [...content.querySelectorAll('img')];
   await Promise.all(imgs.map((im) => (im.complete ? null : new Promise((r) => { im.onload = r; im.onerror = r; }))));
@@ -427,7 +430,7 @@ async function editor(content, opts = {}) {
   const current = () => ({ title: title.value, body: ed.getValue(), category: cat.value, visibility, description: desc.value, parentId: Number(parentSel.value) || null, projectId: Number(parentSel.value) ? null : project.value() });
   const dirty = () => {
     const c = current();
-    return c.title !== original.title || c.body.trim() !== String(original.body || '').trim()
+    return c.title !== original.title || c.body.trim() !== String(original.body || '').trim() || !!files?.changed()
       || (tplMode ? c.description !== original.description : (c.category !== original.category || c.visibility !== original.visibility || c.parentId !== original.parentId || (!c.parentId && c.projectId !== original.projectId)));
   };
   let draftTimer;
@@ -438,6 +441,8 @@ async function editor(content, opts = {}) {
     }, 600);
   };
   const ed = createKbEditor({ value: a.body, placeholder: t('kb.ed.placeholder'), onChange: onEdit });
+  // Attached files (not for templates): belong to the article, not to a version
+  const files = tplMode ? null : filesEditor(a.files || [], { onChange: onEdit });
   // AI when writing (agents, function "knowledge articles"): first button in the toolbar
   const kbAi = state.boot.aiFeatures?.kb ? kbAiTools(ed, {
     getTitle: () => title.value, setTitle: (v) => { if (v) { title.value = v; onEdit(); } },
@@ -466,17 +471,21 @@ async function editor(content, opts = {}) {
         return;
       }
       const c = current();
-      const data = { ...c, sourceTicket: a.sourceTicket || null, note: note?.value || '' };
+      const data = { ...c, sourceTicket: a.sourceTicket || null, note: note?.value || '', files: files.value() };
       // Without a parent the chosen project; with a parent the server takes the parent's
       if (c.parentId) delete data.projectId;
       const r = id ? await api.kbUpdate(id, data) : await api.kbCreate(data);
+      files.saved();
       writeDraft(key, null);
       ed.destroy();
       toast(t('app.saved'), 'success');
       navigate(`/kb/${r.article.id}`, { force: true });
     } catch (ex) { toast(ex.message, 'error'); saving = false; }
   };
-  const cancel = () => navigate(tplMode ? '/kb?tab=templates' : (id ? `/kb/${id}` : (opts.parent ? `/kb/${opts.parent}` : '/kb')));
+  const cancel = () => {
+    files?.discardNew(); // uploads of this editor that will not be saved
+    navigate(tplMode ? '/kb?tab=templates' : (id ? `/kb/${id}` : (opts.parent ? `/kb/${opts.parent}` : '/kb')));
+  };
   // save current content as a custom template
   const saveAsTemplate = () => {
     const name = h('input', { value: title.value, maxLength: 120 });
@@ -520,7 +529,8 @@ async function editor(content, opts = {}) {
         h('div.kb-meta-field', h('label', { for: 'kb-cat' }, t('kb.f.category')), cat, dl),
         h('div.kb-meta-field', h('label', t('kb.f.visibility')), h('div.kb-vis-row', visRow, h('span.muted.small.kb-vis-hint', t(`kb.visHint.${visibility}`))))),
       kbAi?.note,
-      ed.el));
+      ed.el,
+      files?.el));
   visRow.addEventListener('click', () => { const x = content.querySelector('.kb-vis-hint'); if (x) x.textContent = t(`kb.visHint.${visibility}`); });
   content.querySelector('.kb-edit').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); } });
   note?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });

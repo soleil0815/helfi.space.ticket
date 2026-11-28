@@ -296,7 +296,7 @@ scene('admin', ['admin-overview', 'admin-projects', 'admin-project-agents', 'adm
 });
 
 // ---------- Knowledge base ----------
-scene('kb', ['kb-tree', 'kb-history', 'kb-compare', 'kb-picker', 'kb-project-editor', 'kb-editor', 'kb-feedback', 'examples-kb', 'examples-catalog'], async (S) => {
+scene('kb', ['kb-tree', 'kb-history', 'kb-compare', 'kb-picker', 'kb-project-editor', 'kb-editor', 'kb-files', 'kb-feedback', 'examples-kb', 'examples-catalog'], async (S) => {
   const { page, go, shot, step, d, T } = S;
   const p = await page('a.berger');
   await step('tree', async () => { await go(p, `/kb/${d.kb.acc.id}`); await shot.full(p, 'kb-tree'); });
@@ -317,6 +317,20 @@ scene('kb', ['kb-tree', 'kb-history', 'kb-compare', 'kb-picker', 'kb-project-edi
   await step('editor', async () => {
     await go(p, `/kb/${d.kb.printer.id}/edit`);
     await shot.el(p, 'kb-editor', 'main, .content', { pad: 0, maxHeight: 760 });
+  });
+  await step('files', async () => {
+    // Attachments in the editor: a manual and a list, saved with the article
+    await go(p, `/kb/${d.kb.printer.id}/edit`);
+    const pdf = Buffer.from('%PDF-1.4\n%%EOF\n'.padEnd(184320, ' '));
+    await p.setInputFiles('[data-kb-file-input]', [
+      { name: T('Druckerhandbuch-Fach2.pdf', 'Printer-manual-tray2.pdf'), mimeType: 'application/pdf', buffer: pdf },
+      { name: T('Druckerstandorte.xlsx', 'Printer-locations.xlsx'), mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.alloc(24576, 1) },
+    ]);
+    await p.waitForSelector('[data-kb-files-edit] li.kb-file >> nth=1');
+    await p.locator('[data-kb-files-edit]').scrollIntoViewIfNeeded();
+    await shot.el(p, 'kb-files', '[data-kb-files-edit]', { pad: 12 });
+    await p.click('.kb-edit-head .btn-primary');
+    await p.waitForSelector('.kb-page h1');
   });
   await step('feedback', async () => {
     await go(p, `/kb/${d.kb.pw.id}`);

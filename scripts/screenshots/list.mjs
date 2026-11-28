@@ -12,7 +12,7 @@ export const SHOTS = [
   'itil-catalog-approval', 'itil-catalog-form', 'itil-change', 'itil-change-calendar', 'itil-ci', 'itil-cis',
   'itil-kb', 'itil-kb-suggest', 'itil-links', 'itil-major', 'itil-problem', 'itil-rating',
   'itil-reports', 'itil-reports-survey', 'itil-sla-list', 'kb-ai', 'kb-compare', 'kb-editor',
-  'kb-feedback', 'kb-history', 'kb-picker', 'kb-project-editor', 'kb-rating', 'kb-tree',
+  'kb-feedback', 'kb-files', 'kb-history', 'kb-picker', 'kb-project-editor', 'kb-rating', 'kb-tree',
   'link-suggest', 'list', 'list-pager', 'login', 'login-passkey', 'update-notice', 'mfa-passkey', 'm-mfa-passkey', 'm-done-comment',
   'm-comment-delete', 'm-image', 'm-mail', 'm-passkey-hint', 'm-passkeys', 'm-portal', 'm-reply-format',
   'm-reporter', 'm-theme', 'mail-images', 'mail-reminder', 'mention-comment', 'mention-compose',

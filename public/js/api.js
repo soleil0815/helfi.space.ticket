@@ -109,6 +109,8 @@ export const api = {
   changeCalendar: (f) => request('GET', `/api/changes/calendar${qs(f)}`),
   changeTemplates: () => request('GET', '/api/changes/templates'),
   kbImage: (file) => { const fd = new FormData(); fd.append('file', file, file.name || 'bild.png'); return request('POST', '/api/kb/images', fd); },
+  kbFiles: (files) => { const fd = new FormData(); for (const f of files) fd.append('files', f, f.name); return request('POST', '/api/kb/files', fd); },
+  kbFileDiscard: (token) => request('DELETE', `/api/kb/files/${encodeURIComponent(token)}`),
   kb: (f) => request('GET', `/api/kb${qs(f)}`),
   kbProjects: () => request('GET', '/api/kb/projects'),
   kbSuggest: (q) => request('GET', `/api/kb/suggest${qs({ q })}`),

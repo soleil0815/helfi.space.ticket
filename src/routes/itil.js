@@ -120,6 +120,33 @@ export function createItilRoutes(ctx) {
     res.setHeader('Cache-Control', 'private, no-store');
     fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
+  // Files attached to knowledge articles (PDF, documents …): uploaded in the editor, taken over on saving
+  const kbFileUpload = multer({ dest: path.join(paths.attachments, '.tmp'), limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 10 } });
+  r.post('/kb/files', requireRole('agent'), (req, res, next) => {
+    kbFileUpload.array('files', 10)(req, res, (err) => {
+      const cleanup = () => { for (const f of req.files || []) fs.rmSync(f.path, { force: true }); };
+      if (err) { cleanup(); return next(err.code === 'LIMIT_FILE_SIZE' ? new HttpError(413, 'err.fileTooLarge') : new HttpError(400, 'err.badRequest', err.code)); }
+      if (!req.files?.length) return next(new HttpError(400, 'err.badRequest', 'files'));
+      const out = [];
+      try {
+        // Multer returns file names as latin1 – convert to UTF-8
+        for (const f of req.files) out.push(kb.addFile(req.user, { tmpPath: f.path, filename: Buffer.from(f.originalname, 'latin1').toString('utf8'), mime: f.mimetype }));
+        res.status(201).json({ files: out });
+      } catch (e) { cleanup(); next(e); }
+    });
+  });
+  r.get('/kb/files/:token', (req, res) => {
+    const f = kb.fileFile(req.user, req.params.token);
+    if (!fs.existsSync(f.path)) throw new HttpError(404, 'err.notFound');
+    // Always a download, never shown in the browser: the type comes from the uploading browser
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(f.filename)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.setHeader('Cache-Control', 'private, no-store');
+    fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
+  });
+  r.delete('/kb/files/:token', requireRole('agent'), (req, res) => { kb.discardFile(req.user, req.params.token); res.json({ ok: true }); });
   r.get('/kb/tree', (req, res) => res.json({ tree: kb.tree(req.user) }));
   r.get('/kb/projects', (req, res) => res.json(kb.projects(req.user)));
   r.patch('/kb/:id/parent', requireRole('agent'), (req, res) => res.json({ article: kb.move(req.user, req.params.id, req.body?.parentId ?? null) }));

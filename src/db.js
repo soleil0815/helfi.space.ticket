@@ -1048,6 +1048,27 @@ export const MIGRATIONS = [
     );
     `,
   },
+  {
+    id: 54,
+    name: 'Files attached to knowledge articles',
+    skipIf: (db) => db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kb_files'").get(),
+    sql: `
+    -- PDFs, documents … attached to an article (images inside the text stay in kb_images).
+    -- article_id NULL: uploaded in the editor, not saved yet (removed after two days)
+    CREATE TABLE kb_files (
+      id INTEGER PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      article_id INTEGER REFERENCES kb_articles(id) ON DELETE SET NULL,
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_kb_files_article ON kb_files(article_id);
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
