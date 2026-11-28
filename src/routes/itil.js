@@ -4,6 +4,7 @@ import { requireRole, agentOn } from '../auth/session.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
+import { rateLimit } from 'express-rate-limit';
 import { int, str, HttpError } from '../lib/http.js';
 import { config, paths } from '../config.js';
 import { t, hasKey, normalizeLang } from '../i18n.js';
@@ -120,7 +121,15 @@ export function createItilRoutes(ctx) {
     res.setHeader('Cache-Control', 'private, no-store');
     fs.createReadStream(f.path).on('error', () => res.end()).pipe(res);
   });
-  // Files attached to knowledge articles (PDF, documents …): uploaded in the editor, taken over on saving
+  // Files attached to knowledge articles (PDF, documents …): uploaded in the editor, taken over on saving.
+  // Per person and minute: generous for reading and editing, but not unlimited (each request touches the disk)
+  const kbFileLimit = rateLimit({
+    windowMs: 60 * 1000, limit: 300, standardHeaders: 'draft-7', legacyHeaders: false,
+    keyGenerator: (req) => `u${req.user?.id ?? 'anon'}`,
+    validate: { xForwardedForHeader: false, keyGeneratorIpFallback: false },
+    handler: (req, res, next) => next(new HttpError(429, 'err.tooManyAttempts')),
+  });
+  r.use('/kb/files', kbFileLimit);
   const kbFileUpload = multer({ dest: path.join(paths.attachments, '.tmp'), limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 10 } });
   r.post('/kb/files', requireRole('agent'), (req, res, next) => {
     kbFileUpload.array('files', 10)(req, res, (err) => {
