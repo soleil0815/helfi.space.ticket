@@ -1414,7 +1414,9 @@ export function createApi(ctx) {
   let kbZip = null;
   const dropKbZip = () => { if (kbZip) fs.rmSync(kbZip.file, { force: true }); kbZip = null; };
   const maxZipMb = () => { const n = Number(process.env.HELFI_IMPORT_MAX_ZIP_MB); return Number.isFinite(n) && n > 0 ? Math.min(n, 65536) : 2048; };
-  admin.post('/import/confluence-zip/upload', (req, res, next) => {
+  // a few uploads per minute are plenty (each one is a large file on disk)
+  const zipUploadLimit = perMinute(10);
+  admin.post('/import/confluence-zip/upload', zipUploadLimit, (req, res, next) => {
     if (ctx.importer.running()) return next(new HttpError(409, 'err.importRunning'));
     // The name on disk is ours (random), never taken from the request
     const file = path.join(uploadTmp, `kbzip-${crypto.randomBytes(12).toString('hex')}.zip`);
