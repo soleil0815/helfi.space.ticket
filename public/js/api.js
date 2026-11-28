@@ -240,4 +240,17 @@ export const api = {
     importStatus: () => request('GET', '/api/admin/import/status'),
     importCancel: () => request('POST', '/api/admin/import/cancel'),
   },
+  // Automation rules (admins; leads and deputies for their projects)
+  automation: {
+    rules: (projectId) => request('GET', `/api/automation/rules${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+    options: (projectId) => request('GET', `/api/automation/options${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+    create: (rule) => request('POST', '/api/automation/rules', rule),
+    update: (id, rule) => request('PATCH', `/api/automation/rules/${id}`, rule),
+    remove: (id) => request('DELETE', `/api/automation/rules/${id}`),
+    order: (projectId, ids) => request('POST', '/api/automation/order', { projectId, ids }),
+    runs: (id) => request('GET', `/api/automation/rules/${id}/runs`),
+    preview: (rule) => request('POST', '/api/automation/preview', rule),
+    templates: (lang) => request('GET', `/api/automation/templates?lang=${encodeURIComponent(lang)}`),
+    addTemplate: (key, projectId, lang) => request('POST', `/api/automation/templates/${encodeURIComponent(key)}`, { projectId, lang }),
+  },
 };

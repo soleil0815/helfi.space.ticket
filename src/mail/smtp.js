@@ -239,7 +239,8 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
         key: ticket.key, title: ticket.title, name, author: user.display_name, body: commentAsText(comment, lang), link: link(ticket), app: appName(),
         // The sender is always the ticket system – the agent's name only appears in the text
         contact: assignee ? `${t(lang, 'mail.contact', { name: assignee })}\n` : '',
-        closing: t(lang, 'mail.closing', { author: user.display_name || user.username, app: appName() }),
+        // An automation rule signs with the name of the ticket system only
+        closing: user.system ? appName() : t(lang, 'mail.closing', { author: user.display_name || user.username, app: appName() }),
       };
       // Customers: never pictures from internal notes
       const { html, attachments } = commentMail(comment, lang, 'mail.comment.body', vars, (id) => tickets.mailImage(ticket.id, id));
@@ -285,7 +286,7 @@ export function wireNotifications({ tickets, mailer, settings, users, survey = n
         const url = (n) => `${config.baseUrl}/rate/${token}?r=${n}`;
         surveyText = `\n\n${t(lang, 'mail.survey', { days: settings.get('survey.days') })}\n${[5, 4, 3, 2, 1].map((n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}  ${t(lang, `survey.label.${n}`)}: ${url(n)}`).join('\n')}`;
       }
-      const agentName = user && ['agent', 'admin'].includes(user.role) ? (user.display_name || user.username) : null;
+      const agentName = user && !user.system && ['agent', 'admin'].includes(user.role) ? (user.display_name || user.username) : null;
       const vars = {
         key: ticket.key, title: ticket.title, name, link: link(ticket), app: appName(), survey: surveyText,
         // as with replies: only if someone other than the resolver is assigned

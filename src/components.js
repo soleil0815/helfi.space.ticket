@@ -32,7 +32,7 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * Keyword test: from 4 characters on also inside words ("drucker" finds "Netzwerkdrucker"),
  * short ones only as a whole word ("pc" must not match "pcie" or "epc").
  */
-function keywordRegExp(word) {
+export function keywordRegExp(word) {
   const e = escapeRe(word).replace(/ /g, '\\s+');
   return [...word].length >= 4 ? new RegExp(e, 'iu') : new RegExp(`(?<![\\p{L}\\p{N}])${e}(?![\\p{L}\\p{N}])`, 'iu');
 }

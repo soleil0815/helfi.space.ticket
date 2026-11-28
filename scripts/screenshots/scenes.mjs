@@ -733,3 +733,49 @@ scene('reply-wait', ['reply-wait'], async (S) => {
     await shot.clip(p, 'reply-wait', { x: Math.max(0, b.x - 16), y: Math.max(0, b.y - 16), width: Math.min(1280, b.width + 32), height: b.height + 32 });
   });
 });
+
+// ---------- Automation rules (the IT lead's view; adds rules and tickets of its own) ----------
+scene('automation', ['automation', 'automation-edit', 'automation-examples'], async (S) => {
+  const { page, go, shot, step, d, T, ctx, db } = S;
+  const L = S.lang;
+  for (const key of ['waiting-remind', 'waiting-close', 'urgent-unassigned', 'account-priority']) {
+    await d.admin('POST', `/api/automation/templates/${key}`, { projectId: d.it.id, lang: L });
+  }
+  const rules = (await d.admin('GET', `/api/automation/rules?projectId=${d.it.id}`)).rules;
+  for (const r of rules.filter((x) => ['waiting-remind', 'waiting-close', 'account-priority'].includes(x.template))) {
+    await d.admin('PATCH', `/api/automation/rules/${r.id}`, { enabled: true });
+  }
+  // Tickets waiting for the customer for a while: the reminder acts on them
+  const ago = (days) => new Date(Date.now() - days * 86400000).toISOString();
+  for (const [title, days] of [[T('Laufwerk S: fehlt', 'Drive S: missing'), 8], [T('Neue Maus bestellen', 'Order a new mouse'), 9], [T('Kalender wird nicht geteilt', 'Calendar is not shared'), 12]]) {
+    const tk = await d.mk(d.max, { title, projectId: d.it.id });
+    await d.anna('POST', `/api/tickets/${tk.key}/comments`, { body: T('Ist das noch aktuell?', 'Is this still an issue?') });
+    const id = d.keyRow(tk.key).id;
+    db.prepare("UPDATE activity SET created_at=? WHERE ticket_id=? AND field='status'").run(ago(days), id);
+  }
+  ctx.automation.checkTime();
+  // One more that waits longer than the closing rule's 14 days – the preview shows it (not acted on yet)
+  const late = await d.mk(d.erika, { title: T('Beamer im Raum 2 flackert', 'Projector in room 2 flickers'), projectId: d.it.id });
+  await d.anna('POST', `/api/tickets/${late.key}/comments`, { body: T('Tritt das noch auf?', 'Does this still happen?') });
+  db.prepare("UPDATE activity SET created_at=? WHERE ticket_id=? AND field='status'").run(ago(16), d.keyRow(late.key).id);
+  await new Promise((r) => setTimeout(r, 300));
+  const p = await page('a.berger', { height: 1500 });
+  await step('list', async () => {
+    await go(p, '/automation');
+    await shot.el(p, 'automation', p.locator('section.panel').first(), { pad: 0 });
+  });
+  await step('edit', async () => {
+    await p.locator('[data-rule]', { hasText: T('schließen', 'close') }).locator(`button[aria-label="${T('Regel bearbeiten', 'Edit rule')}"]`).click();
+    await p.waitForSelector('.modal #auto-form');
+    await p.click('[data-auto-preview]');
+    await p.waitForSelector('.auto-preview strong');
+    await shot.el(p, 'automation-edit', '.modal', { pad: 0 });
+    await p.keyboard.press('Escape');
+  });
+  await step('examples', async () => {
+    await p.click('[data-auto-examples]');
+    await p.waitForSelector('.modal .auto-templates');
+    await shot.el(p, 'automation-examples', '.modal', { pad: 0 });
+    await p.keyboard.press('Escape');
+  });
+});

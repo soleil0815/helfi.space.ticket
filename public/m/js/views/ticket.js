@@ -10,7 +10,7 @@ import { state } from '/js/state.js';
 import { typesFor } from '/js/types.js';
 import { slaChip } from '/js/views/sla.js';
 import { linkLabel } from '/js/views/links.js';
-import { activityFieldLabel, activityValue, componentReason, resolutionDetail } from '/js/activity.js';
+import { activityFieldLabel, activityValue, componentReason, resolutionDetail, historyActor } from '/js/activity.js';
 import { replaceUrl, go, dataChanged } from '../router.js';
 import { pullToRefresh } from '../ptr.js';
 import { openSheet } from '../sheet.js';
@@ -339,6 +339,7 @@ export async function renderTicket(page, ctx) {
           h('strong', mine ? t('m.ticket.you') : c.author.displayName),
           c.internal ? h('span.m-msg-internal', icon('lock'), t('ticket.internal')) : null,
           c.source === 'email' && !c.deleted ? h('span.m-msg-src', { title: t('source.email') }, icon('mail')) : null,
+          c.author?.automation && agent ? h('span.m-msg-src', { title: t('auto.badge'), 'aria-label': t('auto.badge') }, icon('sliders')) : null,
           c.canDelete ? h('button.m-iconbtn.m-msg-del', { type: 'button', 'aria-label': t('comment.delete'), onclick: () => deleteSheet(c, el) }, icon('trash')) : null),
         c.deleted
           ? h('p.m-msg-deleted', { tabindex: '-1' }, icon('trash'), t('comment.deletedBy', { who: c.deleted.by?.displayName || '—', when: fmtDate(c.deleted.at) }))
@@ -381,7 +382,7 @@ export async function renderTicket(page, ctx) {
   }
 
   function historyLine(a) {
-    const who = a.user?.displayName || (['sla', 'classified', 'autoAssigned'].includes(a.action) ? 'Helfi.Space' : t('m.ticket.system'));
+    const who = historyActor(a, t('m.ticket.system'));
     let detail = null;
     if (a.action === 'changed' && a.field !== 'description') detail = `${activityValue(a, a.oldValue)} → ${activityValue(a, a.newValue)}`;
     else if (a.action === 'sla') detail = `${t(`sla.kind.${a.field}`)} ${t(`sla.state.${a.newValue}`)}`;

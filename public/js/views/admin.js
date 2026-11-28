@@ -14,12 +14,13 @@ import { slaPage } from './sla.js';
 import { changeAdminPage } from './change.js';
 import { catalogAdminPage } from './catalog.js';
 import { componentsAdminPage } from './components.js';
+import { automationAdminPage } from './automation.js';
 import { peoplePicker } from '../peoplepicker.js';
 
 // Groups with their sections: [id, label, icon]
 const GROUPS = [
   ['admin.group.org', [['projects', 'admin.projects', 'board'], ['components', 'admin.components', 'list'], ['users', 'admin.users', 'users']]],
-  ['admin.group.tickets', [['tickets', 'admin.tickets', 'settings'], ['sla', 'admin.sla', 'chart'], ['change', 'admin.change', 'refresh'], ['catalog', 'admin.catalog', 'inbox'], ['templates', 'admin.templates', 'comment']]],
+  ['admin.group.tickets', [['tickets', 'admin.tickets', 'settings'], ['sla', 'admin.sla', 'chart'], ['change', 'admin.change', 'refresh'], ['catalog', 'admin.catalog', 'inbox'], ['automation', 'admin.automation', 'sliders'], ['templates', 'admin.templates', 'comment']]],
   ['admin.group.mail', [['mail-in', 'admin.mailIn', 'inbox'], ['mail-out', 'admin.mailOut', 'mail']]],
   ['admin.group.login', [['ldap', 'admin.ldap', 'server'], ['sso', 'admin.sso', 'key'], ['mfa', 'admin.mfa', 'lock'], ['registration', 'admin.registration', 'user']]],
   ['admin.group.look', [['appearance', 'admin.appearance', 'sparkle']]],
@@ -54,6 +55,7 @@ export async function renderAdmin(content, section) {
   if (section === 'import') return importPage(body);
   if (section === 'templates') return mount(body, templatesPanel({ shared: true }));
   if (section === 'catalog') return catalogAdminPage(body);
+  if (section === 'automation') return automationAdminPage(body);
 
   const { settings, redirectUri } = await api.admin.settings();
   const s = { ...settings };

@@ -21,6 +21,7 @@ import { brandLogo, brandTitle } from './brand.js';
 import { renderChangeCalendar } from './views/change.js';
 import { renderKb } from './views/kb.js';
 import { renderCatalog } from './views/catalog.js';
+import { renderAutomation } from './views/automation.js';
 import { renderPortal, userStartPath } from './views/portal.js';
 import { attachPasskeyHint } from './passkey-hint.js';
 import { coffeeBox } from './coffee.js';
@@ -216,6 +217,8 @@ export async function route() {
     if (path === '/changes' && state.isAgent) return await renderChangeCalendar(content, params);
     if (path === '/kb' || path.startsWith('/kb/')) return await renderKb(content, params, path);
     if (path === '/catalog' || path.startsWith('/catalog/')) return await renderCatalog(content, path);
+    // Automation rules: admins and the lead/deputy of a project (their projects)
+    if (path === '/automation' && (state.isAdmin || state.boot.automationManage)) return await renderAutomation(content);
     if (state.isAgent && (path === '/cis' || path.startsWith('/cis/'))) return await renderCmdb(content, params, path);
     if (path === '/summary' && state.isAgent) return await renderSummary(content);
     if (path.startsWith('/browse/')) return await renderTicket(content, decodeURIComponent(path.slice(8)));
@@ -343,6 +346,8 @@ function layout(content, path) {
       nav('/kb', t('kb.title'), 'file', path.startsWith('/kb')),
       nav('/portal', t('portal.title'), 'home', path.startsWith('/portal')),
       nav('/reports', t('nav.reports'), 'chart', path === '/reports'),
+      // Leads/deputies: their rules here; admins find them under Administration → Automation as well
+      state.boot.automationManage ? nav('/automation', t('auto.title'), 'sliders', path === '/automation') : null,
       nav(state.isAdmin ? '/admin/templates' : '/profile#templates', t('nav.templates'), 'comment', path === '/admin/templates'),
       state.isAdmin ? nav('/admin/mail-in', t('nav.channelsMail'), 'mail', path === '/admin/mail-in') : null,
       state.isAdmin ? h('div.sidebar-label', t('nav.admin')) : null,
@@ -361,6 +366,8 @@ function layout(content, path) {
       state.boot.hasCatalog ? nav('/catalog', t('catalog.request'), 'plus', path.startsWith('/catalog')) : null,
       state.boot.pendingApprovals ? nav('/requests?approval=mine', t('nav.approvals'), 'check', false) : null,
       nav('/kb', t('kb.titleUser'), 'file', path.startsWith('/kb')),
+      // Lead/deputy of a project without agent rights: their automation rules
+      state.boot.automationManage ? nav('/automation', t('auto.title'), 'sliders', path === '/automation') : null,
       sidebarFoot(),
     );
   }

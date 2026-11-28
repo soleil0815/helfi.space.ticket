@@ -806,6 +806,35 @@ docker compose logs helfi # zeigt den Einrichtungscode</code></pre>
   <li><strong>Absender für Systeme:</strong> Monitoring, Backup oder Drucker, die selbst Mails schicken, ordnest du mit einem Absender-Muster zuverlässig zu.</li>
 </ul>
 
+<h3 id="automatisierung">Automatisierungsregeln <span class="role role-admin">Admin</span> <span class="role role-agent">Projektleitung</span></h3>
+<p>Regeln nach dem Muster <strong>„Wenn … dann …“</strong> nehmen wiederkehrende Handgriffe ab: Kunden erinnern, liegengebliebene Tickets schließen, Prioritäten setzen oder die Leitung benachrichtigen – ohne Programmieren. Admins finden sie unter <em>Administration → Automatisierung</em> (für jedes Projekt und für <em>Alle Projekte</em>), Leitung und Vertretung eines Projekts in der Seitenleiste unter <em>Automatisierung</em> (nur für ihre Projekte).</p>
+<figure><img src="img/de/automation.jpg" alt=""><figcaption>Regeln eines Projekts: Wenn – Nur bei – Dann, mit Schalter und Zahl der Auslösungen</figcaption></figure>
+<p>Eine Regel hat drei Teile:</p>
+<ul>
+  <li><strong>Wenn (Auslöser):</strong> ein Ticket wird erstellt · der Status ändert sich (von/nach) · der Kunde antwortet · ein Bearbeiter antwortet dem Kunden · Priorität oder Komponente ändert sich · eine <strong>Frist läuft ab</strong> (seit X Stunden/Tagen im Status Y, seit der Erstellung oder seit der letzten Änderung) · SLA-Warnung oder SLA verletzt.</li>
+  <li><strong>Nur bei (Bedingungen, optional):</strong> Typ, Priorität, Status, Eingang (Mail oder Web), zugewiesen ja/nein, Komponente (auch „ohne“), Wörter in Titel/Beschreibung (wie bei den Komponenten) und Absender-Muster wie <code>*@firma.local</code>. Es müssen alle gewählten Punkte zutreffen.</li>
+  <li><strong>Dann (Aktionen):</strong> Antwort an den Kunden (mit Platzhaltern wie <code>{kunde}</code>, Absender ist das Ticketsystem) · interne Notiz · Mail an Projektleitung, Vertretung, Bearbeiter des Tickets, Verantwortliche der Komponente oder ausgewählte Bearbeiter · Status, Priorität oder Komponente setzen · zuweisen an eine fest gewählte Person.</li>
+</ul>
+<figure><img src="img/de/automation-edit.jpg" alt=""><figcaption>Regel bearbeiten mit Probelauf: Welche Tickets würde sie jetzt treffen?</figcaption></figure>
+<p><strong>Probelauf:</strong> Vor dem Einschalten zeigt der Knopf <em>Probelauf</em>, welche Tickets die Regel treffen würde – bei Fristen die Tickets, bei denen sie jetzt greifen würde, sonst die Tickets der letzten 30 Tage, auf die die Bedingungen passen. Dabei wird nichts geändert. Neue und übernommene Regeln sind zunächst <strong>aus</strong>.</p>
+<p><strong>Beispielregeln</strong> übernimmst du mit einem Klick und passt sie danach an:</p>
+<ul>
+  <li><em>Kunde meldet sich nicht: erinnern</em> – nach 7 Tagen in „Wartet“ eine freundliche Erinnerung.</li>
+  <li><em>Kunde meldet sich nicht: schließen</em> – nach 14 Tagen in „Wartet“ eine Abschlussnachricht, dann erledigt. Antwortet der Kunde später doch, ist das Ticket wieder offen.</li>
+  <li><em>Dringend ohne Bearbeiter</em> – höchste Priorität und nach einer Stunde niemand zugewiesen: Mail an Leitung und Vertretung.</li>
+  <li><em>Konto gesperrt oder Kennwort</em> – passende Wörter im neuen Ticket: Priorität hoch.</li>
+  <li><em>Ohne Komponente</em> – nach 4 Stunden ohne Komponente eine interne Notiz und eine Mail an die Leitung.</li>
+</ul>
+<figure><img src="img/de/automation-examples.jpg" alt=""><figcaption>Beispielregeln zum Übernehmen</figcaption></figure>
+<p>So greifen Regeln und eingebaute Abläufe ineinander:</p>
+<ul>
+  <li>Die <strong>Komponenten-Zuordnung</strong> (Schlagwörter, Absender, KI) läuft zuerst; Regeln sehen ihr Ergebnis. Eine spätere KI-Zuordnung löst „Komponente ändert sich“ aus.</li>
+  <li>Fest eingebaut bleiben: öffentliche Antwort → „Wartet“, Antwort des Kunden → „Offen“, die SLA-Warnmails und die tägliche Erinnerung an nicht zugewiesene Tickets. Eine Antwort, die eine Regel schickt, ändert den Status nicht.</li>
+  <li><strong>Zuweisung</strong> gibt es nur über die Aktion „Zuweisen an“ mit einer fest gewählten Person. Ist sie nicht mehr aktiv oder nicht mehr im Projekt, wird die Aktion übersprungen – nie an jemand anderen.</li>
+  <li>Regeln für <em>Alle Projekte</em> (nur Admins) kennen keine Komponenten und Personen; Mails gehen dort an Rollen wie die Projektleitung.</li>
+</ul>
+<div class="warn"><p><strong>Schutz vor Fehlern:</strong> Jede Aktion steht im Verlauf des Tickets als „Automatisierung: &lt;Regel&gt;“, das <em>Protokoll</em> je Regel zeigt Treffer und übersprungene Aktionen. Eine Regel reagiert nie auf ihre eigenen Änderungen, Ketten brechen nach drei Regeln ab, und zeitgesteuerte Regeln greifen je Phase nur einmal (z. B. einmal pro Aufenthalt in „Wartet“). Löst eine Regel mehr als 200-mal in der Stunde aus, schaltet sie sich ab und die Admins bekommen eine Mail. Tickets werden nie gelöscht, interne Notizen gehen nie hinaus, Mails nur an Benutzer und Rollen von Helfi.Space.</p></div>
+
 <h2 id="benutzerverwaltung">Benutzer</h2>
 <p><em>Administration → Benutzer</em> listet alle Konten mit Herkunft (lokal, AD, SSO, E-Mail-Kontakt), Rolle, 2FA-Status, Zahl der Passkeys und letzter Anmeldung. Hier legst du lokale Benutzer an, änderst Rollen („Rolle fest“ verhindert, dass die AD-Gruppen sie überschreiben), deaktivierst Konten, setzt die 2FA zurück und entfernst Passkeys. Selbst registrierte Konten sind gekennzeichnet; ist unter <em>Anmeldung &amp; Sicherheit → Registrierung</em> die Freigabe eingeschaltet, steht bei neuen Konten „Wartet auf Freigabe“ mit dem Knopf <strong>Freigeben</strong>.</p>
 <p>Die <strong>Rolle</strong> ist <em>Benutzer</em> oder <em>Administrator</em>. Was jemand darüber hinaus in Projekten bearbeitet, wird im Projekt festgelegt und steht hier nur zur Info unter der Rolle, z. B. „Bearbeitet: IT (Leitung)“ oder „Bearbeitet: IT (Gruppe Helpdesk)“ (<a href="#projektrechte">Wer bearbeitet die Tickets eines Projekts?</a>).</p>

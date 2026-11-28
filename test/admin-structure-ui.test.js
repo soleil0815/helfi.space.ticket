@@ -42,7 +42,7 @@ test('Groups in the column; /admin opens the projects', { skip }, async () => {
   const items = await p.locator('.admin-nav-group').evaluateAll((gs) => gs.map((g) => [...g.querySelectorAll('a')].map((a) => a.getAttribute('href'))));
   assert.deepEqual(items, [
     ['/admin/projects', '/admin/components', '/admin/users'],
-    ['/admin/tickets', '/admin/sla', '/admin/change', '/admin/catalog', '/admin/templates'],
+    ['/admin/tickets', '/admin/sla', '/admin/change', '/admin/catalog', '/admin/automation', '/admin/templates'],
     ['/admin/mail-in', '/admin/mail-out'],
     ['/admin/ldap', '/admin/sso', '/admin/mfa', '/admin/registration'],
     ['/admin/appearance'],

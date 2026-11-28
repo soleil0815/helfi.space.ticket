@@ -149,6 +149,8 @@ export function createSla(db, tickets, settings, { mailer = null, users = null, 
         if (!seen.run(row.id, kind, level).changes) continue;
         n++;
         tickets.logActivity(row.id, null, 'sla', kind, null, level);
+        // for automation rules ("SLA warning / breached")
+        tickets.events.emit('slaLevel', { ticketId: row.id, kind, level });
         notify(row, kind, level).catch((e) => log.warn('SLA notification failed', { error: e.message }));
       }
     }

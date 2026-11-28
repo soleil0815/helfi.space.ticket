@@ -996,6 +996,58 @@ export const MIGRATIONS = [
     DROP TABLE m52_waiting;
     `,
   },
+  {
+    id: 53,
+    name: 'Automation rules',
+    skipIf: (db) => db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='automation_rules'").get(),
+    sql: `
+    -- History entries without a person: by Helfi.Space itself ('system') or by an automation rule
+    -- ('automation', via_name = the rule's name at that time)
+    ALTER TABLE activity ADD COLUMN via TEXT;
+    ALTER TABLE activity ADD COLUMN via_name TEXT;
+    -- The switch of answered tickets to "Waiting" (migration 52) was done by Helfi.Space, not by a mail
+    UPDATE activity SET via='system' WHERE user_id IS NULL AND action='changed' AND field='status'
+      AND new_value='waiting' AND old_value IN ('open','in_progress');
+
+    -- "When … then …": trigger, conditions and actions as JSON (checked by src/automation.js).
+    -- project_id NULL = rule for all projects (admins only). New rules start switched off.
+    CREATE TABLE automation_rules (
+      id INTEGER PRIMARY KEY,
+      project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      trigger TEXT NOT NULL,
+      conditions TEXT NOT NULL DEFAULT '{}',
+      actions TEXT NOT NULL DEFAULT '[]',
+      position INTEGER NOT NULL DEFAULT 0,
+      template TEXT,
+      disabled_reason TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_automation_rules_project ON automation_rules(project_id);
+    -- What each rule did (protocol per rule, emergency brake: runs per hour)
+    CREATE TABLE automation_runs (
+      id INTEGER PRIMARY KEY,
+      rule_id INTEGER NOT NULL REFERENCES automation_rules(id) ON DELETE CASCADE,
+      ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+      event TEXT NOT NULL,
+      ok INTEGER NOT NULL DEFAULT 1,
+      detail TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX idx_automation_runs_rule ON automation_runs(rule_id, created_at);
+    -- Time rules act once per phase (e.g. once per stay in "Waiting"), not every few minutes
+    CREATE TABLE automation_done (
+      rule_id INTEGER NOT NULL REFERENCES automation_rules(id) ON DELETE CASCADE,
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      phase TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (rule_id, ticket_id, phase)
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;
