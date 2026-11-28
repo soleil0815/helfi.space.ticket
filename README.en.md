@@ -722,6 +722,7 @@ Also:
 At the top of the import page set *What to import?* to **Knowledge articles**. The sources are then:
 
 - **Confluence** – Cloud (address like `https://example.atlassian.net/wiki`, email and API token) or Data Center/Server (personal access token, alternatively user and password). A space is one choice; the **page tree** is kept. All pages come in as **internal**, because Confluence permissions cannot be mapped to "everyone signed in".
+- **Confluence export file** – for installations that are already switched off or not reachable from here: in Confluence *Space tools → Content tools → Export → HTML* and upload the ZIP file (variant *Export file (ZIP)*, up to 2 GB, changeable with `HELFI_IMPORT_MAX_ZIP_MB` in `.env`). Several spaces in one file work too. Page tree, pictures, attachments, links and rendered macros (info panels, code, expand sections, tasks) are taken over. The file is deleted after the import, after two hours at the latest. A newer export of the same space updates changed pages.
 - **Zammad** – knowledge base with the same credentials as for the ticket import. Published answers become public, internal ones stay internal; with several languages you pick one.
 - **Zendesk** – Help Center. Articles for everyone or signed-in users become public, those for agents only internal; with several languages you pick one.
 - **Freshdesk** – solutions. Folders for all or signed-in users become public, all others internal.

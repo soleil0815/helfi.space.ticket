@@ -1,6 +1,7 @@
 // REST API for the UI.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import express from 'express';
 import multer from 'multer';
 import { isHexColor, saveLogo, removeLogo } from '../brand.js';
@@ -8,6 +9,7 @@ import { viewerDocument } from '../mail/html.js';
 import { createItilRoutes } from './itil.js';
 import { zammadAdapter } from '../import/zammad.js';
 import { confluenceAdapter } from '../import/confluence.js';
+import { confluenceExportAdapter } from '../import/confluence-export.js';
 import { znunyAdapter } from '../import/znuny.js';
 import { glpiAdapter } from '../import/glpi.js';
 import { zendeskAdapter } from '../import/zendesk.js';
@@ -1392,6 +1394,10 @@ export function createApi(ctx) {
     if (source === 'confluence') {
       return confluenceAdapter({ type: c.type === 'server' ? 'server' : 'cloud', baseUrl: baseUrlOf(c), email: str(c.email, 254).trim(), token: str(c.token, 2000).trim(), username: str(c.username, 254).trim(), password: str(c.password, 1024), ...tlsConn(c) });
     }
+    if (source === 'confluence-zip') {
+      if (!kbZip || kbZip.id !== str(c.uploadId, 64) || Date.now() - kbZip.at > 2 * 3600_000 || !fs.existsSync(kbZip.file)) throw new HttpError(400, 'err.importFileGone');
+      return confluenceExportAdapter({ file: kbZip.file, name: kbZip.name });
+    }
     if (source === 'csv') {
       if (!csvFile || csvFile.id !== str(c.uploadId, 64) || Date.now() - csvFile.at > 2 * 3600_000) throw new HttpError(400, 'err.importFileGone');
       const columns = Object.fromEntries(Object.entries(c.columns && typeof c.columns === 'object' ? c.columns : {}).map(([k, v]) => [str(k, 40), str(v, 200)]).filter(([, v]) => v));
@@ -1402,7 +1408,38 @@ export function createApi(ctx) {
   const SOURCES = ['zammad', 'znuny', 'glpi', 'zendesk', 'freshdesk', 'csv'];
   const sourceParam = (req) => { if (!SOURCES.includes(req.params.source)) throw notFound(); return req.params.source; };
   // Knowledge articles: the ticket sources that have a knowledge base, and Confluence (knowledge only)
-  const KB_SOURCES = ['confluence', 'zammad', 'znuny', 'glpi', 'zendesk', 'freshdesk'];
+  const KB_SOURCES = ['confluence', 'confluence-zip', 'zammad', 'znuny', 'glpi', 'zendesk', 'freshdesk'];
+  // Confluence space export (ZIP, HTML export): on disk in the staging folder, the latest one only, two hours,
+  // removed after the import (or when the next one comes)
+  let kbZip = null;
+  const dropKbZip = () => { if (kbZip) fs.rmSync(kbZip.file, { force: true }); kbZip = null; };
+  const maxZipMb = () => { const n = Number(process.env.HELFI_IMPORT_MAX_ZIP_MB); return Number.isFinite(n) && n > 0 ? Math.min(n, 65536) : 2048; };
+  // a few uploads per minute are plenty (each one is a large file on disk)
+  const zipUploadLimit = perMinute(10);
+  admin.post('/import/confluence-zip/upload', zipUploadLimit, (req, res, next) => {
+    if (ctx.importer.running()) return next(new HttpError(409, 'err.importRunning'));
+    // The name on disk is ours (random), never taken from the request
+    const file = path.join(uploadTmp, `kbzip-${crypto.randomBytes(12).toString('hex')}.zip`);
+    const storage = multer.diskStorage({ destination: (r, f, cb) => cb(null, uploadTmp), filename: (r, f, cb) => cb(null, path.basename(file)) });
+    fs.mkdirSync(uploadTmp, { recursive: true });
+    multer({ storage, limits: { fileSize: maxZipMb() * 1024 * 1024, files: 1 } }).single('file')(req, res, (err) => {
+      if (err) {
+        fs.rmSync(file, { force: true });
+        return next(err.code === 'LIMIT_FILE_SIZE' ? new HttpError(413, 'err.fileTooLarge') : new HttpError(400, 'err.badRequest', err.code));
+      }
+      if (!req.file) return next(new HttpError(400, 'err.badRequest', 'file'));
+      dropKbZip();
+      const name = Buffer.from(req.file.originalname || 'export.zip', 'latin1').toString('utf8').slice(0, 200);
+      kbZip = { id: crypto.randomBytes(12).toString('hex'), file, name, at: Date.now() };
+      // check right away that it is a readable ZIP with a space in it
+      const a = confluenceExportAdapter({ file, name });
+      a.kb.spaces().then((spaces) => {
+        a.close();
+        if (!spaces.length) { dropKbZip(); return res.json({ ok: false, error: t(req.user.language, 'imp.zip.noSpace') }); }
+        res.json({ ok: true, uploadId: kbZip.id, name, size: req.file.size });
+      }).catch((e) => { a.close(); dropKbZip(); res.json({ ok: false, error: e.message }); });
+    });
+  });
   const kbSourceParam = (req) => { if (!KB_SOURCES.includes(req.params.source)) throw notFound(); return req.params.source; };
   const importFail = (res, e) => {
     if (e instanceof HttpError) throw e;
@@ -1448,7 +1485,8 @@ export function createApi(ctx) {
 
   admin.post('/import/:source/kb/connect', wrap(async (req, res) => {
     const source = kbSourceParam(req);
-    try { res.json({ ok: true, ...(await ctx.importer.kbConnect(adapterFor(source, req.body), { type: source })) }); } catch (e) { importFail(res, e); }
+    const adapter = adapterFor(source, req.body);
+    try { res.json({ ok: true, ...(await ctx.importer.kbConnect(adapter, { type: source })) }); } catch (e) { importFail(res, e); } finally { adapter.close?.(); }
   }));
   admin.post('/import/:source/kb/start', wrap(async (req, res) => {
     const source = kbSourceParam(req);
@@ -1458,6 +1496,8 @@ export function createApi(ctx) {
     await backupDatabase(db, 'vor-import');
     pruneBackups(settings.get('backup.keep'));
     const job = ctx.importer.startKb(adapter, { spaces: req.body.spaces, options: { ...(req.body.options || {}), lang: req.user.language } }, req.user.id);
+    // an uploaded export is not needed any longer once the import is through
+    if (source === 'confluence-zip') ctx.importer.wait().finally(() => { adapter.close?.(); dropKbZip(); });
     log.info(`Knowledge import (${source}) started by ${req.user.username}`, { spaces: job.projects.map((p) => p.key) });
     res.status(202).json({ job });
   }));

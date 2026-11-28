@@ -241,6 +241,7 @@ export const api = {
     importCsvUpload: (file) => { const fd = new FormData(); fd.append('file', file, file.name || 'import.csv'); return request('POST', '/api/admin/import/csv/upload', fd); },
     importKbConnect: (source, connection) => request('POST', `/api/admin/import/${source}/kb/connect`, { connection }),
     importKbStart: (source, connection, spaces, options) => request('POST', `/api/admin/import/${source}/kb/start`, { connection, spaces, options }),
+    importKbZipUpload: (file) => { const fd = new FormData(); fd.append('file', file, file.name || 'export.zip'); return request('POST', '/api/admin/import/confluence-zip/upload', fd); },
     importStatus: () => request('GET', '/api/admin/import/status'),
     importCancel: () => request('POST', '/api/admin/import/cancel'),
   },
