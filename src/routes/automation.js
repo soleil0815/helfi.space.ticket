@@ -1,14 +1,22 @@
 // Automation rules (see src/automation.js): managed by admins (all projects) and by the lead/deputy of a
 // project (its own rules). Every route checks the right on the project of the rule itself.
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { requireAuth } from '../auth/session.js';
 import { agentOn } from '../auth/access.js';
-import { forbidden, int } from '../lib/http.js';
+import { forbidden, int, HttpError } from '../lib/http.js';
 
 export function createAutomationRoutes(ctx) {
   const { automation, db, users } = ctx;
   const r = express.Router();
   r.use('/automation', requireAuth);
+  // The preview scans up to 30 days of tickets – generous for the editor, but not unlimited
+  r.use('/automation', rateLimit({
+    windowMs: 60 * 1000, limit: 240, standardHeaders: 'draft-7', legacyHeaders: false,
+    keyGenerator: (req) => `u${req.user.id}`,
+    validate: { xForwardedForHeader: false, keyGeneratorIpFallback: false },
+    handler: (req, res, next) => next(new HttpError(429, 'err.tooManyAttempts')),
+  }));
 
   r.get('/automation/rules', (req, res) => {
     res.json({ rules: automation.list(req.user, req.query.projectId), projects: automation.manageable(req.user).map((p) => ({ id: p.id, key: p.key, name: p.name })) });
