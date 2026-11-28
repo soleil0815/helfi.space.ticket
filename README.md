@@ -441,6 +441,20 @@ Komponenten teilen ein Projekt in Zuständigkeiten auf. Jede hat einen Namen, ei
 
 **Tipp – Komponenten sinnvoll schneiden:** nach Zuständigkeit, nicht nach Technik; lieber 6–12 Komponenten als 40; jede braucht eine verantwortliche Person; Schlagwörter aus echten Tickettiteln nehmen und mit dem Testfeld prüfen.
 
+## Automatisierungsregeln
+
+*Administration → Automatisierung* (Admins: jedes Projekt und *Alle Projekte*) bzw. *Automatisierung* in der Seitenleiste (Leitung und Vertretung: ihre Projekte)
+
+Regeln nach dem Muster **„Wenn … dann …“**, ohne Programmieren:
+
+- **Wenn:** Ticket erstellt · Status ändert sich (von/nach) · Kunde antwortet · Bearbeiter antwortet dem Kunden · Priorität oder Komponente ändert sich · **Frist läuft ab** (seit X Stunden/Tagen im Status, seit Erstellung oder letzter Änderung; geprüft alle 5 Minuten) · SLA-Warnung oder SLA verletzt.
+- **Nur bei** (optional): Typ, Priorität, Status, Eingang (Mail/Web), zugewiesen ja/nein, Komponente (auch „ohne“), Wörter in Titel/Beschreibung, Absender-Muster.
+- **Dann:** Antwort an den Kunden (Platzhalter wie `{kunde}`) · interne Notiz · Mail an Projektleitung, Vertretung, Bearbeiter, Komponenten-Verantwortliche oder ausgewählte Bearbeiter · Status, Priorität oder Komponente setzen · zuweisen an eine **fest gewählte** Person.
+- **Probelauf** vor dem Einschalten zeigt, welche Tickets die Regel treffen würde – ohne etwas zu ändern. Neue Regeln sind zunächst aus.
+- **Beispielregeln** zum Übernehmen: Kunde meldet sich nicht (nach 7 Tagen erinnern, nach 14 Tagen schließen), Dringend ohne Bearbeiter, Konto gesperrt → Priorität hoch, Ohne Komponente → Hinweis an die Leitung.
+- **Zusammenspiel:** Die Komponenten-Zuordnung (Schlagwörter, Absender, KI) läuft vorher, die eingebauten Abläufe bleiben (Antwort → „Wartet“, Kunde antwortet → „Offen“, SLA-Mails, Erinnerung an nicht zugewiesene Tickets). Zugewiesen wird nur über eine ausdrückliche Regel-Aktion – sonst nie.
+- **Sicherheit:** Jede Aktion steht im Verlauf als „Automatisierung: <Regel>“, je Regel gibt es ein Protokoll. Regeln reagieren nie auf eigene Änderungen, Ketten brechen nach drei Regeln ab, zeitgesteuerte Regeln greifen je Phase einmal. Mehr als 200 Auslösungen pro Stunde schalten eine Regel ab (Mail an die Admins). Keine Lösch-Aktion, interne Notizen gehen nie hinaus, Mails nur an Benutzer und Rollen.
+
 ## Mehrere Tickets auf einmal bearbeiten
 
 In *Alle Tickets* (Bearbeiter):

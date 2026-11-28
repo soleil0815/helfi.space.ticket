@@ -320,7 +320,8 @@ export function createTickets(db, users, { settings = null } = {}) {
 
   /** Reporter or request participant ("customer" of the request) */
   function isCustomer(user, row) {
-    return !!user && (row.reporter_id === user.id || isParticipant(row.id, user.id));
+    // The automation actor has no account (id null) – never the customer of a ticket reported by mail
+    return !!user && user.id != null && (row.reporter_id === user.id || isParticipant(row.id, user.id));
   }
 
   // Approvers (e.g. managers for catalog requests) see the ticket like a participant
@@ -445,9 +446,17 @@ export function createTickets(db, users, { settings = null } = {}) {
     return out;
   }
 
+  // Who changed it when there is no person: 'system' (Helfi.Space itself) or 'automation' with the rule's name.
+  // Set around synchronous work only (withVia) – every history entry written meanwhile carries it.
+  let via = null;
+  function withVia(kind, name, fn) {
+    const prev = via;
+    via = { kind, name: name ? String(name).slice(0, 100) : null };
+    try { return fn(); } finally { via = prev; }
+  }
   function logActivity(ticketId, userId, action, field = null, oldV = null, newV = null) {
-    db.prepare('INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value) VALUES(?,?,?,?,?,?)')
-      .run(ticketId, userId, action, field, oldV === null ? null : String(oldV), newV === null ? null : String(newV));
+    db.prepare('INSERT INTO activity(ticket_id,user_id,action,field,old_value,new_value,via,via_name) VALUES(?,?,?,?,?,?,?,?)')
+      .run(ticketId, userId, action, field, oldV === null ? null : String(oldV), newV === null ? null : String(newV), via?.kind ?? null, via?.name ?? null);
   }
 
   /** Project for a new ticket without a (usable) one: the default project, the mail inbox project, otherwise the first active one */
@@ -514,7 +523,7 @@ export function createTickets(db, users, { settings = null } = {}) {
   function update(user, idOrKey, data, opts = {}) {
     const row = load(user, idOrKey);
     const agent = agentFor(user, row);
-    const isReporter = row.reporter_id === user.id;
+    const isReporter = user.id != null && row.reporter_id === user.id;
     if (!agent && !isReporter) throw forbidden();
 
     const changes = {};
@@ -623,8 +632,9 @@ export function createTickets(db, users, { settings = null } = {}) {
     if (changes.assignee_id && t.assignee && t.assignee.id !== user.id) emitLater('assigned', { ticket: t, user });
     // Always emit (e.g. satisfaction survey); quiet only suppresses the separate "Resolved" mail
     if (changes.status && changes.status.new === 'done') emitLater('resolved', { ticket: t, user, quiet: !!opts.quietResolved, resolution: opts.resolution || 'done' });
-    if (changes.priority) events.emit('priorityChanged', { ticketId: row.id });
-    if (changes.component_id) events.emit('componentChanged', { ticketId: row.id, componentId: changes.component_id.new, userId: user.id });
+    if (changes.priority) events.emit('priorityChanged', { ticketId: row.id, actor: user });
+    if (changes.component_id) events.emit('componentChanged', { ticketId: row.id, componentId: changes.component_id.new, userId: user.id, actor: user });
+    if (changes.status) emitLater('statusChanged', { ticketId: row.id, from: changes.status.old, to: changes.status.new, actor: user });
     return result;
   }
 
@@ -767,7 +777,10 @@ export function createTickets(db, users, { settings = null } = {}) {
         : undefined,
       canDelete: !c.deleted_at && !!user?.id && canDeleteComment(user, c, agent) || undefined,
       // Login name/address only for agents and the author themselves (self-registered: login name = private address)
-      author: c.author_id
+      // Written by an automation rule: agents see the rule's name, customers the name of the ticket system
+      author: c.source === 'automation'
+        ? { id: null, displayName: agent ? c.author_name || '?' : (settings?.get?.('general.title') || 'Helfi.Space'), automation: true }
+        : c.author_id
         ? { id: c.author_id, displayName: agent || c.author_id === user?.id ? c.u_name : publicName(c.u_name), username: agent || c.author_id === user?.id ? c.u_username : undefined }
         : agent ? { id: null, displayName: c.author_name || c.author_email || '?', email: c.author_email } : { id: null, displayName: publicName(c.author_name) || '?' },
     }));
@@ -849,11 +862,13 @@ export function createTickets(db, users, { settings = null } = {}) {
     const isInternal = system || internal ? 1 : 0;
     // @-mentions only from agents on the web; internal notes only reach agents, replies also
     // the people who can see the ticket anyway. Everything else stays plain text "@Name".
-    const canMention = !!agent && !system && source !== 'email';
+    const canMention = !!agent && !system && source !== 'email' && source !== 'automation';
     const mention = normalizeMentions(text, {
       getUser: (id) => users.byId(id),
       allowed: (u) => canMention && u.active === 1 && (agentFor(u, row) || (!isInternal && canSee(u, row))),
     });
+    let statusMove = null; // status changed by this comment (customer reopens / reply waits for the customer)
+    let replyKind = null; // 'customer' | 'agent' (public reply to the customer) – for automation triggers
     const info = db.transaction(() => {
       // md: written with the formatting toolbar (web only – mails and system notes stay plain text)
       const fmt = format === 'md' && source !== 'email' && !system ? 'md' : 'text';
@@ -869,7 +884,9 @@ export function createTickets(db, users, { settings = null } = {}) {
       db.prepare("UPDATE tickets SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(row.id);
       // Reply from the customer to a waiting/resolved ticket → reopen
       const fromCustomer = !system && !agent && !agentReply && (user ? isCustomer(user, row) : true);
+      replyKind = isInternal ? null : fromCustomer ? 'customer' : null;
       if (fromCustomer && (row.status === 'waiting' || row.status === 'done')) {
+        statusMove = { from: row.status, to: 'open' };
         db.prepare("UPDATE tickets SET status='open', resolved_at=NULL, resolution=NULL, duplicate_of=NULL WHERE id=?").run(row.id);
         logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'open');
         // A closed ticket kept its assignee as a record – reopened, they must still work on the project
@@ -879,7 +896,9 @@ export function createTickets(db, users, { settings = null } = {}) {
       // Not for the agent's own tickets (they are the customer) or the reason of a closing.
       const toCustomer = !system && !isInternal && !resolutionReply && waitForCustomer !== false
         && ((!!agent && !isCustomer(user, row)) || agentReply);
+      if (!isInternal && !system && ((!!agent && !isCustomer(user, row)) || agentReply)) replyKind = 'agent';
       if (toCustomer && (row.status === 'open' || row.status === 'in_progress')) {
+        statusMove = { from: row.status, to: 'waiting' };
         db.prepare("UPDATE tickets SET status='waiting' WHERE id=?").run(row.id);
         logActivity(row.id, user ? user.id : null, 'changed', 'status', row.status, 'waiting');
       }
@@ -888,7 +907,8 @@ export function createTickets(db, users, { settings = null } = {}) {
     const ticket = ticketOut(rawById(row.id));
     const comment = comments({ role: 'admin' }, row.id).find((c) => c.id === info.lastInsertRowid);
     // resolutionReply: the reason of a rejection/duplicate – replaces the "Resolved" mail (see smtp.js)
-    emitLater('commented', { ticket, comment, user, internal: !!isInternal, resolutionReply: !!resolutionReply });
+    emitLater('commented', { ticket, comment, user, internal: !!isInternal, resolutionReply: !!resolutionReply, replyKind });
+    if (statusMove) emitLater('statusChanged', { ticketId: row.id, ...statusMove, actor: user });
     const others = mention.ids.filter((id) => id !== user?.id);
     if (others.length) emitLater('mentioned', { ticket, comment, user, internal: !!isInternal, userIds: others });
     return comment;
@@ -1102,6 +1122,8 @@ export function createTickets(db, users, { settings = null } = {}) {
           oldValue: desc ? null : a.old_value, newValue: desc ? null : a.new_value,
           hasText: desc && a.old_value !== null,
           createdAt: a.created_at, user: a.user_id ? { id: a.user_id, displayName: a.u_name } : null,
+          // Changed by Helfi.Space itself or by an automation rule (name at the time)
+          via: a.via || undefined, viaName: a.via_name || undefined,
         };
       });
   }
@@ -1268,7 +1290,7 @@ export function createTickets(db, users, { settings = null } = {}) {
   return {
     search,
     events, projects, components, list, count, load, detail, addDetailExtra, create, update, addComment, deleteComment, saveMailHtml, mailHtml, comments,
-    addAttachment, attachmentFile, mailImage, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, stats, userRef,
+    addAttachment, attachmentFile, mailImage, deleteAttachment, discardDraft, purgeDrafts, pendingDrafts, ticketOut, rawById, logActivity, withVia, stats, userRef,
     applyComponent, resolveAs, descriptionVersion, participants, addParticipant, setReporter, mentionCandidates, unseenMentionTickets, markMentionsSeen, removeParticipant, isParticipant, customerRecipients, moveToProject, queueCounts, openOfType, summary,
   };
 }

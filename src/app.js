@@ -46,6 +46,8 @@ import { createAi } from './ai.js';
 import { createAiClassifier } from './ai-classify.js';
 import { createExamples } from './examples.js';
 import { createAiDuplicates } from './ai-duplicates.js';
+import { createAutomation } from './automation.js';
+import { createAutomationRoutes } from './routes/automation.js';
 import { createOidcRoutes } from './routes/oidc.js';
 import { HttpError } from './lib/http.js';
 import { t, langFromHeader, normalizeLang, hasKey } from './i18n.js';
@@ -103,6 +105,8 @@ export function createApp(db) {
   const changes = createChanges(db, tickets, fields, approvals, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const sla = createSla(db, tickets, settings, { mailer, users, baseUrl: config.baseUrl, t });
   const reminders = createReminders(db, settings, { mailer, users, baseUrl: config.baseUrl, t });
+  // after the mails and the SLA: rules build on everything that is built in (see automation.js)
+  const automation = createAutomation({ db, tickets, users, settings, mailer, t, baseUrl: config.baseUrl });
   const itilReports = createItilReports(db, sla);
   const portal = createPortal(db, { catalog, kb });
 
@@ -124,7 +128,7 @@ export function createApp(db) {
   const aiClassifier = createAiClassifier({ db, settings, tickets, ai });
   const examples = createExamples({ db, canned, catalog, kb });
   const aiDuplicates = createAiDuplicates({ db, tickets, ai });
-  const ctx = { links, major, sla, reminders, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, portal, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, aiDuplicates, examples, ldapCertWarning: null,
+  const ctx = { links, major, sla, reminders, automation, fields, problems, approvals, changes, kb, kbComments, kbVotes, catalog, portal, cmdb, survey, itilReports, db, settings, sessions, users, tickets, mailer, processor, poller, limiter, setup, jiraImporter, importer, policy, mfa, canned, news, reports, suppressions, selfService, ai, aiClassifier, aiDuplicates, examples, ldapCertWarning: null,
     // Directory for participants from AD (replaceable in tests)
     directory: { search: ldapSearchPeople, byGuid: ldapFindByGuid, bySid: ldapFindBySid, byEmail: ldapFindByEmail } };
   // Passkeys use ctx.directory at sign-in time (tests replace it)
@@ -133,6 +137,12 @@ export function createApp(db) {
   ctx.diagnostics = createDiagnostics(ctx);
   ctx.updates = createUpdateCheck({ settings: ctx.settings });
   ctx.diagnostics.register('Update check', () => ctx.updates.diagnostics());
+  // Automation: how many rules, which are switched off by the emergency brake (names only, no texts)
+  ctx.diagnostics.register('Automation', () => {
+    const r = db.prepare("SELECT COUNT(*) total, SUM(enabled) enabled, SUM(disabled_reason='runaway') brake FROM automation_rules").get();
+    const runs = db.prepare("SELECT COUNT(*) n, SUM(ok=0) failed FROM automation_runs WHERE created_at>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')").get();
+    return { rules: r.total, 'switched on': r.enabled || 0, 'switched off by the emergency brake': r.brake || 0, 'runs (24 h)': runs.n, 'runs with skipped/failed actions (24 h)': runs.failed || 0 };
+  });
   ctx.diagnostics.register('Passkeys', () => ({
     available: ctx.passkeys.available() ? 'yes' : 'no',
     'bound to': relyingParty()?.rpID || 'not possible (no HTTPS or an IP address in HELFI_BASE_URL)',
@@ -203,6 +213,7 @@ export function createApp(db) {
   });
 
   app.use('/api', createApi(ctx));
+  app.use('/api', createAutomationRoutes(ctx));
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'err.notFound')));
   app.use('/auth/oidc', createOidcRoutes(ctx));
 

@@ -14,7 +14,7 @@ import { setPageShortcuts, openPalette } from '../shortcuts.js';
 import { enableImagePaste, replacePending } from '../paste.js';
 import { withEmoji } from '../emoji.js';
 import { mailView } from '../mailview.js';
-import { activityFieldLabel, activityValue, componentReason, resolutionDetail } from '../activity.js';
+import { activityFieldLabel, activityValue, componentReason, resolutionDetail, historyActor } from '../activity.js';
 import { openResolveDialog, openDoneDialog } from './resolve.js';
 import { linksSection, linkLabel } from './links.js';
 import { majorBanner } from './major.js';
@@ -204,6 +204,7 @@ export async function renderTicket(content, key) {
           h('strong', c.author.displayName),
           c.internal ? h('span.badge.badge-internal', icon('lock'), t('ticket.internal')) : null,
           c.source === 'email' && !c.deleted ? h('span.badge', icon('mail'), t('source.email')) : null,
+          agent && c.author.automation ? h('span.badge.badge-automation', { 'data-automation-badge': '' }, icon('sliders'), t('auto.badge')) : null,
           h('span.muted', { title: fmtDate(c.createdAt) }, relTime(c.createdAt)),
           c.canDelete ? h('button.btn-icon.small.comment-delete', {
             type: 'button', title: t('comment.delete'), 'aria-label': t('comment.delete'), onclick: () => deleteCommentDialog(c, el),
@@ -266,7 +267,7 @@ export async function renderTicket(content, key) {
     return h('div.history',
       avatar(a.user, 'sm'),
       h('div',
-        h('strong', a.user?.displayName || (['sla', 'classified', 'autoAssigned'].includes(a.action) ? 'Helfi.Space' : 'E-Mail')), ' ',
+        h('strong', historyActor(a)), ' ',
         t(`act.${a.action}`, { field: fieldLabel }),
         a.action === 'changed' && a.field !== 'description' ? h('span.change', h('span.old', show(a.oldValue)), ' → ', h('span.new', show(a.newValue))) : null,
         a.action === 'changed' && a.field === 'description' && a.hasText ? h('button.link.small', { type: 'button', onclick: () => showDescriptionChange(a) }, t('ticket.showChange')) : null,

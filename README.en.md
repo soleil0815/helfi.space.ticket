@@ -441,6 +441,20 @@ Components split a project into areas of responsibility. Each has a name, a shor
 
 **Tip – cutting components sensibly:** by responsibility, not by technology; 6–12 components rather than 40; each needs a responsible person; take keywords from real ticket titles and check them with the test field.
 
+## Automation rules
+
+*Administration → Automation* (admins: every project and *All projects*) or *Automation* in the sidebar (lead and deputy: their projects)
+
+Rules of the kind **"when … then …"**, without programming:
+
+- **When:** ticket created · status changes (from/to) · customer replies · agent replies to the customer · priority or component changes · **time limit passes** (X hours/days in a status, since creation or the last change; checked every 5 minutes) · SLA warning or SLA breached.
+- **Only if** (optional): type, priority, status, received (mail/web), assigned yes/no, component (also "without"), words in title/description, sender patterns.
+- **Then:** reply to the customer (placeholders like `{customer}`) · internal note · mail to the project lead, deputy, assignee, component lead or chosen agents · set status, priority or component · assign to a person **chosen in the rule**.
+- **Preview** before switching on shows which tickets the rule would hit – without changing anything. New rules start switched off.
+- **Example rules** to take over: customer does not answer (remind after 7 days, close after 14 days), urgent without assignee, account locked → priority high, without component → note to the lead.
+- **Working together:** component matching (keywords, senders, AI) runs first, the built-in behaviour stays (reply → "Waiting", customer reply → "Open", SLA mails, reminder about unassigned tickets). Tickets are only assigned through an explicit rule action – never otherwise.
+- **Safety:** every action shows in the history as "Automation: <rule>", each rule has a protocol. Rules never react to their own changes, chains stop after three rules, scheduled rules act once per phase. More than 200 runs per hour switch a rule off (mail to the admins). No delete action, internal notes never go out, mails only to users and roles.
+
 ## Editing several tickets at once
 
 In *All tickets* (agents):

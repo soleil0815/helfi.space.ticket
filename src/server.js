@@ -37,6 +37,7 @@ async function main() {
   ctx.poller.start();
   ctx.sla.start();
   ctx.reminders.start();
+  ctx.automation.start();
   // Newer version available? (daily, only if switched on)
   ctx.updates.start();
 

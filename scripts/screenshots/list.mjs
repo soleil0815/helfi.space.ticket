@@ -18,7 +18,7 @@ export const SHOTS = [
   'm-reporter', 'm-theme', 'mail-images', 'mail-reminder', 'mention-comment', 'mention-compose',
   'mention-list', 'mobile-app-1', 'mobile-app-2', 'passkey-hint', 'portal-dept', 'portal-start',
   'profile', 'profile-passkeys', 'quick-search', 'reject', 'report-components', 'reporter-create',
-  'reply-wait', 'reports', 'requests', 'resolutions-list', 'saved-filters', 'saved-filters-manage', 'saved-filters-mobile',
+  'reply-wait', 'automation', 'automation-edit', 'automation-examples', 'reports', 'requests', 'resolutions-list', 'saved-filters', 'saved-filters-manage', 'saved-filters-mobile',
   'saved-filters-save', 'summary', 'templates', 'templates-lead', 'theme-switch', 'ticket',
   'ticket-activity-order', 'ticket-component', 'ticket-user',
 ];

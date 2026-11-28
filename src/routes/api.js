@@ -95,6 +95,7 @@ export function createApi(ctx) {
       hasCatalog: !!db.prepare('SELECT 1 FROM catalog_items WHERE active=1 LIMIT 1').get(),
       // Project lead/deputy (or admin): may manage the service offerings of their projects
       catalogManage: !!(req.user && ctx.catalog.manageable(req.user).length),
+      automationManage: !!(req.user && ctx.automation.manageable(req.user).length),
       user: req.user ? publicUser(req.user) : null,
       auth: {
         ldap: settings.get('ldap.enabled'),

@@ -32,3 +32,14 @@ export function activityValue(a, v) {
   if (a.field === 'plannedStart' || a.field === 'plannedEnd') return fmtDate(v);
   return v;
 }
+
+/**
+ * Who made a history entry: the person, an automation rule ("Automation: <rule>"), Helfi.Space itself
+ * (SLA, component matching, the switch of answered tickets) – otherwise it came in by mail.
+ */
+export function historyActor(a, fallback = 'E-Mail') {
+  if (a.user?.displayName) return a.user.displayName;
+  if (a.via === 'automation') return t('auto.historyBy', { name: a.viaName || '?' });
+  if (a.via === 'system' || ['sla', 'classified', 'autoAssigned'].includes(a.action)) return 'Helfi.Space';
+  return fallback;
+}

@@ -806,6 +806,35 @@ docker compose logs helfi # shows the setup code</code></pre>
   <li><strong>Senders for systems:</strong> monitoring, backup or printers that send mails themselves are matched reliably with a sender pattern.</li>
 </ul>
 
+<h3 id="automation">Automation rules <span class="role role-admin">Admin</span> <span class="role role-agent">Project lead</span></h3>
+<p>Rules of the kind <strong>"when … then …"</strong> take recurring chores off your hands: remind customers, close forgotten tickets, set priorities or notify the lead – without programming. Admins find them under <em>Administration → Automation</em> (for each project and for <em>All projects</em>), the lead and deputy of a project in the sidebar under <em>Automation</em> (only for their projects).</p>
+<figure><img src="img/en/automation.jpg" alt=""><figcaption>Rules of a project: When – Only if – Then, with switch and number of runs</figcaption></figure>
+<p>A rule has three parts:</p>
+<ul>
+  <li><strong>When (trigger):</strong> a ticket is created · the status changes (from/to) · the customer replies · an agent replies to the customer · priority or component changes · a <strong>time limit passes</strong> (X hours/days in status Y, since creation or since the last change) · SLA warning or SLA breached.</li>
+  <li><strong>Only if (conditions, optional):</strong> type, priority, status, received (mail or web), assigned yes/no, component (also "without"), words in title/description (as with components) and sender patterns such as <code>*@firma.local</code>. Every chosen point must apply.</li>
+  <li><strong>Then (actions):</strong> reply to the customer (with placeholders like <code>{customer}</code>, sent by the ticket system) · internal note · mail to the project lead, deputy, assignee of the ticket, lead of the component or chosen agents · set status, priority or component · assign to a person chosen in the rule.</li>
+</ul>
+<figure><img src="img/en/automation-edit.jpg" alt=""><figcaption>Editing a rule with preview: which tickets would it hit right now?</figcaption></figure>
+<p><strong>Preview:</strong> before switching a rule on, the <em>Preview</em> button shows which tickets it would hit – for time limits the tickets it would act on right now, otherwise the tickets of the last 30 days that match the conditions. Nothing is changed. New and taken-over rules start <strong>switched off</strong>.</p>
+<p><strong>Example rules</strong> are taken over with one click and adjusted afterwards:</p>
+<ul>
+  <li><em>Customer does not answer: remind</em> – after 7 days in "Waiting" a friendly reminder.</li>
+  <li><em>Customer does not answer: close</em> – after 14 days in "Waiting" a closing message, then done. If the customer answers later after all, the ticket is open again.</li>
+  <li><em>Urgent without assignee</em> – highest priority and nobody assigned after an hour: mail to lead and deputy.</li>
+  <li><em>Account locked or password</em> – matching words in the new ticket: priority high.</li>
+  <li><em>Without component</em> – no component after 4 hours: internal note and mail to the lead.</li>
+</ul>
+<figure><img src="img/en/automation-examples.jpg" alt=""><figcaption>Example rules to take over</figcaption></figure>
+<p>How rules and built-in behaviour work together:</p>
+<ul>
+  <li><strong>Component matching</strong> (keywords, senders, AI) runs first; rules see its result. A later AI match triggers "component changes".</li>
+  <li>Still built in: public reply → "Waiting", customer reply → "Open", the SLA warning mails and the daily reminder about unassigned tickets. A reply sent by a rule does not change the status.</li>
+  <li><strong>Assignment</strong> only happens through the action "Assign to" with a person chosen in the rule. If they are no longer active or no longer on the project, the action is skipped – never someone else.</li>
+  <li>Rules for <em>All projects</em> (admins only) know no components or persons; mails go to roles such as the project lead.</li>
+</ul>
+<div class="warn"><p><strong>Protection against mistakes:</strong> every action shows in the ticket history as "Automation: &lt;rule&gt;", the <em>protocol</em> of each rule lists hits and skipped actions. A rule never reacts to its own changes, chains stop after three rules, and scheduled rules act once per phase (e.g. once per stay in "Waiting"). A rule that fires more than 200 times in an hour switches itself off and the admins get a mail. Tickets are never deleted, internal notes never go out, mails only go to users and roles of Helfi.Space.</p></div>
+
 <h2 id="usermgmt">Users</h2>
 <p><em>Administration → Users</em> lists all accounts with origin (local, AD, SSO, email contact), role, 2FA status, number of passkeys and last sign-in. Here you create local users, change roles (“Role locked” prevents AD groups from overriding them), deactivate accounts, reset 2FA and remove passkeys. Self-registered accounts are marked; if approval is switched on under <em>Sign-in &amp; security → Registration</em>, new accounts show “Awaiting approval” with an <strong>Approve</strong> button.</p>
 <p>The <strong>role</strong> is <em>User</em> or <em>Administrator</em>. What someone works on in projects on top of that is set in the project and only shown here under the role, e.g. “Works on: IT (lead)” or “Works on: IT (group Helpdesk)” (<a href="#project-rights">Who works on a project's tickets?</a>).</p>
