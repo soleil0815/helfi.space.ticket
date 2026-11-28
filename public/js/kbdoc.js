@@ -395,7 +395,7 @@ function blocksMd(container, opts) {
     const block = c.nodeType === 1 && (BLOCK_TAGS.has(c.tagName) || (c.tagName === 'IMG' && safeImg(c.getAttribute('src')) && !run));
     if (!block) {
       if (c.nodeType === 3 && !c.data.trim() && !run) continue;
-      if (c.nodeType === 1 || c.nodeType === 3) { run = run || document.createElement('p'); run.append(c.cloneNode(true)); }
+      if (c.nodeType === 1 || c.nodeType === 3) { run = run || container.ownerDocument.createElement('p'); run.append(c.cloneNode(true)); }
       continue;
     }
     flushRun();

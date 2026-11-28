@@ -10,7 +10,7 @@ export const ZENDESK_STATUS = { new: 'new', open: 'indeterminate', pending: 'wai
 /** c.baseUrl: https://firma.zendesk.com · c.email + c.token (API token) */
 export function zendeskAdapter(c) {
   const auth = `Basic ${Buffer.from(`${c.email || ''}/token:${c.token || ''}`).toString('base64')}`;
-  const { base, basePath, json, download } = createSourceHttp({ baseUrl: c.baseUrl, headers: () => ({ Authorization: auth }), verifyTls: c.verifyTls, caPem: c.caPem });
+  const { base, basePath, json, download, sameOrigin } = createSourceHttp({ baseUrl: c.baseUrl, headers: () => ({ Authorization: auth }), verifyTls: c.verifyTls, caPem: c.caPem });
   const api = '/api/v2';
   const nextPath = (url) => { const u = new URL(url); return u.origin === base.origin ? `${u.pathname.slice(basePath.length)}${u.search}` : null; };
 
@@ -79,7 +79,92 @@ export function zendeskAdapter(c) {
     return out;
   }
 
+  // ---------- Help Center: categories (the choice), sections (category of the article), articles ----------
+  async function hcList(path, key) {
+    const out = [];
+    for (let n = 0, next = path; next && n < MAX_PAGES; n++) {
+      const r = await json(next);
+      out.push(...(r?.[key] || []));
+      next = r?.next_page ? nextPath(r.next_page) : null;
+    }
+    return out;
+  }
+  let hcLocales = null;
+  async function locales() {
+    if (!hcLocales) {
+      const r = await json(`${api}/help_center/locales.json`);
+      hcLocales = { list: (r?.locales || []).map(String), def: String(r?.default_locale || r?.locales?.[0] || 'en-us') };
+    }
+    return hcLocales;
+  }
+  const hcCache = new Map();
+  const hcOnce = (k, fn) => { if (!hcCache.has(k)) hcCache.set(k, fn()); return hcCache.get(k); };
+  const loc = async (language) => { const l = await locales(); return language && l.list.includes(language) ? language : l.def; };
+  const categories = (l) => hcOnce(`c:${l}`, () => hcList(`${api}/help_center/${encodeURIComponent(l)}/categories.json?per_page=100`, 'categories'));
+  const sections = (l) => hcOnce(`s:${l}`, () => hcList(`${api}/help_center/${encodeURIComponent(l)}/sections.json?per_page=100`, 'sections'));
+  const articles = (l) => hcOnce(`a:${l}`, () => hcList(`${api}/help_center/${encodeURIComponent(l)}/articles.json?per_page=100&sort_by=created_at&sort_order=asc`, 'articles'));
+  // Who may see an article: everyone / signed-in users → public, agents only ("staff") → internal
+  const staffSegments = () => hcOnce('seg', async () => {
+    try { return new Set((await hcList(`${api}/help_center/user_segments.json?per_page=100`, 'user_segments')).filter((x) => x.user_type === 'staff').map((x) => x.id)); } catch (e) { if (e.status === 401) throw e; return null; }
+  });
+
+  const kb = {
+    async spaces() {
+      const l = await locales();
+      const [cats, secs, arts] = await Promise.all([categories(l.def), sections(l.def), articles(l.def)]);
+      const catOfSection = new Map(secs.map((x) => [x.id, x.category_id]));
+      return cats.map((cat) => ({
+        key: String(cat.id), name: cat.name, count: arts.filter((a) => catOfSection.get(a.section_id) === cat.id).length,
+        languages: l.list.map((code) => ({ code, name: code })),
+      }));
+    },
+    async *articles(key, { language = null } = {}) {
+      const l = await loc(language);
+      const [secs, arts, staff] = await Promise.all([sections(l), articles(l), staffSegments()]);
+      const secById = new Map(secs.map((x) => [x.id, x]));
+      const path = (id) => { const parts = []; const seen = new Set(); for (let x = secById.get(id); x && !seen.has(x.id); x = secById.get(x.parent_section_id)) { seen.add(x.id); parts.unshift(x.name); } return parts.join(' / '); };
+      const mine = arts.filter((a) => String(secById.get(a.section_id)?.category_id) === String(key));
+      await users(mine.map((a) => a.author_id));
+      for (const a of mine) {
+        let atts = null;
+        const files = async () => (atts ||= (await hcList(`${api}/help_center/articles/${a.id}/attachments.json?per_page=100`, 'article_attachments')));
+        yield {
+          extId: `article:${a.id}`,
+          title: a.title || a.name || String(a.id),
+          html: a.body || '',
+          parentExtId: null,
+          category: path(a.section_id).slice(0, 60),
+          visibility: a.user_segment_id && (staff === null || staff.has(a.user_segment_id)) ? 'internal' : 'public',
+          draft: !!a.draft,
+          created: a.created_at,
+          updated: a.edited_at && a.edited_at > (a.updated_at || '') ? a.edited_at : a.updated_at,
+          author: user(a.author_id),
+          linkKeys: [`zendesk-article:${a.id}`],
+          url: a.html_url || null,
+          async image(src) {
+            // pictures uploaded to the article: by the attachment id (also on a custom help center domain)
+            const m = /\/article_attachments\/(\d+)/.exec(src);
+            if (m) {
+              const f = (await files()).find((x) => String(x.id) === m[1]);
+              if (f?.content_url) return { ref: `zd-att:${f.id}`, filename: f.file_name, load: (max) => download(f.content_url, max) };
+            }
+            return sameOrigin(src);
+          },
+          link(href) {
+            const m = /\/articles\/(\d+)/.exec(href);
+            return m ? { key: `zendesk-article:${m[1]}`, url: /^https?:/i.test(href) ? href : null } : null;
+          },
+          attachments: async () => (await files()).map((f) => ({
+            extId: String(f.id), ref: `zd-att:${f.id}`, filename: f.file_name, mime: f.content_type, size: Number(f.size) || 0, created: f.created_at,
+            load: (max) => download(f.content_url, max),
+          })),
+        };
+      }
+    },
+  };
+
   return {
+    kb,
     kind: 'zendesk',
     sourceId: `zendesk:${base.host}${basePath}`,
     host: base.host,

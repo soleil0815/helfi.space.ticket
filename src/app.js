@@ -118,7 +118,7 @@ export function createApp(db) {
     console.log(`\n${line}\n  Helfi.Space – Ersteinrichtung / initial setup\n  Einrichtungscode / setup code:  ${setup.token}\n  ${config.baseUrl}/setup\n${line}\n`);
   }
 
-  const importer = createImportCore({ db, tickets, users });
+  const importer = createImportCore({ db, tickets, users, kb });
   const jiraImporter = createJiraImporter({ core: importer });
   const canned = createCanned(db);
   const news = createNews(db);

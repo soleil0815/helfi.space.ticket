@@ -1069,6 +1069,32 @@ export const MIGRATIONS = [
     CREATE INDEX idx_kb_files_article ON kb_files(article_id);
     `,
   },
+  {
+    id: 55,
+    name: 'Knowledge import from other systems',
+    skipIf: (db) => db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kb_import_map'").get(),
+    sql: `
+    -- Which article came from which page/answer of which source system: importing again updates instead of duplicating
+    CREATE TABLE kb_import_map (
+      source TEXT NOT NULL,
+      external_id TEXT NOT NULL,
+      article_id INTEGER NOT NULL REFERENCES kb_articles(id) ON DELETE CASCADE,
+      source_updated TEXT, -- change date in the source at the last import: a different one means "changed"
+      imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      PRIMARY KEY (source, external_id)
+    );
+    CREATE INDEX idx_kb_import_map_article ON kb_import_map(article_id);
+    -- Pictures and files already loaded for an article (not loaded twice when importing again)
+    CREATE TABLE kb_import_assets (
+      source TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('image','file')),
+      external_ref TEXT NOT NULL,
+      article_id INTEGER NOT NULL REFERENCES kb_articles(id) ON DELETE CASCADE,
+      token TEXT NOT NULL,
+      PRIMARY KEY (source, kind, article_id, external_ref)
+    );
+    `,
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].id;

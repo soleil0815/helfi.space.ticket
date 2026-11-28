@@ -469,7 +469,7 @@ scene('ai', ['ai', 'ai-suggestion', 'ai-duplicate', 'kb-ai', 'ai-functions', 'ai
 });
 
 // ---------- Import ----------
-scene('import', ['import-source', 'import-csv'], async (S) => {
+scene('import', ['import-source', 'import-csv', 'import-kb'], async (S) => {
   const { page, go, shot, step } = S;
   const a = await page('admin', { height: 1500 });
   await step('source', async () => {
@@ -488,6 +488,35 @@ scene('import', ['import-source', 'import-csv'], async (S) => {
     await a.click('.import-source:nth-child(7)'); await a.setInputFiles('input[type=file]', file); await a.waitForSelector('select.select-sm'); await S.settle(a);
     const head = a.locator('section.panel:has(.import-sources) strong, section.panel:has(.import-sources) .import-csv-info').first();
     await shot.el(a, 'import-csv', head, { to: a.locator('section.panel:has(.import-sources) table').last(), pad: 16, maxHeight: 900 });
+  });
+  await step('kb', async () => {
+    // Knowledge import: a mock Confluence on this machine (allowed for the screenshot only)
+    const { startMockConfluence } = await import('../../test/fixtures/mock-knowledge.js');
+    const cf = await startMockConfluence({ cloud: false, spaces: [
+      { key: 'IT', name: S.T('IT-Anleitungen', 'IT how-tos'), count: 86 }, { key: 'HT', name: S.T('Haustechnik', 'Facilities'), count: 23 }, { key: 'ONB', name: S.T('Onboarding', 'Onboarding'), count: 14 },
+    ] });
+    const before = process.env.HELFI_IMPORT_ALLOW_LOCAL;
+    process.env.HELFI_IMPORT_ALLOW_LOCAL = '1';
+    try {
+      await go(a, '/admin/import');
+      await a.click('[data-imp-what="kb"]');
+      await a.locator('.import-source', { hasText: 'Confluence' }).click();
+      await a.selectOption('section.panel select', 'server');
+      await a.fill('input[placeholder="https://wiki.firma.local"]', cf.base);
+      await a.fill('input[type=password]', 'dc-token');
+      await a.click('.form-actions .btn-primary');
+      await a.waitForSelector('[data-imp-space="IT"]');
+      await a.check('[data-imp-space="IT"] input[type=checkbox]');
+      await a.check('[data-imp-space="HT"] input[type=checkbox]');
+      await a.selectOption('[data-imp-space="HT"] select', { label: S.T('Haustechnik', 'Facilities') }).catch(() => {});
+      await S.settle(a);
+      // shown with the connection hidden: the address of the mock is not meant for the manual
+      await a.evaluate(() => { const p = document.querySelector('section.panel:has([data-imp-space]) > p'); if (p) p.textContent = p.textContent.replace(/https?:\/\/[^\s.]+[^\s]*/g, 'https://wiki.firma.local'); });
+      await shot.el(a, 'import-kb', a.locator('section.panel:has([data-imp-space])'), { pad: 0, maxHeight: 900 });
+    } finally {
+      if (before === undefined) delete process.env.HELFI_IMPORT_ALLOW_LOCAL; else process.env.HELFI_IMPORT_ALLOW_LOCAL = before;
+      cf.close();
+    }
   });
 });
 

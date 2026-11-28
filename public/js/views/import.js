@@ -1,12 +1,14 @@
-// Administration → import from another ticket system: REST API (Cloud/Server), Zammad, Znuny/OTRS or a CSV file
+// Administration → import from another system: tickets (REST API Cloud/Server, Zammad, Znuny/OTRS, GLPI, Zendesk,
+// Freshdesk or a CSV file) or knowledge articles (Confluence and the knowledge bases of those ticket systems)
 import { api } from '../api.js';
 import { h, mount, icon, field, select, toast } from '../dom.js';
 import { t } from '../i18n.js';
 import { reloadBase } from '../app.js';
 
 // Connection data only in page memory – it is never stored
-const emptyConn = () => ({ type: 'cloud', baseUrl: '', email: '', token: '', appToken: '', username: '', password: '', verifyTls: true, caPem: '', uploadId: '', name: '', columns: {} });
+const emptyConn = () => ({ type: 'cloud', baseUrl: '', faqUrl: '', email: '', token: '', appToken: '', username: '', password: '', verifyTls: true, caPem: '', uploadId: '', name: '', columns: {} });
 let source = 'zammad';
+let what = 'tickets'; // 'tickets' | 'kb' (knowledge articles)
 let conn = emptyConn();
 let csvInfo = null; // { headers, rows, preview, suggested, fields }
 let projects = [];
@@ -17,6 +19,7 @@ let pollTimer = null;
 export function resetImportState() {
   clearTimeout(pollTimer);
   source = 'zammad';
+  what = 'tickets';
   conn = emptyConn();
   csvInfo = null;
   projects = [];
@@ -31,7 +34,11 @@ const SOURCES = [
   { id: 'freshdesk', icon: 'mail' },
   { id: 'jira', icon: 'globe' },
   { id: 'csv', icon: 'file' },
+  { id: 'confluence', icon: 'book', kbOnly: true },
 ];
+// Sources with knowledge articles (the others only have tickets)
+const KB_SOURCES = ['confluence', 'zammad', 'zendesk', 'freshdesk', 'glpi', 'znuny'];
+const sourcesFor = (w) => (w === 'kb' ? SOURCES.filter((s) => KB_SOURCES.includes(s.id)).sort((a, b) => KB_SOURCES.indexOf(a.id) - KB_SOURCES.indexOf(b.id)) : SOURCES.filter((s) => !s.kbOnly));
 const STATUS_TARGETS = ['open', 'in_progress', 'waiting', 'done'];
 const TYPE_TARGETS = ['incident', 'request', 'task', 'question'];
 const CSV_FIELD_ORDER = ['title', 'id', 'description', 'status', 'type', 'priority', 'reporterEmail', 'reporterName', 'assignee', 'labels', 'created', 'updated', 'resolved', 'due', 'project', 'comments'];
@@ -43,15 +50,17 @@ export async function importPage(body) {
   connectStep(body, job);
 }
 
-function header(step) {
-  const steps = ['imp.step.connect', 'imp.step.projects', 'imp.step.mapping', 'imp.step.run'];
+function header(step, kind = what) {
+  const steps = kind === 'kb' ? ['imp.step.connect', 'imp.step.spaces', 'imp.step.run'] : ['imp.step.connect', 'imp.step.projects', 'imp.step.mapping', 'imp.step.run'];
   return h('section.panel',
     h('h2', t('imp.title')),
-    h('p.muted', t('imp.intro')),
+    h('p.muted', t(kind === 'kb' ? 'imp.kb.intro' : 'imp.intro')),
     h('ol.steps-bar', steps.map((s, i) => h('li', { class: i === step ? 'active' : (i < step ? 'done' : '') }, h('span.n', String(i + 1)), t(s)))));
 }
 
-const connection = () => (source === 'csv' ? { uploadId: conn.uploadId, name: conn.name, columns: conn.columns } : conn);
+const connection = () => (source === 'csv' ? { uploadId: conn.uploadId, name: conn.name, columns: conn.columns }
+  // knowledge from Znuny/OTRS: only the FAQ web service (public, no sign-in)
+  : what === 'kb' && source === 'znuny' ? { faqUrl: conn.faqUrl, verifyTls: conn.verifyTls, caPem: conn.caPem } : conn);
 
 // ---------- 1. Source and connection ----------
 function connectStep(body, lastJob) {
@@ -76,6 +85,13 @@ function connectStep(body, lastJob) {
       err.hidden = true;
       connectBtn.disabled = true;
       try {
+        if (what === 'kb') {
+          const r = await api.admin.importKbConnect(source, connection());
+          if (!r.ok) return showErr(r.error);
+          connInfo = r;
+          toast(t('imp.connected', { user: r.user || '—', server: r.server.title || conn.baseUrl || conn.faqUrl }), 'success');
+          return kbSpacesStep(body, r);
+        }
         const r = await api.admin.importConnect(source, connection());
         if (!r.ok) return showErr(r.error);
         projects = r.projects.map((p) => ({ ...p, selected: r.projects.length === 1, targetKey: p.suggestedKey }));
@@ -89,7 +105,26 @@ function connectStep(body, lastJob) {
 
   function drawForm() {
     connectBtn.replaceChildren(icon(source === 'csv' ? 'chevron-right' : 'link'), t(source === 'csv' ? 'imp.next' : 'imp.connect'));
-    if (source === 'jira') {
+    if (source === 'confluence') {
+      const auth = h('div');
+      const drawAuth = () => mount(auth, conn.type === 'cloud'
+        ? h('div.grid-2',
+          field(t('imp.email'), bind('email', { type: 'email', autocomplete: 'off', placeholder: 'admin@firma.local' })),
+          field(t('imp.apiToken'), bind('token', { type: 'password', autocomplete: 'new-password' }), t('imp.confluence.tokenHint')))
+        : h('div',
+          field(t('imp.pat'), bind('token', { type: 'password', autocomplete: 'new-password' }), t('imp.patHint')),
+          h('details', h('summary', t('imp.basicAuth')),
+            h('div.grid-2', field(t('login.username'), bind('username', { autocomplete: 'off' })), field(t('login.password'), bind('password', { type: 'password', autocomplete: 'new-password' })))),
+          tls()));
+      drawAuth();
+      const typeSel = select([['cloud', t('imp.confluence.cloud')], ['server', t('imp.confluence.server')]], conn.type, { onchange: (e) => { conn.type = e.target.value; drawAuth(); } });
+      mount(form, h('div.grid-2', field(t('imp.type'), typeSel), field(t('imp.url'), bind('baseUrl', { placeholder: 'https://wiki.firma.local' }), t('imp.confluence.urlHint'))), auth);
+    } else if (source === 'znuny' && what === 'kb') {
+      mount(form,
+        field(t('imp.znuny.faqUrl'), bind('faqUrl', { placeholder: 'https://tickets.firma.local/otrs/nph-genericinterface.pl/Webservice/GenericFAQConnectorREST' }), t('imp.znuny.faqUrlHint')),
+        h('div.hint-box', icon('info'), h('div', h('p', t('imp.znuny.faqSetup')))),
+        tls());
+    } else if (source === 'jira') {
       const auth = h('div');
       const drawAuth = () => mount(auth, conn.type === 'cloud'
         ? h('div.grid-2',
@@ -175,17 +210,21 @@ function connectStep(body, lastJob) {
       h('p.muted.small', t('imp.csv.columnsHint')));
   }
 
-  const sourceBtns = h('div.import-sources', { role: 'radiogroup', 'aria-label': t('imp.source') }, SOURCES.map((s) => h('button.import-source', {
+  if (!sourcesFor(what).some((s) => s.id === source)) source = sourcesFor(what)[0].id;
+  const whatSeg = (w) => h(`button.seg${what === w ? '.active' : ''}`, { type: 'button', 'data-imp-what': w, 'aria-pressed': String(what === w), onclick: () => { if (what === w) return; what = w; err.hidden = true; connectStep(body, lastJob); } }, icon(w === 'kb' ? 'book' : 'inbox'), t(`imp.what.${w}`));
+  const whatRow = h('div.import-what', h('span.import-what-label', t('imp.what')), h('div.segmented', { role: 'group', 'aria-label': t('imp.what') }, whatSeg('tickets'), whatSeg('kb')));
+  const sourceBtns = h('div.import-sources', { role: 'radiogroup', 'aria-label': t('imp.source') }, sourcesFor(what).map((s) => h('button.import-source', {
     type: 'button', role: 'radio', 'aria-checked': String(s.id === source), class: s.id === source ? 'active' : '',
     onclick: () => { source = s.id; err.hidden = true; connectStep(body, lastJob); },
-  }, icon(s.icon), h('span.import-source-name', t(`imp.src.${s.id}`)), h('span.import-source-hint', t(`imp.src.${s.id}.hint`)))));
+  }, icon(s.icon), h('span.import-source-name', t(`imp.src.${s.id}`)), h('span.import-source-hint', t(what === 'kb' ? `imp.kbsrc.${s.id}.hint` : `imp.src.${s.id}.hint`)))));
   drawForm();
 
   mount(body,
     header(0),
     lastJob ? lastJobPanel(lastJob) : null,
     h('section.panel',
-      h('h3', t('imp.source')),
+      whatRow,
+      h('h3', t(what === 'kb' ? 'imp.kb.source' : 'imp.source')),
       sourceBtns,
       err,
       form,
@@ -195,6 +234,60 @@ function connectStep(body, lastJob) {
 
 function lastJobPanel(job) {
   return h('section.panel', h('h3', t('imp.lastRun')), summary(job));
+}
+
+// ---------- 2. Knowledge: spaces / categories of the source → projects of the knowledge base ----------
+function kbSpacesStep(body, info) {
+  const err = h('div.form-error', { hidden: true });
+  const projects2 = info.projects || [];
+  // Suggested project: same name or key, else a project whose name/key starts the space's name ("IT-Anleitungen" → IT), else the default project
+  const guess = (name) => {
+    const n = String(name).toLowerCase();
+    const word = (x) => n === x || new RegExp(`^${x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\b|[-_ /])`).test(n);
+    const p = projects2.find((x) => x.name.toLowerCase() === n || x.key.toLowerCase() === n)
+      || projects2.find((x) => word(x.name.toLowerCase()) || word(x.key.toLowerCase()));
+    return p?.id || info.defaultProjectId || projects2[0]?.id || null;
+  };
+  const spaces = info.spaces.map((s) => ({ ...s, selected: info.spaces.length === 1, projectId: guess(s.name), language: s.languages?.[0]?.code || null }));
+  const opts = { drafts: false, attachments: true, maxAttachmentMb: 50 };
+  const rows = spaces.map((s) => h('tr', { 'data-imp-space': s.key },
+    h('td', h('input', { type: 'checkbox', checked: s.selected, 'aria-label': s.name, onchange: (e) => { s.selected = e.target.checked; } })),
+    h('td', s.note === 'withoutCategory' ? h('span.muted', t('imp.kb.withoutCategory')) : s.name),
+    h('td.num', s.count ?? ''),
+    h('td', select(projects2.map((p) => [p.id, p.name]), s.projectId, { class: 'select-sm', 'aria-label': t('imp.kb.targetProject'), onchange: (e) => { s.projectId = Number(e.target.value); } })),
+    spaces.some((x) => (x.languages || []).length > 1)
+      ? h('td', (s.languages || []).length > 1 ? select(s.languages.map((l) => [l.code, l.name]), s.language, { class: 'select-sm', 'aria-label': t('imp.kb.language'), onchange: (e) => { s.language = e.target.value; } }) : h('span.muted', s.languages?.[0]?.name || '—'))
+      : null));
+  const check = (key, labelText, hint) => field(labelText, (() => { const c = h('input', { type: 'checkbox', checked: opts[key], 'data-imp-opt': key }); c.addEventListener('change', () => { opts[key] = c.checked; }); return c; })(), hint);
+  const start = h('button.btn.btn-primary', {
+    type: 'button',
+    onclick: async () => {
+      const chosen = spaces.filter((s) => s.selected);
+      if (!chosen.length) { err.textContent = t('imp.kb.chooseSpace'); err.hidden = false; return; }
+      start.disabled = true;
+      try {
+        await api.admin.importKbStart(source, connection(), chosen.map((s) => ({ key: s.key, name: s.name, projectId: s.projectId, count: s.count, language: s.language })), opts);
+        conn = emptyConn(); csvInfo = null; connInfo = { user: '', server: {} };
+        progressStep(body);
+      } catch (e) { toast(e.message, 'error'); start.disabled = false; }
+    },
+  }, icon('download'), t('imp.kb.start'));
+  const langCol = spaces.some((x) => (x.languages || []).length > 1);
+  mount(body,
+    header(1, 'kb'),
+    h('section.panel',
+      h('p', t('imp.kb.connectedAs', { user: info.user || '—', server: `${info.server.title || ''} ${info.server.version || ''}`.trim() || conn.baseUrl })),
+      err,
+      spaces.length ? h('table.data',
+        h('thead', h('tr', h('th', h('input', { type: 'checkbox', 'aria-label': t('imp.kb.all'), onchange: (e) => { spaces.forEach((s) => { s.selected = e.target.checked; }); rows.forEach((r) => { r.querySelector('input').checked = e.target.checked; }); } })),
+          h('th', t(`imp.kb.spaceName.${source}`)), h('th.num', t('imp.kb.count')), h('th', t('imp.kb.targetProject')), langCol ? h('th', t('imp.kb.language')) : null)),
+        h('tbody', rows)) : h('p.muted', t('imp.kb.noSpaces')),
+      h('h3', t('imp.options')),
+      check('drafts', t('imp.kb.optDrafts'), t('imp.kb.optDraftsHint')),
+      check('attachments', t('imp.kb.optFiles')),
+      field(t('imp.maxMb'), (() => { const i = h('input', { type: 'number', min: 1, max: 1024, value: opts.maxAttachmentMb, style: { width: '120px' } }); i.addEventListener('input', () => { opts.maxAttachmentMb = Number(i.value) || 50; }); return i; })()),
+      h('div.hint-box', icon('info'), h('div', h('p', t('imp.kb.hintWhat')), h('p', t(`imp.kb.hintVis.${source}`)), h('p', t('imp.kb.hintRepeat')), h('p', t('imp.hintNoMail')))),
+      h('div.form-actions', h('button.btn.btn-subtle', { type: 'button', onclick: () => connectStep(body) }, t('imp.back')), start)));
 }
 
 // ---------- 2. Projects ----------
@@ -283,15 +376,16 @@ function mappingStep(body, chosen, info) {
 function summary(job) {
   const c = job.counts;
   const named = job.kind && job.kind !== 'jira';
+  const kb = job.what === 'kb';
   return h('div',
     h('p', h('strong', t(`imp.state.${job.state}`)), job.kind ? h('span.muted', ` · ${t(`imp.src.${job.kind}`)}`) : null, job.current ? ` · ${job.current}` : ''),
     job.projects.map((p) => {
       const pct = p.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : (p.state === 'done' ? 100 : 0);
       return h('div.progress-row',
-        h('div.progress-label', `${named ? (p.name || p.key) : p.key} → `, h('a', { href: `/issues?project=${p.targetKey}`, 'data-link': '' }, p.targetKey), h('span.muted', ` ${p.done}${p.total ? ` / ${p.total}` : ''}`)),
+        h('div.progress-label', `${named ? (p.name || p.key) : p.key} → `, h('a', { href: kb ? `/kb?project=${encodeURIComponent(p.targetKey)}` : `/issues?project=${p.targetKey}`, 'data-link': '' }, p.targetKey), h('span.muted', ` ${p.done}${p.total ? ` / ${p.total}` : ''}`)),
         h('div.progress', h('div.progress-bar', { style: { width: `${pct}%` } })));
     }),
-    h('p.muted', t('imp.counts', c)),
+    h('p.muted', t(kb ? 'imp.kb.counts' : 'imp.counts', c)),
     job.errors.length ? h('details', h('summary', t('imp.errors', { n: job.errors.length })), h('ul.error-list', job.errors.slice(-50).map((e) => h('li.mono', e)))) : null);
 }
 
@@ -301,14 +395,16 @@ async function progressStep(body) {
   if (!job) return connectStep(body);
   const running = job.state === 'running';
   mount(body,
-    header(3),
+    header(job.what === 'kb' ? 2 : 3, job.what === 'kb' ? 'kb' : 'tickets'),
     h('section.panel',
       summary(job),
       h('div.form-actions',
         running
           ? h('button.btn', { type: 'button', disabled: job.cancelRequested, onclick: async () => { await api.admin.importCancel(); progressStep(body); } }, t('imp.cancel'))
-          : [h('a.btn.btn-primary', { href: `/board?project=${job.projects[0]?.targetKey || ''}`, 'data-link': '' }, t('imp.toBoard')),
-            h('button.btn', { type: 'button', onclick: () => { conn = emptyConn(); csvInfo = null; connectStep(body, job); } }, t('imp.again'))])));
+          : [job.what === 'kb'
+            ? h('a.btn.btn-primary', { href: `/kb?project=${encodeURIComponent(job.projects[0]?.targetKey || '')}`, 'data-link': '' }, t('imp.kb.toKb'))
+            : h('a.btn.btn-primary', { href: `/board?project=${job.projects[0]?.targetKey || ''}`, 'data-link': '' }, t('imp.toBoard')),
+          h('button.btn', { type: 'button', onclick: () => { conn = emptyConn(); csvInfo = null; connectStep(body, job); } }, t('imp.again'))])));
   if (running && document.body.contains(body)) pollTimer = setTimeout(() => progressStep(body), 1500);
   else if (!running) reloadBase().catch(() => {});
 }

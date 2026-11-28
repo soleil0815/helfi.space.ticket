@@ -540,6 +540,7 @@ Ticket type **Change** (agents only), with its own section in the ticket:
 - **Suggestions when reporting:** as a user types the summary in the “Create ticket” dialog, matching public articles appear (“Maybe this already helps”). They open without losing the report.
 - **From a ticket:** *Knowledge article* in a ticket creates a draft with description, last reply and, for problems, root cause and workaround. Remove personal details before publishing. The ticket history links to the article.
 - **Known errors:** tab with all problems marked as known error, including the workaround.
+- **Import** <sup>Admin</sup> from Confluence or the knowledge base of Zammad, Zendesk, Freshdesk, GLPI and Znuny/OTRS: see [Importing knowledge articles](#importing-knowledge-articles).
 - **Example articles:** *Examples* (agents) takes over ready sample articles – “How to report a problem well”, “Setting up VPN”, “Adding a printer”, “Changing or forgetting your password”, “Setting up an out-of-office reply” – in German or English. They are created **internal**: adapt the details in square brackets, then make them public.
 
 ## Portal for users
@@ -715,6 +716,35 @@ Also:
 - **Protection against misuse (SSRF):** the import never connects to local addresses (`127.x`, `::1`), link-local addresses (`169.254.x.x`, e.g. metadata services of cloud servers) or multicast – not even via a name or a redirect pointing there. Systems in your own network (`10.x`, `172.16–31.x`, `192.168.x`) are reachable. If the source system really runs on the same machine and is only reachable via `127.0.0.1`, `HELFI_IMPORT_ALLOW_LOCAL=1` in the `.env` lifts the block.
 - Before every import starts, Helfi.Space creates a backup (`helfi-vor-import-….sqlite`).
 - **Repeatable:** a second run updates tickets that have changed in the source system since (the state from there wins; the changed fields appear in the history). Unchanged ones stay as they were edited in Helfi.Space. New comments and attachments are added, nothing is duplicated. So you can do a trial import before the switch and import once more on the cut-over day. For CSV files use the same *name of the source*; without a number column a row is recognised by title, creation date and customer.
+
+### Importing knowledge articles
+
+At the top of the import page set *What to import?* to **Knowledge articles**. The sources are then:
+
+- **Confluence** – Cloud (address like `https://example.atlassian.net/wiki`, email and API token) or Data Center/Server (personal access token, alternatively user and password). A space is one choice; the **page tree** is kept. All pages come in as **internal**, because Confluence permissions cannot be mapped to "everyone signed in".
+- **Zammad** – knowledge base with the same credentials as for the ticket import. Published answers become public, internal ones stay internal; with several languages you pick one.
+- **Zendesk** – Help Center. Articles for everyone or signed-in users become public, those for agents only internal; with several languages you pick one.
+- **Freshdesk** – solutions. Folders for all or signed-in users become public, all others internal.
+- **GLPI** – knowledge base; FAQ entries become public, all others internal.
+- **Znuny / OTRS** – FAQ module through its own web service `GenericFAQConnectorREST` (import the included example once in Znuny under *Admin → Web services*). Through this interface Znuny only hands out **public** FAQ entries.
+
+How it works:
+
+1. **Connect** – credentials are not stored.
+2. **Choose spaces:** spaces (Confluence) or top-level categories (all others) with the number of articles; for each the **target project** of the knowledge base. Subcategories become the *category* of the article (e.g. "Hardware / Monitors").
+3. **Options:** take over drafts (as internal articles; archived ones always stay out), take over attachments, maximum file size.
+4. **Import** – with progress, can be cancelled; afterwards *Go to the knowledge base* opens the project.
+
+What is taken over:
+
+- **Text** with headings, lists, checklists, tables, code, links and info panels – converted like pasting into the editor, stored as plain text (no HTML). Scripts and foreign formatting are dropped.
+- **Pictures in the text** are downloaded and stored, but only from the source system itself (for Freshdesk also from its file servers), never from other addresses.
+- **Attachments** (PDFs, documents …) become attachments of the article, up to 20 per article; what could not be taken over is noted below the article.
+- **Links** between imported articles point to the new articles afterwards; links to pages not imported point to the old address or become text.
+- **Confluence macros:** info, note, tip and warning panels become info panels, code macros code blocks, expand sections are shown expanded, task lists become checklists. Table of contents, page tree and attachment macros are dropped (those exist here anyway); all others appear as a visible note "Confluence macro … not imported" in the text.
+- **Origin:** creation and change dates from the source; the first version carries the note "Imported from … (author)".
+- Comments and ratings from the source system do not come along. No emails are sent, a backup is created before the start.
+- **Repeatable:** a second run creates nothing twice. Articles changed in the source system get a new version (the history stays); unchanged ones stay as they were edited here. Nothing is deleted.
 
 ---
 

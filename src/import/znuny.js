@@ -5,6 +5,7 @@
 import { convert as htmlToText } from 'html-to-text';
 import { createSourceHttp, SourceError } from './http.js';
 import { parseFrom } from './zammad.js';
+import { escapeHtml } from './kb-html.js';
 
 const BATCH = 50; // tickets per TicketGet call while reading the overview
 
@@ -98,7 +99,83 @@ export function znunyAdapter(c) {
 
   const queueKey = (tk) => String(tk.QueueID ?? tk.Queue ?? '');
 
+  // ---------- FAQ (own web service GenericFAQConnectorREST, public FAQ entries only) ----------
+  const FIELD_LABELS = {
+    de: { Field1: 'Symptom', Field2: 'Problem', Field3: 'Lösung', Field4: 'Weitere Informationen', Field5: 'Weitere Informationen', Field6: 'Kommentar' },
+    en: { Field1: 'Symptom', Field2: 'Problem', Field3: 'Solution', Field4: 'More information', Field5: 'More information', Field6: 'Comment' },
+  };
+  let faq = null;
+  function faqHttp() {
+    if (!c.faqUrl) throw new SourceError('Für die FAQ fehlt die Adresse des FAQ-Webservice (GenericFAQConnectorREST).', 400);
+    faq ||= createSourceHttp({ baseUrl: c.faqUrl, verifyTls: c.verifyTls, caPem: c.caPem });
+    return faq;
+  }
+  const faqGet = async (path, body) => {
+    const h = faqHttp();
+    // the example web service maps the routes to GET; some installations use POST
+    try { return check(await h.json(`${path}?${new URLSearchParams(body)}`)); } catch (e) {
+      if (e.status === 401 || e.status === 403 || e.status === 400) throw e;
+      return check(await h.json(path, { method: 'POST', body }));
+    }
+  };
+  let faqItems = null;
+  async function allFaq() {
+    if (faqItems) return faqItems;
+    const r = await faqGet('/PublicFAQSearch', { Limit: '100000' });
+    const ids = asArray(r?.ID ?? r?.ItemID ?? r?.FAQID).map(String).filter((x) => /^\d+$/.test(x)).sort((a, b) => Number(a) - Number(b));
+    faqItems = [];
+    for (let i = 0; i < ids.length; i += 50) {
+      const g = await faqGet('/PublicFAQGet', { ItemID: ids.slice(i, i + 50).join(','), GetAttachmentContents: '1' });
+      faqItems.push(...asArray(g?.FAQItem));
+    }
+    return faqItems;
+  }
+  const topOf = (name) => String(name || '').split('::')[0].trim() || '—';
+  const fieldHtml = (v) => { const t = String(v || '').trim(); return /<\/?[a-z][^>]*>/i.test(t) ? t : escapeHtml(t).replace(/\n/g, '<br>'); };
+
+  const kb = c.faqUrl ? {
+    // the public FAQ interface needs no sign-in: only check that the web service answers
+    async info() { await faqGet('/LanguageList', {}); return { title: 'Znuny / OTRS FAQ', version: '', user: '' }; },
+    async spaces() {
+      const items = await allFaq();
+      const count = new Map();
+      for (const it of items) count.set(topOf(it.CategoryName), (count.get(topOf(it.CategoryName)) || 0) + 1);
+      const langs = [...new Set(items.map((it) => String(it.Language || '')).filter(Boolean))];
+      return [...count].sort((x, y) => x[0].localeCompare(y[0])).map(([name, n]) => ({ key: name, name, count: n, languages: langs.map((code) => ({ code, name: code })) }));
+    },
+    async *articles(key, { language = null, lang = 'de' } = {}) {
+      const labels = FIELD_LABELS[lang === 'en' ? 'en' : 'de'];
+      for (const it of await allFaq()) {
+        if (topOf(it.CategoryName) !== key) continue;
+        if (language && it.Language && String(it.Language) !== String(language)) continue;
+        const files = asArray(it.Attachment).map((a, n) => ({ ...a, n }));
+        const html = ['Field1', 'Field2', 'Field3', 'Field4', 'Field5', 'Field6']
+          .filter((f) => String(it[f] || '').trim())
+          .map((f) => `<h2>${escapeHtml(labels[f])}</h2>${fieldHtml(it[f])}`).join('');
+        const fileOf = (src) => { const m = /FileID[=:](\d+)/i.exec(src); return m ? files.find((a) => String(a.FileID) === m[1]) : null; };
+        const load = (a) => async (max) => { const b = Buffer.from(String(a.Content || ''), 'base64'); if (b.length > max) throw new SourceError('zu groß', 413); return b; };
+        yield {
+          extId: `faq:${it.ItemID}`,
+          title: it.Title || `FAQ ${it.ItemID}`,
+          html,
+          parentExtId: null,
+          category: String(it.CategoryName || '').split('::').slice(1).join(' / ').slice(0, 60),
+          visibility: 'public', // the public interface only delivers public entries
+          draft: false,
+          created: znunyDate(it.Created),
+          updated: znunyDate(it.Changed || it.Created),
+          author: it.CreatedBy ? { name: String(it.CreatedBy), email: '' } : null,
+          linkKeys: [`znuny-faq:${it.ItemID}`],
+          image: (src) => { const a = fileOf(src); return a ? { ref: `faq-file:${a.FileID ?? a.n}`, filename: a.Filename, load: load(a) } : null; },
+          link: (href) => { const m = /ItemID[=;:](\d+)/i.exec(href); return /FAQ/i.test(href) && m ? { key: `znuny-faq:${m[1]}` } : null; },
+          attachments: async () => files.map((a) => ({ extId: String(a.FileID ?? a.n), ref: `faq-file:${a.FileID ?? a.n}`, filename: a.Filename || 'datei', mime: a.ContentType || '', size: Number(a.Filesize) || Buffer.byteLength(String(a.Content || ''), 'base64'), load: load(a) })),
+        };
+      }
+    },
+  } : null;
+
   return {
+    kb,
     kind: 'znuny',
     sourceId: `znuny:${base.host}${basePath}`,
     host: base.host,

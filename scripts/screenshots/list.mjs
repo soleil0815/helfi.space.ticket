@@ -8,7 +8,7 @@ export const SHOTS = [
   'admin-users-sees', 'ai', 'ai-duplicate', 'ai-functions', 'ai-models', 'ai-suggestion',
   'backfill', 'backfill-review', 'board', 'bulk', 'bulk-link', 'catalog-manage-lead',
   'comment-delete', 'comment-toolbar', 'create', 'dark-mode', 'done-comment', 'emoji', 'examples-catalog',
-  'examples-kb', 'html-mail', 'idle', 'import-csv', 'import-source', 'itil-catalog',
+  'examples-kb', 'html-mail', 'idle', 'import-csv', 'import-kb', 'import-source', 'itil-catalog',
   'itil-catalog-approval', 'itil-catalog-form', 'itil-change', 'itil-change-calendar', 'itil-ci', 'itil-cis',
   'itil-kb', 'itil-kb-suggest', 'itil-links', 'itil-major', 'itil-problem', 'itil-rating',
   'itil-reports', 'itil-reports-survey', 'itil-sla-list', 'kb-ai', 'kb-compare', 'kb-editor',
